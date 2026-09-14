@@ -8,21 +8,27 @@ import XCResultParser
 
 @Mockable
 public protocol XCResultServicing {
+    /// Parses the bundle's tests and, when the run gathered code coverage, the coverage report.
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
+    /// The bundle's coverage report on its own, or nil when the run gathered none.
+    func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
     private let parser: XCResultParser
+    private let coverageParser: XcodeCoverageParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        parser: XCResultParser = XCResultParser()
+        parser: XCResultParser = XCResultParser(),
+        coverageParser: XcodeCoverageParsing = XcodeCoverageParser()
     ) {
         self.fileSystem = fileSystem
         self.parser = parser
+        self.coverageParser = coverageParser
     }
 
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
@@ -59,7 +65,19 @@ public struct XCResultService: XCResultServicing {
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
-        try await parser.parse(path: path, rootDirectory: rootDirectory)
+        guard var summary = try await parser.parse(path: path, rootDirectory: rootDirectory) else { return nil }
+        summary.coverage = try await parseCoverage(path: path, rootDirectory: rootDirectory)
+        return summary
+    }
+
+    public func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport? {
+        do {
+            return try await coverageParser.parse(resultBundlePath: path, rootDirectory: rootDirectory)
+        } catch {
+            // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
+            Logger.current.warning("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {

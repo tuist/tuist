@@ -60,6 +60,8 @@ defmodule Tuist.Tests.Test do
     field :stress_stressed_count, Ch, type: "UInt32", default: 0
     field :stress_excluded_count, Ch, type: "UInt32", default: 0
     field :stress_known_count, Ch, type: "UInt32", default: 0
+    field :coverage_covered_lines, Ch, type: "UInt32", default: 0
+    field :coverage_executable_lines, Ch, type: "UInt32", default: 0
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
@@ -107,7 +109,9 @@ defmodule Tuist.Tests.Test do
       :stress_new_count,
       :stress_stressed_count,
       :stress_excluded_count,
-      :stress_known_count
+      :stress_known_count,
+      :coverage_covered_lines,
+      :coverage_executable_lines
     ])
     |> validate_required([
       :id,

@@ -89,7 +89,8 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
+          socket.assigns.test_runs_duration_analytics.result,
+          socket.assigns.test_runs_coverage_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -121,7 +122,8 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
+          socket.assigns.test_runs_duration_analytics.result,
+          socket.assigns.test_runs_coverage_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -237,6 +239,7 @@ defmodule TuistWeb.TestsLive do
         :flaky_test_runs_analytics,
         :failed_test_runs_analytics,
         :test_runs_duration_analytics,
+        :test_runs_coverage_analytics,
         :analytics_chart_data
       ],
       fn ->
@@ -249,6 +252,7 @@ defmodule TuistWeb.TestsLive do
           Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
 
         test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+        test_runs_coverage_analytics = Analytics.test_run_coverage_analytics(project.id, opts)
 
         {:ok,
          %{
@@ -256,6 +260,7 @@ defmodule TuistWeb.TestsLive do
            flaky_test_runs_analytics: flaky_test_runs_analytics,
            failed_test_runs_analytics: failed_test_runs_analytics,
            test_runs_duration_analytics: test_runs_duration_analytics,
+           test_runs_coverage_analytics: test_runs_coverage_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
@@ -263,7 +268,8 @@ defmodule TuistWeb.TestsLive do
                test_runs_analytics,
                flaky_test_runs_analytics,
                failed_test_runs_analytics,
-               test_runs_duration_analytics
+               test_runs_duration_analytics,
+               test_runs_coverage_analytics
              )
          }}
       end
@@ -397,11 +403,15 @@ defmodule TuistWeb.TestsLive do
          test_runs_analytics,
          flaky_test_runs_analytics,
          failed_test_runs_analytics,
-         test_runs_duration_analytics
+         test_runs_duration_analytics,
+         test_runs_coverage_analytics
        ) do
     case analytics_selected_widget do
       "test_run_count" ->
         %{dates: test_runs_analytics.dates, values: test_runs_analytics.values}
+
+      "coverage" ->
+        %{dates: test_runs_coverage_analytics.dates, values: test_runs_coverage_analytics.values}
 
       "flaky_test_run_count" ->
         %{dates: flaky_test_runs_analytics.dates, values: flaky_test_runs_analytics.values}

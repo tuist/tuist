@@ -77,6 +77,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSysteming
     private let xcresultToolController: XCResultToolControlling
+    private let xcResultService: XCResultServicing
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -92,7 +93,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         fileSystem: FileSysteming = FileSystem(),
-        xcresultToolController: XCResultToolControlling = XCResultToolController()
+        xcresultToolController: XCResultToolControlling = XCResultToolController(),
+        xcResultService: XCResultServicing = XCResultService()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -108,6 +110,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
         self.xcresultToolController = xcresultToolController
+        self.xcResultService = xcResultService
     }
 
     public func uploadTestSummary(
@@ -261,6 +264,13 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             }
         }
 
+        // The server parses the bundle's tests, but coverage paths only make sense relative to
+        // this checkout, so the coverage report is read here and travels with the run.
+        let coverage = try await xcResultService.parseCoverage(
+            path: resolvedResultBundlePath,
+            rootDirectory: rootDirectory
+        )
+
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -269,7 +279,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 testPlanName: nil,
                 status: .processing,
                 duration: 0,
-                testModules: []
+                testModules: [],
+                coverage: coverage
             ),
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,

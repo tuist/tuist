@@ -228,6 +228,13 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
+      :if={@has_coverage}
+      label={dgettext("dashboard_tests", "Coverage")}
+      selected={@selected_tab == "coverage"}
+      patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
       :if={@failures_count > 0}
       label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
@@ -2214,6 +2221,103 @@
       />
     </.card_section>
   </.card>
+
+  <div :if={@selected_tab == "coverage" and @has_coverage} data-part="coverage">
+    <.card
+      title={dgettext("dashboard_tests", "Code Coverage")}
+      icon="chart_arcs"
+      data-part="coverage-summary-card"
+    >
+      <.card_section data-part="coverage-summary-section">
+        <div data-part="widgets">
+          <.widget
+            title={dgettext("dashboard_tests", "Line coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of executable lines the tests ran at least once, counting each source file once."
+              )
+            }
+            value={"#{coverage_percentage(@run)}%"}
+            id="widget-coverage-percentage"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
+            }
+            value={format_number(@run.coverage_covered_lines)}
+            id="widget-coverage-covered-lines"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Executable lines")}
+            description={
+              dgettext("dashboard_tests", "Lines the compiler instrumented for coverage.")
+            }
+            value={format_number(@run.coverage_executable_lines)}
+            id="widget-coverage-executable-lines"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Targets")}
+            description={dgettext("dashboard_tests", "Targets the scheme gathered coverage for.")}
+            value={length(@coverage_targets)}
+            id="widget-coverage-targets"
+          />
+        </div>
+      </.card_section>
+      <.card_section data-part="coverage-targets-section">
+        <.table id="coverage-targets-table" rows={@coverage_targets}>
+          <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
+            <.text_cell label={target.name} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
+            <.text_cell label={format_number(length(target.files))} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
+            <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
+            <div data-part="coverage-cell">
+              <.progress_bar value={target.covered_lines} max={max(target.executable_lines, 1)} />
+              <span data-part="percentage">{coverage_percentage(target)}%</span>
+            </div>
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
+      title={dgettext("dashboard_tests", "Files")}
+      icon="file"
+      data-part="coverage-files-card"
+    >
+      <.card_section data-part="coverage-files-section">
+        <.table id="coverage-files-table" rows={@coverage_files}>
+          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+            <.text_cell label={file.path} />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Target")}>
+            <.text_cell label={file.target_name} />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
+            <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
+            <div data-part="coverage-cell">
+              <.progress_bar value={file.covered_lines} max={max(file.executable_lines, 1)} />
+              <span data-part="percentage">{coverage_percentage(file)}%</span>
+            </div>
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@coverage_files_meta.total_pages > 1}
+          current_page={@coverage_files_meta.current_page}
+          number_of_pages={@coverage_files_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "coverage-page", page)}" end}
+        />
+      </.card_section>
+    </.card>
+  </div>
 
   <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
     <.live_component

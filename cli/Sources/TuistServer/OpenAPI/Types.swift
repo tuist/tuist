@@ -3811,6 +3811,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modules`.
             public var test_modules: Components.Schemas.TestParams.test_modulesPayload
+            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
+            public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
@@ -3842,6 +3844,7 @@ public enum Components {
             ///   - status: The status of the test run.
             ///   - stress_new_tests:
             ///   - test_modules: The test modules associated with the test run.
+            ///   - xcode_coverage:
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 build_run_id: Swift.String? = nil,
@@ -3868,6 +3871,7 @@ public enum Components {
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
+                xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -3894,6 +3898,7 @@ public enum Components {
                 self.status = status
                 self.stress_new_tests = stress_new_tests
                 self.test_modules = test_modules
+                self.xcode_coverage = xcode_coverage
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3921,6 +3926,7 @@ public enum Components {
                 case status
                 case stress_new_tests
                 case test_modules
+                case xcode_coverage
                 case xcode_version
             }
         }
@@ -8626,6 +8632,111 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
         public typealias GenerationsIndexBefore = Swift.String
+        /// Line coverage from a test run that ran with code coverage enabled: every target the scheme gathered coverage for, and each source file in it with its covered and executable line counts. A file linked into several targets appears under each of them, as `xccov` reports it.
+        ///
+        /// - Remark: Generated from `#/components/schemas/XcodeCoverage`.
+        public struct XcodeCoverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload`.
+            public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                /// Executable lines the tests ran at least once.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// Lines the compiler instrumented.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload`.
+                public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                    /// Executable lines the tests ran at least once.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// Lines the compiler instrumented.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// The file's path, relative to the project's root directory when it lives under it and absolute otherwise.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/path`.
+                    public var path: Swift.String
+                    /// Creates a new `filesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - covered_lines: Executable lines the tests ran at least once.
+                    ///   - executable_lines: Lines the compiler instrumented.
+                    ///   - path: The file's path, relative to the project's root directory when it lives under it and absolute otherwise.
+                    public init(
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        path: Swift.String
+                    ) {
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.path = path
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case covered_lines
+                        case executable_lines
+                        case path
+                    }
+                }
+                /// The source files compiled into the target.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/files`.
+                public typealias filesPayload = [Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayloadPayload]
+                /// The source files compiled into the target.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/files`.
+                public var files: Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayload
+                /// The target's name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/name`.
+                public var name: Swift.String
+                /// Creates a new `targetsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - covered_lines: Executable lines the tests ran at least once.
+                ///   - executable_lines: Lines the compiler instrumented.
+                ///   - files: The source files compiled into the target.
+                ///   - name: The target's name.
+                public init(
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    files: Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayload,
+                    name: Swift.String
+                ) {
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.files = files
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case covered_lines
+                    case executable_lines
+                    case files
+                    case name
+                }
+            }
+            /// The targets coverage was gathered for.
+            ///
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targets`.
+            public typealias targetsPayload = [Components.Schemas.XcodeCoverage.targetsPayloadPayload]
+            /// The targets coverage was gathered for.
+            ///
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targets`.
+            public var targets: Components.Schemas.XcodeCoverage.targetsPayload
+            /// Creates a new `XcodeCoverage`.
+            ///
+            /// - Parameters:
+            ///   - targets: The targets coverage was gathered for.
+            public init(targets: Components.Schemas.XcodeCoverage.targetsPayload) {
+                self.targets = targets
+            }
+            public enum CodingKeys: String, CodingKey {
+                case targets
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
         public struct RunnerShellSession: Codable, Hashable, Sendable {
             /// When the session expires.
@@ -21500,6 +21611,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modules`.
                     public var test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
+                    public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The version of Xcode used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
@@ -21531,6 +21644,7 @@ public enum Operations {
                     ///   - status: The status of the test run.
                     ///   - stress_new_tests:
                     ///   - test_modules: The test modules associated with the test run.
+                    ///   - xcode_coverage:
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -21557,6 +21671,7 @@ public enum Operations {
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
+                        xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -21583,6 +21698,7 @@ public enum Operations {
                         self.status = status
                         self.stress_new_tests = stress_new_tests
                         self.test_modules = test_modules
+                        self.xcode_coverage = xcode_coverage
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -21610,6 +21726,7 @@ public enum Operations {
                         case status
                         case stress_new_tests
                         case test_modules
+                        case xcode_coverage
                         case xcode_version
                     }
                 }

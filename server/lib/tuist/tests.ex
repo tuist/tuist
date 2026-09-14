@@ -60,6 +60,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Webhooks.Dispatcher
 
   require Logger
@@ -506,6 +507,7 @@ defmodule Tuist.Tests do
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
+    xcode_coverage = Map.get(attrs, :xcode_coverage)
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -514,7 +516,10 @@ defmodule Tuist.Tests do
         attrs
       end
 
-    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
+    attrs =
+      attrs
+      |> Map.merge(StressNewTests.run_attrs(stress_new_tests))
+      |> Map.merge(XcodeCoverage.run_attrs(xcode_coverage))
 
     case %Test{}
          |> Test.create_changeset(attrs)
@@ -523,6 +528,7 @@ defmodule Tuist.Tests do
         create_run_destinations(test, Map.get(attrs, :run_destinations, []))
         create_run_errors(test, Map.get(attrs, :run_errors, []))
         StressNewTests.insert_candidates(test, stress_new_tests)
+        XcodeCoverage.insert_files(test, xcode_coverage)
 
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -724,11 +730,16 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
+          xcode_coverage = Map.get(attrs, :xcode_coverage)
+          coverage_attrs = XcodeCoverage.merge_run_attrs(existing_test, xcode_coverage)
+          XcodeCoverage.insert_files(existing_test, xcode_coverage)
+
           updated_test =
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
             |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
+            |> Map.merge(coverage_attrs)
 
           update_attrs =
             updated_test

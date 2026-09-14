@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
 import XCResultParser
@@ -172,6 +173,40 @@ struct XCResultServiceTests {
         let modules = Set(got.testCases.compactMap(\.module))
         #expect(modules == ["AppTests"])
         #expect(got.testCases.contains { $0.testSuite != nil })
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseAttachesTheBundlesCoverage() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let coverageParser = MockXcodeCoverageParsing()
+        let coverage = XcodeCoverageReport(targets: [
+            XcodeCoverageTarget(name: "App", coveredLines: 1, executableLines: 2, files: []),
+        ])
+        given(coverageParser)
+            .parse(resultBundlePath: .value(xcresult), rootDirectory: .any)
+            .willReturn(coverage)
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When
+        let got = try #require(await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.coverage == coverage)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseCoverageSwallowsAReportItCannotRead() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let coverageParser = MockXcodeCoverageParsing()
+        given(coverageParser)
+            .parse(resultBundlePath: .any, rootDirectory: .any)
+            .willThrow(NSError(domain: "xccov", code: 1))
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When / Then
+        #expect(try await subject.parseCoverage(path: xcresult, rootDirectory: nil) == nil)
     }
 
     private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {

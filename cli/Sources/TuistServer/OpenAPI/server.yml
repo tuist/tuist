@@ -506,6 +506,8 @@ components:
           type: array
           x-struct:
           x-validate:
+        xcode_coverage:
+          $ref: '#/components/schemas/XcodeCoverage'
         xcode_version:
           description: The version of Xcode used during the run.
           type: string
@@ -3851,6 +3853,74 @@ components:
       title: GenerationsIndexBefore
       type: string
       x-struct:
+      x-validate:
+    XcodeCoverage:
+      description: 'Line coverage from a test run that ran with code coverage enabled: every target the scheme gathered coverage for, and each source file in it with its covered and executable line counts. A file linked into several targets appears under each of them, as `xccov` reports it.'
+      properties:
+        targets:
+          description: The targets coverage was gathered for.
+          items:
+            properties:
+              covered_lines:
+                description: Executable lines the tests ran at least once.
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                description: Lines the compiler instrumented.
+                type: integer
+                x-struct:
+                x-validate:
+              files:
+                description: The source files compiled into the target.
+                items:
+                  properties:
+                    covered_lines:
+                      description: Executable lines the tests ran at least once.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    executable_lines:
+                      description: Lines the compiler instrumented.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    path:
+                      description: "The file's path, relative to the project's root directory when it lives under it and absolute otherwise."
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - path
+                    - covered_lines
+                    - executable_lines
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              name:
+                description: The target's name.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - covered_lines
+              - executable_lines
+              - files
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - targets
+      title: XcodeCoverage
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.XcodeCoverage
       x-validate:
     RunnerShellSession:
       properties:
@@ -10540,6 +10610,8 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                xcode_coverage:
+                  $ref: '#/components/schemas/XcodeCoverage'
                 xcode_version:
                   description: The version of Xcode used during the run.
                   type: string

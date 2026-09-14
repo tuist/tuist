@@ -58,17 +58,20 @@ defmodule Tuist.Tests.XcresultProcessing do
         shard_index: Map.get(args, "shard_index"),
         ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
       },
-      stress_attrs(args)
+      carried_attrs(args)
     )
   end
 
-  @stress_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count)
+  # Columns the client reported with the run and the bundle cannot supply: the
+  # stress gate's verdict and the coverage totals. The worker rewrites the row
+  # from these attributes once the bundle is parsed, so they ride along.
+  @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count coverage_covered_lines coverage_executable_lines)
 
   # Only what the job carried: a job enqueued without them leaves the columns to
   # their defaults, exactly as before the gate existed.
-  defp stress_attrs(args) do
+  defp carried_attrs(args) do
     args
-    |> Map.take(@stress_keys)
+    |> Map.take(@carried_keys)
     |> Map.new(fn {key, value} -> {String.to_existing_atom(key), value} end)
   end
 

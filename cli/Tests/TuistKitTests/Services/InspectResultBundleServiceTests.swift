@@ -36,6 +36,7 @@ struct UploadResultBundleServiceTests {
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let analyticsArtifactUploadService = MockAnalyticsArtifactUploadServicing()
+    private let xcResultService = MockXCResultServicing()
     private let fileSystem = FileSystem()
 
     init() throws {
@@ -52,7 +53,8 @@ struct UploadResultBundleServiceTests {
             rootDirectoryLocator: rootDirectoryLocator,
             xcActivityLogController: xcActivityLogController,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            xcResultService: xcResultService
         )
 
         given(machineEnvironment)
@@ -831,7 +833,70 @@ struct UploadResultBundleServiceTests {
     // MARK: - uploadResultBundle (remote)
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_sendsTheBundlesCoverageWithTheProcessingTest() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        let coverage = XcodeCoverageReport(targets: [
+            XcodeCoverageTarget(
+                name: "App",
+                coveredLines: 1,
+                executableLines: 2,
+                files: [XcodeCoverageFile(path: "Sources/A.swift", coveredLines: 1, executableLines: 2)]
+            ),
+        ])
+
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(coverage)
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        // The server parses the bundle's tests itself; the coverage rides along because its
+        // paths only make sense relative to this checkout.
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .matching { $0.coverage == coverage && $0.status == .processing },
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_uploadsAndCreatesProcessingTest() async throws {
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -895,6 +960,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_writesQuarantinedTestsJSON() async throws {
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -936,6 +1004,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_resolvesSymlinkBeforeUpload() async throws {
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "result-bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -975,6 +1046,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadResultBundle_throwsWhenFullHandleMissing() async throws {
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         await #expect(
             throws: UploadResultBundleServiceError.missingFullHandle
         ) {
@@ -990,6 +1064,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_throwsWhenInfoPlistMissing() async throws {
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)

@@ -346,6 +346,13 @@
         )
         var stressNewTests: StressNewTestsMode?
 
+        @Flag(
+            name: .long,
+            help: "Gather code coverage by passing '-enableCodeCoverage YES' to xcodebuild. Coverage found in the result bundle is always reported, so this is only needed when the scheme does not enable it.",
+            envKey: .testCoverage
+        )
+        var coverage: Bool = false
+
         @Option(
             name: .long,
             help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
@@ -470,7 +477,8 @@
                     return nil
                 }(),
                 mode: inspectMode,
-                stressNewTests: stressNewTests
+                stressNewTests: stressNewTests,
+                coverage: coverage
             )
         }
     }

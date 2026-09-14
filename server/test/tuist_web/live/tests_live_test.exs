@@ -20,6 +20,43 @@ defmodule TuistWeb.TestsLiveTest do
     assert has_element?(lv, "#tests-analytics-scheme-dropdown [data-part='search-input']")
   end
 
+  test "renders the line coverage widget from the runs that gathered coverage", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        # The period ends at the mount's second, so a run stamped in the same second
+        # with microseconds would fall just outside it.
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          targets: [
+            %{
+              name: "Calculator",
+              covered_lines: 3,
+              executable_lines: 4,
+              files: [%{path: "Sources/Add.swift", covered_lines: 3, executable_lines: 4}]
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
+    render_async(lv, @render_async_timeout)
+
+    assert has_element?(lv, "#widget-coverage", "75.0%")
+  end
+
   test "renders the shared test dashboard for Bazel projects", %{
     conn: conn,
     organization: organization

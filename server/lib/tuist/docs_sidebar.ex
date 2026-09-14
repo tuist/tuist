@@ -234,7 +234,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode"},
               %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel"}
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel"},
+              %Item{label: "Code coverage", slug: "/en/guides/features/test-insights/coverage"}
             ]
           },
           %Item{

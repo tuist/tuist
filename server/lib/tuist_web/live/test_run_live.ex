@@ -26,6 +26,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
@@ -101,6 +102,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
+      |> assign(:has_coverage, run.coverage_executable_lines > 0)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
@@ -155,6 +157,9 @@ defmodule TuistWeb.TestRunLive do
   defp assign_stress_gate(socket, run) do
     assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
   end
+
+  @doc false
+  def coverage_percentage(entry), do: XcodeCoverage.percentage(entry)
 
   @doc false
   def stress_candidate_for(candidates_by_identity, test_case_run) do
@@ -618,6 +623,31 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failed_test_case_runs, meta, params)
+  end
+
+  defp assign_tab_data(socket, "coverage", params) do
+    run = socket.assigns.run
+    targets = run.id |> XcodeCoverage.targets_for_run() |> Enum.map(&Map.put(&1, :id, &1.name))
+
+    files =
+      targets
+      |> Enum.flat_map(fn target ->
+        Enum.map(target.files, &Map.merge(&1, %{target_name: target.name, id: "#{target.name}/#{&1.path}"}))
+      end)
+      |> Enum.sort_by(&{XcodeCoverage.ratio(&1), &1.path})
+
+    page = Query.positive_integer(params["coverage-page"])
+    total_pages = max(1, ceil(length(files) / @table_page_size))
+    page = min(page, total_pages)
+
+    socket
+    |> assign(:coverage_targets, targets)
+    |> assign(:coverage_files, Enum.slice(files, (page - 1) * @table_page_size, @table_page_size))
+    |> assign(:coverage_files_count, length(files))
+    |> assign(:coverage_files_meta, %{current_page: page, total_pages: total_pages})
+    |> assign_selective_testing_defaults()
+    |> assign_binary_cache_defaults()
+    |> assign_param_defaults(params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do

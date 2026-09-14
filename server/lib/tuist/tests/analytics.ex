@@ -57,6 +57,95 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  @doc """
+  Line coverage of the project's test runs over time: the share of executable
+  lines covered across the runs in each bucket, with the period's figure and
+  its trend against the previous period. Runs that gathered no coverage are
+  left out rather than dragging the share down, and a bucket without any run
+  that did reads as a gap.
+  """
+  def test_run_coverage_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    points =
+      project_id
+      |> coverage_by_bucket(start_datetime, end_datetime, clickhouse_time_bucket, opts)
+      |> fill_coverage_points(start_datetime, end_datetime, date_period)
+
+    previous = coverage_totals(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
+    current = coverage_totals(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      coverage: coverage_percentage(current),
+      runs_count: current.runs_count,
+      trend: trend(previous_value: coverage_percentage(previous), current_value: coverage_percentage(current)),
+      values: Enum.map(points, & &1.coverage),
+      dates: Enum.map(points, & &1.date)
+    }
+  end
+
+  defp coverage_by_bucket(project_id, start_datetime, end_datetime, time_bucket, opts) do
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.ran_at >= ^start_datetime,
+      where: t.ran_at <= ^end_datetime,
+      where: t.coverage_executable_lines > 0,
+      group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+      select: %{
+        date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        covered_lines: sum(t.coverage_covered_lines),
+        executable_lines: sum(t.coverage_executable_lines)
+      },
+      order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+    )
+    |> apply_test_run_filters(opts)
+    |> ClickHouseRepo.all()
+  end
+
+  defp coverage_totals(project_id, start_datetime, end_datetime, opts) do
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.ran_at >= ^start_datetime,
+      where: t.ran_at <= ^end_datetime,
+      where: t.coverage_executable_lines > 0,
+      select: %{
+        covered_lines: sum(t.coverage_covered_lines),
+        executable_lines: sum(t.coverage_executable_lines),
+        runs_count: count(t.id)
+      }
+    )
+    |> apply_test_run_filters(opts)
+    |> ClickHouseRepo.one()
+    |> case do
+      nil -> %{covered_lines: 0, executable_lines: 0, runs_count: 0}
+      totals -> Map.new(totals, fn {key, value} -> {key, value || 0} end)
+    end
+  end
+
+  defp coverage_percentage(%{executable_lines: 0}), do: 0.0
+
+  defp coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
+    Float.round(covered / executable * 100, 1)
+  end
+
+  defp fill_coverage_points(rows, start_datetime, end_datetime, date_period) do
+    by_date = Map.new(rows, &{normalise_date(&1.date, date_period), coverage_percentage(&1)})
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      %{date: date, coverage: Map.get(by_date, normalise_date(date, date_period))}
+    end)
+  end
+
   defp test_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
 

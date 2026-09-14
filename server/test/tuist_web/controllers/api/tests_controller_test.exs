@@ -974,6 +974,73 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "passes the coverage report on and carries its totals into the processing job", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      # The bundle the worker parses carries the coverage archive but not the
+      # checkout it was measured against, so the totals travel with the job the
+      # same way the stress verdict does.
+      expect(Tests, :create_test, fn attrs ->
+        assert [%{name: "Calculator", files: [%{path: "Sources/Add.swift"}]}] = attrs.xcode_coverage.targets
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           coverage_covered_lines: 5,
+           coverage_executable_lines: 11,
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: [],
+            xcode_coverage: %{
+              targets: [
+                %{
+                  name: "Calculator",
+                  covered_lines: 5,
+                  executable_lines: 11,
+                  files: [%{path: "Sources/Add.swift", covered_lines: 5, executable_lines: 11}]
+                }
+              ]
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "coverage_covered_lines" => 5,
+          "coverage_executable_lines" => 11
+        }
+      )
+    end
+
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{
       conn: conn,
       user: user,

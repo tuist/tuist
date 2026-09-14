@@ -100,6 +100,64 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
+  test "shows the coverage tab with the run's targets and least covered files first", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          targets: [
+            %{
+              name: "Calculator",
+              covered_lines: 5,
+              executable_lines: 17,
+              files: [
+                %{path: "Sources/Calculator/Add.swift", covered_lines: 5, executable_lines: 11},
+                %{path: "Sources/Calculator/Untested.swift", covered_lines: 0, executable_lines: 6}
+              ]
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage")
+
+    assert has_element?(lv, "#widget-coverage-percentage", "29.4%")
+    assert has_element?(lv, "#coverage-targets-table", "Calculator")
+
+    files_html = lv |> element("#coverage-files-table") |> render()
+    untested = files_html |> :binary.match("Untested.swift") |> elem(0)
+    add = files_html |> :binary.match("Add.swift") |> elem(0)
+    assert untested < add
+  end
+
+  test "hides the coverage tab for a run that gathered none", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
+    refute render(lv) =~ "tab=coverage"
+  end
+
   test "shows the stress gate's verdict and the candidate that disagreed", %{
     conn: conn,
     organization: organization,
