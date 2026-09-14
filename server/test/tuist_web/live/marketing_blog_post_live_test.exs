@@ -131,7 +131,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       structured_data = StructuredMarkup.get_blog_post_structured_markup_data(post)
 
       assert [image_url] = structured_data["image"]
-      assert image_url =~ "/open-graph-images/"
+      assert image_url =~ "/marketing/images/blog/2026/09/12/og.png"
       refute Map.has_key?(structured_data, "articleBody")
     end
   end
