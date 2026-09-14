@@ -126,11 +126,13 @@ Versions roll out the same way, slowly and mostly on their own. A rollout moves 
 
 A wave always takes whole accounts, never individual nodes, and that rule exists because a mesh is not necessarily ours. Plenty of our customers run their own CI machines, in their own datacenter or in a rack under the office, and we are never going to beat a cache sitting on the same switch as the builders. So a Kura node can be self-hosted and still belong to the mesh. It enrolls with our control plane, heartbeats to stay a member, replicates with the managed nodes over an authenticated connection like any other, and upgrades when its account's wave comes round. Now imagine splitting that mesh across two waves: the customer's own hardware on one version and ours on another, for as long as the whole rollout takes. Nobody wants to debug that. The placement question does not disappear for these teams, it just gets an answer we could never have worked out ourselves, which is whatever the customer decided.
 
-## The numbers
+### Next to the runners
 
-At the median, a request's time to first byte is 0.5ms, against 9.4ms on the service it's replacing, so roughly seventeen times faster for the request a build makes most often. At the tail, gRPC requests come back within 3.8ms at the 99th percentile where the old service's 99th percentile was 2.1 seconds, though the two aren't serving identical traffic mixes and the old number includes registry reads that go out to object storage, so the median is the fairer comparison to lean on. Over seven days the fleet served 12.2 million artifact reads, took 3.3 million writes, and moved 9.2 TB of egress, which is around 1.3 TB a day, and an artifact lives about 6.6 days on a node before eviction reclaims the space.
+Colocation is the oldest trick in this business. Put the cache on the same switch as the builders and the distance to the data stops being interesting. The catch is that you have to own the builders, which is why it tends to be the answer from companies selling compute, and why it does nothing at all for someone on a laptop.
 
-And the honest part: **Kura is carrying roughly an eighth of our cache request volume today. The migration is still in flight.** What it has been carrying is the hardest end of the traffic, which is the part we most needed the design to survive, and it has.
+Then we started selling compute. [Tuist Runners](https://tuist.dev/en/docs/guides/features/runners) run on our hardware, and the obvious move was to park a cache beside them and call it done.
+
+We gave them an ordinary Kura node instead. The same reconciler that decides whether you can dispatch a job decides whether you get one, so it arrives with your runners, leaves with them, and needs no configuration in either direction. It also peers with the rest of your mesh like every other node, which means the artifacts a CI machine warms never stay in the datacenter that warmed them. A commit builds on our hardware in one region, and the next person to open that branch on a laptop somewhere else finds the objects already nearby.
 
 ## What it cost us
 
