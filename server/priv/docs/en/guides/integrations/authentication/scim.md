@@ -70,6 +70,18 @@ Configure <.localized_link href="/guides/integrations/authentication/sso#okta">O
 
 To test deprovisioning, unassign or deactivate a user in Okta and verify that they disappear from the Tuist organization's **Members** tab.
 
+### Assigning roles {#okta-assigning-roles}
+
+Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. Tuist exposes one SCIM group per role, named after your organization, for example `your-org Admins`, `your-org Users`, and `your-org Viewers`. Map Okta groups to them with **Group Push**:
+
+1. Create an Okta group for each role you want to assign, for example `Tuist Admins` and `Tuist Viewers`, and assign those groups on the SCIM app's **Assignments** tab.
+2. Make sure **Import Groups** is enabled in the API integration, then open the SCIM app's **Import** tab and click **Import Now** so that Okta knows about Tuist's groups.
+3. Open the SCIM app's **Push Groups** tab and click **Push Groups > Find groups by name**.
+4. Select an Okta group, choose **Link Group** as the push action, and pick the matching Tuist group. Tuist doesn't support creating groups through SCIM, so link to an existing group instead of creating a new one.
+5. Click **Save** and repeat for the remaining roles.
+
+Adding a user to a linked group gives them that role. Removing them from the group moves them back to the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**. Users who aren't in any linked group get that role too. Removing a user from a group doesn't remove them from the organization; unassign or deactivate them in Okta to do that.
+
 ## Microsoft Entra ID {#microsoft-entra-id}
 
 Entra ID provisions Tuist through a non-gallery enterprise application. Configure <.localized_link href="/guides/integrations/authentication/sso#microsoft-entra-id">Microsoft Entra ID SSO</.localized_link> first if users should also sign in with Entra ID.
@@ -129,7 +141,7 @@ When your identity provider assigns a user to the provisioning application, Tuis
 
 When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
-Tuist exposes three synthetic SCIM groups: `Admins`, `Users`, and `Viewers`. Group membership changes from your identity provider map to organization roles in Tuist.
+Tuist exposes three synthetic SCIM groups: `Admins`, `Users`, and `Viewers`. Adding a member to a group sets their organization role. Removing a member from the group that matches their current role moves them back to the enrollment role, and membership itself only ends when the user is unassigned or deactivated. Identity providers can also set the role through the SCIM `roles` attribute on a user, with a value of `admin`, `user`, or `viewer`.
 
 ## Supported SCIM features {#supported-scim-features}
 
