@@ -1,0 +1,77 @@
+# Bazel Invocation Insights
+
+This boundary owns Bazel invocation records and test artifacts received from
+Kura. Kura terminates Bazel's [Build Event Service](https://bazel.build/remote/bep)
+and forwards completed invocation summaries to the Tuist server. The server
+does not expose a second Build Event Service listener.
+
+## Test artifacts
+
+- Kura recognizes only Bazel's conventional `test.xml` and `test.log` files
+  referenced by Build Event Protocol test-result events.
+- Kura queues per-attempt facts, per-target summaries, and artifact digests,
+  reads at most 256 KiB per artifact under a background-memory reservation,
+  and posts at most two files per result to the signed test-artifacts webhook.
+  Results never wait for queue capacity. The completion marker waits for
+  bounded capacity so accepted events remain ordered.
+- The webhook performs bounded validation and upserts raw results and summaries
+  in PostgreSQL without parsing Extensible Markup Language. Each invocation may
+  stage at most 64 mebibytes of artifact bodies. The invocation completion event
+  schedules an idempotent Oban job.
+- The build processor consumes the dedicated `:process_bazel_tests` queue with
+  its own concurrency limit, waits for the completed invocation for at most 15
+  minutes, combines all delivered targets and attempts into one shared test
+  run, and stores sanitized `test.log` output as invocation logs.
+- Tuist never pulls cache artifacts from Kura. Artifact delivery is bounded and
+  best effort, so a lost diagnostic never affects a build or cache operation.
+
+## Data handling
+
+- `bazel_invocations` stores completed commands received from Kura.
+- `bazel_invocations` also stores bounded build metrics, retained action spans,
+  critical-path summaries, and up to 20 custom build-metadata pairs. Kura keeps
+  no more than 32 action spans or 32 critical-path actions for one in-flight
+  invocation, and custom metadata keys and values are limited to 50 and 500
+  bytes respectively.
+- `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
+  Build Event Protocol progress output and conventional test logs in
+  ClickHouse.
+- `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
+  durably stage bounded raw test results in PostgreSQL until processing
+  succeeds; an indexed, batched daily job removes any records older than 90
+  days.
+- Test cases and failure details derived from JUnit reports use the shared
+  `test_runs` data model and retain the Bazel invocation identifier.
+- Order reports by run, shard, and attempt before aggregating retries. Preserve
+  numbered repetitions and failure diagnostics even when a retry passes. Resolve
+  final status per run and shard so a later passing run cannot hide a different
+  run's terminal failure. Shared flakiness detection and automations consume
+  these repetitions and the invocation's commit and environment context.
+- Reported class names distinguish equal method names in different classes;
+  fall back to the enclosing suite name when `classname` is absent. Keep this
+  identity convention aligned with the local Bazel muted-failure reader.
+- Update `server/data-export.md` and the public retention guide whenever a
+  retained field, table, or retention period changes.
+
+- `Profile` ingests the complete Bazel JSON trace profile through Kura's signed profile webhook. `Timeline` uses that profile for the dashboard and preserves bounded BEP summaries for API/MCP compatibility with older builds. Profile times use the native profile origin; CPU is measured in cores, memory in MiB and network in megabits/s before conversion for the UI. Never manufacture missing counters or rank away short events.
+- `Action` stores BEP outcomes and sanitized diagnostic output, keyed by project, invocation, primary output and execution start. Step lists exclude logs; details and the dashboard fetch them separately. Ambiguous repeated-output actions are not assigned a guessed outcome.
+- Profile and action rows expire after 90 days. Profile size limits reject the whole payload explicitly. Keep migration, data export and public retention documentation aligned.
+- Native resource counters are one-second interval aggregates, timestamped at the bucket start. Attach `duration_ms` to each bucket, clipped to the timeline end, including when reading older stored profiles. Preserve the original offset and value; do not backfill the interval before collection or interpolate between aggregates.
+- Remove trailing all-zero resource buckets only when they include zero total host memory, identifying Bazel's empty export padding. Apply this on ingestion and loading existing profiles. Preserve legitimate zero CPU/network readings and ambiguous CPU-only buckets; do not extend the previous measurement over the removed interval.
+
+- On profile load, valid positive integer `TUIST_CPU_COUNT` invocation metadata converts native core usage to a percentage. Retain native readings and use cores when metadata is absent, invalid, or smaller than recorded usage; do not normalize against an observed peak or job count.
+
+- Profile webhooks stage bounded compressed bytes in PostgreSQL; `ProcessProfileWorker` parses them on the existing bounded `:process_bazel_tests` processor queue. Decoding limits nesting and decoded container memory during parsing. Publish normalized metadata only after all digest-versioned `ProfileSteps` rows exist; step APIs filter, sort, paginate and look up details in ClickHouse. Legacy profile blobs remain readable. Staged bytes are removed on success/rejection; daily ingestion retention cleans up status rows.
+- Action writes use the shared ingestion buffer and support atomically validated batches of up to 32. Resolve repeated primary outputs against the profile epoch and step interval; zero BEP timestamps mean unavailable and permit a match only when the output has one unambiguous result. Leave ambiguous matches unknown. `Invocation.timeline_spans/1` owns the retained column-array decoder, preserving lanes and zero-duration entries.
+
+- `Profile.load(include_steps: false)` provides timeline metric bootstrapping without loading indexed steps or enriching action outcomes. Full HTTP metadata downloads perform step loading and enrichment separately; both paths preserve native bucket intervals and CPU normalization.
+
+- Full indexed timeline downloads reuse the same server-side action join as step API queries; never serialize all profile output names into an HTTP query parameter. Legacy blob enrichment fetches invocation-scoped action metadata without logs or an output IN-list.
+- Profile decoding bounds input/string bytes separately from estimated heap words, including accumulator cells. Do not add external serialization size to heap size; that recounts the same JSON data. The limits are independent, and complex profiles may reach the heap budget before the entry or input-byte caps.
+- Staging atomically accepts new uploads and resets rejected/failed rows to pending, clearing the error and replacing compressed bytes. Only accepted transitions enqueue a job, in the same transaction. Pending and processed duplicates are unchanged. Do not add invocation-wide Oban uniqueness that can suppress fresh work while a terminal attempt finishes.
+
+- Retained numeric step IDs remain resolvable after profile publication; resolve them against the retained summary, never a different profile interval. Indexed lists distinguish missing/expired step rows from filters with no matches.
+- Decode retained spans by zipping all five column arrays, including lanes; incomplete rows are omitted. Zero profile epochs are unavailable for both SQL and legacy action matching. Unknown outcomes must not select a guessed zero-timestamp log.
+- Native resource counters use explicit Bazel series keys (`system cpu`, `system memory`, and `system network up/down (Mbps)`); ignore additional metadata keys and unknown series. Count targets by project and target, consistent with the other timeline sources.
+
+- Timeline availability follows the published profile version and existing step rows or genuine machine samples, and requires a published profile. Retained BEP summaries remain available to API/MCP clients but never expose a dashboard Timeline by themselves. Staging states alone never imply timeline availability. The processor requires write access to `bazel_profile_uploads` in both release-time grants and the CNPG fallback SQL; exercise profile success and rejection with the deployed restricted role.

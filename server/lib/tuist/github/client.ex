@@ -321,6 +321,37 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Returns a workflow run's GitHub-side status
+  (`"queued"` / `"in_progress"` / `"completed"`) and conclusion, in the
+  same shape as `get_workflow_job/3`.
+
+  A run that has reached `completed` will never assign its remaining
+  jobs to a runner, even though the per-job endpoint keeps reporting
+  them as `queued`: the shape a `startup_failure` run leaves behind.
+  The recovery workers read the run to tell that apart from a job that
+  is genuinely still waiting.
+
+  See: https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
+  """
+  def workflow_run_status(installation, repository_full_handle, run_id)
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    case get_workflow_run(%{
+           repository_full_handle: repository_full_handle,
+           installation: installation,
+           run_id: run_id
+         }) do
+      {:ok, %{"status" => status} = run} when is_binary(status) ->
+        {:ok, %{status: status, conclusion: Map.get(run, "conclusion")}}
+
+      {:ok, _body} ->
+        {:error, :malformed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"

@@ -130,6 +130,67 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+## Metrics aggregated downstream of this chart
+
+What this chart keeps is not what Grafana Cloud stores. **Adaptive Metrics** sits
+in front of the tenant and rewrites series on ingest, so a metric can be
+allow-listed here, present in the collector's deployed config, and still be
+unqueryable in the shape a dashboard or alert needs. Check it before concluding
+the chart is at fault.
+
+Its rules are query-driven: it proposes aggregating away any label no query has
+touched in the lookback, and **auto-apply is enabled on this stack**, so a
+recommendation becomes a rule on its own. That means a metric nobody queries
+loses its labels, and a query is the only thing that keeps them.
+
+An aggregated metric does not disappear. It survives as a single series with the
+aggregated labels removed, which is why a matcher on one of them silently
+matches nothing:
+
+```
+{__name__="node_memory_Cached_bytes", cluster="tuist-production"}   # no data
+sum(node_memory_Cached_bytes)                                       # a number
+node_memory_Cached_bytes                                            # errors, and names every aggregated label
+```
+
+The bare query is the fastest audit: the error lists exactly which labels are
+gone.
+
+Read and edit the rules through the tenant's own endpoint, authenticated as the
+metrics tenant rather than as the Grafana instance. A Grafana stack
+service-account token is the wrong credential here; the env vault's `LOKI_TOKEN`
+is an access policy token that carries tenant read:
+
+```bash
+TOKEN=$(op read "op://tuist-k8s-production/LOKI_TOKEN/password")
+BASE=https://prometheus-prod-24-prod-eu-west-2.grafana.net
+
+# Current rules, and whether recommendations auto-apply
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/rules > rules.json
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/recommendations/config
+```
+
+`POST /aggregations/rules` replaces the **entire** rule set, so edit the file
+rather than sending a fragment, and pass the `Etag` from the GET as `If-Match`
+so a concurrent change fails instead of being clobbered. Keep the GET response
+as the rollback. Ingest picks the change up within about fifteen minutes;
+already-stored samples stay aggregated, so verify on fresh data.
+
+Deleting a rule is not durable on its own while auto-apply is on. The
+recommendation that produced it stands until a query touches the metric again,
+and the next cycle reapplies it. Pair every deletion with the query that
+protects it, which for Kura page cache is the **Page cache by node** panel in
+`infra/grafana-dashboards/tuist-kura-region-scalability.json`.
+
+`recommendations/config` also carries a global `keep_labels` list: a label named
+there is never proposed for aggregation on any metric. It is empty today.
+Putting `cluster` in it would end this whole class of bug, at the cost of every
+future recommendation that would have dropped `cluster` for real savings.
+
+Restoring a label restores its cardinality. `node_memory_Cached_bytes` and
+`node_memory_MemFree_bytes` are 59 hosts each, so about 120 series and a dollar
+a month at the stack's measured rate.
+
 ## Metrics scrape cadence
 
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The
@@ -141,6 +202,49 @@ active series, while keeping enough resolution for the infrastructure
 dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
 documented operational requirement justifies the additional ingestion cost.
 See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
+
+## Metrics cost controls
+
+Grafana Cloud bills metrics per active series, so cardinality is the cost
+driver. The plan includes 10,000 series; everything above that is overage.
+
+Three layers trim what leaves the cluster, cheapest first:
+
+1. **Per-feature allow-lists** (`<feature>.metricsTuning`). `useDefaultAllowList`
+   plus explicit `includeMetrics` / `excludeMetrics`. This is where a metric
+   family that no dashboard or alert reads should be removed.
+2. **Per-feature relabeling** (`extraMetricProcessingRules`,
+   `extraDiscoveryRules`). Used to drop a namespace or a label value rather
+   than a whole metric, e.g. pod-scoped kube-state metrics for
+   `tuist-runners`.
+3. **Destination write relabeling** (`destinations.grafana-cloud-metrics.metricProcessingRules`).
+   Last stop, applied to every feature at once. Drops restart-scoped labels
+   and histogram buckets outside production.
+
+Histogram buckets are the single largest shape, around a third of all billable
+series, and their cardinality tracks route and worker coverage rather than
+traffic. They are dropped for `tuist-staging`, `tuist-canary` and
+`tuist-pentest`. `_count` and `_sum` survive, so request rates and mean
+latency still work everywhere; `histogram_quantile` percentiles are
+production-only.
+
+Two cost levers are **not** chart values and have to be changed on the stack:
+
+| Lever | Where |
+|---|---|
+| `traces_service_graph_*` series (~3.4k) | Tempo → Metrics generator → service graphs. Generated from received spans inside Grafana Cloud, so they never pass through Alloy and no `write_relabel_config` here can drop them. |
+| Adaptive Metrics aggregation rules | Grafana Cloud → Adaptive Metrics. Recommendations need a Cloud access policy token; the stack API token used by dashboards cannot read them. |
+
+To see what is actually costing money, query the cardinality API rather than
+guessing:
+
+```bash
+curl -s -u "$GRAFANA_USER:$GRAFANA_TOKEN" \
+  "$PROM_URL/api/v1/cardinality/label_values?label_names\[\]=__name__&limit=100"
+```
+
+Swap `__name__` for `cluster` or `job` to attribute series to an environment or
+a scrape target, and add `selector={cluster="tuist-staging"}` to scope it.
 
 ## Log and trace sampling
 
@@ -203,6 +307,29 @@ In Grafana Cloud: **Observability → Kubernetes → Cluster navigation** and pi
 | `deployment.environment` | `destinations.grafana-cloud-traces.processors.attributes.actions` in overlays | traces (OTLP resource attribute) |
 
 Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset names) are attached automatically by the upstream chart's k8s attribute processor from pod metadata.
+
+### Kura metric identity across rollouts
+
+For `job="kura"` with nonempty `namespace` and `pod` labels, the metrics
+destination rewrites `instance` to `<namespace>/<pod>`. The existing `cluster`
+label separates environments, and the StatefulSet pod name separates replicas
+while surviving pod replacement. Scraping still uses the pod IP; only the
+stored metric label changes.
+
+This applies to both Ready annotation-autodiscovery and the custom unready
+scrape, including `up` and `scrape_*`. Keep `ready="false"` on the unready path:
+it prevents those samples from colliding with Ready samples during discovery
+handoff. Targets without a complete pod identity and other jobs are unchanged.
+
+Using the IP as `instance` previously created a new set of series on every
+replacement. During the September 7, 2026 production rollout, repeated Kura
+replacements drove active series from roughly 142,000 to 216,000 while old
+series remained active for Grafana Cloud's 20-minute window. The first deploy
+of this rule also creates a one-time identity transition; later replacements
+reuse the stable identity. Counter resets remain visible to `rate`/`increase`.
+The Kura dashboard discovers instance values from metrics, so it picks up the
+new identities automatically. Queries pinned to an IP must use the pod identity
+instead.
 
 ## RBAC — what access does this chart get?
 

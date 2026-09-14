@@ -405,6 +405,60 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts a skipped repetition, which the Gradle plugin reports for an aborted rerun", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        [module] = attrs.test_modules
+        [test_case] = module.test_cases
+        assert Enum.map(test_case.repetitions, & &1.status) == ["success", "skipped"]
+
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 3000,
+            macos_version: "",
+            xcode_version: "",
+            is_ci: true,
+            build_system: "gradle",
+            status: "success",
+            scheme: "my-android-app",
+            test_modules: [
+              %{
+                name: ":app",
+                status: "success",
+                duration: 3000,
+                test_suites: [%{name: "com.example.LoginTest", status: "success", duration: 2000}],
+                test_cases: [
+                  %{
+                    name: "testLogin",
+                    test_suite_name: "com.example.LoginTest",
+                    status: "success",
+                    duration: 1500,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "success", duration: 700},
+                      %{repetition_number: 2, name: "Stress 1", status: "skipped", duration: 800, source: "stress"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        )
+
+      assert %{"type" => "test"} = json_response(conn, 200)
+    end
+
     test "creates a test run without macos_version (not required)", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
@@ -842,6 +896,80 @@ defmodule TuistWeb.API.TestsControllerTest do
           "account_id" => user.account.id,
           "project_id" => project.id,
           "storage_key" => "#{organization.account.name}/#{project.name}/runs/#{test_run_id}/result_bundle.zip"
+        }
+      )
+    end
+
+    test "carries the stress gate's verdict and bundle key into the processing job", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      # The worker rebuilds the run from the job's arguments once the bundle is
+      # parsed, so a verdict that does not travel with the job is a verdict lost.
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           stress_mode: "report",
+           stress_outcome: "disagreed",
+           stress_skip_reason: "",
+           stress_new_count: 2,
+           stress_stressed_count: 1,
+           stress_excluded_count: 1,
+           stress_known_count: 40,
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: [],
+            stress_new_tests: %{
+              mode: "report",
+              outcome: "disagreed",
+              new_count: 2,
+              stressed_count: 1,
+              excluded_count: 1,
+              known_count: 40,
+              has_result_bundle: true,
+              test_cases: []
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "stress_storage_key" => "#{user.account.name}/#{project.name}/runs/#{test_run_id}/stress_result_bundle.zip",
+          "stress_mode" => "report",
+          "stress_outcome" => "disagreed",
+          "stress_new_count" => 2,
+          "stress_stressed_count" => 1,
+          "stress_excluded_count" => 1,
+          "stress_known_count" => 40
         }
       )
     end

@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - gotk-sync.yaml
+# `flux bootstrap` regenerates gotk-sync.yaml from CLI flags on every run, and
+# 2.9.5 has no flag for the GitRepository provider — so a re-bootstrap silently
+# strips `spec.provider: github`. Source-controller would then read the
+# flux-system Secret as basic auth, ignore the ESO-synced GitHub App fields, and
+# reconciliation would die once the bootstrap PAT expires. Re-assert it here:
+# this file is what Flux actually builds, so the patch survives a rewrite of
+# gotk-sync.yaml.
+patches:
+  - target:
+      kind: GitRepository
+      name: flux-system
+    patch: |
+      - op: add
+        path: /spec/provider
+        value: github

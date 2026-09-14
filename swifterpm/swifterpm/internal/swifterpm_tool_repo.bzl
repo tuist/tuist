@@ -278,7 +278,7 @@ swifterpm_tool_repo = repository_rule(
         ),
         "netrc": attr.label(
             allow_single_file = True,
-            doc = "Accepted for API compatibility. SwifterPM currently authenticates through GITHUB_TOKEN or GH_TOKEN.",
+            doc = "Accepted for API compatibility. SwifterPM currently authenticates through SWIFTERPM_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN.",
         ),
         "package_path": attr.string(
             mandatory = True,

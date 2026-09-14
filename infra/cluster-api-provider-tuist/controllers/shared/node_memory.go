@@ -28,10 +28,12 @@ const MemoryCeilingMibResource corev1.ResourceName = "tuist.dev/memory-ceiling-m
 //
 // The factor bounds how badly they may overlap. Too low and the box is packed
 // no denser than it would be with request == limit; too high and reclaim has
-// more to claw back than it can, and the OOM killer arrives instead. Two keeps
-// the worst case within what reclaim can absorb on the current fleet, whose
-// nodes peak near a fifth of their physical memory.
-const MemoryCeilingOversubscription = 2
+// more to claw back than it can, and the OOM killer arrives instead. At four
+// the native requests.memory pack binds first on the current fleet, so
+// admission is decided by the guaranteed floors rather than by this bound.
+// Reclaim has room for it: the densest node peaks at 15% of physical memory,
+// and none has dropped below 71% MemAvailable.
+const MemoryCeilingOversubscription = 4
 
 // ReconcileNodeMemoryCeilingCapacity advertises the node's memory ceiling
 // budget as tuist.dev/memory-ceiling-mib capacity, idempotently.

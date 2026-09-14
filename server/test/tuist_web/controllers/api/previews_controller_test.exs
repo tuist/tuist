@@ -25,7 +25,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -82,7 +82,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -115,7 +115,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -145,7 +145,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -174,7 +174,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -219,7 +219,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -256,7 +256,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       binary_id = "550E8400-E29B-41D4-A716-446655440000"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -290,7 +290,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       build_version = "123"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -372,7 +372,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When

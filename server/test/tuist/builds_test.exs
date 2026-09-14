@@ -3,9 +3,130 @@ defmodule Tuist.BuildsTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Builds.Timeline
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+
+  describe "build_timeline/1" do
+    test "stores relative timings, isolates builds, and deduplicates processing retries" do
+      event = %{
+        event_id: 1,
+        title: "Compile App.swift",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 100.25,
+        duration_ms: 200.5,
+        status: "success"
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event, event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | title: "Other.swift"}])
+
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      assert stored.title == "Compile App.swift"
+      assert_in_delta stored.start_ms, 100.25, 0.001
+      assert_in_delta stored.duration_ms, 200.5, 0.001
+      assert %{events: [%{title: "Other.swift"}]} = Builds.build_timeline(other.id)
+    end
+
+    test "fills optional step metadata and retains records across ingestion batches" do
+      steps = for id <- 1..501, do: %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success"}
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: stored} = Builds.build_timeline(build.id)
+      assert length(stored) == 501
+      assert Enum.all?(stored, &(&1.target == "" and &1.project == "" and &1.category == ""))
+      assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
+    end
+
+    test "dense windows retain individual steps beyond the old display limit" do
+      steps =
+        for id <- 1..50_001 do
+          %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: events, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert length(events) == 50_001
+      refute Enum.any?(events, &Map.has_key?(&1, :aggregate))
+      assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
+    end
+
+    test "full metadata includes late steps and keyboard navigation stays in the build and search" do
+      steps =
+        Stream.map(1..1600, fn id ->
+          %{
+            event_id: id,
+            title: "Compile #{id}",
+            target: "App",
+            project: "Workspace",
+            category: "swiftCompilation",
+            start_ms: id * 10.0,
+            duration_ms: 5.0,
+            status: "success"
+          }
+        end)
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      {:ok, other} =
+        RunsFixtures.build_fixture(
+          build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
+        )
+
+      assert %{total_count: 1600, events: events} = Builds.build_timeline(build.id)
+      assert length(events) == 1600
+      assert Enum.any?(events, &(&1.start_ms > 15_000))
+
+      assert %{target_count: 1} = Builds.build_timeline(build.id)
+      assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
+      assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
+      assert nil == Timeline.neighbor(build.id, 1600, "next", [])
+      assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
+    end
+
+    test "loads the entire build including late steps" do
+      steps =
+        for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
+          %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      assert %{duration: 901_000.0, events: events} = Builds.build_timeline(build.id)
+      assert Enum.map(events, & &1.event_id) == [1, 2, 3, 4]
+      assert %{duration: 1_000_000} = Builds.build_timeline(build.id, duration: 1_000_000)
+    end
+
+    test "fetches logs separately and scopes them to their build" do
+      event = %{
+        event_id: 3,
+        title: "Compile",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 0.0,
+        duration_ms: 10.0,
+        status: "success",
+        log: "EmitSwiftModule normal arm64\n<script>output</script>",
+        log_truncated: true
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | log: "Other command"}])
+      assert Builds.build_step_log(build.id, 3) == %{log: event.log, log_truncated: true}
+      assert Builds.build_step_log(other.id, 3).log == "Other command"
+      assert Builds.build_step_log(build.id, 4) == nil
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      refute Map.has_key?(stored, :log)
+    end
+
+    test "old builds have no manufactured timeline" do
+      {:ok, build} = RunsFixtures.build_fixture()
+      assert %{events: [], total_count: 0} = Builds.build_timeline(build.id)
+    end
+  end
 
   describe "create_build/1" do
     test "creates a build" do
@@ -53,6 +174,7 @@ defmodule Tuist.BuildsTest do
       machine_metrics = [
         %{
           timestamp: base_ts + 1.0,
+          offset_ms: 250.0,
           cpu_usage_percent: 45.5,
           memory_used_bytes: 8_000_000_000,
           memory_total_bytes: 16_000_000_000,
@@ -95,6 +217,8 @@ defmodule Tuist.BuildsTest do
       # Then
       build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
       assert length(build.machine_metrics) == 2
+      assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
+      assert Enum.at(build.machine_metrics, 1).offset_ms == nil
       assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
@@ -426,6 +550,75 @@ defmodule Tuist.BuildsTest do
       # Then
       assert length(builds) == 1
       assert hd(builds).id == matching_build.id
+    end
+  end
+
+  describe "list_build_runs/1 with custom_tags filter" do
+    test "filters build runs containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :contains, value: "release"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "filters build runs not containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :not_contains, value: "staging"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "rejects unsupported custom tag operators" do
+      assert_raise Flop.InvalidParamsError, fn ->
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: 1},
+            %{field: :custom_tags, op: :==, value: "nightly"}
+          ]
+        })
+      end
     end
   end
 
@@ -1515,113 +1708,52 @@ defmodule Tuist.BuildsTest do
     end
   end
 
-  describe "get_cas_outputs_by_node_ids/3" do
-    test "returns CAS outputs matching the given node_ids" do
-      # Given
+  describe "list_cacheable_task_cas_outputs/3" do
+    test "resolves large task ID lists inside ClickHouse and paginates distinct outputs within the build" do
+      ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index), 64, "0")
+      task = %{key: "shared-key", type: :swift, status: :hit_remote, cas_output_node_ids: ids ++ ids}
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [task, task])
+      {:ok, other} = RunsFixtures.build_fixture(cacheable_tasks: [%{task | cas_output_node_ids: ["other-only"]}])
+
+      for id <- Enum.take(ids, 21) do
+        {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: id)
+      end
+
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: hd(ids), operation: :upload)
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: other.id, node_id: Enum.at(ids, 21))
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "other-only")
+
+      first = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 1)
+      second = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 2)
+      assert Enum.map(first.outputs, & &1.node_id) == Enum.take(ids, 20)
+      assert first.has_next?
+      assert Enum.map(second.outputs, & &1.node_id) == [Enum.at(ids, 20)]
+      refute second.has_next?
+      assert Builds.list_cacheable_task_cas_outputs(build.id, "missing", 1).outputs == []
+    end
+
+    test "task summaries omit output IDs while retaining expandability and pagination" do
       {:ok, build} =
         RunsFixtures.build_fixture(
-          cas_outputs: [
-            %{
-              node_id: "node1",
-              checksum: "abc123",
-              size: 1000,
-              duration: 100,
-              compressed_size: 800,
-              operation: :download,
-              type: :swift
-            },
-            %{
-              node_id: "node2",
-              checksum: "def456",
-              size: 2000,
-              duration: 200,
-              compressed_size: 1600,
-              operation: :upload,
-              type: :swift
-            },
-            %{
-              node_id: "node3",
-              checksum: "ghi789",
-              size: 3000,
-              duration: 300,
-              compressed_size: 2400,
-              operation: :download,
-              type: :swift
-            }
+          cacheable_tasks: [
+            %{key: "a", type: :swift, status: :hit_remote, cas_output_node_ids: ["node"]},
+            %{key: "b", type: :swift, status: :hit_local}
           ]
         )
 
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node3"])
+      options = %{
+        filters: [%{field: :build_run_id, op: :==, value: build.id}],
+        order_by: [:key],
+        order_directions: [:asc]
+      }
 
-      # Then
-      assert length(outputs) == 2
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert "node1" in node_ids
-      assert "node3" in node_ids
-      refute "node2" in node_ids
-      assert Enum.all?(outputs, &(&1.project_id == build.project_id))
-    end
+      assert {:ok, {[with_outputs, without_outputs], meta}} =
+               Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
 
-    test "returns empty list when node_ids is empty" do
-      # Given
-      {:ok, build} =
-        RunsFixtures.build_fixture(
-          cas_outputs: [
-            %{
-              node_id: "node1",
-              checksum: "abc123",
-              size: 1000,
-              duration: 100,
-              compressed_size: 800,
-              operation: :download,
-              type: :swift
-            }
-          ]
-        )
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, [])
-
-      # Then
-      assert outputs == []
-    end
-
-    test "returns all CAS outputs" do
-      # Given
-      {:ok, build} = RunsFixtures.build_fixture()
-
-      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
-      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
-      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"])
-
-      # Then
-      assert length(outputs) == 3
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert Enum.count(node_ids, &(&1 == "node1")) == 2
-      assert Enum.count(node_ids, &(&1 == "node2")) == 1
-    end
-
-    test "returns only distinct CAS outputs by node_id when distinct is true" do
-      # Given
-      {:ok, build} = RunsFixtures.build_fixture()
-
-      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
-      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
-      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
-      {:ok, _output4} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :upload)
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"], distinct: true)
-
-      # Then
-      assert length(outputs) == 2
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert "node1" in node_ids
-      assert "node2" in node_ids
+      assert with_outputs.has_cas_outputs
+      refute without_outputs.has_cas_outputs
+      refute Map.has_key?(with_outputs, :cas_output_node_ids)
+      assert meta.total_count == 2
     end
   end
 end

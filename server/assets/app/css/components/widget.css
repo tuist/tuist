@@ -70,6 +70,10 @@
       width: 6px;
       height: 16px;
 
+      &[data-color="amber"] {
+        background-color: var(--noora-chart-flaky);
+      }
+
       &[data-color="primary"] {
         background-color: var(--noora-chart-primary);
       }
@@ -129,11 +133,20 @@
 
       & [data-part="trigger"] {
         align-items: center;
+        align-self: flex-start;
         gap: var(--noora-spacing-3);
         box-shadow: unset;
         background: unset;
         padding: unset;
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+        /* Noora's dark-theme hover rule is scoped to `html[data-theme]` and so
+           outranks the reset above, which would draw a button border around the
+           widget title. */
+        &:hover {
+          box-shadow: unset;
+          background: unset;
+        }
 
         & [data-part="label-wrapper"] {
           flex-grow: 0;
@@ -217,6 +230,10 @@
     border-radius: 50%;
     width: 8px;
     height: 8px;
+
+    &[data-color="amber"] {
+      background-color: var(--noora-chart-flaky);
+    }
 
     &[data-color="primary"] {
       background-color: var(--noora-chart-primary);

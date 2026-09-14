@@ -36,6 +36,10 @@ public class GraphTraverser: GraphTraversing {
     private let embeddableFrameworksCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
     private let staticXCFrameworksBehindXCFrameworkCache = GraphCache<GraphDependency, Set<GraphDependency>>()
     private let staticObjcXCFrameworksBehindXCFrameworkCache = GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticObjcXCFrameworksReachableViaCachedTargetsCache =
+        GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticSwiftXCFrameworksReachableViaCachedTargetsCache =
+        GraphCache<GraphDependency, Set<GraphDependency>>()
 
     struct LinkableDependenciesKey: Hashable {
         let target: GraphDependency
@@ -979,6 +983,131 @@ public class GraphTraverser: GraphTraversing {
             }
         )
         staticSwiftXCFrameworksBehindDynamicXCFrameworksCache[cacheKey] = result
+        return result
+    }
+
+    /// Static Objective-C xcframeworks (that ship their own module map) reachable in *this* graph
+    /// from the target through targets that no longer exist in `currentGraph`. Those targets
+    /// were replaced by cached xcframeworks; their `.swiftmodule` still imports the static
+    /// xcframework's module, but the cache substitution can drop the graph edge that pointed
+    /// at the static xcframework, so `staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies`
+    /// on the substituted graph misses it. Walking from the source graph recovers it.
+    public func staticObjcXCFrameworksReachableViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency> {
+        reachableStaticXCFrameworksViaCachedTargets(
+            path: path,
+            name: name,
+            currentGraph: currentGraph,
+            cache: staticObjcXCFrameworksReachableViaCachedTargetsCache,
+            includes: { xcframework in
+                xcframework.linking == .static
+                    && xcframework.swiftModules.isEmpty
+                    && !xcframework.moduleMaps.isEmpty
+            }
+        )
+    }
+
+    /// Static Swift xcframeworks reachable in *this* graph from the target through targets
+    /// that no longer exist in `currentGraph`. Sister to `staticObjcXCFrameworksReachableViaCachedTargets`
+    /// for the Swift-module flavour: the mapper wires `FRAMEWORK_SEARCH_PATHS` for consumers of a
+    /// cached dynamic xcframework whose `.swiftmodule` interface still `import`s a static Swift
+    /// xcframework, and the same substitution edge-drop can happen on that route too.
+    public func staticSwiftXCFrameworksReachableViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency> {
+        reachableStaticXCFrameworksViaCachedTargets(
+            path: path,
+            name: name,
+            currentGraph: currentGraph,
+            cache: staticSwiftXCFrameworksReachableViaCachedTargetsCache,
+            includes: { xcframework in
+                xcframework.linking == .static && !xcframework.swiftModules.isEmpty
+            }
+        )
+    }
+
+    /// Iterative, per-node memoised walk from a source-graph target. Traversal stops at static
+    /// xcframeworks (terminal) and at descendant targets that survive in `currentGraph` (they
+    /// contribute their own settings through the current-graph walkers; walking through them
+    /// here would double-count). The starting target itself always contributes its children —
+    /// it's the surviving root we're walking from; the check gates whether we recurse INTO
+    /// surviving descendants, not whether the walk starts.
+    ///
+    /// The cache stores the standard per-node reachable set (with the terminal check applied),
+    /// so a node cached during one target's walk can be reused as a descendant of another
+    /// target's walk. Every visited node is visited once across all sibling targets, so the
+    /// mapper's cost stays linear in the graph, not in (targets × graph).
+    private func reachableStaticXCFrameworksViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph,
+        cache: GraphCache<GraphDependency, Set<GraphDependency>>,
+        includes: (GraphDependency.XCFramework) -> Bool
+    ) -> Set<GraphDependency> {
+        let root: GraphDependency = .target(name: name, path: path)
+        guard let rootChildren = graph.dependencies[root] else { return [] }
+
+        func terminal(_ node: GraphDependency) -> Bool {
+            if case let .xcframework(xcframework) = node, xcframework.linking == .static {
+                return true
+            }
+            if case let .target(dependencyName, dependencyPath, _) = node {
+                return currentGraph.projects[dependencyPath]?.targets[dependencyName] != nil
+            }
+            return false
+        }
+
+        // First pass: iterative DFS from each root child, collecting the reachable subgraph in
+        // visit order. Stops at terminals (their subtrees are irrelevant beyond their own
+        // inclusion) and at nodes already cached (we reuse their memoised result in the second
+        // pass). The root itself is not enqueued — we compute its result at the end from its
+        // children's cached sets, so the cache always holds the "descendant" semantics.
+        var order: [GraphDependency] = []
+        var visited = Set<GraphDependency>()
+        var stack: [GraphDependency] = []
+        for child in rootChildren where cache[child] == nil {
+            stack.append(child)
+        }
+        while let node = stack.popLast() {
+            guard visited.insert(node).inserted else { continue }
+            guard cache[node] == nil else { continue }
+            order.append(node)
+            guard !terminal(node) else { continue }
+            for child in graph.dependencies[node, default: []] where cache[child] == nil {
+                stack.append(child)
+            }
+        }
+
+        // Second pass: reverse-visit order guarantees children are cached before their parents
+        // in a DAG. Each node's set is its own inclusion plus its (non-terminal) children's.
+        for node in order.reversed() where cache[node] == nil {
+            var result: Set<GraphDependency> = []
+            if case let .xcframework(xcframework) = node, includes(xcframework) {
+                result.insert(node)
+            }
+            if !terminal(node) {
+                for child in graph.dependencies[node, default: []] {
+                    if let childResult = cache[child] {
+                        result.formUnion(childResult)
+                    }
+                }
+            }
+            cache[node] = result
+        }
+
+        // Combine the root's children's cached sets. The root itself never matches `includes`
+        // (roots are targets, not xcframeworks) and it's never terminal for its own traversal.
+        var result: Set<GraphDependency> = []
+        for child in rootChildren {
+            if let childResult = cache[child] {
+                result.formUnion(childResult)
+            }
+        }
         return result
     }
 

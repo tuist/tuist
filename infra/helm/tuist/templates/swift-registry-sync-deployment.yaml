@@ -67,7 +67,7 @@ spec:
           # on the :web leader, not here, so this pod is purely a
           # consumer. Future ecosystems get their own mode + Deployment
           # (e.g. maven-registry-sync-deployment.yaml).
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist
@@ -107,8 +107,7 @@ spec:
             - name: TUIST_DATABASE_SCHEMA
               value: {{ .Values.postgresql.schema | quote }}
             {{- if not .Values.server.managedSecrets }}
-            - name: TUIST_CLICKHOUSE_URL
-              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
             {{- end }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
@@ -117,11 +116,7 @@ spec:
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             {{- if not .Values.server.managedSecrets }}
-            - name: TUIST_SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: server-secret-key-base
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
             {{- end }}
             # Registry-specific S3 credentials (separate Tigris key with
             # policy on the registry bucket). The ex_aws config in

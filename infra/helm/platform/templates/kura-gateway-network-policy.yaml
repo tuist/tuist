@@ -1,0 +1,45 @@
+{{- /*
+Admits the regional Kura gateways to the cache port on Kura pods they do not
+share a node with.
+
+The gateways run host-network (`kind: DaemonSet`, `hostNetwork: true` in the
+per-environment values) so serving traffic hits the box NIC directly. What they
+proxy therefore leaves the node's host namespace rather than a pod namespace,
+and Cilium gives it the `host` identity on the node itself and `remote-node`
+from every other node. The per-instance NetworkPolicy that kura-controller
+writes admits the cache port with an empty `namespaceSelector`, which selects
+pod identities only, so neither identity matches. An `ipBlock` would not close
+the gap either: CIDR selectors skip in-cluster node addresses unless
+`policy-cidr-match-mode` is set, and it is not.
+
+A one-box region never saw this, because Cilium always admits `host` and the
+only gateway was the local one. A region running two or more boxes drops every
+request a gateway proxies to a pod on another box, and answers 504 once nginx
+exhausts its upstream retries.
+
+Kura policy stays additive: this grants the cache port and nothing else, and the
+runtime's JWT check remains the auth boundary, the same one the per-instance
+policy already relies on when it opens that port to every pod in the cluster.
+*/ -}}
+{{- if .Values.kuraGatewayNetworkPolicy.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kura-gateway-ingress
+  namespace: {{ .Values.kuraGatewayNetworkPolicy.namespace | quote }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kura
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            # kura-controller's `httpPort`, the cache port the regional
+            # Ingress routes to. Numeric rather than the `http` port name so
+            # the rule does not depend on named-port resolution.
+            - port: {{ .Values.kuraGatewayNetworkPolicy.port | quote }}
+              protocol: TCP
+{{- end }}

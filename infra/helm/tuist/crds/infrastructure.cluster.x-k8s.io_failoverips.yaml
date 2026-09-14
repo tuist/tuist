@@ -1,11 +1,12 @@
-# Hand-maintained (no controller-gen in this repo, matching the other provider
-# CRDs here). FailoverIP keeps one vendor failover/additional IP routed to a
-# healthy box of a Kura bare-metal pool, so the region's host-network public peer
-# plane survives a box loss (and a demux roll) without a cloud LoadBalancer.
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
   name: failoverips.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
@@ -15,61 +16,103 @@ spec:
     singular: failoverip
   scope: Cluster
   versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      subresources:
-        status: {}
-      additionalPrinterColumns:
-        - name: IP
+    - additionalPrinterColumns:
+        - jsonPath: .spec.ip
+          name: IP
           type: string
-          jsonPath: .spec.ip
-        - name: Vendor
+        - jsonPath: .spec.vendor
+          name: Vendor
           type: string
-          jsonPath: .spec.vendor
-        - name: ActiveNode
+        - jsonPath: .status.activeNode
+          name: ActiveNode
           type: string
-          jsonPath: .status.activeNode
+      name: v1alpha1
       schema:
         openAPIV3Schema:
-          type: object
+          description: |-
+            FailoverIP is the placement of one provider failover IP onto a healthy box of
+            a Kura bare-metal pool.
           properties:
             apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
               type: string
             kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
               type: string
             metadata:
               type: object
             spec:
-              type: object
-              required: [ip, vendor, nodePoolSelector]
+              description: |-
+                FailoverIPSpec keeps a provider failover/additional IP routed to a healthy box
+                of a Kura bare-metal pool, so the region's host-network public peer plane
+                survives a box loss (and a demux roll) without a cloud LoadBalancer.
               properties:
+                demuxNamespace:
+                  description: DemuxNamespace is the namespace the demux pods run in (default "kura").
+                  type: string
+                demuxSelector:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    DemuxSelector selects the peer-demux pods whose readiness additionally
+                    gates a box's eligibility, so the IP drains off a box whose demux is
+                    rolling. When empty, node Readiness alone gates eligibility.
+                  type: object
                 ip:
-                  type: string
-                vendor:
-                  type: string
-                  enum: [ovh, dedibox]
-                region:
+                  description: IP is the failover/additional IP (or CIDR) kept routed to a healthy box.
                   type: string
                 nodePoolSelector:
-                  type: object
                   additionalProperties:
                     type: string
-                demuxSelector:
+                  description: |-
+                    NodePoolSelector selects the candidate boxes the IP may route to (the pool
+                    label).
                   type: object
-                  additionalProperties:
-                    type: string
-                demuxNamespace:
+                region:
+                  description: |-
+                    Region is the Kura region this IP fronts (informational; matches the pool
+                    and the peer demux).
                   type: string
-            status:
+                vendor:
+                  description: Vendor is the provider whose API moves the IP.
+                  enum:
+                    - ovh
+                    - dedibox
+                  type: string
+              required:
+                - ip
+                - nodePoolSelector
+                - vendor
               type: object
+            status:
+              description: FailoverIPStatus reports where the IP is currently routed.
               properties:
                 activeNode:
-                  type: string
-                target:
-                  type: string
-                message:
+                  description: ActiveNode is the node the IP is currently routed to.
                   type: string
                 lastReconciledAt:
-                  type: string
                   format: date-time
+                  type: string
+                message:
+                  description: Message surfaces the last reconcile outcome (e.g. "no eligible box").
+                  type: string
+                target:
+                  description: |-
+                    Target is the vendor-opaque destination (OVH service name, or Dedibox
+                    "zone/server-id") the IP routes to.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
@@ -329,9 +330,10 @@ struct SimulatorControllerTests {
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_bootSimulatorIfNotBooted() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(simulatorApp: true)
         given(xcodeControllerMock)
             .selected()
-            .willReturn(.test())
+            .willReturn(xcode)
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
@@ -348,14 +350,19 @@ struct SimulatorControllerTests {
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_openSimulatorApp() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(simulatorApp: true, deviceHubApp: true)
         given(xcodeControllerMock)
             .selected()
-            .willReturn(.test())
+            .willReturn(xcode)
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         commandRunner.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
-        let openSimAppCommand = ["/usr/bin/open", "-a", "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"]
+        let openSimAppCommand = [
+            "/usr/bin/open",
+            "-a",
+            xcode.path.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString,
+        ]
         commandRunner.succeedCommand(openSimAppCommand)
 
         // When
@@ -363,14 +370,73 @@ struct SimulatorControllerTests {
 
         // Then
         #expect(commandRunner.called(openSimAppCommand) == true)
+        #expect(commandRunner.calls.filter { $0.hasPrefix("/usr/bin/open") }.count == 1)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func launchApp_should_openDeviceHubApp_when_simulatorAppIsMissing() async throws {
+        // Given
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(deviceHubApp: true)
+        given(xcodeControllerMock)
+            .selected()
+            .willReturn(xcode)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
+        let bundleId = "bundleId"
+        let udid = deviceAndRuntime.device.udid
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
+        let openDeviceHubCommand = [
+            "/usr/bin/open",
+            "-a",
+            xcode.path.appending(components: "Contents", "Applications", "DeviceHub.app").pathString,
+            "devices://manage/select?id=\(udid)",
+        ]
+        commandRunner.succeedCommand(openDeviceHubCommand)
+        let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
+        commandRunner.succeedCommand(launchAppCommand)
+
+        // When
+        try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+
+        // Then
+        #expect(commandRunner.called(openDeviceHubCommand) == true)
+        #expect(commandRunner.called(launchAppCommand) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func launchApp_should_skipOpeningSimulatorUI_when_noSimulatorAppIsAvailable() async throws {
+        // Given
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode()
+        given(xcodeControllerMock)
+            .selected()
+            .willReturn(xcode)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
+        let bundleId = "bundleId"
+        let udid = deviceAndRuntime.device.udid
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
+        let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
+        commandRunner.succeedCommand(launchAppCommand)
+
+        // When
+        try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+
+        // Then
+        #expect(commandRunner.calls.contains { $0.hasPrefix("/usr/bin/open") } == false)
+        #expect(commandRunner.called(launchAppCommand) == true)
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_launchAppOnSimulator() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(simulatorApp: true)
         given(xcodeControllerMock)
             .selected()
-            .willReturn(.test())
+            .willReturn(xcode)
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
@@ -378,7 +444,7 @@ struct SimulatorControllerTests {
         commandRunner.succeedCommand([
             "/usr/bin/open",
             "-a",
-            "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app",
+            xcode.path.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString,
         ])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
         commandRunner.succeedCommand(launchAppCommand)
@@ -396,9 +462,10 @@ struct SimulatorControllerTests {
     ) func launchApp_should_launchAppOnSimulatorWithArguments() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
+        let xcode = try await createXcode(simulatorApp: true)
         given(xcodeControllerMock)
             .selected()
-            .willReturn(.test())
+            .willReturn(xcode)
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
@@ -407,7 +474,7 @@ struct SimulatorControllerTests {
         commandRunner.succeedCommand([
             "/usr/bin/open",
             "-a",
-            "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app",
+            xcode.path.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString,
         ])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId] + arguments
         commandRunner.succeedCommand(launchAppCommand)
@@ -417,6 +484,23 @@ struct SimulatorControllerTests {
 
         // Then
         #expect(commandRunner.called(launchAppCommand) == true)
+    }
+
+    /// Creates a fake Xcode bundle in the temporary test directory containing the given simulator UI apps.
+    private func createXcode(simulatorApp: Bool = false, deviceHubApp: Bool = false) async throws -> Xcode {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodePath = temporaryDirectory.appending(component: "Xcode.app")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: xcodePath)
+        if simulatorApp {
+            try await fileSystem.makeDirectory(
+                at: xcodePath.appending(components: "Contents", "Developer", "Applications", "Simulator.app")
+            )
+        }
+        if deviceHubApp {
+            try await fileSystem.makeDirectory(at: xcodePath.appending(components: "Contents", "Applications", "DeviceHub.app"))
+        }
+        return .test(path: xcodePath)
     }
 
     private func createSystemStubs(

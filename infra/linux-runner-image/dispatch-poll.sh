@@ -83,6 +83,25 @@ fi
 interval=2
 attempt=0
 
+stage_cache_endpoint() {
+  # When the server routes the account through a runner-local Kura
+  # node, stage the URL next to the JIT so run-job.sh can export it
+  # as TUIST_CACHE_ENDPOINT in the runner container. This is a
+  # routing optimization: a staging failure degrades to the CLI's
+  # default cache resolution, it does not strand the claimed job.
+  cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
+  if [ -n "${cache_endpoint}" ]; then
+    cache_endpoint_path="${JIT_OUTPUT_PATH}.cache-endpoint"
+    cache_tmp="${cache_endpoint_path}.tmp"
+    if { printf '%s' "${cache_endpoint}" >"${cache_tmp}" && chmod 0644 "${cache_tmp}" && mv -f "${cache_tmp}" "${cache_endpoint_path}"; }; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: cache endpoint staged at ${cache_endpoint_path}"
+    else
+      rm -f "${cache_tmp}" 2>/dev/null || true
+      echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage cache endpoint; runner will fall back to default cache resolution"
+    fi
+  fi
+}
+
 while true; do
   attempt=$((attempt + 1))
   # `-f` intentionally omitted so 4xx/5xx land in $http instead of
@@ -98,11 +117,71 @@ while true; do
 
   case "${http}" in
     200)
+      if jq -e '.gitlab_job' /tmp/dispatch.json >/dev/null; then
+        if [ -z "${JIT_OUTPUT_PATH}" ]; then
+          echo "GitLab dispatch requires the isolated poller container"
+          exit 1
+        fi
+        gitlab_path="${JIT_OUTPUT_PATH}.gitlab.json"
+        if ! { (umask 077; jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.gitlab_job + {report_url: $report_url}' /tmp/dispatch.json >"${gitlab_path}.tmp") &&
+          chmod 0644 "${gitlab_path}.tmp" && mv -f "${gitlab_path}.tmp" "${gitlab_path}"; }; then
+          rm -f "${gitlab_path}.tmp" 2>/dev/null || true
+          echo "GitLab assignment could not be staged"
+          exit 1
+        fi
+        # Sidecars use the JIT path as their job-start marker.
+        stage_cache_endpoint
+        if ! printf 'gitlab\n' >"${JIT_OUTPUT_PATH}"; then
+          rm -f "${gitlab_path}" 2>/dev/null || true
+          echo "GitLab assignment marker could not be staged"
+          exit 1
+        fi
+        exit 0
+      fi
       jit=$(jq -r '.encoded_jit_config // empty' /tmp/dispatch.json)
-      if [ -z "${jit}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
+      # Buildkite's credential set. The server sends one or the other,
+      # never both, so which is present selects the agent run-job.sh
+      # launches. The report token is what the job's `pre-exit` hook
+      # authenticates with: it is scoped to this one job, so unlike the
+      # SA token it is safe to stage into the credential-free runner
+      # container.
+      bk_token=$(jq -r '.buildkite_acquisition_token // empty' /tmp/dispatch.json)
+      bk_job_uuid=$(jq -r '.buildkite_job_uuid // empty' /tmp/dispatch.json)
+      bk_report_token=$(jq -r '.buildkite_report_token // empty' /tmp/dispatch.json)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
+      fi
+      if [ -n "${JIT_OUTPUT_PATH}" ] && [ -n "${bk_token}" ]; then
+        # Buildkite staging. Same atomic-write discipline as the JIT
+        # below, and the same fail-closed rule: the job is already
+        # reserved server-side, so a silent staging failure would strand
+        # it until the reservation lapses.
+        #
+        # The acquisition token and the report token go into one env file
+        # the runner container sources, rather than separate files, so the
+        # hook has a single thing to read on both fleets.
+        bk_env_path="${JIT_OUTPUT_PATH}.buildkite-env"
+        bk_tmp="${bk_env_path}.tmp"
+        cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
+        cache_grant=$(jq -r '.cache_signing_grant // empty' /tmp/dispatch.json)
+        {
+          printf 'BUILDKITE_AGENT_TOKEN=%s\n' "${bk_token}"
+          printf 'BUILDKITE_AGENT_ACQUIRE_JOB=%s\n' "${bk_job_uuid}"
+          printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
+          printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+          [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
+          [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+        } >"${bk_tmp}" 2>/dev/null
+        if ! { chmod 0644 "${bk_tmp}" && mv -f "${bk_tmp}" "${bk_env_path}"; }; then
+          rm -f "${bk_tmp}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage buildkite env to ${bk_env_path}; aborting"
+          exit 1
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: claimed buildkite job ${bk_job_uuid}, staged for runner container"
+        exit 0
       fi
       if [ -n "${JIT_OUTPUT_PATH}" ]; then
         # Stage the JIT for the sibling runner container and exit.
@@ -124,22 +203,7 @@ while true; do
           echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage JIT to ${JIT_OUTPUT_PATH}; aborting"
           exit 1
         fi
-        # When the server routes the account through a runner-local Kura
-        # node, stage the URL next to the JIT so run-job.sh can export it
-        # as TUIST_CACHE_ENDPOINT in the runner container. This is a
-        # routing optimization: a staging failure degrades to the CLI's
-        # default cache resolution, it does not strand the claimed job.
-        cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
-        if [ -n "${cache_endpoint}" ]; then
-          cache_endpoint_path="${JIT_OUTPUT_PATH}.cache-endpoint"
-          cache_tmp="${cache_endpoint_path}.tmp"
-          if { printf '%s' "${cache_endpoint}" >"${cache_tmp}" && chmod 0644 "${cache_tmp}" && mv -f "${cache_tmp}" "${cache_endpoint_path}"; }; then
-            echo "$(date -u +%FT%TZ) dispatch-poll: cache endpoint staged at ${cache_endpoint_path}"
-          else
-            rm -f "${cache_tmp}" 2>/dev/null || true
-            echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage cache endpoint; runner will fall back to default cache resolution"
-          fi
-        fi
+        stage_cache_endpoint
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0
       fi

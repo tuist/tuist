@@ -39,9 +39,19 @@ rules:
   # is replacing are retired instead of holding the drain open. Nodes
   # are cluster-scoped, so this read can't live in the namespaced Role
   # below.
+  #
+  # `patch` is for node reservation: a macOS shape that needs more than
+  # one guest slot on a host (12 vCPU on an M4-XL) can otherwise never
+  # accumulate them, because each slot that frees is taken by a smaller
+  # Pod that fits. The reconciler taints one eligible host
+  # `tuist.dev/reserved-for=<pool>:NoSchedule`, lets its running jobs
+  # finish, retires only its idle Pods, and removes the taint once the
+  # Pod lands or the reservation times out. Scoped to `patch` rather than
+  # `update` so the controller can only merge the taint and its
+  # timestamp, never rewrite a Node object wholesale.
   - apiGroups: [""]
     resources: [nodes]
-    verbs: [get, list, watch]
+    verbs: [get, list, watch, patch]
   # RuntimeClass podFixed memory is part of the scheduler's per-Pod
   # cost. The autoscaler reads it directly so its fleet allocation
   # cannot drift from the admission-time scheduling calculation.

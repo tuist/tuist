@@ -245,6 +245,45 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
     end
   end
 
+  describe "GET /accounts/:account_handle/tokens/:token_id" do
+    test "returns the account token", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      token =
+        AccountsFixtures.account_token_fixture(
+          account: user.account,
+          name: "dashboard-token",
+          scopes: ["project:cache:read"]
+        )
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_user(user)
+        |> get("/api/accounts/#{user.account.name}/tokens/#{token.id}")
+
+      token_id = token.id
+
+      assert %{
+               "id" => ^token_id,
+               "name" => "dashboard-token",
+               "scopes" => ["project:cache:read"]
+             } = json_response(conn, :ok)
+    end
+
+    test "returns not found when the token belongs to another account", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      token = AccountsFixtures.account_token_fixture(account: other_user.account)
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_user(user)
+        |> get("/api/accounts/#{user.account.name}/tokens/#{token.id}")
+
+      assert %{"message" => "Account token not found"} = json_response(conn, :not_found)
+    end
+  end
+
   describe "DELETE /accounts/:account_handle/tokens/:token_name" do
     test "revokes token by name", %{conn: conn} do
       # Given

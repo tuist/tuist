@@ -7,10 +7,13 @@ defmodule Tuist.Kura.PromExPluginTest do
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Deployment
   alias Tuist.Kura.PromExPlugin
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Telemetry
   alias Tuist.Kura.UsageEvent
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -31,6 +34,34 @@ defmodule Tuist.Kura.PromExPluginTest do
     :ok
   end
 
+  describe "event metrics" do
+    test "every telemetry event the lifecycle emits is scraped" do
+      # A counter nothing scrapes is a decision nobody can see. The unmet
+      # placement preference is the one that matters most here: it is the
+      # procurement signal, and it is emitted from a path that produces no
+      # other trace of itself.
+      scraped =
+        []
+        |> PromExPlugin.event_metrics()
+        |> Enum.flat_map(& &1.metrics)
+        |> MapSet.new(& &1.event_name)
+
+      for event <- [
+            Telemetry.event_name_provisioned(),
+            Telemetry.event_name_ready(),
+            Telemetry.event_name_drain_pending(),
+            Telemetry.event_name_archive_cancelled(),
+            Telemetry.event_name_archived(),
+            Telemetry.event_name_resolution_refused(),
+            Telemetry.event_name_seed_declined(),
+            Telemetry.event_name_placement_preference_unmet(),
+            Telemetry.event_name_placement_capacity_spill()
+          ] do
+        assert MapSet.member?(scraped, event), "#{inspect(event)} is emitted but never scraped"
+      end
+    end
+  end
+
   defp account do
     user = AccountsFixtures.user_fixture()
     Accounts.get_account_from_user(user)
@@ -42,6 +73,18 @@ defmodule Tuist.Kura.PromExPluginTest do
       region: @region,
       status: :active,
       provisioner_node_ref: "kura-#{account.id}-us-east"
+    })
+  end
+
+  # The stall clock is the open deployment's age, so a stalled instance is one
+  # whose attempt started before the threshold and never closed.
+  defp open_deployment(server, age_seconds: age_seconds) do
+    Repo.insert!(%Deployment{
+      cluster_id: "test-cluster",
+      image_tag: "0.5.2",
+      kura_server_id: server.id,
+      status: :running,
+      inserted_at: DateTime.add(DateTime.utc_now(), -age_seconds, :second)
     })
   end
 
@@ -134,6 +177,79 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       assert_received {[:tuist, :kura, :lifecycle, :hit_rate_recovery], ^ref,
                        %{returned_hit_rate: +0.0, steady_hit_rate: +0.0}, _metadata}
+    end
+  end
+
+  describe "execute_unroutable_instances_telemetry_event/0" do
+    test "counts instances that exist but cannot be resolved" do
+      instance(account())
+
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :failed, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1}, %{region: @region}}
+    end
+
+    test "reports zero for a healthy region rather than dropping the series" do
+      instance(account())
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 0}, %{region: @region}}
+    end
+
+    test "counts an instance whose provisioning attempt has run past the stall threshold as stalled" do
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :provisioning, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+      |> open_deployment(age_seconds: Kura.provisioning_stall_seconds() + 60)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1, stalled: 1},
+                       %{region: @region}}
+    end
+
+    test "does not count an instance that is merely starting as stalled" do
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :provisioning, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+      |> open_deployment(age_seconds: 30)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1, stalled: 0},
+                       %{region: @region}}
+    end
+
+    test "stops counting an instance as stalled once its deployment closes" do
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :provisioning, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+      |> open_deployment(age_seconds: Kura.provisioning_stall_seconds() + 60)
+      |> Ecto.Changeset.change(status: :succeeded)
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{stalled: 0}, %{region: @region}}
     end
   end
 

@@ -1,0 +1,5 @@
+.noora-card__section {
+  &[data-error] {
+    padding: var(--noora-spacing-0);
+  }
+}

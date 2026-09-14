@@ -1,42 +1,41 @@
 <div align="center">
   <div>
-    <a href="https://tuist.dev" target="_blank"><img src="assets/header.png" alt="header"/></a>
+    <a href="https://tuist.dev" target="_blank">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/header-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="assets/header-light.png">
+        <img src="assets/header-light.png" alt="header"/>
+      </picture>
+    </a>
   </div>
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
   <a href="https://bsky.app/profile/tuist.dev"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=bluesky" alt="Bluesky badge"></a>
-  <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=slack" alt="Slack Workspace"></a>
-  <a href="https://t.me/tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=telegram" alt="Slack Workspace"></a>
+  <a href="https://x.com/tuistdev"><img src="https://img.shields.io/badge/tuistdev-gray.svg?logo=x" alt="X badge"></a>
   <div>
-    <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
+    <a href="https://cal.tuist.dev/team/tuist/tuist" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
-  <a href="https://translate.tuist.dev/engage/tuist/">
-  <img src="https://translate.tuist.dev/widget/tuist/svg-badge.svg" alt="Translation status" />
-  </a>
 </div>
 
 # Tuist
 
-Tuist is a virtual platform team for Swift app devs who ship. Through an integrated platform that integrates with your toolchain and projects, we help you stay focused and productive while building apps.
+Tuist supercharges your build system, whether you build with Xcode, Gradle, or Bazel. At its core, our cache reuses previously-built artifacts across environments to dramatically speed up your builds, and a suite of tools around it helps you keep them fast, reliable, and observable as you scale.
 
 The following solutions are part of Tuist:
 
-- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
 - [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Speed up builds across environments with a content-addressable store.
 - [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
 - [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
 - [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
 - [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
-- [📱 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
+- [📲 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
+- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
 
 Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
 - [📑 **Documentation**](https://tuist.dev/en/docs)
 - [📚 **Handbook**](https://handbook.tuist.dev)
 - [💬 **Community forum**](https://community.tuist.dev)
-
-> [!NOTE]
-> Even though our current focus is on the development phase of Apple native apps, we'll gradually expand our focus to include other ecosystems (e.g., Android, RN, and Flutter), and expand beyond just development.
 
 ## Get started
 
@@ -261,7 +260,11 @@ Some companies support our community and open source efforts with contributions 
           <img src="assets/companies/bereke_business_logo.svg" alt="bereke_business_logo" height="75"/>
         </a>
       </td>
-      <td width="20%"></td>
+      <td width="20%" align="center">
+        <a href="https://business.forte.kz" target="_blank">
+          <img src="assets/companies/forte-business-logo.svg" alt="forte-business-logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>

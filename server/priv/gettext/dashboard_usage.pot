@@ -22,7 +22,7 @@ msgstr ""
 msgid "Requests"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:32
+#: lib/tuist_web/live/usage_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -45,10 +45,10 @@ msgstr ""
 msgid "Ingress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:342
-#: lib/tuist_web/live/usage_live.ex:343
-#: lib/tuist_web/live/usage_live.ex:465
-#: lib/tuist_web/live/usage_live.ex:466
+#: lib/tuist_web/live/usage_live.ex:353
+#: lib/tuist_web/live/usage_live.ex:354
+#: lib/tuist_web/live/usage_live.ex:482
+#: lib/tuist_web/live/usage_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -68,7 +68,7 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:473
+#: lib/tuist_web/live/usage_live.ex:490
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
@@ -123,12 +123,12 @@ msgstr ""
 msgid "Usage value"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:445
+#: lib/tuist_web/live/usage_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:444
+#: lib/tuist_web/live/usage_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr ""
@@ -178,37 +178,37 @@ msgstr ""
 msgid "Billing period:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:420
+#: lib/tuist_web/live/usage_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:440
+#: lib/tuist_web/live/usage_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:432
+#: lib/tuist_web/live/usage_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:426
+#: lib/tuist_web/live/usage_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:77
+#: lib/tuist_web/live/usage_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "since the previous period"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:335
+#: lib/tuist_web/live/usage_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:453
+#: lib/tuist_web/live/usage_live.ex:470
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr ""

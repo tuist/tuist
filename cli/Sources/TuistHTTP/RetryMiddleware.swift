@@ -38,7 +38,11 @@ public struct RetryMiddleware: ClientMiddleware {
         if let retryableRequestMethods,
            !retryableRequestMethods.contains(request.method.rawValue)
         {
-            return try await next(request, body, baseURL)
+            let (response, responseBody) = try await next(request, body, baseURL)
+            if let error = Self.authorizationThrottledError(for: response) {
+                throw error
+            }
+            return (response, responseBody)
         }
 
         let bodyData: Data?
@@ -53,6 +57,9 @@ public struct RetryMiddleware: ClientMiddleware {
             var delay = retryPolicy.delay(for: retry)
             do {
                 let (response, responseBody) = try await next(request, replayBody, baseURL)
+                if let error = Self.authorizationThrottledError(for: response) {
+                    throw error
+                }
                 guard Self.isRetryableStatusCode(response.status.code) else {
                     return (response, responseBody)
                 }
@@ -60,6 +67,8 @@ public struct RetryMiddleware: ClientMiddleware {
                 Logger.current.debug(
                     "Received HTTP \(response.status.code) for \(request.method.rawValue) \(request.path ?? ""), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )
+            } catch let error as AuthorizationThrottledError {
+                throw error
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -80,6 +89,16 @@ public struct RetryMiddleware: ClientMiddleware {
 
     private static func isRetryableStatusCode(_ statusCode: Int) -> Bool {
         statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+    }
+
+    private static func authorizationThrottledError(for response: HTTPResponse) -> AuthorizationThrottledError? {
+        let throttleReasonName = HTTPField.Name("x-tuist-throttle-reason")!
+        guard response.headerFields[throttleReasonName] == "authorization" else { return nil }
+
+        let retryAfterName = HTTPField.Name("Retry-After")!
+        let retryAfterSeconds = response.headerFields[retryAfterName]
+            .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        return AuthorizationThrottledError(retryAfterSeconds: retryAfterSeconds)
     }
 
     static func retryDelay(for response: HTTPResponse, policyDelay: UInt64) -> UInt64 {

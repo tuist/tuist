@@ -23,7 +23,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
@@ -65,10 +64,9 @@ jobs:
           set -euo pipefail
           sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml
           grep -E '^[[:space:]]*tuist = "' mise.toml
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         if: steps.resolve.outputs.changed == 'true'
         with:
-          version: ${{ env.MISE_VERSION }}
           # Installing tuist unlocked rewrites its mise.lock entry across all
           # platforms (checksums come from the release SHASUMS, so one host
           # covers macOS and Linux).

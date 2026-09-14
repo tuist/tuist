@@ -5,13 +5,24 @@ use std::{
 
 use tokio::sync::OwnedSemaphorePermit;
 
-use crate::metrics::Metrics;
+use crate::metrics::ResponseStreamReservationMetrics;
 
 use super::{MemoryController, MemoryControllerInner};
 
 pub(super) const FOREGROUND_ADMISSION_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(30);
 pub(super) const RESPONSE_STREAM_ADMISSION_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a response waits for materialization headroom before shedding.
+///
+/// Shorter than the response-stream deadline above, because the two are bounding
+/// different things. That one waits for a stream slot the node will free as soon
+/// as a stream finishes; this one waits on a pool whose permits are released
+/// only when a client has finished reading a body, which nothing server-side
+/// bounds. Momentary contention clears far inside a second -- measured p99 was
+/// 369ms with demand at four times the pool -- so a second rides out everything
+/// the pool can actually turn over, while a pool held by stalled readers costs a
+/// second per read rather than five before the shed it was always going to be.
+pub(super) const RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT: Duration = Duration::from_secs(1);
 /// How long a caller that can degrade will wait for a full-size reservation.
 ///
 /// Short on purpose. When failing admission meant returning `503` it was worth
@@ -45,9 +56,28 @@ impl MemoryPermit {
     }
 }
 
+/// Identity of a mapped file region. The mmap pool charges each distinct
+/// region once, however many concurrent responses map it: mappings of the same
+/// file pages alias the same page-cache pages, so the physical footprint does
+/// not grow with the number of readers.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MmapRegion {
+    pub source: Arc<str>,
+    pub offset: u64,
+    pub len: u64,
+}
+
+/// One mapping's share of a region's pool charge. The pool permit is held by
+/// the region entry and released when the last mapping of that region drops.
 pub struct MmapMemoryPermit {
-    pub(super) _concurrency: OwnedSemaphorePermit,
-    pub(super) _transient: TransientMemoryReservation,
+    pub(super) controller: MemoryController,
+    pub(super) region: MmapRegion,
+}
+
+impl Drop for MmapMemoryPermit {
+    fn drop(&mut self) {
+        self.controller.release_mmap_region(&self.region);
+    }
 }
 
 pub struct ResponseStreamMemoryPermit {
@@ -56,8 +86,7 @@ pub struct ResponseStreamMemoryPermit {
     pub(super) background_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) elastic_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) transient: Option<TransientMemoryReservation>,
-    pub(super) metrics: Metrics,
-    pub(super) protocol: &'static str,
+    pub(super) metrics: Arc<ResponseStreamReservationMetrics>,
     pub(super) bytes: u64,
 }
 
@@ -79,19 +108,31 @@ impl ResponseStreamMemoryPermit {
 
 impl Drop for ResponseStreamMemoryPermit {
     fn drop(&mut self) {
-        let controller = self
-            .transient
-            .as_ref()
-            .map(|transient| transient.controller.clone());
-        self.metrics
-            .remove_response_stream_reservation(self.protocol, self.bytes);
+        let mut transient = self.transient.take();
+        self.metrics.remove(self.bytes);
         drop(self.concurrency.take());
         drop(self.foreground_concurrency.take());
         drop(self.background_concurrency.take());
         drop(self.elastic_concurrency.take());
-        drop(self.transient.take());
-        if let Some(controller) = controller {
-            controller.inner.pressure_changed.notify_waiters();
+        if let Some(transient) = transient.as_mut() {
+            drop(transient.permit.take());
+            drop(transient.elastic_permit.take());
+            let has_waiters = transient
+                .controller
+                .inner
+                .response_stream_waiters
+                .load(Ordering::SeqCst)
+                > 0;
+            #[cfg(test)]
+            let has_waiters = has_waiters
+                || transient
+                    .controller
+                    .inner
+                    .response_stream_notify_without_waiters
+                    .load(Ordering::Acquire);
+            if has_waiters {
+                transient.controller.inner.pressure_changed.notify_waiters();
+            }
         }
     }
 }
@@ -120,7 +161,22 @@ impl ResponseTransportGuard {
 pub struct TransientMemoryReservation {
     pub(super) controller: MemoryController,
     pub(super) permit: Option<OwnedSemaphorePermit>,
+    /// Bytes drawn from the elastic pool, held apart from `permit` because
+    /// `OwnedSemaphorePermit::merge` panics across semaphores. Released before
+    /// `permit` on the way down, so borrowed ceiling headroom goes back first.
+    pub(super) elastic_permit: Option<OwnedSemaphorePermit>,
+    pub(super) elasticity: TransientElasticity,
     pub(super) bytes: u64,
+}
+
+/// Whether a reservation may draw on ceiling headroom above the floor-derived
+/// pool. Opt-in per reservation rather than per admission class: the callers
+/// that shed on the floor today differ in what a refusal costs them, and only
+/// the remote-execution write path has no wait to fall back on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TransientElasticity {
+    Fixed,
+    MayBorrowCeilingHeadroom,
 }
 
 pub struct ForegroundMemoryReservation {
@@ -185,7 +241,7 @@ impl ResponseStreamWaiter {
         protocol: &'static str,
         queue: OwnedSemaphorePermit,
     ) -> Self {
-        inner.response_stream_waiters.fetch_add(1, Ordering::AcqRel);
+        inner.response_stream_waiters.fetch_add(1, Ordering::SeqCst);
         inner.metrics.add_response_stream_waiter(protocol);
         Self {
             inner,
@@ -199,7 +255,7 @@ impl Drop for ResponseStreamWaiter {
     fn drop(&mut self) {
         self.inner
             .response_stream_waiters
-            .fetch_sub(1, Ordering::AcqRel);
+            .fetch_sub(1, Ordering::SeqCst);
         self.inner
             .metrics
             .remove_response_stream_waiter(self.protocol);
@@ -232,28 +288,63 @@ impl TransientMemoryReservation {
             }
             let additional_bytes = requested_bytes - self.bytes;
             let additional_permits = u32::try_from(additional_bytes).map_err(|_| ())?;
-            let additional = self
+            match self
                 .controller
                 .inner
                 .pools
-                .try_acquire_transient(additional_permits)?;
-            match self.permit.as_mut() {
-                Some(permit) => permit.merge(additional),
-                None => self.permit = Some(additional),
+                .try_acquire_transient(additional_permits)
+            {
+                Ok(additional) => match self.permit.as_mut() {
+                    Some(permit) => permit.merge(additional),
+                    None => self.permit = Some(additional),
+                },
+                Err(()) => {
+                    let additional = self.try_acquire_elastic(additional_permits)?;
+                    match self.elastic_permit.as_mut() {
+                        Some(permit) => permit.merge(additional),
+                        None => self.elastic_permit = Some(additional),
+                    }
+                }
             }
         } else if requested_bytes < self.bytes {
-            let released_bytes = usize::try_from(self.bytes - requested_bytes).map_err(|_| ())?;
-            let released = self
-                .permit
-                .as_mut()
-                .and_then(|permit| permit.split(released_bytes))
-                .ok_or(())?;
-            drop(released);
+            let mut remaining = usize::try_from(self.bytes - requested_bytes).map_err(|_| ())?;
+            remaining = self.release_elastic(remaining)?;
+            if remaining > 0 {
+                let released = self
+                    .permit
+                    .as_mut()
+                    .and_then(|permit| permit.split(remaining))
+                    .ok_or(())?;
+                drop(released);
+            }
             if requested_bytes == 0 {
                 self.permit = None;
             }
         }
         self.bytes = requested_bytes;
         Ok(())
+    }
+
+    fn try_acquire_elastic(&self, permits: u32) -> Result<OwnedSemaphorePermit, ()> {
+        if self.elasticity != TransientElasticity::MayBorrowCeilingHeadroom {
+            return Err(());
+        }
+        self.controller.try_acquire_elastic_transient(permits)
+    }
+
+    /// Gives back up to `released_bytes` of borrowed headroom, returning what
+    /// still has to come out of the floor-derived pool.
+    fn release_elastic(&mut self, released_bytes: usize) -> Result<usize, ()> {
+        let Some(permit) = self.elastic_permit.as_mut() else {
+            return Ok(released_bytes);
+        };
+        let held_bytes = permit.num_permits();
+        let released = released_bytes.min(held_bytes);
+        if released == held_bytes {
+            self.elastic_permit = None;
+        } else if released > 0 {
+            drop(permit.split(released).ok_or(())?);
+        }
+        Ok(released_bytes - released)
     }
 }

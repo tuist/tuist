@@ -502,7 +502,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.platform_ref }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl jq"
           cache: "false"
@@ -1112,7 +1112,10 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
-      - uses: jdx/mise-action@v3.2.0
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl"
           cache: "false"

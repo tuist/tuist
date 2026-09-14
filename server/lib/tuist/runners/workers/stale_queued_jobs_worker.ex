@@ -40,7 +40,11 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
            it.
          * `queued` → still legitimately pending; leave it, unless it
            is past the hard backstop (below).
-    3. Hard backstop: any row queued longer than `@reap_after_seconds`
+    3. A `queued` job whose parent run already reads `completed` is
+       marked completed with the run's conclusion. GitHub leaves the
+       remaining jobs of a `startup_failure` run `queued` forever, so
+       the per-job status alone would hold the row until the backstop.
+    4. Hard backstop: any row queued longer than `@reap_after_seconds`
        that GitHub still reports `queued`, can't be addressed (empty
        repository), or can't be verified (API down) is force-completed
        with conclusion `"stale"`. Past that age nothing will ever move
@@ -128,7 +132,8 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
-        {:ok, %{status: gh_status, conclusion: conclusion}} ->
+        {:ok, job} ->
+          {gh_status, conclusion} = effective_gh_status(installation, candidate, job)
           handle_gh_status(gh_status, conclusion, candidate, reap_threshold)
 
         {:error, :not_found} ->
@@ -152,6 +157,36 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
         reap_if_past_backstop(candidate, reap_threshold)
     end
   end
+
+  # A run that has already reached `completed` will never assign its
+  # remaining jobs, but the per-job endpoint keeps reporting them as
+  # `queued`: the shape a `startup_failure` run leaves behind. Without
+  # resolving the run, such a row waits out the full 24h backstop at the
+  # head of the fleet queue, where dispatch keeps handing it to runners
+  # that can never be assigned it.
+  #
+  # Only the queued branch pays the extra call, and only the run's terminal
+  # state can redirect it: a lookup that fails, or a run still live, leaves
+  # the verify-and-backstop behaviour untouched.
+  defp effective_gh_status(installation, candidate, %{status: "queued", conclusion: conclusion}) do
+    case run_status(installation, candidate) do
+      {:ok, %{status: "completed", conclusion: run_conclusion}} -> {"completed", run_conclusion || ""}
+      _ -> {"queued", conclusion}
+    end
+  end
+
+  defp effective_gh_status(_installation, _candidate, %{status: status, conclusion: conclusion}) do
+    {status, conclusion}
+  end
+
+  # Rows enqueued before the run id was recorded carry the column's `0`
+  # default, which addresses no run.
+  defp run_status(installation, %{repository: repository, workflow_run_id: workflow_run_id})
+       when is_binary(repository) and repository != "" and is_integer(workflow_run_id) and workflow_run_id > 0 do
+    GitHubClient.workflow_run_status(installation, repository, workflow_run_id)
+  end
+
+  defp run_status(_installation, _candidate), do: {:error, :unaddressable}
 
   defp handle_gh_status("completed", conclusion, candidate, _reap_threshold) do
     Logger.warning("runners: stale queued row — GH completed, reconciling",

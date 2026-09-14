@@ -4,17 +4,22 @@ defmodule TuistWeb.BuildRunLive do
   use Noora
 
   import Phoenix.Component
+  import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyTabStateBackground
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
+  import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
+  alias Tuist.Gradle.Build
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
@@ -71,6 +76,8 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:timeline, AsyncResult.loading())
+      |> assign(:timeline_version, 0)
       |> assign(:machine_metrics, run.machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
@@ -102,9 +109,6 @@ defmodule TuistWeb.BuildRunLive do
         {:error, :not_found} -> nil
       end
 
-    cas_metrics = Builds.cas_output_metrics(run.id)
-    cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
-
     test_run =
       case Tests.get_latest_test_by_build_run_id(run.id) do
         {:ok, test} -> test
@@ -117,23 +121,16 @@ defmodule TuistWeb.BuildRunLive do
     binary_cache_command_event = binary_cache_command_event(run, command_event)
     has_binary_cache_data = binary_cache_command_event != nil
 
-    module_cache_metrics =
-      if binary_cache_command_event,
-        do: CommandEvents.module_cache_output_metrics(binary_cache_command_event.id)
-
     ci_run_url = Builds.build_ci_run_url(run)
     ci_context = build_ci_context(run, socket.assigns.selected_account, ci_run_url)
 
     socket
     |> assign(:command_event, command_event)
     |> assign(:binary_cache_command_event, binary_cache_command_event)
-    |> assign(:module_cache_metrics, module_cache_metrics)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:ci_run_url, ci_run_url)
     |> assign(:ci_context, ci_context)
     |> assign(:test_run, test_run)
-    |> assign(:cas_metrics, cas_metrics)
-    |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
     |> assign(
       :warnings_grouped_by_path,
       run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
@@ -234,9 +231,16 @@ defmodule TuistWeb.BuildRunLive do
       run =
         run
         |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
-        |> Tuist.ClickHouseRepo.preload([:issues])
+        |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
-      {:noreply, socket |> assign(:run, run) |> assign_build_data(run)}
+      {:noreply,
+       socket
+       |> assign(:run, run)
+       |> assign(:machine_metrics, run.machine_metrics)
+       |> assign_build_data(run)
+       |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
+       |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
+       |> assign_timeline(true)}
     else
       {:noreply, socket}
     end
@@ -279,7 +283,13 @@ defmodule TuistWeb.BuildRunLive do
     selected_breakdown_tab = params["breakdown-tab"] || "module"
     selected_cache_tab = params["cache-tab"] || "cacheable-tasks"
 
-    selected_tab = params["tab"] || "overview"
+    selected_tab =
+      if params["tab"] == "machine-metrics" and Enum.any?(socket.assigns.machine_metrics, &is_number(&1.offset_ms)),
+        do: "timeline",
+        else: params["tab"] || "overview"
+
+    socket = TuistWeb.BuildTimelineLoader.select_tab(socket, selected_tab, socket.assigns.run)
+    selected_tab = socket.assigns.selected_tab
 
     available_filters =
       case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
@@ -312,13 +322,10 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:active_filters, active_filters)
       |> assign(:selected_read_latency_type, selected_read_latency_type)
       |> assign(:selected_write_latency_type, selected_write_latency_type)
-      |> assign_file_breakdown(params)
-      |> assign_module_breakdown(params)
-      |> assign_cacheable_tasks(params)
-      |> assign_cas_outputs(params)
-      |> assign_binary_cache(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
       |> assign(:selected_cache_tab, selected_cache_tab)
+      |> assign_selected_tab_data(params)
+      |> assign_timeline()
 
     {
       :noreply,
@@ -326,7 +333,197 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  def cacheable_task_row_id(key), do: "cacheable-task-" <> Base.url_encode64(key, padding: false)
+
+  defp reset_task_cas_outputs(socket) do
+    socket =
+      Enum.reduce(socket.assigns.task_cas_outputs_map, socket, fn {key, _}, acc ->
+        cancel_async(acc, {:task_cas_outputs, key})
+      end)
+
+    socket
+    |> assign(:expanded_task_keys, MapSet.new())
+    |> assign(:task_cas_outputs_map, %{})
+  end
+
+  defp load_task_cas_outputs(socket, key) do
+    run_id = socket.assigns.run.id
+    state = Map.get(socket.assigns.task_cas_outputs_map, key, %{page: 0, result: AsyncResult.loading()})
+    page = state.page + 1
+    state = %{state | result: AsyncResult.loading(state.result)}
+
+    socket
+    |> cancel_async({:task_cas_outputs, key})
+    |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+    |> start_async({:task_cas_outputs, key}, fn ->
+      Builds.list_cacheable_task_cas_outputs(run_id, key, page)
+    end)
+  end
+
   @impl true
+  def handle_async({:task_cas_outputs, key}, outcome, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => state} ->
+        state =
+          case outcome do
+            {:ok, page} ->
+              previous_outputs = if state.result.ok?, do: state.result.result.outputs, else: []
+              result = AsyncResult.ok(state.result, %{page | outputs: previous_outputs ++ page.outputs})
+              %{state | page: state.page + 1, result: result}
+
+            {:exit, reason} ->
+              %{state | result: AsyncResult.failed(state.result, {:exit, reason})}
+          end
+
+        socket =
+          socket
+          |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+          |> disable_empty_task_expansion(key, state.result)
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async(:timeline_log, {:ok, log}, socket) do
+    {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, log: log})}
+  end
+
+  def handle_async(:timeline_log, {:exit, _reason}, socket) do
+    {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, error: true})}
+  end
+
+  def handle_async(:timeline_step, {:ok, step}, socket) do
+    {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, step: step})}
+  end
+
+  def handle_async(:timeline_step, {:exit, _reason}, socket) do
+    {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
+  end
+
+  defp disable_empty_task_expansion(socket, key, %AsyncResult{ok?: true, result: %{outputs: []}}) do
+    socket
+    |> update(:expanded_task_keys, &MapSet.delete(&1, key))
+    |> update(:cacheable_tasks, fn tasks ->
+      Enum.map(tasks, fn task ->
+        if task.key == key, do: %{task | has_cas_outputs: false}, else: task
+      end)
+    end)
+  end
+
+  defp disable_empty_task_expansion(socket, _key, _result), do: socket
+
+  defp assign_selected_tab_data(socket, params) do
+    socket = reset_task_cas_outputs(socket)
+
+    case {socket.assigns.selected_tab, socket.assigns.selected_breakdown_tab, socket.assigns.selected_cache_tab} do
+      {"overview", "file", _} ->
+        assign_file_breakdown(socket, params)
+
+      {"overview", _, _} ->
+        assign_module_breakdown(socket, params)
+
+      {"xcode-cache", _, "cas-outputs"} ->
+        socket
+        |> assign(:cas_metrics, Builds.cas_output_metrics(socket.assigns.run.id))
+        |> assign_cas_outputs(params)
+
+      {"xcode-cache", _, _} ->
+        socket
+        |> assign(:cas_metrics, Builds.cas_output_metrics(socket.assigns.run.id))
+        |> assign(:cacheable_task_latency_metrics, Builds.cacheable_task_latency_metrics(socket.assigns.run.id))
+        |> assign_cacheable_tasks(params)
+
+      {"module-cache", _, _} ->
+        command_event = socket.assigns.binary_cache_command_event
+
+        socket
+        |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
+        |> assign_binary_cache(params)
+
+      _ ->
+        socket
+    end
+  end
+
+  defp assign_timeline(socket, force \\ false) do
+    TuistWeb.BuildTimelineLoader.assign_timeline(socket, socket.assigns.selected_tab, socket.assigns.run, force)
+  end
+
+  @impl true
+  def handle_event(event, _params, %{assigns: %{build: %Build{}}} = socket)
+      when event in ["load-timeline-log", "load-timeline-step"], do: {:reply, %{error: true}, socket}
+
+  def handle_event("load-timeline", params, socket) do
+    TuistWeb.BuildTimelineLoader.handle_event("load-timeline", params, socket)
+  end
+
+  def handle_event(
+        "load-timeline-step",
+        %{"request_id" => request_id, "event_id" => event_id, "direction" => direction, "search" => search},
+        socket
+      )
+      when is_integer(request_id) and
+             (is_nil(event_id) or (is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991)) and
+             direction in ["next", "previous", "last"] and is_binary(search) do
+    run_id = socket.assigns.run.id
+
+    {:noreply,
+     socket
+     |> cancel_async(:timeline_step)
+     |> assign(:timeline_step_request, request_id)
+     |> start_async(:timeline_step, fn ->
+       Builds.neighbor_build_step(run_id, event_id, direction, search: search)
+     end)}
+  end
+
+  def handle_event("load-timeline-step", _params, socket), do: {:reply, %{error: true}, socket}
+
+  def handle_event("load-timeline-log", %{"event_id" => event_id, "request_id" => request_id}, socket)
+      when is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991 and is_integer(request_id) and
+             request_id >= 0 do
+    run_id = socket.assigns.run.id
+
+    {:noreply,
+     socket
+     |> cancel_async(:timeline_log)
+     |> assign(:timeline_log_request, request_id)
+     |> start_async(:timeline_log, fn -> Builds.build_step_log(run_id, event_id) end)}
+  end
+
+  def handle_event("load-timeline-log", _params, socket), do: {:reply, %{error: true}, socket}
+
+  def handle_event("toggle-task-cas-outputs", %{"key" => key}, socket) do
+    if socket.assigns.selected_tab == "xcode-cache" and socket.assigns.selected_cache_tab == "cacheable-tasks" and
+         Enum.any?(socket.assigns.cacheable_tasks, &(&1.key == key and &1.has_cas_outputs)) do
+      if MapSet.member?(socket.assigns.expanded_task_keys, key) do
+        {:noreply, update(socket, :expanded_task_keys, &MapSet.delete(&1, key))}
+      else
+        socket = update(socket, :expanded_task_keys, &MapSet.put(&1, key))
+
+        case socket.assigns.task_cas_outputs_map do
+          %{^key => %{result: %{ok?: true}}} -> {:noreply, socket}
+          %{^key => %{result: %{loading: loading}}} when not is_nil(loading) -> {:noreply, socket}
+          _ -> {:noreply, load_task_cas_outputs(socket, key)}
+        end
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("load-more-task-cas-outputs", %{"key" => key}, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => %{result: %{ok?: true, loading: nil, result: %{has_next?: true}}}} ->
+        {:noreply, load_task_cas_outputs(socket, key)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
     {:ok, refreshed_run} = Builds.get_build(run.id, project_id: run.project_id)
 
@@ -339,11 +536,21 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> assign(:run, refreshed_run)
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
-     |> assign_build_data(refreshed_run)}
+     |> assign_build_data(refreshed_run)
+     |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
+     |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
+     |> assign_timeline(true)}
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
-      when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
+      when event in [
+             "search-tasks",
+             "search-cacheable-tasks",
+             "search-configuration-operations",
+             "search-artifact-transforms",
+             "add_filter",
+             "update_filter"
+           ] and is_struct(project) do
     if Project.gradle_project?(project) do
       TuistWeb.GradleBuildLive.handle_event(event, params, socket)
     else
@@ -549,14 +756,7 @@ defmodule TuistWeb.BuildRunLive do
 
     file_breakdown_sort_order = params["file-breakdown-sort-order"] || default_sort_order
 
-    file_breakdown_page =
-      params["file-breakdown-page"]
-      |> to_string()
-      |> Integer.parse()
-      |> case do
-        {int, _} -> int
-        :error -> 1
-      end
+    file_breakdown_page = Query.bounded_page(params["file-breakdown-page"])
 
     flop_filters = file_breakdown_filters(run, params, available_filters, file_breakdown_search)
 
@@ -630,14 +830,7 @@ defmodule TuistWeb.BuildRunLive do
 
     module_breakdown_sort_order = params["module-breakdown-sort-order"] || default_sort_order
 
-    module_breakdown_page =
-      params["module-breakdown-page"]
-      |> to_string()
-      |> Integer.parse()
-      |> case do
-        {int, _} -> int
-        :error -> 1
-      end
+    module_breakdown_page = Query.bounded_page(params["module-breakdown-page"])
 
     flop_filters =
       module_breakdown_filters(run, params, available_filters, module_breakdown_search)
@@ -708,7 +901,7 @@ defmodule TuistWeb.BuildRunLive do
               </span>
             </div>
             <.badge
-              label={Enum.count(@issues)}
+              label={format_number(Enum.count(@issues))}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
               size="large"
@@ -1054,14 +1247,7 @@ defmodule TuistWeb.BuildRunLive do
 
     cacheable_tasks_sort_order = params["cacheable-tasks-sort-order"] || default_sort_order
 
-    cacheable_tasks_page =
-      params["cacheable-tasks-page"]
-      |> to_string()
-      |> Integer.parse()
-      |> case do
-        {int, _} -> int
-        :error -> 1
-      end
+    cacheable_tasks_page = Query.bounded_page(params["cacheable-tasks-page"])
 
     flop_filters = cacheable_tasks_filters(run, params, available_filters, cacheable_tasks_search)
 
@@ -1077,25 +1263,9 @@ defmodule TuistWeb.BuildRunLive do
       order_directions: order_directions
     }
 
-    {:ok, {tasks, tasks_meta}} = Builds.list_cacheable_tasks(options)
-
-    # Fetch CAS outputs for all tasks on the current page
-    all_node_ids =
-      tasks
-      |> Enum.flat_map(& &1.cas_output_node_ids)
-      |> Enum.uniq()
-
-    cas_outputs = Builds.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
-
-    # Create a map from task key to its CAS outputs
-    task_cas_outputs_map =
-      Map.new(tasks, fn task ->
-        outputs =
-          Enum.filter(cas_outputs, fn output ->
-            output.node_id in task.cas_output_node_ids
-          end)
-
-        {task.key, outputs}
+    {:ok, {tasks, tasks_meta}} =
+      cached_build_run_query(run.id, :cacheable_task_summaries, options, fn ->
+        Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
       end)
 
     filters =
@@ -1109,7 +1279,47 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
-    |> assign(:task_cas_outputs_map, task_cas_outputs_map)
+    |> preload_task_cas_outputs()
+  end
+
+  defp preload_task_cas_outputs(socket) do
+    if connected?(socket) do
+      socket.assigns.cacheable_tasks
+      |> Enum.filter(& &1.has_cas_outputs)
+      |> Enum.reduce(socket, fn task, acc -> load_task_cas_outputs(acc, task.key) end)
+    else
+      socket
+    end
+  end
+
+  # Wraps ClickHouse-heavy Flop-driven queries the public build-run
+  # dashboard fires (a `SELECT ...` plus a `count(*)` per request) in a
+  # short-TTL cache. A scraper walking every permutation of
+  # `page × sort_by × sort_order × filter` on these paths otherwise
+  # pins the ClickHouse connection pool — see the residential-proxy
+  # incident captured in Hive issue 58c2dd00-c05e-5cee-91e7-d28ef9b16f08.
+  # Build-run data is effectively immutable once the run finishes, so
+  # anonymous browsing can safely sit on a 30-second stale window in
+  # exchange for collapsing the scraper's Cartesian query storm into
+  # one query per unique aggregate.
+  #
+  # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
+  # list with a SHA-256 flop_params fragment rather than a tuple with
+  # a phash2, and for why `locking: false` is required to keep the
+  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
+  defp cached_build_run_query(run_id, tab, flop_params, func) do
+    cache_key = [
+      :build_run_flop,
+      run_id,
+      tab,
+      :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
+    ]
+
+    Tuist.KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(second: 30), locking: false],
+      func
+    )
   end
 
   defp cacheable_tasks_filters(run, params, available_filters, search) do
@@ -1282,14 +1492,7 @@ defmodule TuistWeb.BuildRunLive do
 
     cas_outputs_sort_order = params["cas-outputs-sort-order"] || default_sort_order
 
-    cas_outputs_page =
-      params["cas-outputs-page"]
-      |> to_string()
-      |> Integer.parse()
-      |> case do
-        {int, _} -> int
-        :error -> 1
-      end
+    cas_outputs_page = Query.bounded_page(params["cas-outputs-page"])
 
     flop_filters = cas_outputs_filters(run, params, available_filters, cas_outputs_search)
 
@@ -1418,7 +1621,7 @@ defmodule TuistWeb.BuildRunLive do
          params
        )
        when not is_nil(command_event) do
-    page = String.to_integer(params["binary-cache-page"] || "1")
+    page = Query.bounded_page(params["binary-cache-page"])
     sort_by = params["binary-cache-sort-by"] || "name"
     sort_order = params["binary-cache-sort-order"] || "asc"
     filter_text = params["binary-cache-filter"] || ""
@@ -1451,7 +1654,7 @@ defmodule TuistWeb.BuildRunLive do
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
     socket
-    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")

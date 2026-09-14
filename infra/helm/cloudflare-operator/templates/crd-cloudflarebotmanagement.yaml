@@ -1,0 +1,90 @@
+{{- if .Values.installCRDs -}}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cloudflarebotmanagements.cloudflare.tuist.dev
+spec:
+  group: cloudflare.tuist.dev
+  scope: Cluster
+  names:
+    plural: cloudflarebotmanagements
+    singular: cloudflarebotmanagement
+    kind: CloudflareBotManagement
+    shortNames: [cfbm]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - {name: Zone, type: string, jsonPath: .spec.zoneId}
+        - {name: Mode, type: string, jsonPath: .spec.mode}
+        - {name: Paused, type: boolean, jsonPath: .spec.paused}
+        - {name: Message, type: string, jsonPath: .status.message}
+        - {name: Age, type: date, jsonPath: .metadata.creationTimestamp}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            apiVersion: {type: string}
+            kind: {type: string}
+            metadata: {type: object}
+            spec:
+              type: object
+              required: [zoneId]
+              x-kubernetes-validations:
+                - rule: "self.zoneId == oldSelf.zoneId"
+                  message: "spec.zoneId is immutable"
+              properties:
+                zoneId: {type: string}
+                mode:
+                  type: string
+                  enum: [read_only, active]
+                  default: read_only
+                paused: {type: boolean, default: false}
+                botFightMode:
+                  type: object
+                  properties:
+                    enableJs: {type: boolean}
+                    suppressSessionScore: {type: boolean}
+                    usingLatestModel: {type: boolean}
+                superBotFightMode:
+                  type: object
+                  properties:
+                    definitelyAutomated:
+                      type: string
+                      enum: [allow, block, managed_challenge]
+                    likelyAutomated:
+                      type: string
+                      enum: [allow, block, managed_challenge]
+                    verifiedBots:
+                      type: string
+                      enum: [allow, block, managed_challenge]
+                    staticResourceProtection: {type: boolean}
+                    optimizeWordpress: {type: boolean}
+            status:
+              type: object
+              properties:
+                managedZoneId: {type: string}
+                mode: {type: string}
+                proposedChanges: {type: string}
+                observedGeneration: {type: integer, format: int64}
+                message: {type: string}
+                lastReconciledAt: {type: string, format: date-time}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason]
+                    properties:
+                      type: {type: string, maxLength: 316}
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      observedGeneration: {type: integer, format: int64, minimum: 0}
+                      lastTransitionTime: {type: string, format: date-time}
+                      reason: {type: string, maxLength: 1024}
+                      message: {type: string, maxLength: 32768}
+{{- end -}}

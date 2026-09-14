@@ -52,17 +52,22 @@ commit_preprocessors = [
     # calls per release (each would paginate the whole repo's commits+PRs).
     { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/tuist/tuist/pull/${1}))" },
 ]
+# Matched by type only. `--include-path kura/**/*` is what decides whether a
+# commit belongs to this component; requiring the scope to say `kura` as well
+# meant a commit that changed these files under another scope passed the path
+# filter and was then dropped, so no version bump and no release. That silently
+# left the shed-age and ring-occupancy telemetry unreleased when #12606 landed
+# it under `feat(server)`.
 commit_parsers = [
-    { message = "^feat\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bkura\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bkura\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bkura\\b[^)]*\\)", skip = true },
-    { message = "^[a-z]+\\([^)]+\\)", skip = true },
+    { message = "^feat[(:!]", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix[(:!]", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?[(:!]", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf[(:!]", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor[(:!]", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style[(:!]", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test[(:!]", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore[(:!]", skip = true },
+    { message = "^ci[(:!]", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = true

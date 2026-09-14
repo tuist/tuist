@@ -2,25 +2,18 @@
 # Revisit whenever the scan turns red: drop entries whose fixed package has
 # landed in the Debian suite the runner image tracks (bookworm-security).
 
-# High-severity Chromium vulnerabilities fixed upstream in 151.0.7922.169.
-# Debian fixed them for bookworm in 151.0.7922.169-1~deb12u1 (DLA-4749-1), but
-# bookworm-security still publishes 151.0.7922.137-1~deb12u1, so `apt-get
-# upgrade` in server/Dockerfile has no patched package to install. Only trixie
-# and unstable carry the fixed build today, and pulling Chromium from either
-# onto bookworm would replace hundreds of core packages including glibc.
+# High-severity Chromium vulnerabilities fixed upstream in 152.0.7977.75.
+# Debian carries that build in unstable only (152.0.7977.75-1); bookworm-security
+# still publishes 151.0.7922.173-1~deb12u1, which the security tracker marks
+# vulnerable to all three, so `apt-get upgrade` in server/Dockerfile has no
+# patched package to install. Pulling Chromium from unstable onto bookworm would
+# replace hundreds of core packages including glibc.
 # Chromium is present solely to render Open Graph images. It renders markup the
 # server builds from fixed templates, with only length-validated text
 # interpolated in, and never navigates to a remote page, so the crafted-page
-# vector every one of these CVEs requires is not reachable. Drop these entries
-# once bookworm-security publishes 151.0.7922.169-1~deb12u1.
-CVE-2026-76033
-CVE-2026-76036
-CVE-2026-76037
-CVE-2026-76038
-CVE-2026-76039
-CVE-2026-76040
-CVE-2026-76041
-CVE-2026-76043
-CVE-2026-76044
-CVE-2026-76045
-CVE-2026-76047
+# vector CVE-2026-84349 and CVE-2026-84351 require is not reachable, and the
+# Omnibox that CVE-2026-84357 targets does not exist in that headless run.
+# Drop these entries once bookworm-security publishes 152.0.7977.75-1~deb12u1.
+CVE-2026-84349
+CVE-2026-84351
+CVE-2026-84357

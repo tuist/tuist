@@ -1,0 +1,104 @@
+/*
+ * Text pages (terms, privacy, cookies, imprint, openness, longevity,
+ * security, …) reuse the blog post's article anatomy: one 1200px bordered
+ * box holding a centered header and the site-wide 650px prose column with
+ * the 780px media overhang (see blog-post.css).
+ */
+#marketing-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Matches the specificity of pages.css's section margins so the page frame
+     wins (see blog-new.css for the full story). */
+  & > article[data-part="article"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the article. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > article[data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-10) var(--noora-spacing-6) var(--noora-spacing-12);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-15);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-6);
+      /* The title column: comfortably wider than the prose so multi-line
+         titles keep a balanced shape (same as the blog post's header). */
+      max-width: 780px;
+      text-align: center;
+
+      & > [data-part="logo"] {
+        filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.06)) drop-shadow(0 10px 10px rgba(0, 0, 0, 0.05))
+          drop-shadow(0 23px 14px rgba(0, 0, 0, 0.03)) drop-shadow(0 41px 16px rgba(0, 0, 0, 0.01));
+        width: 130px;
+        height: 130px;
+      }
+
+      & > [data-part="soc-badge"] > svg {
+        display: block;
+        width: 130px;
+        height: 130px;
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > [data-part="last-updated"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      box-sizing: border-box;
+      margin-top: var(--noora-spacing-11);
+      width: 100%;
+
+      /* Every image rounds at 8px, like on the blog post — prose.css's
+         site-wide 12px loses here. */
+      & img,
+      & video {
+        border-radius: var(--noora-radius-4);
+      }
+
+      @media (min-width: 1024px) {
+        max-width: 650px;
+
+        /* Media hangs past the 650px text column to the blog post's 780px. */
+        & img,
+        & video {
+          margin-left: calc((650px - 780px) / 2);
+          width: 780px;
+          max-width: 780px;
+        }
+      }
+    }
+  }
+}

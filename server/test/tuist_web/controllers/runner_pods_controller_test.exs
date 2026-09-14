@@ -349,7 +349,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
   end
 
   defp mark_running!(workflow_job_id, runner_name) do
-    claim = Repo.get!(Claim, workflow_job_id)
+    claim = Repo.one!(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

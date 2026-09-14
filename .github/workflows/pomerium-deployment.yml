@@ -132,7 +132,7 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"

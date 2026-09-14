@@ -633,11 +633,46 @@ defmodule Tuist.Billing do
 
   Returns `nil` rather than raising, because a usage page that cannot
   reach Stripe should fall back to the calendar month rather than fail.
+
+  Read from the boundaries the subscription webhooks mirror onto the row,
+  so a page that resolves the period costs Stripe nothing. A row written
+  before those columns existed, by a payload that carried no period, or
+  by a renewal that has not arrived yet, still asks Stripe once.
   """
   def current_billing_period(%Account{} = account) do
-    with %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) <-
-           get_current_active_subscription(account),
-         {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
+    case get_current_active_subscription(account) do
+      nil -> nil
+      subscription -> subscription_billing_period(subscription)
+    end
+  end
+
+  defp subscription_billing_period(subscription) do
+    period_start = Map.get(subscription, :current_period_start)
+    period_end = Map.get(subscription, :current_period_end)
+
+    if current_period?(period_start, period_end) do
+      {period_start, period_end}
+    else
+      stripe_billing_period(Map.get(subscription, :subscription_id))
+    end
+  end
+
+  # The row is trusted only while it holds the period that is actually
+  # running. Stripe guarantees no ordering for webhooks, so a renewal
+  # delivered late, or an older event delivered after a newer one, leaves
+  # a closed period behind. Serving that would attribute usage to a cycle
+  # already invoiced and would date a runner credit grant into the past,
+  # which is worse than the request this exists to avoid.
+  defp current_period?(%DateTime{} = period_start, %DateTime{} = period_end) do
+    now = DateTime.utc_now()
+
+    not DateTime.before?(now, period_start) and DateTime.before?(now, period_end)
+  end
+
+  defp current_period?(_period_start, _period_end), do: false
+
+  defp stripe_billing_period(subscription_id) when is_binary(subscription_id) do
+    with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
          period_start when is_integer(period_start) <- Map.get(stripe_subscription, :current_period_start),
          period_end when is_integer(period_end) <- Map.get(stripe_subscription, :current_period_end) do
       {DateTime.from_unix!(period_start), DateTime.from_unix!(period_end)}
@@ -645,6 +680,8 @@ defmodule Tuist.Billing do
       _ -> nil
     end
   end
+
+  defp stripe_billing_period(_subscription_id), do: nil
 
   @doc """
   The `count` most recent billing periods, newest first, as
@@ -698,12 +735,9 @@ defmodule Tuist.Billing do
     plan = get_plan(subscription)
     current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
-    trial_end =
-      if is_nil(Map.get(subscription, :trial_end)) do
-        nil
-      else
-        DateTime.from_unix!(subscription.trial_end)
-      end
+    trial_end = stripe_timestamp(subscription, :trial_end)
+    current_period_start = stripe_timestamp(subscription, :current_period_start)
+    current_period_end = stripe_timestamp(subscription, :current_period_end)
 
     cond do
       plan == :none ->
@@ -718,7 +752,9 @@ defmodule Tuist.Billing do
           account_id: account.id,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+          current_period_start: current_period_start,
+          current_period_end: current_period_end
         })
         |> Repo.insert!()
 
@@ -729,12 +765,24 @@ defmodule Tuist.Billing do
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+          current_period_start: current_period_start,
+          current_period_end: current_period_end
         })
         |> Repo.update!()
     end
 
     :ok
+  end
+
+  # A payload that carries no such timestamp clears the column rather than
+  # leaving the previous one in place: a stale period is read as the
+  # current one, while an absent one falls back to asking Stripe.
+  defp stripe_timestamp(subscription, key) do
+    case Map.get(subscription, key) do
+      timestamp when is_integer(timestamp) -> DateTime.from_unix!(timestamp)
+      _ -> nil
+    end
   end
 
   defp get_plan(subscription) do
@@ -781,24 +829,25 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment_money(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
+  @doc """
+  What the remote cache hits accrued so far are worth on the next invoice.
+
+  Takes the count rather than the account, because the window it was
+  counted over is the caller's to choose: a subscribed account is billed
+  on its own cycle, while an account without one has only the calendar
+  month.
+  """
+  def get_estimated_next_payment_money(remote_cache_hits_count) when is_integer(remote_cache_hits_count) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
-    if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
+    if remote_cache_hits_count < remote_cache_hits_threshold do
       Money.new(0, :USD)
     else
       Money.multiply(
         get_unit_prices()[:remote_cache_hit],
-        current_month_remote_cache_hits_count - remote_cache_hits_threshold
+        remote_cache_hits_count - remote_cache_hits_threshold
       )
     end
-  end
-
-  def get_subscription_current_period_end(subscription_id) do
-    {:ok, %{current_period_end: current_period_end}} =
-      Stripe.Subscription.retrieve(subscription_id)
-
-    DateTime.from_unix!(current_period_end)
   end
 
   def get_payment_method_id_from_subscription_id(subscription_id) do
@@ -883,6 +932,30 @@ defmodule Tuist.Billing do
   def cache_access_blocked?(%Account{} = account) do
     effective_plan(account) == :air and
       over_free_tier?(account.current_month_remote_cache_hits_count)
+  end
+
+  @doc """
+  Starts `account`'s free tier over from now.
+
+  Both fields move together, and the second is the one that is easy to
+  miss. The counter is what `cache_access_blocked?/1` reads, so zeroing
+  it is what unblocks the account. `free_tier_reset_at` is what makes
+  that survive: `CommandEvents.account_month_usage/2` counts events from
+  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left
+  the timestamp behind would be recomputed straight back over the
+  threshold at the next nightly sweep.
+
+  This grants a fresh allowance for the rest of the month, not an
+  exemption. The reset goes inert on the first of the next month, when
+  the counting window returns to the month boundary on its own.
+  """
+  def reset_free_tier(%Account{} = account) do
+    account
+    |> Account.free_tier_reset_changeset(%{
+      free_tier_reset_at: DateTime.utc_now(),
+      current_month_remote_cache_hits_count: 0
+    })
+    |> Repo.update()
   end
 
   @doc """
