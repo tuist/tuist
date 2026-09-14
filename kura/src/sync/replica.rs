@@ -9,7 +9,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use reqwest::StatusCode;
@@ -23,7 +23,7 @@ use crate::{
         },
         window::compute_window,
     },
-    constants::BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET,
+    constants::{BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET, SYNC_UNSUPPORTED_REPROBE_MS},
     http::{
         BackfillEntry, SYNC_GONE_AHEAD, SYNC_GONE_FLOOR, SYNC_GONE_INCARNATION, SyncForwardGone,
         SyncForwardHead, SyncForwardPage,
@@ -350,7 +350,7 @@ pub async fn run(
                             tokio::select! {
                                 biased;
                                 _ = cancel.cancelled() => return,
-                                _ = tokio::time::sleep(pass_backoff(u32::MAX)) => {}
+                                _ = tokio::time::sleep(Duration::from_millis(SYNC_UNSUPPORTED_REPROBE_MS)) => {}
                             }
                             continue;
                         }

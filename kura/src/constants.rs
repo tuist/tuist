@@ -279,6 +279,11 @@ pub const BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET: u32 = 5;
 // the metered background retries that continue after budget exhaustion.
 pub const BACKFILL_PASS_RETRY_BACKOFF_BASE_MS: u64 = 5_000;
 pub const BACKFILL_PASS_RETRY_BACKOFF_MAX_MS: u64 = 300_000;
+// How often a link whose peer predates pull probes it again. A rolling
+// upgrade of that peer is the event being waited for, and until the probe
+// lands nothing carries the upgraded peer's writes to this node; the probe
+// itself is one request answered 404 or one listing page.
+pub const SYNC_UNSUPPORTED_REPROBE_MS: u64 = 30_000;
 // Retention for per-peer `backfill/wm/` watermark rows, judged by the row's
 // completion-time `refreshed_at` against the local clock. A live peer that
 // completes no pass for 90 days is pathological; the cost of a GC'd row is

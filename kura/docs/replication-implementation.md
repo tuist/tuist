@@ -1064,8 +1064,10 @@ Decisions:
 
 - **D-29** A peer that answers 404 or 405 to `/_internal/sync/forward` or the
   ascending listing predates pull. Its link settles at once as `unsupported`
-  (frontier `Abandoned`, so it does not hold the serving listing), retries on
-  the longest pass backoff, logs once per transition, and charges no
+  (frontier `Abandoned`, so it does not hold the serving listing), re-probes
+  it every `SYNC_UNSUPPORTED_REPROBE_MS` (30 s) — the wait bounds how long an
+  upgraded peer's writes go unpulled, so it is not the 300 s pass backoff —
+  logs once per transition, and charges no
   bootstrap failure. `/status/rollout` reports it under
   `backfill_budget_exhausted_capability_peers` and keeps
   `backfill_initial_cycle: complete`, so the server rollout gate — which
@@ -1086,4 +1088,12 @@ Decisions:
   columns dropped) and the controller's `outboxMessages` status field.
   `backfill_initial_cycle`, `backfill_backfilling_peers` and the two budget
   counters keep their names and meaning, now derived from the pull links.
+- **D-33** A release that predates pull still serves
+  `/_internal/backfill/entries`, but ignores `order`, `from_version_ms` and
+  `wait` and answers the whole index from the start. Read as a forward
+  listing that page never long-polls, so a region link against such a
+  gateway re-scanned it in a tight loop (thousands of requests a second in
+  a two-region compose lab). `now` shipped with the ascending read in the
+  same release, so the region link treats a page without it as
+  `unsupported`, in both the backward pass and the forward loop.
 

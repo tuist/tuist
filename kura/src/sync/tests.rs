@@ -1126,3 +1126,67 @@ async fn a_sibling_that_predates_pull_settles_the_link_as_unsupported() {
         "an unsupported link does not hold the serving listing"
     );
 }
+
+// A remote gateway on a release that predates pull still serves the
+// backfill listing, but ignores the ascending read's parameters and answers
+// without `now`. The region link settles as unsupported instead of reading
+// that page as a forward listing, which would re-scan the peer in a loop.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_remote_gateway_that_predates_pull_settles_the_region_link_as_unsupported() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("address");
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = hits.clone();
+    let app = axum::Router::new()
+        .route(
+            "/_internal/backfill/entries",
+            axum::routing::get(move || {
+                let counter = counter.clone();
+                async move {
+                    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    axum::Json(serde_json::json!({ "entries": [], "next_after": null }))
+                }
+            }),
+        )
+        .fallback(|| async { StatusCode::NOT_FOUND });
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+
+    let context = test_context(|_| {}).await;
+    let gateway = format!("http://{address}");
+    context
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            url: gateway.clone(),
+            region: "eu-west".to_owned(),
+            serving: true,
+            draining: false,
+        }]);
+    context.state.sync.evaluate(&context.state);
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let links = context.state.sync.link_statuses();
+        if links.iter().any(|link| link.settled && link.unsupported) {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the region link never settled as unsupported: {links:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert!(
+        hits.load(std::sync::atomic::Ordering::Relaxed) <= 2,
+        "the link kept listing a peer that ignores the ascending read"
+    );
+    assert!(context.state.sync.bootstrap_settled());
+    let catch_up = context.state.catch_up_status();
+    assert_eq!(catch_up.initial_cycle, crate::state::CatchUpMode::Complete);
+    assert_eq!(catch_up.budget_exhausted_capability, 1);
+}

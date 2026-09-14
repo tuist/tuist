@@ -8,7 +8,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use tokio_util::sync::CancellationToken;
@@ -21,7 +21,9 @@ use crate::{
         },
         window::{BackfillWindow, compute_window},
     },
-    constants::{BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET, MAX_PEER_PAGE_BYTES},
+    constants::{
+        BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET, MAX_PEER_PAGE_BYTES, SYNC_UNSUPPORTED_REPROBE_MS,
+    },
     http::BackfillEntriesPage,
     replication::read_bounded_body,
     state::SharedState,
@@ -85,7 +87,17 @@ async fn request_page(
         return Err(format!("region listing answered {status}"));
     }
     let bytes = read_bounded_body(response, MAX_PEER_PAGE_BYTES, "region listing").await?;
-    serde_json::from_slice(&bytes).map_err(|error| format!("region listing decode failed: {error}"))
+    let page: BackfillEntriesPage = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("region listing decode failed: {error}"))?;
+    // A release that predates pull serves this route too, but ignores
+    // `order`, `from_version_ms` and `wait`: it answers the whole index at
+    // once, so reading it as a forward listing re-scans the peer in a tight
+    // loop. `now` shipped with the ascending read and marks a peer that
+    // honours it.
+    if page.now.is_none() {
+        return Err(format!("{PEER_UNSUPPORTED}: listing carries no clock"));
+    }
+    Ok(page)
 }
 
 /// The watermark to read from: the persisted one, else the highest legacy
@@ -212,7 +224,7 @@ pub async fn run(
                     tokio::select! {
                         biased;
                         _ = cancel.cancelled() => return,
-                        _ = tokio::time::sleep(pass_backoff(u32::MAX)) => {}
+                        _ = tokio::time::sleep(Duration::from_millis(SYNC_UNSUPPORTED_REPROBE_MS)) => {}
                     }
                     continue;
                 }
@@ -257,6 +269,29 @@ pub async fn run(
         };
         let page = match response {
             Ok(page) => page,
+            Err(error) if error.starts_with(PEER_UNSUPPORTED) => {
+                let first = status.snapshot();
+                status.update(|status| {
+                    status.unsupported = true;
+                    status.phase = LinkPhase::Retrying;
+                });
+                if !first.unsupported {
+                    app.metrics.record_backfill_pass_event("unsupported");
+                    warn!(
+                        peer,
+                        region,
+                        error,
+                        "remote gateway runs a release that predates pull; its writes arrive through the push receivers until it is upgraded"
+                    );
+                }
+                after = None;
+                tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => return,
+                    _ = tokio::time::sleep(Duration::from_millis(SYNC_UNSUPPORTED_REPROBE_MS)) => {}
+                }
+                continue;
+            }
             Err(error) => {
                 failures = failures.saturating_add(1);
                 app.metrics.note_peer_connection_failure();
@@ -275,6 +310,7 @@ pub async fn run(
         };
         failures = 0;
         status.update(|status| {
+            status.unsupported = false;
             status.phase = LinkPhase::Forward;
             status.last_success = Some(Instant::now());
         });
