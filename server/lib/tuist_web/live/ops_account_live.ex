@@ -226,31 +226,25 @@ defmodule TuistWeb.OpsAccountLive do
     {:noreply, assign(socket, :standing_prepaid_quote, quote_minutes(minutes))}
   end
 
-  # Recording the level only. Setting it does not touch the period
-  # already running, so an operator agreeing a deal mid-cycle uses the
-  # field above for this cycle and this one for every cycle after.
+  # Sets the subscription item only. It does not touch the period already
+  # running, so an operator agreeing a deal mid-cycle uses the field above
+  # for this cycle and this one for every cycle after.
   @impl true
   def handle_event("set_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
     case parse_minutes(minutes) do
       {:ok, minutes} ->
-        level = if minutes == 0, do: nil, else: minutes
+        account = socket.assigns.account
 
-        case Prepaid.set_standing_minutes(socket.assigns.account, level) do
-          {:ok, account} ->
+        case Prepaid.set_standing_minutes(account, minutes) do
+          {:ok, minutes} ->
             {:noreply,
              socket
-             |> assign(:account, preload_billing(account))
              |> assign(:standing_prepaid_minutes_value, minutes)
              |> assign(:standing_prepaid_quote, nil)
-             |> put_flash(:info, set_standing_minutes_message(account, level))}
+             |> put_flash(:info, set_standing_minutes_message(account, minutes))}
 
           {:error, reason} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext("dashboard", "Could not set the standing monthly minutes: %{reason}", reason: inspect(reason))
-             )}
+            {:noreply, put_flash(socket, :error, standing_prepaid_error(reason))}
         end
 
       :error ->
@@ -537,16 +531,25 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   defp assign_standing_prepaid(socket, account, subscription) do
+    {minutes, unavailable} =
+      case Prepaid.standing_minutes(account) do
+        {:ok, minutes} -> {minutes, nil}
+        {:error, reason} -> {0, reason}
+      end
+
     socket
-    |> assign(:standing_prepaid_minutes_value, Prepaid.standing_minutes(account) || 0)
+    |> assign(:standing_prepaid_minutes_value, minutes)
+    |> assign(:standing_prepaid_unavailable, unavailable)
     |> assign(:standing_prepaid_quote, nil)
-    # The renewal is what grants the standing level, so the end of the
-    # period now running is when the next one lands.
+    # The item is billed and granted on the renewal invoice, so the end of
+    # the period now running is when the next minutes land.
     |> assign(:standing_prepaid_next_at, subscription && subscription.current_period_end)
   end
 
-  defp set_standing_minutes_message(account, nil) do
-    dgettext("dashboard", "%{account} will no longer be granted minutes at each renewal.", account: account.name)
+  defp set_standing_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} will no longer be billed or granted minutes at each renewal.",
+      account: account.name
+    )
   end
 
   defp set_standing_minutes_message(account, minutes) do
@@ -554,12 +557,28 @@ defmodule TuistWeb.OpsAccountLive do
 
     dgettext(
       "dashboard",
-      "%{account} will be granted %{minutes} minutes at each renewal, billed %{amount} a cycle. The cycle now running is unchanged.",
+      "%{account} will be billed %{amount} and granted %{minutes} minutes at each renewal. The cycle now running is unchanged.",
       minutes: format_number(minutes),
       amount: format_money(quoted.invoiced),
       account: account.name
     )
   end
+
+  def standing_prepaid_error(:no_subscription),
+    do: dgettext("dashboard", "This account has no active subscription to carry standing minutes.")
+
+  def standing_prepaid_error(:not_monthly),
+    do: dgettext("dashboard", "Standing minutes need a subscription that renews monthly, and this one does not.")
+
+  def standing_prepaid_error(:on_runner_trial),
+    do:
+      dgettext("dashboard", "This account is on a runner trial, so standing minutes would buy credit it can never spend.")
+
+  def standing_prepaid_error(:no_prepaid_price_configured),
+    do: dgettext("dashboard", "No prepaid minutes price is configured for this environment yet.")
+
+  def standing_prepaid_error(reason),
+    do: dgettext("dashboard", "Could not read or set the standing monthly minutes: %{reason}", reason: inspect(reason))
 
   def standing_prepaid_next_label(nil), do: dgettext("dashboard", "the next renewal")
 

@@ -6,7 +6,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
@@ -971,23 +970,28 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "standing prepaid runner minutes" do
-    test "records the level without touching the cycle already running", %{conn: conn, user: user} do
-      # The two fields do different jobs. Recording what every future
-      # cycle opens at must not silently replace minutes the customer is
-      # part-way through spending.
-      reject(&Prepaid.set_minutes/2)
-      reject(&Prepaid.set_minutes/3)
+    test "opens on the minutes the subscription carries", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      lv
-      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
-      |> render_submit()
-
-      assert Repo.reload(user.account).runner_prepaid_monthly_minutes == 6_000
+      assert has_element?(lv, "#standing-prepaid-minutes-input[value=\"6000\"]")
     end
 
-    test "says what the account will be billed each cycle", %{conn: conn, user: user} do
+    test "sets the standing minutes without touching what the account holds now", %{conn: conn, user: user} do
+      # The two fields do different jobs. What every future cycle opens at
+      # must not silently replace minutes the customer is part-way through
+      # spending.
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      reject(&Prepaid.set_minutes/2)
+      reject(&Prepaid.set_minutes/3)
+
+      expect(Prepaid, :set_standing_minutes, fn account, minutes ->
+        assert account.id == user.account.id
+        assert minutes == 6_000
+        {:ok, 6_000}
+      end)
+
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       lv
@@ -996,12 +1000,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       flash = lv |> element("#ops-account-flash-info") |> render()
 
-      assert flash =~ "at each renewal"
+      assert flash =~ "each renewal"
       assert flash =~ "360.00"
       assert flash =~ "cycle now running is unchanged"
     end
 
     test "quotes the cycle's money as minutes are typed", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       html =
@@ -1014,12 +1020,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
 
     test "stops the arrangement when set to zero", %{conn: conn, user: user} do
-      # Zero is the off state. Storing it as a level would read as a
-      # standing order to hold nothing, which destroys minutes on a
-      # schedule rather than describing any arrangement.
-      user.account
-      |> Account.runner_prepaid_changeset(%{runner_prepaid_monthly_minutes: 6_000})
-      |> Repo.update!()
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
+      expect(Prepaid, :set_standing_minutes, fn _account, 0 -> {:ok, 0} end)
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -1027,20 +1029,33 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> form("#standing-prepaid-minutes-form", %{"minutes" => "0"})
       |> render_submit()
 
-      assert Repo.reload(user.account).runner_prepaid_monthly_minutes == nil
-
       flash = lv |> element("#ops-account-flash-info") |> render()
-      assert flash =~ "no longer be granted minutes at each renewal"
+      assert flash =~ "no longer be billed or granted minutes at each renewal"
     end
 
-    test "opens on the level the account already carries", %{conn: conn, user: user} do
-      user.account
-      |> Account.runner_prepaid_changeset(%{runner_prepaid_monthly_minutes: 6_000})
-      |> Repo.update!()
+    test "explains why a subscription that does not renew monthly cannot carry standing minutes",
+         %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:error, :not_monthly} end)
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#standing-prepaid-minutes-input[value=\"6000\"]")
+      assert has_element?(lv, "#standing-prepaid-unavailable-alert")
+      assert render(lv) =~ "renews monthly"
+      refute has_element?(lv, "#standing-prepaid-minutes-form")
+    end
+
+    test "says why the standing minutes could not be set", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      stub(Prepaid, :set_standing_minutes, fn _account, _minutes -> {:error, :on_runner_trial} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-error") |> render()
+      assert flash =~ "runner trial"
     end
   end
 

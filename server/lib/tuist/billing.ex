@@ -13,7 +13,6 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
-  alias Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -23,8 +22,6 @@ defmodule Tuist.Billing do
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
   @payment_thresholds %{remote_cache_hits: 200}
-  # The statuses that carry an invoice for a prepaid charge to ride.
-  @billable_statuses ["active", "trialing"]
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
   def get_payment_thresholds do
@@ -446,6 +443,21 @@ defmodule Tuist.Billing do
   defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id
   defp subscription_item_price_id(_item), do: nil
 
+  @doc """
+  The Price the standing prepaid minutes item is billed on, or `nil` until
+  one is configured for the environment.
+
+  Kept apart from the `runners` map on purpose. Every entry there is a
+  metered runner Price attached to every subscription, while the prepaid
+  item is licensed and carried only by accounts that buy it.
+  """
+  def runner_prepaid_price_id do
+    case Map.get(Tuist.Environment.stripe_prices() || %{}, "runner_prepaid_minutes") do
+      price_id when is_binary(price_id) and price_id != "" -> price_id
+      _ -> nil
+    end
+  end
+
   defp configured_runner_price_ids do
     (Tuist.Environment.stripe_prices() || %{})
     |> Map.get("runners", %{})
@@ -601,7 +613,10 @@ defmodule Tuist.Billing do
 
     changes =
       if Trials.on_trial?(account) do
-        Enum.map(present, &%{id: &1.id, deleted: true})
+        # The standing prepaid item goes with the runner items. With no
+        # runner usage invoiced, the credit it buys would have nothing to
+        # pay for.
+        Enum.map(present ++ prepaid_items(stripe_subscription), &%{id: &1.id, deleted: true})
       else
         present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
 
@@ -621,6 +636,13 @@ defmodule Tuist.Billing do
         # invoice usage the account ran while it had no runner item at
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
+    end
+  end
+
+  defp prepaid_items(stripe_subscription) do
+    case runner_prepaid_price_id() do
+      nil -> []
+      price_id -> Enum.filter(stripe_subscription.items.data, &(subscription_item_price_id(&1) == price_id))
     end
   end
 
@@ -742,32 +764,6 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    # The period write and the standing-minutes job go together. The job
-    # is only enqueued when the recorded period moves forward, so a write
-    # that landed without it would leave that cycle's minutes ungranted
-    # with no later event able to notice: the redelivery Stripe sends
-    # would read the period as already current and skip.
-    {:ok, :ok} =
-      Repo.transaction(fn ->
-        persist_subscription(subscription, account, current_subscription, plan, {
-          trial_end,
-          current_period_start,
-          current_period_end
-        })
-
-        apply_standing_runner_prepaid(account, current_subscription, subscription, current_period_start)
-      end)
-
-    :ok
-  end
-
-  defp persist_subscription(
-         subscription,
-         account,
-         current_subscription,
-         plan,
-         {trial_end, current_period_start, current_period_end}
-       ) do
     cond do
       plan == :none ->
         raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
@@ -800,36 +796,9 @@ defmodule Tuist.Billing do
         })
         |> Repo.update!()
     end
-  end
-
-  # A renewal is the only subscription change that moves the period start
-  # forward, and it is the moment an account's standing prepaid minutes
-  # are due. Stripe sends `customer.subscription.updated` for far more
-  # than renewals, so comparing against the period already recorded is
-  # what separates the one from the rest.
-  #
-  # Forward, not merely different, so a stale event carrying an older
-  # period enqueues nothing. This is a filter against pointless jobs rather
-  # than the guarantee against granting twice. The row is still rewritten
-  # with whatever the payload says, so a newer event arriving after a stale
-  # one moves the period forward again and enqueues a period that was
-  # already granted, and the worker's uniqueness key cannot recognise that
-  # once the first job has been pruned. The durable guard is the granted
-  # period recorded on the account, which only ever moves forward.
-  defp apply_standing_runner_prepaid(account, current_subscription, subscription, %DateTime{} = period_start) do
-    previous_start = current_subscription && current_subscription.current_period_start
-    rolled_over? = is_nil(previous_start) or DateTime.after?(period_start, previous_start)
-
-    if subscription.status in @billable_statuses and rolled_over? do
-      %{account_id: account.id, period_start: DateTime.to_iso8601(period_start)}
-      |> ApplyStandingRunnerPrepaidWorker.new()
-      |> Oban.insert!()
-    end
 
     :ok
   end
-
-  defp apply_standing_runner_prepaid(_account, _current_subscription, _subscription, _period_start), do: :ok
 
   # A payload that carries no such timestamp clears the column rather than
   # leaving the previous one in place: a stale period is read as the

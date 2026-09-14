@@ -622,15 +622,24 @@
       <p data-part="standing-prepaid-description">
         {dgettext(
           "dashboard",
-          "A standing level is granted again every time the subscription renews, which is what a recurring prepaid arrangement needs: minutes expire with the cycle they were bought for, so without one somebody has to set the figure above by hand every month. Setting a level here leaves the cycle now running exactly as it is. Zero stops the arrangement."
+          "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is paid, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
         )}
       </p>
-      <p data-part="standing-prepaid-next">
-        {dgettext("dashboard", "Next granted on %{date}.",
+      <.alert
+        :if={@standing_prepaid_unavailable}
+        id="standing-prepaid-unavailable-alert"
+        size="large"
+        status="warning"
+        title={dgettext("dashboard", "Standing minutes unavailable")}
+        description={standing_prepaid_error(@standing_prepaid_unavailable)}
+      />
+      <p :if={is_nil(@standing_prepaid_unavailable)} data-part="standing-prepaid-next">
+        {dgettext("dashboard", "Next billed and granted on %{date}.",
           date: standing_prepaid_next_label(@standing_prepaid_next_at)
         )}
       </p>
       <.form
+        :if={is_nil(@standing_prepaid_unavailable)}
         for={%{}}
         id="standing-prepaid-minutes-form"
         phx-change="quote_standing_prepaid_minutes"
