@@ -1,9 +1,8 @@
 # Application Supervision
 
-- `WebSupervisor` starts Oban without consumers, then Phoenix, then starts the configured queues locally. Phoenix drains requests before Oban shuts down.
-- Keep these children under `:rest_for_one` so an Oban restart also restarts the endpoint and starts queues. Preserve explicitly paused queues.
+- Keep the endpoint before Oban so workers can access endpoint configuration throughout startup and shutdown. Keep queues in Oban's configuration so its internal supervisors can restore consumers.
+- `Tuist.Application.prep_stop/1` calls `EndpointDrainer` before the application supervision tree stops. It drains Phoenix sockets and Bandit connections while Oban and endpoint configuration remain available.
+- Drain socket transports before the Bandit servers, following Phoenix's shutdown order. Terminate children through their supervisor so they are not restarted; leave endpoint configuration alive for Oban's subsequent job drain.
 - `RuntimeChildren` derives role-specific children without starting processes.
 
-The queue startup sequence follows [Oban maintainer guidance](https://elixirforum.com/t/do-pause-semantics-in-oban-queue-configuration-apply-locally-or-globally/74115/2).
-
-Use `Oban.start_queue/2` after endpoint startup so a restarted queue retains its original pause setting. Metrics read configured queues from application configuration because consumers start dynamically.
+Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.

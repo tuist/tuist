@@ -366,11 +366,8 @@ defmodule Tuist.Oban.PromExPlugin do
   defp configured_queues, do: Keyword.keys(configured_queue_opts())
 
   defp configured_queue_opts do
-    config = Oban.config()
-    queues = if config.queues == [], do: Application.fetch_env!(:tuist, Oban)[:queues] || [], else: config.queues
-
     {_, opts} =
-      Enum.find(config.plugins, {nil, [queues: queues]}, fn {plugin, _} ->
+      Enum.find(Oban.config().plugins, {nil, [queues: Oban.config().queues]}, fn {plugin, _} ->
         plugin == Oban.Pro.Plugins.DynamicQueues
       end)
 

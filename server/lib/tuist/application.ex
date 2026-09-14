@@ -5,8 +5,8 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
-  alias Tuist.Application.WebSupervisor
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -61,6 +61,12 @@ defmodule Tuist.Application do
     Tuist.License.assert_valid!()
 
     application
+  end
+
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
   end
 
   defp load_secrets_in_application do
@@ -286,6 +292,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -337,7 +345,7 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [{WebSupervisor, oban: Application.fetch_env!(:tuist, Oban)}]
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
 
     children
     |> Kernel.++(
