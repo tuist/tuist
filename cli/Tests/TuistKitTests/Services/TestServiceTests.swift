@@ -194,6 +194,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -1794,6 +1797,9 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         xcResultService.reset()
         given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
         given(xcResultService)
@@ -1958,6 +1964,9 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         xcResultService.reset()
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
@@ -4054,6 +4063,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
             xcResultService.reset()
             given(xcResultService)
+                .parseCoverage(path: .any, rootDirectory: .any)
+                .willReturn(nil)
+            given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
             given(xcResultService)
@@ -4875,6 +4887,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -4973,6 +4988,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -5054,6 +5072,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -5140,6 +5161,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -6105,6 +6129,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(

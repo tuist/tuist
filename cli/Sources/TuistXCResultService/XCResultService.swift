@@ -2,13 +2,13 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistLogging
 import TuistSupport
 import XCResultParser
 
 @Mockable
 public protocol XCResultServicing {
-    /// Parses the bundle's tests and, when the run gathered code coverage, the coverage report.
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
     /// The bundle's coverage report on its own, or nil when the run gathered none.
@@ -65,9 +65,7 @@ public struct XCResultService: XCResultServicing {
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
-        guard var summary = try await parser.parse(path: path, rootDirectory: rootDirectory) else { return nil }
-        summary.coverage = try await parseCoverage(path: path, rootDirectory: rootDirectory)
-        return summary
+        try await parser.parse(path: path, rootDirectory: rootDirectory)
     }
 
     public func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport? {
@@ -75,7 +73,9 @@ public struct XCResultService: XCResultServicing {
             return try await coverageParser.parse(resultBundlePath: path, rootDirectory: rootDirectory)
         } catch {
             // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
-            Logger.current.warning("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
+            AlertController.current.warning(
+                .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
+            )
             return nil
         }
     }

@@ -86,13 +86,51 @@ defmodule Tuist.Tests.XcodeCoverageTest do
                {"CalculatorTests", 13, 19}
              ]
 
-      calculator = Enum.find(targets, &(&1.name == "Calculator"))
+      assert Enum.map(targets, & &1.files_count) == [2, 2]
 
-      # Least covered first, so the gaps surface at the top.
-      assert Enum.map(calculator.files, & &1.path) == [
-               "Sources/Calculator/Untested.swift",
-               "Sources/Calculator/Add.swift"
+      # Least covered first, so the gaps surface at the top; the shared file
+      # appears once per target it was reported under.
+      {files, meta} = XcodeCoverage.list_files(test.id, 1, 20)
+      assert meta == %{current_page: 1, total_pages: 1}
+
+      assert Enum.map(files, &{&1.target_name, &1.path}) == [
+               {"Calculator", "Sources/Calculator/Untested.swift"},
+               {"Calculator", "Sources/Calculator/Add.swift"},
+               {"CalculatorTests", "Sources/Calculator/Add.swift"},
+               {"CalculatorTests", "Tests/CalculatorTests.swift"}
              ]
+    end
+
+    test "pages the files", %{project: project, account: account} do
+      {:ok, test} = create_test(project, account, %{xcode_coverage: @coverage})
+
+      {page_one, meta} = XcodeCoverage.list_files(test.id, 1, 3)
+      {page_two, _} = XcodeCoverage.list_files(test.id, 2, 3)
+
+      assert meta.total_pages == 2
+      assert length(page_one) == 3
+      assert Enum.map(page_two, & &1.path) == ["Tests/CalculatorTests.swift"]
+    end
+
+    test "a later shard never shrinks the totals the run already carries", %{project: project, account: account} do
+      {:ok, test} = create_test(project, account, %{xcode_coverage: @coverage})
+      {:ok, stored} = Tests.get_test(test.id)
+
+      smaller = %{
+        targets: [
+          %{
+            name: "Calculator",
+            covered_lines: 1,
+            executable_lines: 11,
+            files: [%{path: "Sources/Calculator/Add.swift", covered_lines: 1, executable_lines: 11}]
+          }
+        ]
+      }
+
+      assert XcodeCoverage.merge_run_attrs(stored, smaller) == %{
+               coverage_covered_lines: 13,
+               coverage_executable_lines: 25
+             }
     end
 
     test "leaves a run without coverage untouched", %{project: project, account: account} do
@@ -105,10 +143,10 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     end
   end
 
-  describe "percentage/1" do
+  describe "percentage/2" do
     test "rounds to one decimal and survives a target with no executable lines" do
-      assert XcodeCoverage.percentage(%{covered_lines: 1, executable_lines: 3}) == 33.3
-      assert XcodeCoverage.percentage(%{covered_lines: 0, executable_lines: 0}) == 0.0
+      assert XcodeCoverage.percentage(1, 3) == 33.3
+      assert XcodeCoverage.percentage(0, 0) == 0.0
     end
   end
 end

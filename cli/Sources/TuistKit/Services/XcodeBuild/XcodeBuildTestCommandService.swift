@@ -549,7 +549,13 @@ extension XcodeBuildTestCommandService {
         do {
             switch mode {
             case .local:
-                guard let testSummary else { break }
+                guard var testSummary else { break }
+                if let resultBundlePath {
+                    testSummary.coverage = try await xcResultService.parseCoverage(
+                        path: resultBundlePath,
+                        rootDirectory: await rootDirectory()
+                    )
+                }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,

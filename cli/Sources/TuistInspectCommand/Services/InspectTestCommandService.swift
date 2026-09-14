@@ -126,12 +126,16 @@
             path: AbsolutePath,
             config: Tuist
         ) async throws {
-            guard let testSummary = try await xcResultService.parse(
+            guard var testSummary = try await xcResultService.parse(
                 path: resolvedResultBundlePath,
                 rootDirectory: path
             ) else {
                 throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
             }
+            testSummary.coverage = try await xcResultService.parseCoverage(
+                path: resolvedResultBundlePath,
+                rootDirectory: path
+            )
 
             let test = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,

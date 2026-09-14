@@ -159,7 +159,13 @@ defmodule TuistWeb.TestRunLive do
   end
 
   @doc false
-  def coverage_percentage(entry), do: XcodeCoverage.percentage(entry)
+  def coverage_percentage(%{coverage_covered_lines: covered, coverage_executable_lines: executable}) do
+    XcodeCoverage.percentage(covered, executable)
+  end
+
+  def coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
+    XcodeCoverage.percentage(covered, executable)
+  end
 
   @doc false
   def stress_candidate_for(candidates_by_identity, test_case_run) do
@@ -458,6 +464,7 @@ defmodule TuistWeb.TestRunLive do
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign(:has_coverage, refreshed_run.coverage_executable_lines > 0)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
@@ -627,24 +634,18 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_tab_data(socket, "coverage", params) do
     run = socket.assigns.run
-    targets = run.id |> XcodeCoverage.targets_for_run() |> Enum.map(&Map.put(&1, :id, &1.name))
+    page = Query.bounded_page(params["coverage-page"])
 
-    files =
-      targets
-      |> Enum.flat_map(fn target ->
-        Enum.map(target.files, &Map.merge(&1, %{target_name: target.name, id: "#{target.name}/#{&1.path}"}))
-      end)
-      |> Enum.sort_by(&{XcodeCoverage.ratio(&1), &1.path})
-
-    page = Query.positive_integer(params["coverage-page"])
-    total_pages = max(1, ceil(length(files) / @table_page_size))
-    page = min(page, total_pages)
+    [targets, {files, files_meta}] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> XcodeCoverage.targets_for_run(run.id) end,
+        fn -> XcodeCoverage.list_files(run.id, page, @table_page_size) end
+      ])
 
     socket
-    |> assign(:coverage_targets, targets)
-    |> assign(:coverage_files, Enum.slice(files, (page - 1) * @table_page_size, @table_page_size))
-    |> assign(:coverage_files_count, length(files))
-    |> assign(:coverage_files_meta, %{current_page: page, total_pages: total_pages})
+    |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
+    |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, "#{&1.target_name}/#{&1.path}")))
+    |> assign(:coverage_files_meta, files_meta)
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)

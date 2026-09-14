@@ -2271,7 +2271,7 @@
             <.text_cell label={target.name} />
           </:col>
           <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-            <.text_cell label={format_number(length(target.files))} />
+            <.text_cell label={format_number(target.files_count)} />
           </:col>
           <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
             <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />

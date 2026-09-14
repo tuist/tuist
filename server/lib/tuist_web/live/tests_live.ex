@@ -420,17 +420,17 @@ defmodule TuistWeb.TestsLive do
         %{dates: failed_test_runs_analytics.dates, values: failed_test_runs_analytics.values}
 
       _ ->
-        values =
-          case selected_duration_type do
-            "p99" -> test_runs_duration_analytics.p99_values
-            "p90" -> test_runs_duration_analytics.p90_values
-            "p50" -> test_runs_duration_analytics.p50_values
-            _ -> test_runs_duration_analytics.values
-          end
-
-        %{dates: test_runs_duration_analytics.dates, values: values}
+        %{
+          dates: test_runs_duration_analytics.dates,
+          values: duration_chart_values(test_runs_duration_analytics, selected_duration_type)
+        }
     end
   end
+
+  defp duration_chart_values(analytics, "p99"), do: analytics.p99_values
+  defp duration_chart_values(analytics, "p90"), do: analytics.p90_values
+  defp duration_chart_values(analytics, "p50"), do: analytics.p50_values
+  defp duration_chart_values(analytics, _), do: analytics.values
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")

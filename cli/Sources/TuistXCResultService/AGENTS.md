@@ -5,7 +5,7 @@ This module provides XCResult handling helpers for test results.
 ## Responsibilities
 - Model test results (`TestCase`, `TestModule`, `TestStatus`) and failures.
 - Provide structures to parse and surface xcresult data.
-- Attach the bundle's `xccov` line coverage to the parsed `TestSummary` (`parse`) and expose it on its own (`parseCoverage`) for the remote path, where the server parses the tests but the client still owns the checkout the coverage paths are relative to. A coverage read failure is logged and dropped: coverage only enriches a run.
+- Read the bundle's `xccov` line coverage on its own (`parseCoverage`), separately from `parse`, so callers that only need test results (the stress gate, selective-testing target names) never spawn `xccov`. The upload boundary attaches it to the `TestSummary` once per run, in every processing mode: the server may parse the tests, but only the client owns the checkout the coverage paths are relative to. A coverage read failure is reported as a warning and dropped: coverage only enriches a run.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

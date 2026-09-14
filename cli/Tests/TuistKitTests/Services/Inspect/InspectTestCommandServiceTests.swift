@@ -48,6 +48,9 @@ struct InspectTestCommandServiceTests {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
+        given(xcResultService)
+            .parseCoverage(path: .any, rootDirectory: .any)
+            .willReturn(nil)
 
         given(uploadResultBundleService)
             .uploadTestSummary(

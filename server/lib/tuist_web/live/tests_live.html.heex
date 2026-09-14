@@ -669,7 +669,6 @@
             },
             yAxis: %{
               splitNumber: 4,
-              max: 100,
               splitLine: %{
                 lineStyle: %{
                   color: "var:noora-chart-lines"
@@ -703,11 +702,13 @@
             name: dgettext("dashboard_tests", "Line coverage"),
             type: "line",
             smooth: 0.1,
-            symbol: "none",
+            symbol: "circle",
+            symbolSize: 4,
             connectNulls: true
           }
         ]}
         y_axis_min={0}
+        y_axis_max={100}
       />
     </.card_section>
     <.empty_card_section

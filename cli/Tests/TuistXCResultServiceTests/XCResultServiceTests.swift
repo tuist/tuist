@@ -176,7 +176,7 @@ struct XCResultServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func parseAttachesTheBundlesCoverage() async throws {
+    func parseCoverageReturnsTheBundlesReport() async throws {
         // Given
         let xcresult = try await fixtureXCResult("test.xcresult")
         let coverageParser = MockXcodeCoverageParsing()
@@ -189,10 +189,23 @@ struct XCResultServiceTests {
         let subject = XCResultService(coverageParser: coverageParser)
 
         // When
+        let got = try await subject.parseCoverage(path: xcresult, rootDirectory: nil)
+
+        // Then
+        #expect(got == coverage)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseDoesNotReadCoverage() async throws {
+        // Given: a coverage parser with no expectations, which Mockable fails on if called.
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService(coverageParser: MockXcodeCoverageParsing())
+
+        // When
         let got = try #require(await subject.parse(path: xcresult, rootDirectory: nil))
 
         // Then
-        #expect(got.coverage == coverage)
+        #expect(got.coverage == nil)
     }
 
     @Test(.inTemporaryDirectory)
