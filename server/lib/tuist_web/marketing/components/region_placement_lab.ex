@@ -106,7 +106,7 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
         },
 
         syncMotion() {
-          this.animating = this.isVisible !== false && !this.reducedMotion.matches
+          this.animating = this.isVisible !== false
           this.lastTick = performance.now()
         },
 
