@@ -1661,6 +1661,15 @@ runnersFleetLinux:
     # arithmetic, stale the moment a box is added, lost, or re-SKU'd.
     maxReplicas: 120
     scaleDownCooldownSeconds: 300
+  # Every shape below 16 vCPU packs onto hosts already running runner
+  # Pods. A RISE-L seats one 16 vCPU Pod (16,250m with the kata overhead)
+  # only while the rest of the host holds under ~14 vCPU. Spread across
+  # the fleet by the default least-allocated scoring, the small shapes
+  # used to put 14-24 vCPU on every host without a 16 vCPU job, so on
+  # 2026-09-07 and 2026-09-11 16 vCPU jobs queued for minutes while the
+  # fleet as a whole had room for them.
+  shapePlacement:
+    packBelowVcpus: 16
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
