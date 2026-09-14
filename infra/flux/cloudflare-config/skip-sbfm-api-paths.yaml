@@ -62,7 +62,20 @@ metadata:
 spec:
   zoneId: 4421110085237b867a891bd0a40da106
   description: "Skip SBFM on machine/CLI paths"
+  # Super Bot Fight Mode applies to every hostname proxied through the
+  # tuist.dev zone, not just the browser dashboard host. The path list
+  # below is derived from `tuist.dev`'s Phoenix router and does not
+  # cover the machine-facing subdomains (`search.tuist.dev`, and any
+  # future server-to-server API subdomain we add). Skipping SBFM on
+  # every host that is not `tuist.dev` keeps the browser dashboard
+  # gated while leaving datacenter traffic (Typesense multi-search
+  # calls from the server pods, agents that talk to sibling APIs,
+  # cache CDN endpoints, and so on) alone. If we later decide any
+  # non-tuist.dev subdomain should be behind SBFM, we tighten the
+  # host clause; today none of them are browser-facing anonymous
+  # dashboards.
   expression: |-
+    (http.host ne "tuist.dev") or
     starts_with(http.request.uri.path, "/api/") or
     starts_with(http.request.uri.path, "/webhooks/") or
     starts_with(http.request.uri.path, "/scim/v2/") or
