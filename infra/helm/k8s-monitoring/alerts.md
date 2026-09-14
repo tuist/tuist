@@ -851,6 +851,18 @@ Before concluding a Mac mini is mis-sourced, check that the drops are confined t
 **one** node. A runner VM talks to a single regional cache, so simultaneous drops
 across regions are never a mis-sourced host.
 
+Also rule out a full BPF map on the Cilium agent. An overflowing policy map drops
+as `Policy denied` too, with no traffic spike and no misconfigured client:
+
+```promql
+max by (cluster, pod, map_name) (cilium_bpf_map_pressure{job="cilium-agent"})
+```
+
+`map_name="cilium_policy_v2*"` is the fullest endpoint policy map on that agent
+and only exists while it is over 10% full, so an absent series means low
+pressure, not missing data. Values near 1 on the kura node's agent (`pod` from
+`kube_pod_info{node=...}`) point at Cilium, not at a runner host.
+
 A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
 and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
 is not masqueraded to its host's PN VLAN address arrives from outside that block,
