@@ -1,6 +1,17 @@
 # Imported from the live tuist.dev custom firewall entry-point ruleset on
-# 2026-09-06. The public dashboard rule excludes Cloudflare-verified crawlers,
-# which are bounded separately by the verified crawler rate-limit rule.
+# 2026-09-06.
+#
+# `public-dashboard-bot-protection` covered only `/tuist/**`
+# subpaths, which meant Tuist's own dashboard was gated by a JavaScript
+# challenge while every other public project on the zone was not — a
+# non-uniform defence that we do not want carried forward. This CR is
+# now switched off (`enabled: false`) so the equivalent JavaScript
+# challenge is served by the Phoenix
+# `TuistWeb.PublicPageChallengeController`, which sits BEHIND the same
+# `x-tuist-public: 1` visibility signal the application already
+# emits. The Cloudflare rule stays adopted (name + `adopt.ruleId`
+# preserved) so we can flip `enabled: true` back on if the
+# application-side gate needs to be rolled back while investigating.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCustomRule
 metadata:
@@ -31,7 +42,7 @@ spec:
       )
     ) and not cf.client.bot
   action: managed_challenge
-  enabled: true
+  enabled: false
   mode: active
   adopt:
     ruleId: 6d023cf1e6b24525af4c727a4ebe730f

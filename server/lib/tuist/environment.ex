@@ -284,6 +284,46 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
   end
 
+  @doc """
+  Whether the public-page Turnstile challenge is armed on this
+  deployment. Read straight off the env at request time so an ops
+  flip via `helm upgrade --set env.TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED`
+  is picked up without a full restart on the next pod rotation.
+  """
+  def public_page_challenge_enabled? do
+    truthy?(System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED", "0"))
+  end
+
+  @doc """
+  True when the public-page challenge should be enforced on this
+  deployment. Same shape as `turnstile_required?/0`: only the
+  tuist-hosted plane is gated so on-premise installs are not
+  interfering with their own dashboards.
+  """
+  def public_page_challenge_required? do
+    tuist_hosted?() and public_page_challenge_enabled?()
+  end
+
+  @doc """
+  How long a solved Turnstile challenge counts as fresh in the
+  session, in seconds. Default is four hours so a legitimate anon
+  visitor browsing across multiple public projects during a work
+  session only sees the interstitial once, while a stale session
+  from a shared device still expires within one workday.
+  """
+  def public_page_challenge_freshness do
+    case System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_FRESHNESS_SECONDS") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {seconds, _} when seconds > 0 -> seconds
+          _ -> 4 * 60 * 60
+        end
+
+      _ ->
+        4 * 60 * 60
+    end
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
