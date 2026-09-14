@@ -219,21 +219,6 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id}) do
-    Repo.all(
-      from(u in User,
-        preload: [:account],
-        join: ur in UserRole,
-        on: ur.user_id == u.id,
-        join: r in Role,
-        on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        distinct: u.id,
-        select: [u, r.name]
-      )
-    )
-  end
-
   def list_organization_members_with_role(%Organization{id: organization_id}, opts \\ []) do
     page = Keyword.get(opts, :page, 1)
     page_size = Keyword.get(opts, :page_size, 20)
@@ -1446,15 +1431,30 @@ defmodule Tuist.Accounts do
     Repo.all(query)
   end
 
-  def list_invitations(organization) do
-    Repo.one(
-      from(o in Organization,
-        join: i in Invitation,
-        on: i.organization_id == o.id,
-        where: o.id == ^organization.id,
-        select: i
+  def list_organization_invitations(%Organization{id: organization_id}, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    query = from(i in Invitation, where: i.organization_id == ^organization_id)
+
+    query =
+      case opts |> Keyword.get(:search, "") |> String.trim() do
+        "" -> query
+        search -> from(i in query, where: ilike(i.invitee_email, ^"%#{escape_like(search)}%"))
+      end
+
+    total_count = Repo.aggregate(query, :count)
+
+    invitations =
+      Repo.all(
+        from(i in query,
+          order_by: [desc: i.created_at, desc: i.id],
+          limit: ^page_size,
+          offset: ^((page - 1) * page_size)
+        )
       )
-    )
+
+    {invitations, total_count}
   end
 
   def invite_user_to_organization(

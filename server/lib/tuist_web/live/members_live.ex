@@ -11,7 +11,7 @@ defmodule TuistWeb.MembersLive do
   alias TuistWeb.Errors.UnauthorizedError
 
   @role_names Accounts.organization_role_names()
-  @members_page_size 20
+  @page_size 20
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -32,17 +32,34 @@ defmodule TuistWeb.MembersLive do
         managing_member: nil,
         invitation_disclosure: nil,
         invite_role: "user",
-        members_page: 1
+        members: [],
+        invitations: [],
+        page: 1,
+        total_pages: 1
         # invite_emails: []
       )
-      |> assign_organization(load_members: false)
+      |> assign_organization()
 
     {:ok, socket}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
-    {:noreply, socket |> assign(members_page: parse_page(params["page"])) |> assign_members()}
+    tab =
+      if params["tab"] == "invitations" and
+           Authorization.authorize(:invitation_read, socket.assigns.current_user, socket.assigns.selected_account) ==
+             :ok,
+         do: "invitations",
+         else: "members"
+
+    search_query = if tab == socket.assigns.selected_inner_tab, do: socket.assigns.search_query, else: ""
+
+    socket =
+      socket
+      |> assign(selected_inner_tab: tab, search_query: search_query, page: parse_page(params["page"]))
+      |> assign_selected_tab_rows()
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -294,10 +311,10 @@ defmodule TuistWeb.MembersLive do
                 </:empty_state>
               </.table>
               <.pagination_group
-                :if={@members_total_pages > 1}
-                current_page={@members_page}
-                number_of_pages={@members_total_pages}
-                page_patch={&members_page_path(@selected_account, &1)}
+                :if={@total_pages > 1}
+                current_page={@page}
+                number_of_pages={@total_pages}
+                page_patch={&members_page_path(@selected_account, "members", &1)}
               />
             </div>
             <div
@@ -380,6 +397,12 @@ defmodule TuistWeb.MembersLive do
                   </.table_empty_state>
                 </:empty_state>
               </.table>
+              <.pagination_group
+                :if={@total_pages > 1}
+                current_page={@page}
+                number_of_pages={@total_pages}
+                page_patch={&members_page_path(@selected_account, "invitations", &1)}
+              />
             </div>
           </div>
         </div>
@@ -531,21 +554,12 @@ defmodule TuistWeb.MembersLive do
 
   @impl true
   def handle_event("search", %{"search" => search}, socket) do
+    %{selected_account: account, selected_inner_tab: tab} = socket.assigns
+
     socket =
-      case socket.assigns.selected_inner_tab do
-        "invitations" ->
-          invitations =
-            Enum.filter(socket.assigns.all_invitations, fn invitation ->
-              String.contains?(invitation.invitee_email, search)
-            end)
-
-          assign(socket, invitations: invitations, search_query: search)
-
-        _ ->
-          socket
-          |> assign(search_query: search)
-          |> push_patch(to: members_page_path(socket.assigns.selected_account, 1))
-      end
+      socket
+      |> assign(search_query: search)
+      |> push_patch(to: members_page_path(account, tab, 1))
 
     {:noreply, socket}
   end
@@ -553,12 +567,8 @@ defmodule TuistWeb.MembersLive do
   def handle_event("select-inner-tab", %{"tab" => tab}, socket) do
     socket =
       socket
-      |> assign(
-        selected_inner_tab: tab,
-        search_query: "",
-        invitations: socket.assigns.all_invitations
-      )
-      |> push_patch(to: members_page_path(socket.assigns.selected_account, 1))
+      |> assign(search_query: "")
+      |> push_patch(to: members_page_path(socket.assigns.selected_account, tab, 1))
 
     {:noreply, socket}
   end
@@ -569,7 +579,7 @@ defmodule TuistWeb.MembersLive do
          :ok <-
            Authorization.authorize(:invitation_delete, socket.assigns.current_user, socket.assigns.selected_account) do
       Accounts.delete_invitation(%{invitation: invitation})
-      {:noreply, assign_organization(socket)}
+      {:noreply, assign_invitations(socket)}
     else
       _ -> {:noreply, socket}
     end
@@ -582,14 +592,12 @@ defmodule TuistWeb.MembersLive do
            Authorization.authorize(:invitation_create, socket.assigns.current_user, socket.assigns.selected_account),
          {:ok, invitation} <-
            Accounts.resend_invitation(invitation, %{url: &url(~p"/auth/invitations/#{&1}")}) do
+      page = if socket.assigns.search_query == "", do: socket.assigns.page, else: 1
+
       socket =
         socket
-        |> assign_organization()
-        |> assign(
-          selected_inner_tab: "invitations",
-          search_query: "",
-          invitation_disclosure: invitation_disclosure(invitation)
-        )
+        |> assign(search_query: "", invitation_disclosure: invitation_disclosure(invitation))
+        |> push_patch(to: members_page_path(socket.assigns.selected_account, "invitations", page))
         |> push_event("open-modal", %{id: "invite-member-form-modal"})
 
       {:noreply, socket}
@@ -638,7 +646,7 @@ defmodule TuistWeb.MembersLive do
            Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
       socket =
         socket
-        |> assign_organization()
+        |> assign_members()
         |> assign(managing_member: nil)
         |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
 
@@ -697,23 +705,17 @@ defmodule TuistWeb.MembersLive do
                url: &url(~p"/auth/invitations/#{&1}")
              },
              role: String.to_existing_atom(role)
-           ),
-         {:ok, organization} <-
-           Accounts.get_organization_by_id(socket.assigns.organization.id,
-             preload: [:invitations]
            ) do
       socket =
         socket
         |> assign(
-          invitations: organization.invitations,
-          all_invitations: organization.invitations,
           invite_emails: [],
           invite_role: "user",
           form: to_form(%{}, as: :invitation),
-          selected_inner_tab: "invitations",
           search_query: "",
           invitation_disclosure: invitation_disclosure(invitation)
         )
+        |> push_patch(to: members_page_path(socket.assigns.selected_account, "invitations", 1))
         # Reveal the link in the always-present header modal: close the
         # empty-state modal in case it triggered the invite, and nudge the
         # header modal open since submitting the form doesn't change the
@@ -741,7 +743,7 @@ defmodule TuistWeb.MembersLive do
          :ok <- Accounts.remove_user_from_organization(member, socket.assigns.organization) do
       socket =
         socket
-        |> assign_organization()
+        |> assign_members()
         |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
 
       {:noreply, socket}
@@ -750,43 +752,46 @@ defmodule TuistWeb.MembersLive do
     end
   end
 
-  defp assign_organization(socket, opts \\ []) do
-    {:ok, organization} =
-      Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id,
-        preload: [:invitations]
-      )
-
-    socket =
-      assign(socket,
-        organization: organization,
-        invitations: organization.invitations,
-        all_invitations: organization.invitations
-      )
-
-    if Keyword.get(opts, :load_members, true), do: assign_members(socket), else: socket
+  defp assign_organization(socket) do
+    {:ok, organization} = Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id)
+    assign(socket, organization: organization)
   end
 
-  defp assign_members(%{assigns: %{organization: organization, members_page: page, search_query: search}} = socket) do
-    {members, total_count} =
-      Accounts.list_organization_members_with_role(organization,
-        search: search,
-        page: page,
-        page_size: @members_page_size
-      )
+  defp assign_selected_tab_rows(%{assigns: %{selected_inner_tab: "invitations"}} = socket), do: assign_invitations(socket)
+  defp assign_selected_tab_rows(socket), do: assign_members(socket)
 
-    total_pages = max(ceil(total_count / @members_page_size), 1)
+  defp assign_members(%{assigns: %{organization: organization, search_query: search}} = socket) do
+    assign_page_rows(
+      socket,
+      :members,
+      &Accounts.list_organization_members_with_role(organization, &1 ++ [search: search])
+    )
+  end
 
-    if members == [] and page > total_pages do
+  defp assign_invitations(%{assigns: %{organization: organization, search_query: search}} = socket) do
+    assign_page_rows(socket, :invitations, &Accounts.list_organization_invitations(organization, &1 ++ [search: search]))
+  end
+
+  defp assign_page_rows(%{assigns: %{page: page}} = socket, key, list_page) do
+    {rows, total_count} = list_page.(page: page, page_size: @page_size)
+    total_pages = max(ceil(total_count / @page_size), 1)
+
+    if rows == [] and page > total_pages do
       socket
-      |> assign(members_page: total_pages)
-      |> assign_members()
+      |> assign(page: total_pages)
+      |> assign_page_rows(key, list_page)
     else
-      assign(socket, members: members, members_total_pages: total_pages)
+      assign(socket, [{key, rows}, {:total_pages, total_pages}])
     end
   end
 
-  defp members_page_path(account, 1), do: ~p"/#{account.name}/members"
-  defp members_page_path(account, page), do: ~p"/#{account.name}/members?#{[page: page]}"
+  defp members_page_path(account, "invitations", 1), do: ~p"/#{account.name}/members?#{[tab: "invitations"]}"
+
+  defp members_page_path(account, "invitations", page),
+    do: ~p"/#{account.name}/members?#{[tab: "invitations", page: page]}"
+
+  defp members_page_path(account, _tab, 1), do: ~p"/#{account.name}/members"
+  defp members_page_path(account, _tab, page), do: ~p"/#{account.name}/members?#{[page: page]}"
 
   defp parse_page(value) when is_binary(value) do
     case Integer.parse(value) do
