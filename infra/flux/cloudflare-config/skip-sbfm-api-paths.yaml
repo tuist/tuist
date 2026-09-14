@@ -1,0 +1,91 @@
+# Exempts CLI, webhook, MCP, and other machine-facing paths from Super
+# Bot Fight Mode so re-enabling `sbfm_definitely_automated:
+# managed_challenge` in bot-management.yaml does not serve a Cloudflare
+# JavaScript challenge to CI runners that call
+# `POST /api/auth/oidc/token` and friends. Without the exemption the CLI
+# reports:
+#
+#   Client encountered an error invoking the operation
+#   "exchangeOIDCToken", caused by "Unexpected content type, expected:
+#   application/json, received: text/html; charset=UTF-8"
+#
+# because the OpenAPI client is decoding the challenge interstitial
+# instead of the API response — a customer CI run reproduced this
+# within minutes of the first SBFM flip. See infra/flux/cloudflare-config/
+# bot-management.yaml, whose spec.dependsOn pins the SBFM change to
+# this rule being Ready first.
+#
+# Skip semantics: the rule short-circuits the `http_request_sbfm`
+# phase for matched requests. Every other phase — rate limits, custom
+# firewall rules, leaked-credentials detection — still runs, so
+# `/api/*` traffic is still bounded by Cloudflare Advanced Rate
+# Limiting and any custom rule that matches its path.
+# https://developers.cloudflare.com/waf/custom-rules/skip/options/
+#
+# Path list justification (see server/lib/tuist_web/router.ex):
+#   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
+#                      previews, runners) — every managed-CI call.
+#   /webhooks/*        Third-party webhook receivers (GitHub, Stripe,
+#                      Slack event webhooks).
+#   /scim/v2/*         System for Cross-domain Identity Management
+#                      (https://scim.cloud/) — programmatic identity
+#                      sync from IdPs.
+#   /oauth2/*          OAuth 2.0 token, introspection, revocation, and
+#                      client registration endpoints.
+#   /agent/*           Programmatic agent-auth endpoints (identity
+#                      claim, event notify).
+#   /_internal/*       Internal endpoints reached through Cloudflare in
+#                      a subset of deployments.
+#   /.well-known/*     Protocol discovery (Apple app-site-association
+#                      fetched by Apple's CDN, MCP server card,
+#                      OAuth authorization-server metadata).
+#   /mcp (exact)       Model Context Protocol
+#                      (https://modelcontextprotocol.io/) server
+#                      endpoint reached by AI-assistant clients.
+#   /auth.md (exact)   Agent-auth protocol discovery document.
+#   /ready (exact)     Kubernetes readiness probe.
+#   POST /-/faro/collect  Browser telemetry XHR from real users; if a
+#                      real user's browser is classified as automated,
+#                      an interstitial challenge on a background XHR is
+#                      an invisible failure.
+#   ends_with(...)     Preview manifests and native downloads mobile
+#                      devices fetch (.ipa, .apk, manifest.plist,
+#                      qr-code.svg/png, icon.png) plus
+#                      /download exemptions. Cloudflare's own docs
+#                      warn about mobile-app traffic hitting bot
+#                      challenges:
+#                      https://developers.cloudflare.com/bots/get-started/super-bot-fight-mode/
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: skip-sbfm-api-paths
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Skip SBFM on machine/CLI paths"
+  expression: |-
+    starts_with(http.request.uri.path, "/api/") or
+    starts_with(http.request.uri.path, "/webhooks/") or
+    starts_with(http.request.uri.path, "/scim/v2/") or
+    starts_with(http.request.uri.path, "/oauth2/") or
+    starts_with(http.request.uri.path, "/agent/") or
+    starts_with(http.request.uri.path, "/_internal/") or
+    starts_with(http.request.uri.path, "/.well-known/") or
+    http.request.uri.path eq "/mcp" or
+    http.request.uri.path eq "/auth.md" or
+    http.request.uri.path eq "/ready" or
+    (http.request.method eq "POST" and http.request.uri.path eq "/-/faro/collect") or
+    ends_with(http.request.uri.path, "/manifest.plist") or
+    ends_with(http.request.uri.path, "/app.ipa") or
+    ends_with(http.request.uri.path, "/app.apk") or
+    ends_with(http.request.uri.path, "/qr-code.svg") or
+    ends_with(http.request.uri.path, "/qr-code.png") or
+    ends_with(http.request.uri.path, "/icon.png") or
+    (ends_with(http.request.uri.path, "/download") and not starts_with(http.request.uri.path, "/tuist/runners/"))
+  action: skip
+  actionParameters:
+    phases:
+      - http_request_sbfm
+  enabled: true
+  mode: active
+  createNewRule: true
+  retainOnDelete: false
