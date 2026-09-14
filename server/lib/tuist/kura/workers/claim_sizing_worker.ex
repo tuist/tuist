@@ -91,18 +91,27 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
 
   # A refusal is the only signal that sizing has stopped moving: the proposal
   # stays open and every later pass retries it, so a dropped error reads exactly
-  # like an account nothing has proposed for.
+  # like an account nothing has proposed for. A capacity refusal names the region
+  # that refused, which is not necessarily the proposal's.
   defp apply_proposal(%ClaimProposal{} = proposal) do
     case Kura.apply_claim_proposal(proposal, "automatic") do
       {:ok, _outcome} ->
         :ok
 
-      {:error, reason} ->
-        Telemetry.claim_apply_refused(proposal.region, reason)
+      {:error, {region, reason}} ->
+        Telemetry.claim_apply_refused(region, reason)
 
         Logger.warning(
-          "[Kura.ClaimSizing] refused #{proposal.current_claim_size} -> " <>
-            "#{proposal.recommended_claim_size} in #{proposal.region}: #{inspect(reason)}"
+          "[Kura.ClaimSizing] #{region} refused #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size}: #{inspect(reason)}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.ClaimSizing] could not apply #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size}: #{inspect(reason)}"
         )
 
         :ok

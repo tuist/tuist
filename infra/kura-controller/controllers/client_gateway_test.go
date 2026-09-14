@@ -214,6 +214,43 @@ func TestPrivateGatewayKeepsItsCertificateWithSharedPublicTLS(t *testing.T) {
 	}
 }
 
+func TestPrivateGatewayPublicationReadinessWithSharedWildcard(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+	instance := meshInstance("kura-tuist-test", "tuist")
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "tuist-scw-fr-par-runners.kura.tuist.dev"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.IngressClassName = "kura-runners"
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	instance.Spec.Replicas = ptr(int32(2))
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: selectorLabels(instance), CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour))}, Spec: corev1.PodSpec{NodeName: "node"}, Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node", Labels: map[string]string{"tuist.dev/pn-ipv4": "172.16.0.2"}}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.2"}}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}}
+	gateway := pod.DeepCopy()
+	gateway.Name = "gateway"
+	gateway.Namespace = "platform"
+	gateway.Labels = map[string]string{gatewayClassLabel: "kura-runners"}
+	gateway.Spec.HostNetwork = true
+	// No Certificate object: a host the wildcard spans never orders one, so this
+	// is the state every covered private instance is in.
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	r := &KuraInstanceReconciler{
+		Client:              fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, pod, node, gateway, wildcard).Build(),
+		Scheme:              scheme,
+		PeerDNSResolver:     &fakePeerDNSResolver{addresses: []string{"172.16.0.2"}},
+		PublicTLSSecretName: wildcard.Name,
+	}
+	samples := map[string]runtimeStatus{pod.Name: {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}}
+
+	observation, err := r.privateGatewayStatus(ctx, instance, pod.Name, []corev1.Pod{*pod}, samples)
+	if err != nil || observation.URL != "https://"+instance.Spec.PrivateHost {
+		t.Fatalf("a private host the shared wildcard spans must publish without a certificate of its own: %+v, %v", observation, err)
+	}
+}
+
 func TestPrivateGatewayPublicationReadiness(t *testing.T) {
 	ctx := context.Background()
 	scheme := meshTestScheme(t)

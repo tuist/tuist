@@ -5,6 +5,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
   alias Tuist.Accounts
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.PlacerClaims
@@ -298,6 +299,33 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   end
 
   describe "Kura.apply_claim_proposal/2" do
+    test "names the region that refused, which need not be the one that proposed", %{account: account} do
+      # A claim is account-wide, so applying it grows every governed instance the
+      # account runs. The proposal names the region whose demand sized it; the
+      # refusal can come from any other.
+      insert_server!(account, "eu-west")
+      seed_churn_rollups(account, 14, @today)
+      {:ok, _summary} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.region == "us-east"
+
+      stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+
+      stub(Capacity, :pressure_line_gib, fn
+        "eu-west" -> 0
+        _region_id -> 10_000
+      end)
+
+      stub(Capacity, :resident_gib, fn
+        _region, %Server{storage_claim_size: "20Gi"} -> 40
+        _region, %Server{} -> 16
+      end)
+
+      assert {:error, {"eu-west", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
     test "writes the sized claim, re-pins the instance, and resolves the proposal", %{
       account: account,
       server: server
