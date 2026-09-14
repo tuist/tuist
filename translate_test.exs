@@ -509,3 +509,102 @@ defmodule L10n.ProviderGateTest do
     end)
   end
 end
+
+defmodule L10n.RestoreTranslationsTest do
+  use ExUnit.Case, async: true
+
+  @script Path.join(__DIR__, ".github/scripts/restore-translations.sh")
+  @catalog "server/priv/gettext/es/LC_MESSAGES/default.po"
+
+  setup do
+    root = Path.join(System.tmp_dir!(), "l10n-recovery-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    remote = Path.join(root, "remote.git")
+    repo = Path.join(root, "repo")
+    git!(root, ["init", "--bare", remote])
+    git!(root, ["init", "-b", "main", repo])
+    git!(repo, ["config", "user.name", "Test"])
+    git!(repo, ["config", "user.email", "test@example.com"])
+    git!(repo, ["remote", "add", "origin", remote])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr ""\n|)
+    write!(repo, "source.txt", "original\n")
+    commit!(repo, "Initial state")
+    git!(repo, ["push", "origin", "main"])
+
+    {:ok, repo: repo}
+  end
+
+  test "the first run succeeds without a saved translation branch", %{repo: repo} do
+    assert {_output, 0} = restore(repo)
+    assert git!(repo, ["status", "--porcelain"]) == ""
+  end
+
+  test "restores unmerged translations while preserving newer source content", %{repo: repo} do
+    checkpoint!(repo)
+    write!(repo, "source.txt", "new main content\n")
+    commit!(repo, "New source")
+
+    assert {_output, 0} = restore(repo)
+    assert File.read!(Path.join(repo, @catalog)) =~ ~s|msgstr "Hola"|
+    assert File.exists?(Path.join(repo, ".l10n/default.lock"))
+    assert File.read!(Path.join(repo, "source.txt")) == "new main content\n"
+  end
+
+  test "conflicting translations on main stop recovery before spending", %{repo: repo} do
+    checkpoint!(repo)
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Buenos dias"\n|)
+    commit!(repo, "Reviewed main translation")
+
+    assert {_output, status} = restore(repo)
+    assert status != 0
+  end
+
+  test "a merged checkpoint does not revert a newer main translation", %{repo: repo} do
+    checkpoint!(repo)
+    git!(repo, ["merge", "--no-edit", "l10n/update-translations"])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Buenos dias"\n|)
+    commit!(repo, "Reviewed main translation")
+
+    assert {_output, 0} = restore(repo)
+    assert File.read!(Path.join(repo, @catalog)) =~ ~s|msgstr "Buenos dias"|
+  end
+
+  defp checkpoint!(repo) do
+    git!(repo, ["checkout", "-b", "l10n/update-translations"])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Hola"\n|)
+    write!(repo, ".l10n/default.lock", "completed\n")
+    write!(repo, "source.txt", "must not be restored\n")
+    commit!(repo, "Partial translations")
+    git!(repo, ["push", "origin", "l10n/update-translations"])
+    git!(repo, ["checkout", "main"])
+  end
+
+  defp write!(repo, path, content) do
+    target = Path.join(repo, path)
+    File.mkdir_p!(Path.dirname(target))
+    File.write!(target, content)
+  end
+
+  defp commit!(repo, message) do
+    git!(repo, ["add", "."])
+    git!(repo, ["commit", "-m", message])
+  end
+
+  defp git!(repo, args) do
+    {output, status} = command(repo, "git", args)
+    assert status == 0, output
+    String.trim(output)
+  end
+
+  defp restore(repo), do: command(repo, "bash", [@script])
+
+  defp command(repo, executable, args) do
+    System.cmd(executable, args,
+      cd: repo,
+      env: [{"GIT_CONFIG_NOSYSTEM", "1"}, {"GIT_CONFIG_GLOBAL", "/dev/null"}],
+      stderr_to_stdout: true
+    )
+  end
+end

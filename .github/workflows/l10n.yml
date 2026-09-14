@@ -43,7 +43,6 @@ jobs:
           install_args: "elixir erlang"
           cache: "true"
       - run: elixir translate_test.exs
-      - run: python3 .github/scripts/restore-translations-test.py
 
   translate:
     name: Translate
