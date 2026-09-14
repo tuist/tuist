@@ -29,6 +29,18 @@ spec:
   zoneId: 4421110085237b867a891bd0a40da106
   mode: active
   paused: false
+  # Pin the SBFM re-enable behind skip-sbfm-api-paths so the
+  # http_request_sbfm phase never becomes stricter than the CustomRule
+  # that exempts /api/*, /webhooks/*, /mcp, /-/faro/collect, and the
+  # native-download paths from it. The bot-management reconciler
+  # waits for the CustomRule to report Ready=True before pushing this
+  # spec to Cloudflare; on the first reconcile after merge that is the
+  # difference between SBFM going live behind the exemption and SBFM
+  # going live in front of it (breaking CI, as it did on 2026-09-14
+  # during the manual API roll-out that motivated this operator work).
+  dependsOn:
+    kind: CloudflareCustomRule
+    name: skip-sbfm-api-paths
   botFightMode:
     enableJs: true
     suppressSessionScore: false
