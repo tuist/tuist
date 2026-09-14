@@ -3,9 +3,18 @@
 # configuration is global, not per-env.
 
 image:
-  # Built from a8112699ff19, the #13096 merge that added the
-  # CloudflareBotManagement controller.
+  # Built from 33909c11f299, the #13205 merge that:
+  #   - stripped the read-only `using_latest_model` field from every
+  #     `PUT /zones/{id}/bot_management` body so the bot-management
+  #     reconciler stops throwing 400s;
+  #   - taught the `CloudflareCustomRule` CRD (and the controller)
+  #     about `action: skip` with `actionParameters.phases`, which the
+  #     new `skip-sbfm-api-paths` CR needs;
+  #   - added a `spec.dependsOn` field on `CloudflareBotManagement` so
+  #     the SBFM re-enable waits for the skip rule to be Ready.
+  # Nothing under `infra/flux/cloudflare-config/` can actually apply on
+  # tuist.dev until this pin points at the new bytes.
   # Keep the human-readable tag and immutable multi-platform digest
   # together so reviewers can trace both the source and deployed bytes.
-  tag: sha-a8112699ff19
-  digest: sha256:6e9540ee3c3028d2d8f8d3c4ae71392e1cbbfd46534509b5885b1240a927aff3
+  tag: sha-33909c11f299
+  digest: sha256:99d4bab6bd6f2059537997414ed66d22113d56c20e5b3eb39a5864d236d7b92d
