@@ -65,14 +65,17 @@ defmodule Tuist.Tests.XcresultProcessing do
   # Columns the client reported with the run and the bundle cannot supply: the
   # stress gate's verdict and the coverage totals. The worker rewrites the row
   # from these attributes once the bundle is parsed, so they ride along.
-  @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count coverage_covered_lines coverage_executable_lines)
+  @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count coverage_covered_lines coverage_executable_lines)a
+  # Resolved at compile time rather than with `String.to_existing_atom/1`: the
+  # job runs in a fresh VM where nothing may have created these atoms yet.
+  @carried_keys_by_name Map.new(@carried_keys, &{Atom.to_string(&1), &1})
 
   # Only what the job carried: a job enqueued without them leaves the columns to
   # their defaults, exactly as before the gate existed.
   defp carried_attrs(args) do
     args
-    |> Map.take(@carried_keys)
-    |> Map.new(fn {key, value} -> {String.to_existing_atom(key), value} end)
+    |> Map.take(Map.keys(@carried_keys_by_name))
+    |> Map.new(fn {key, value} -> {Map.fetch!(@carried_keys_by_name, key), value} end)
   end
 
   defp deserialize_ran_at(nil), do: NaiveDateTime.utc_now()

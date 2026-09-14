@@ -46,6 +46,20 @@ defmodule Tuist.Tests.XcresultProcessingTest do
     assert attrs.stress_known_count == 50
   end
 
+  test "base_test_attrs carries the coverage totals when the job has them" do
+    attrs =
+      XcresultProcessing.base_test_attrs(%{
+        "test_run_id" => UUIDv7.generate(),
+        "project_id" => 1,
+        "account_id" => 1,
+        "coverage_covered_lines" => 17,
+        "coverage_executable_lines" => 30
+      })
+
+    assert attrs.coverage_covered_lines == 17
+    assert attrs.coverage_executable_lines == 30
+  end
+
   test "base_test_attrs leaves the stress columns alone when the job has none", %{
     account: account,
     project: project
