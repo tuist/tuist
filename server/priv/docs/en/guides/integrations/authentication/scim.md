@@ -72,9 +72,9 @@ To test deprovisioning, unassign or deactivate a user in Okta and verify that th
 
 ### Assigning roles {#okta-assigning-roles}
 
-Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. Tuist exposes one SCIM group per role, named after your organization, for example `your-org Admins`, `your-org Users`, and `your-org Viewers`. Map Okta groups to them with **Group Push**:
+Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. Tuist exposes one SCIM group per role: `Tuist Admins`, `Tuist Users`, and `Tuist Viewers`. Map Okta groups to them with **Group Push**:
 
-1. Create an Okta group for each role you want to assign, for example `Tuist Admins` and `Tuist Viewers`, and assign those groups on the SCIM app's **Assignments** tab.
+1. Pick or create an Okta group for each role you want to assign, and assign those groups on the SCIM app's **Assignments** tab.
 2. Make sure **Import Groups** is enabled in the API integration, then open the SCIM app's **Import** tab and click **Import Now** so that Okta knows about Tuist's groups.
 3. Open the SCIM app's **Push Groups** tab and click **Push Groups > Find groups by name**.
 4. Select an Okta group, choose **Link Group** as the push action, and pick the matching Tuist group. Tuist doesn't support creating groups through SCIM, so link to an existing group instead of creating a new one.
@@ -141,7 +141,7 @@ When your identity provider assigns a user to the provisioning application, Tuis
 
 When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
-Tuist exposes three synthetic SCIM groups: `Admins`, `Users`, and `Viewers`. Adding a member to a group sets their organization role. Removing a member from the group that matches their current role moves them back to the enrollment role, and membership itself only ends when the user is unassigned or deactivated. Identity providers can also set the role through the SCIM `roles` attribute on a user, with a value of `admin`, `user`, or `viewer`.
+Tuist exposes three synthetic SCIM groups: `Tuist Admins`, `Tuist Users`, and `Tuist Viewers`. Adding a member to a group sets their organization role. Removing a member from the group that matches their current role moves them back to the enrollment role, and membership itself only ends when the user is unassigned or deactivated. Identity providers can also set the role through the SCIM `roles` attribute on a user, with a value of `admin`, `user`, or `viewer`.
 
 ## Supported SCIM features {#supported-scim-features}
 

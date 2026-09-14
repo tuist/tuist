@@ -335,9 +335,9 @@ defmodule Tuist.SCIMTest do
 
     test "list_groups/1 returns one synthetic group per role", %{organization: org} do
       assert [
-               %{id: "admins", members: admins},
-               %{id: "users", members: users},
-               %{id: "viewers", members: viewers}
+               %{id: "admins", display_name: "Tuist Admins", members: admins},
+               %{id: "users", display_name: "Tuist Users", members: users},
+               %{id: "viewers", display_name: "Tuist Viewers", members: viewers}
              ] = SCIM.list_groups(org)
 
       assert [_ | _] = admins

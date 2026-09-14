@@ -1,8 +1,8 @@
 defmodule TuistWeb.SCIM.GroupsController do
   @moduledoc """
   SCIM 2.0 `/Groups` endpoints. Tuist exposes three synthetic groups per
-  organization: "Admins", "Users", and "Viewers", mapping to the existing role
-  hierarchy.
+  organization: "Tuist Admins", "Tuist Users", and "Tuist Viewers", mapping to
+  the existing role hierarchy.
   """
   use TuistWeb, :controller
 

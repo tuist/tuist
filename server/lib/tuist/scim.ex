@@ -20,10 +20,10 @@ defmodule Tuist.SCIM do
   in.
 
   Groups are synthetic: each organization exposes one group per organization
-  role, "Admins", "Users", and "Viewers", which mirror the existing role
-  hierarchy. Adding a member to a group assigns that role. Removing a member
-  from the group matching their current role moves them back to the enrollment
-  role rather than out of the organization.
+  role, "Tuist Admins", "Tuist Users", and "Tuist Viewers", which mirror the
+  existing role hierarchy. Adding a member to a group assigns that role.
+  Removing a member from the group matching their current role moves them back
+  to the enrollment role rather than out of the organization.
   """
   import Ecto.Query
 
@@ -544,18 +544,10 @@ defmodule Tuist.SCIM do
   def get_group(_organization, _id), do: {:error, :not_found}
 
   defp build_group(%Organization{} = organization, role) do
-    members = Accounts.get_organization_members(organization, role)
-
-    handle =
-      case organization do
-        %Organization{account: %Account{name: name}} -> name
-        _ -> Repo.preload(organization, :account).account.name
-      end
-
     %{
       id: group_id(role),
-      display_name: "#{handle} #{group_label(role)}",
-      members: members
+      display_name: "Tuist #{group_label(role)}",
+      members: Accounts.get_organization_members(organization, role)
     }
   end
 
