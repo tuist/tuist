@@ -22,13 +22,13 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
       conn =
         conn
         |> init_test_session(%{})
-        |> put_session(PublicPageChallengePlug.return_to_key(), "/plu/less-paper/tests")
+        |> put_session(PublicPageChallengePlug.return_to_key(), "/example-account/example-project/tests")
 
       conn = get(conn, "/turnstile-challenge")
 
       html = html_response(conn, 200)
       assert html =~ "Just a quick check"
-      assert html =~ "/plu/less-paper/tests"
+      assert html =~ "/example-account/example-project/tests"
       assert get_resp_header(conn, "cache-control") == ["no-store, no-cache, must-revalidate, max-age=0"]
     end
 
@@ -37,11 +37,11 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
         conn
         |> init_test_session(%{})
         |> put_session(PublicPageChallengePlug.session_key(), System.system_time(:second))
-        |> put_session(PublicPageChallengePlug.return_to_key(), "/plu/less-paper/tests")
+        |> put_session(PublicPageChallengePlug.return_to_key(), "/example-account/example-project/tests")
 
       conn = get(conn, "/turnstile-challenge")
 
-      assert redirected_to(conn) == "/plu/less-paper/tests"
+      assert redirected_to(conn) == "/example-account/example-project/tests"
     end
 
     test "redirects home when the feature flag is off", %{conn: conn} do
@@ -56,12 +56,12 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
       conn =
         conn
         |> init_test_session(%{})
-        |> get("/turnstile-challenge?return_to=%2Fplu%2Fless-paper%2Ftests")
+        |> get("/turnstile-challenge?return_to=%2Fexample-account%2Fexample-project%2Ftests")
 
       assert html_response(conn, 200) =~ "Just a quick check"
 
       assert get_session(conn, PublicPageChallengePlug.return_to_key()) ==
-               "/plu/less-paper/tests"
+               "/example-account/example-project/tests"
     end
 
     test "drops a non-local return_to query rather than persisting it", %{conn: conn} do
@@ -84,16 +84,20 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
     end
 
     test "redirects signed-in users straight to the return path", %{conn: conn} do
+      # See the sibling plug test for why we stub current_user
+      # instead of calling Authentication.log_in_user/3 (which sends
+      # a redirect before the controller ever runs).
       user = AccountsFixtures.user_fixture()
+      stub(Authentication, :current_user, fn _ -> user end)
 
       conn =
         conn
-        |> Authentication.log_in_user(user)
-        |> put_session(PublicPageChallengePlug.return_to_key(), "/plu/less-paper/tests")
+        |> init_test_session(%{})
+        |> put_session(PublicPageChallengePlug.return_to_key(), "/example-account/example-project/tests")
 
       conn = get(conn, "/turnstile-challenge")
 
-      assert redirected_to(conn) == "/plu/less-paper/tests"
+      assert redirected_to(conn) == "/example-account/example-project/tests"
     end
   end
 
@@ -107,11 +111,11 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
       conn =
         conn
         |> init_test_session(%{})
-        |> put_session(PublicPageChallengePlug.return_to_key(), "/plu/less-paper/tests")
+        |> put_session(PublicPageChallengePlug.return_to_key(), "/example-account/example-project/tests")
 
       conn = post(conn, "/turnstile-challenge/verify", %{"cf-turnstile-response" => "good-token"})
 
-      assert redirected_to(conn) == "/plu/less-paper/tests"
+      assert redirected_to(conn) == "/example-account/example-project/tests"
       assert get_session(conn, PublicPageChallengePlug.session_key())
       refute get_session(conn, PublicPageChallengePlug.return_to_key())
     end
@@ -152,7 +156,7 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
       conn =
         post(conn, "/turnstile-challenge/verify", %{
           "cf-turnstile-response" => "good",
-          "return_to" => "/plu/less-paper\\rSet-Cookie: evil=1"
+          "return_to" => "/example-account/example-project\\rSet-Cookie: evil=1"
         })
 
       assert redirected_to(conn) == "/"

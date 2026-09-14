@@ -39,8 +39,7 @@ defmodule TuistWeb.LiveHooks.PublicPageChallenge do
         # The session map is closed over so the hook re-reads the
         # same stored timestamp — LiveView will not hand us a fresh
         # session mid-connection.
-        hook = fn _params, uri, s -> check_expiry(session, uri, s) end
-        {:cont, LiveView.attach_hook(socket, :public_page_challenge_expiry, :handle_params, hook)}
+        {:cont, maybe_attach_expiry_hook(socket, session)}
 
       true ->
         {:halt, redirect_to_challenge(socket, nil)}
@@ -52,6 +51,20 @@ defmodule TuistWeb.LiveHooks.PublicPageChallenge do
       {:cont, socket}
     else
       {:halt, redirect_to_challenge(socket, uri)}
+    end
+  end
+
+  # `attach_hook/4` requires the LiveView to be router-mounted (the
+  # macro sets `socket.router`). Bare `%Socket{}`s in unit tests do
+  # not carry one; skip the attach in that case rather than blowing
+  # up. In production the router always sets it, so the intra-session
+  # expiry re-check keeps running.
+  defp maybe_attach_expiry_hook(socket, session) do
+    if socket.router do
+      hook = fn _params, uri, s -> check_expiry(session, uri, s) end
+      LiveView.attach_hook(socket, :public_page_challenge_expiry, :handle_params, hook)
+    else
+      socket
     end
   end
 

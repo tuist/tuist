@@ -24,7 +24,13 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
 
     test "passes through for a signed-in user without touching the session", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
-      conn = Authentication.log_in_user(conn, user)
+      # `Authentication.log_in_user/3` renews the session and issues a
+      # redirect to the signed-in home, which means the response has
+      # already been sent by the time the plug runs. The plug reads
+      # the signed-in state through `Authentication.current_user/1`,
+      # so stubbing that keeps this test focused on the plug's own
+      # branching without dragging the full sign-in pipeline in.
+      stub(Authentication, :current_user, fn _ -> user end)
 
       out = PublicPageChallengePlug.call(conn, [])
 
@@ -41,7 +47,12 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
     end
 
     test "redirects to the challenge and stores return_to when anonymous", %{conn: conn} do
-      conn = fetch_query_params(%{conn | request_path: "/plu/less-paper/tests/test-runs", query_string: "page=3"})
+      conn =
+        fetch_query_params(%{
+          conn
+          | request_path: "/example-account/example-project/tests/test-runs",
+            query_string: "page=3"
+        })
 
       out = PublicPageChallengePlug.call(conn, [])
 
@@ -49,7 +60,7 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
       assert redirected_to(out) == PublicPageChallengePlug.challenge_path()
 
       assert get_session(out, PublicPageChallengePlug.return_to_key()) ==
-               "/plu/less-paper/tests/test-runs?page=3"
+               "/example-account/example-project/tests/test-runs?page=3"
     end
 
     test "redirects when the stored timestamp is beyond the freshness window", %{conn: conn} do
