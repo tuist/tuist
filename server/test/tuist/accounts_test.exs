@@ -3437,28 +3437,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_members_with_role/1" do
-    test "returns members of an organization" do
-      user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user_one)
-      user_two = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_two, organization, role: :user)
-      user_three = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_three, organization, role: :admin)
-
-      organization_two = AccountsFixtures.organization_fixture()
-      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
-
-      # When
-      got =
-        organization
-        |> Accounts.get_organization_members_with_role()
-        |> Enum.sort(&(hd(&1).id < hd(&2).id))
-
-      # Then
-      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
-    end
-
+  describe "list_organization_members_with_role/2 with SSO" do
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
       domain = unique_sso_domain()
@@ -3482,7 +3461,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin, regular user, and SSO user
@@ -3516,7 +3496,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin and SSO user

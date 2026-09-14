@@ -219,21 +219,6 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id}) do
-    Repo.all(
-      from(u in User,
-        preload: [:account],
-        join: ur in UserRole,
-        on: ur.user_id == u.id,
-        join: r in Role,
-        on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        distinct: u.id,
-        select: [u, r.name]
-      )
-    )
-  end
-
   def list_organization_members_with_role(%Organization{id: organization_id}, opts \\ []) do
     page = Keyword.get(opts, :page, 1)
     page_size = Keyword.get(opts, :page_size, 20)
