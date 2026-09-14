@@ -242,7 +242,7 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
 
       .region-placement-lab__toggle {
         cursor: pointer;
-        border: 1px solid var(--noora-surface-border-secondary);
+        border: 1px solid var(--noora-surface-border-primary);
         border-radius: var(--noora-radius-2);
         background: transparent;
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
@@ -272,7 +272,7 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
       }
 
       .region-placement-lab__threshold {
-        stroke: var(--noora-surface-border-secondary);
+        stroke: var(--noora-surface-border-primary);
         stroke-width: 1;
         stroke-dasharray: 3 3;
       }

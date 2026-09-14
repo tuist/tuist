@@ -188,7 +188,7 @@ defmodule TuistWeb.Marketing.Components.SegmentRingLab do
 
       .segment-ring-lab__toggle {
         cursor: pointer;
-        border: 1px solid var(--noora-surface-border-secondary);
+        border: 1px solid var(--noora-surface-border-primary);
         border-radius: var(--noora-radius-2);
         background: transparent;
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
@@ -220,7 +220,7 @@ defmodule TuistWeb.Marketing.Components.SegmentRingLab do
         display: grid;
         gap: var(--noora-spacing-2);
         transition: opacity 0.4s ease, transform 0.4s ease;
-        border: 1px solid var(--noora-surface-border-secondary);
+        border: 1px solid var(--noora-surface-border-primary);
         border-radius: var(--noora-radius-2);
         padding: var(--noora-spacing-2);
       }
