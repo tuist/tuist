@@ -3,18 +3,12 @@
 # configuration is global, not per-env.
 
 image:
-  # Built from 33909c11f299, the #13205 merge that:
-  #   - stripped the read-only `using_latest_model` field from every
-  #     `PUT /zones/{id}/bot_management` body so the bot-management
-  #     reconciler stops throwing 400s;
-  #   - taught the `CloudflareCustomRule` CRD (and the controller)
-  #     about `action: skip` with `actionParameters.phases`, which the
-  #     new `skip-sbfm-api-paths` CR needs;
-  #   - added a `spec.dependsOn` field on `CloudflareBotManagement` so
-  #     the SBFM re-enable waits for the skip rule to be Ready.
-  # Nothing under `infra/flux/cloudflare-config/` can actually apply on
-  # tuist.dev until this pin points at the new bytes.
-  # Keep the human-readable tag and immutable multi-platform digest
-  # together so reviewers can trace both the source and deployed bytes.
-  tag: sha-33909c11f299
-  digest: sha256:99d4bab6bd6f2059537997414ed66d22113d56c20e5b3eb39a5864d236d7b92d
+  # Bumped by Flux's image-automation-controller — see
+  # `infra/flux/cloudflare-operator/image-automation.yaml`. The
+  # trailing `$imagepolicy` marker is what the Setters strategy scans
+  # for; every merge to main that publishes a newer
+  # `sha-<epoch>-<sha>` tag triggers a `fluxcdbot` commit that rewrites
+  # this line and only this line. Editing the marker (or removing it)
+  # stops the automation for this pin.
+  # https://fluxcd.io/flux/components/image/imageupdateautomations/#update-strategy
+  tag: sha-33909c11f299 # {"$imagepolicy": "flux-system:cloudflare-operator:tag"}
