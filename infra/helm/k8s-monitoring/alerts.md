@@ -4706,20 +4706,59 @@ min by (cluster, namespace) (
 ### Database connection pool starved
 
 ```promql
-sum by (cluster, namespace, repo, database) (
-  increase(tuist_repo_pool_checkout_queue_starved_samples_sum[5m])
+sum by (cluster, workload, repo, database) (
+  increase(tuist_repo_pool_checkout_queue_starved_samples{workload!=""}[5m])
 )
 /
 clamp_min(
-  sum by (cluster, namespace, repo, database) (
-    increase(tuist_repo_pool_checkout_queue_total_samples_sum[5m])
+  sum by (cluster, workload, repo, database) (
+    increase(tuist_repo_pool_checkout_queue_total_samples{workload!=""}[5m])
   ),
   1
 ) > 0.1
 ```
 
 - Pending period: 2 minutes
-- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.cluster }}`
+- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.workload }} / {{ $labels.cluster }}`
+
+Use `workload`, rather than a scrape job or namespace, to compare the web,
+build processor, and macOS test-result processor. The shared pool plugin polls
+every 100 milliseconds, so the accumulated starvation samples can expose
+bursts that the 60-second macOS scrape misses in the queue-depth gauge.
+The exported counters have no `_sum` suffix.
+
+### Database query failures by workload
+
+```promql
+sum by (cluster, workload, repo, result) (
+  increase(tuist_repo_query_count{result!="ok"}[5m])
+) > 0
+```
+
+- Pending period: 5 minutes
+- Set No Data to Normal: error series only exist after an error occurs.
+- Summary: `Database queries are failing with {{ $labels.result }} for {{ $labels.workload }} / {{ $labels.repo }} in {{ $labels.cluster }}`
+
+`queue_timeout` counts attempts rejected before acquiring a connection;
+`connection_error` counts other connection failures; `error` covers database
+and other adapter errors. `ok` counts successful queries. These are bounded
+labels, without statement text, parameters, project names, or customer data.
+
+The Processor Service dashboard (`tuist-processor-service`) plots this rate
+alongside `tuist_repo_query_{queue_time,query_time,decode_time,total_time}_milliseconds`.
+Each timing family exports histogram buckets, count, and sum. Query execution
+includes the network round trip; it is not isolated database-engine time.
+Phases missing from an adapter event are omitted, so a rejected checkout does
+not create a zero-duration execution sample. The dashboard's timing panels
+filter to successful queries; the failure-rate panel keeps rejected work
+visible separately. Mean durations work in every environment, while buckets
+are retained only in production.
+
+After deploying, compare the `web`, `processor`, and `xcresult_processor`
+workloads on the dashboard. If raw exports contain a metric but Grafana does
+not, inspect Adaptive Metrics before changing the application. Historical
+series will not acquire the new workload label. These are rule definitions
+to provision in Grafana, not automatically deployed alert rules.
 
 ### Tuist server ClickHouse query failures
 
