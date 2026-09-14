@@ -140,6 +140,7 @@ defmodule TuistWeb.SCIM.UsersController do
     case Map.get(params, "roles") do
       [%{"value" => v} | _] when is_binary(v) -> v
       [v | _] when is_binary(v) -> v
+      v when is_binary(v) -> v
       _ -> nil
     end
   end

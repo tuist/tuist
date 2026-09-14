@@ -71,6 +71,49 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert json_response(conn, 409)["scimType"] == "uniqueness"
       refute Accounts.belongs_to_organization?(existing, org)
     end
+
+    test "assigns the role from a roles string", %{conn: conn, organization: org} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "alice@example.com", roles: "admin"}))
+
+      body = json_response(conn, 201)
+      {:ok, user} = SCIM.get_user(org, body["id"])
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+  end
+
+  describe "PUT /Users/:id" do
+    test "updates the role from a roles list", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      conn =
+        put(
+          conn,
+          "/scim/v2/Users/#{user.id}",
+          JSON.encode!(%{userName: "alice@example.com", active: true, roles: [%{value: "admin"}]})
+        )
+
+      assert json_response(conn, 200)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "updates the role from a roles string", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      conn =
+        put(conn, "/scim/v2/Users/#{user.id}", JSON.encode!(%{userName: "alice@example.com", roles: "viewer"}))
+
+      assert json_response(conn, 200)
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "keeps the role when the payload has no roles", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com", role: :admin})
+
+      conn = put(conn, "/scim/v2/Users/#{user.id}", JSON.encode!(%{userName: "alice@example.com", active: true}))
+
+      assert json_response(conn, 200)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
   end
 
   describe "GET /Users" do
