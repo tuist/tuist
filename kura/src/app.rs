@@ -10,7 +10,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, oneshot, watch};
+use tokio::sync::{oneshot, watch};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep},
@@ -32,7 +32,7 @@ use crate::{
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
-    replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
+    replication::{spawn_membership_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
     startup::{Bootstrap, Phase, RecoveryError},
     state::{AppState, ReadinessState, SharedState},
@@ -265,7 +265,6 @@ async fn initialize_and_serve(
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
-    let upload_client = peer_client_factory.build_upload()?;
     let internal_tls = match &config.peer_tls {
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
@@ -276,16 +275,12 @@ async fn initialize_and_serve(
         runtime.clone(),
     )
     .map(Arc::new);
-    let notify = Notify::new();
 
     let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
-    let replication_target_cache =
-        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
-    let replication_pull = config.replication_pull;
     let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
         config.sync_peer_bodies_slots_per_peer,
         config.sync_peer_serving_max_inflight,
@@ -304,23 +299,16 @@ async fn initialize_and_serve(
         bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
-        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        replication_target_cache,
         replication_bandwidth_limiter,
-        notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         tmp_staging_budget,
         peer_staging_budget,
-        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
-        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots,
-        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
-        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
+        backfill_claims: crate::backfill::claims::ClaimSet::new(),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
         published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
         sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
@@ -337,7 +325,6 @@ async fn initialize_and_serve(
 
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
-    spawn_outbox_task(state.clone());
     Usage::spawn_tasks(state.clone());
 
     if let Some(registration) =
@@ -362,14 +349,13 @@ async fn initialize_and_serve(
     // heartbeat cadence instead of at certificate renewal). Managed pods don't
     // enroll; they sync the peer view read-only, with serving gated on the
     // first successful fetch so a pod booting blind never accepts writes
-    // without enqueuing replication for peers it cannot see.
+    // before it knows the peers it pulls from.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
-        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -719,14 +705,6 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
-                        state.metrics.update_outbox_messages(
-                            snapshot.outbox_messages,
-                            snapshot.outbox_bulk_messages,
-                        );
-                        state
-                            .metrics
-                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
-                        state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state.metrics.update_multipart_uploads(
                             snapshot.multipart_uploads,
                             snapshot.multipart_upload_capacity,
@@ -1091,7 +1069,7 @@ fn spawn_cache_reverse_refs_backfill_task(state: Arc<AppState>) {
 /// maintenance stamp fresh for rollback-window staleness detection. Serving is
 /// never gated on any of this.
 fn spawn_backfill_index_task(state: Arc<AppState>) {
-    // Supervised like the membership/outbox loops: a panic in the maintenance
+    // Supervised like the membership loop: a panic in the maintenance
     // loop restarts the task (counted as background_panic_backfill_index)
     // instead of silently stopping stamping and watermark GC. A restart
     // re-enters the build loop, which is idempotent (a completed build is a
@@ -1297,9 +1275,6 @@ pub(crate) async fn apply_renewed_enrollment(
         .await?;
     let new_client = state.peer_client_factory.build()?;
     state.client.store(Arc::new(new_client));
-    let new_upload_client = state.peer_client_factory.build_upload()?;
-    state.upload_client.store(Arc::new(new_upload_client));
-
     // Inbound: rebuild the internal mTLS server config (preserving the client
     // verifier) and hot-swap the leaf.
     if let (Some(peer_tls), Some(rustls)) = (&state.config.peer_tls, &state.internal_tls) {
@@ -1309,7 +1284,6 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
-    state.rebuild_replication_targets().await;
     Ok(())
 }
 
