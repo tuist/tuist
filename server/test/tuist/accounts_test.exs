@@ -3584,6 +3584,69 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "list_organization_invitations/2" do
+    test "paginates the organization's invitations newest first with the total count" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      other_organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      invitations =
+        for index <- 1..3 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization("invitee-#{index}@tuist.dev", %{
+              inviter: inviter,
+              to: organization,
+              url: &"/auth/invitations/#{&1}"
+            })
+
+          Tuist.Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
+          )
+
+          invitation
+        end
+
+      Accounts.invite_user_to_organization("other@tuist.dev", %{
+        inviter: inviter,
+        to: other_organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_invitations(organization, page: 1, page_size: 2)
+      {second_page, second_total} = Accounts.list_organization_invitations(organization, page: 2, page_size: 2)
+
+      # Then
+      assert first_total == 3
+      assert second_total == 3
+      assert Enum.map(first_page ++ second_page, & &1.id) == invitations |> Enum.reverse() |> Enum.map(& &1.id)
+    end
+
+    test "filters invitations by invitee email, case-insensitively, with LIKE wildcards taken literally" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      {:ok, alice} =
+        Accounts.invite_user_to_organization("alice@tuist.dev", %{
+          inviter: inviter,
+          to: organization,
+          url: &"/auth/invitations/#{&1}"
+        })
+
+      Accounts.invite_user_to_organization("bob@tuist.dev", %{
+        inviter: inviter,
+        to: organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When / Then
+      assert {[%{id: id}], 1} = Accounts.list_organization_invitations(organization, search: "ALICE")
+      assert id == alice.id
+      assert {[], 0} = Accounts.list_organization_invitations(organization, search: "%")
+    end
+  end
+
   describe "account_token/1" do
     test "returns account token" do
       # Given
