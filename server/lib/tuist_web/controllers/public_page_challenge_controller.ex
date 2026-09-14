@@ -40,6 +40,13 @@ defmodule TuistWeb.PublicPageChallengeController do
 
   require Logger
 
+  # The challenge template is a full HTML document (its own <html>,
+  # <head>, and <body>), so the browser_app pipeline's default
+  # TuistWeb.Layouts :app root layout would wrap it in a second
+  # <html> and break rendering. Clear the root layout for both
+  # actions.
+  plug :put_root_layout, false
+
   @expected_action "public_page_challenge"
   @verify_path "/turnstile-challenge/verify"
   # Bounds how many verify attempts one IP can burn per minute. Sized
@@ -51,7 +58,9 @@ defmodule TuistWeb.PublicPageChallengeController do
   # deployment scale.
   @verify_rate_limit 30
 
-  def show(conn, _params) do
+  def show(conn, params) do
+    conn = capture_return_to_from_query(conn, params)
+
     cond do
       not FeatureFlags.public_page_challenge_enabled?() ->
         conn |> no_store() |> redirect(to: safe_return_to(conn))
@@ -76,9 +85,40 @@ defmodule TuistWeb.PublicPageChallengeController do
     end
   end
 
+  # The Plug on the dashboard scopes stashes the return path in the
+  # signed Phoenix session; the LiveView on_mount hook cannot do that
+  # (no Plug.Conn) so it appends `?return_to=<encoded>` to the
+  # challenge URL instead. Prefer whatever the query string carries,
+  # persist it into the session so the verify handler treats both
+  # entry vectors identically, and drop it silently if it is not a
+  # safe local path.
+  defp capture_return_to_from_query(conn, params) do
+    case params["return_to"] do
+      raw when is_binary(raw) and raw != "" ->
+        if local_path?(raw) do
+          put_session(conn, PublicPageChallengePlug.return_to_key(), raw)
+        else
+          conn
+        end
+
+      _ ->
+        conn
+    end
+  end
+
   def verify(conn, params) do
+    # `required?: true` is passed explicitly so that flipping the
+    # signup Turnstile kill switch (or leaving TUIST_TURNSTILE_ENABLED
+    # unset) can NEVER short-circuit `Turnstile.verify/2` into a bare
+    # `:ok`. This gate stands independent of the signup gate; it lives
+    # or dies on its own feature flag and its own siteverify round
+    # trip.
     with :ok <- check_rate_limit(conn),
-         :ok <- Turnstile.verify(params["cf-turnstile-response"], expected_action: @expected_action) do
+         :ok <-
+           Turnstile.verify(params["cf-turnstile-response"],
+             required?: true,
+             expected_action: @expected_action
+           ) do
       conn
       |> mark_verified()
       |> no_store()
@@ -150,8 +190,18 @@ defmodule TuistWeb.PublicPageChallengeController do
     if local_path?(candidate), do: candidate, else: "/"
   end
 
+  # Phoenix's `redirect(to: path)` raises `Plug.Conn.InvalidHeaderError`
+  # when the path carries a control character (CR/LF/tab, NUL, or any
+  # byte < 0x20 / 0x7f), and the protocol-relative `//` and `/\` forms
+  # let a bare `Location` header point off-origin. Reject all of that
+  # here and fall back to `/` rather than blowing up mid-verify.
   defp local_path?("//" <> _), do: false
-  defp local_path?("/" <> _), do: true
+  defp local_path?("/\\" <> _), do: false
+
+  defp local_path?("/" <> _ = path) when is_binary(path) do
+    not Regex.match?(~r/[\x00-\x1f\x7f\\]/, path)
+  end
+
   defp local_path?(_), do: false
 
   @doc "Freshness window used by the plug + on_mount, exposed here for tests."

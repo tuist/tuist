@@ -52,6 +52,37 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
       assert redirected_to(conn) == "/"
     end
 
+    test "captures return_to from query string into the session (LiveView on_mount vector)", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> get("/turnstile-challenge?return_to=%2Fplu%2Fless-paper%2Ftests")
+
+      assert html_response(conn, 200) =~ "Just a quick check"
+
+      assert get_session(conn, PublicPageChallengePlug.return_to_key()) ==
+               "/plu/less-paper/tests"
+    end
+
+    test "drops a non-local return_to query rather than persisting it", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> get("/turnstile-challenge?return_to=https%3A%2F%2Fevil.example.com%2Fland")
+
+      assert html_response(conn, 200)
+      refute get_session(conn, PublicPageChallengePlug.return_to_key())
+    end
+
+    test "responds to HEAD without a body but with the no-store header", %{conn: conn} do
+      conn = init_test_session(conn, %{})
+
+      conn = head(conn, "/turnstile-challenge")
+
+      assert response(conn, 200) == ""
+      assert get_resp_header(conn, "cache-control") == ["no-store, no-cache, must-revalidate, max-age=0"]
+    end
+
     test "redirects signed-in users straight to the return path", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
@@ -95,6 +126,51 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
           "cf-turnstile-response" => "good",
           "return_to" => "https://evil.example.com/land"
         })
+
+      assert redirected_to(conn) == "/"
+    end
+
+    test "rejects a protocol-relative return_to override", %{conn: conn} do
+      expect(Turnstile, :verify, fn _token, _opts -> :ok end)
+
+      conn = init_test_session(conn, %{})
+
+      conn =
+        post(conn, "/turnstile-challenge/verify", %{
+          "cf-turnstile-response" => "good",
+          "return_to" => "//evil.example.com/land"
+        })
+
+      assert redirected_to(conn) == "/"
+    end
+
+    test "rejects a return_to override with a control character (Location injection)", %{conn: conn} do
+      expect(Turnstile, :verify, fn _token, _opts -> :ok end)
+
+      conn = init_test_session(conn, %{})
+
+      conn =
+        post(conn, "/turnstile-challenge/verify", %{
+          "cf-turnstile-response" => "good",
+          "return_to" => "/plu/less-paper\\rSet-Cookie: evil=1"
+        })
+
+      assert redirected_to(conn) == "/"
+    end
+
+    test "forces Turnstile.verify to run even if the signup gate is off", %{conn: conn} do
+      # A caller that stubs Turnstile.verify without `required?: true`
+      # would otherwise slip through when the signup env var is off:
+      # `verify/2` short-circuits to `:ok`. This test guards the
+      # explicit `required?: true` the controller passes.
+      expect(Turnstile, :verify, fn _token, opts ->
+        assert Keyword.get(opts, :required?) == true
+        :ok
+      end)
+
+      conn = init_test_session(conn, %{})
+
+      conn = post(conn, "/turnstile-challenge/verify", %{"cf-turnstile-response" => "good"})
 
       assert redirected_to(conn) == "/"
     end
