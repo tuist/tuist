@@ -68,6 +68,7 @@ defmodule Tuist.Accounts.Account do
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
     field :runner_prepaid_monthly_minutes, :integer
+    field :runner_prepaid_granted_period_start, :utc_datetime
 
     belongs_to :organization, Organization
     belongs_to :user, User

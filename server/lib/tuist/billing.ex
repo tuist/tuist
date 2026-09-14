@@ -808,16 +808,14 @@ defmodule Tuist.Billing do
   # than renewals, so comparing against the period already recorded is
   # what separates the one from the rest.
   #
-  # Forward, not merely different. Stripe guarantees no ordering, so an
-  # older event delivered after a newer one rewrites the row with a
-  # period already closed; treating any change as a rollover would grant
-  # against that one and then grant again when the newer period is
-  # restored. A stale event never advances past what is recorded, so
-  # comparing direction drops it.
-  #
-  # The worker's uniqueness key is a second layer rather than this one's
-  # replacement: completed jobs are pruned within hours, so it cannot
-  # recognise a redelivery that arrives after that.
+  # Forward, not merely different, so a stale event carrying an older
+  # period enqueues nothing. This is a filter against pointless jobs rather
+  # than the guarantee against granting twice. The row is still rewritten
+  # with whatever the payload says, so a newer event arriving after a stale
+  # one moves the period forward again and enqueues a period that was
+  # already granted, and the worker's uniqueness key cannot recognise that
+  # once the first job has been pruned. The durable guard is the granted
+  # period recorded on the account, which only ever moves forward.
   defp apply_standing_runner_prepaid(account, current_subscription, subscription, %DateTime{} = period_start) do
     previous_start = current_subscription && current_subscription.current_period_start
     rolled_over? = is_nil(previous_start) or DateTime.after?(period_start, previous_start)

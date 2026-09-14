@@ -9,18 +9,19 @@ defmodule Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker do
   renews on its own date, and a sweep would have to re-derive all of
   them.
 
-  Uniqueness is on the account and the period it is granting for. It
-  catches a redelivery that lands while the first job is still in the
-  table, which is the common case, but it is not the durable guard:
-  completed jobs are pruned within hours and a key that no longer exists
-  recognises nothing. What holds indefinitely is the caller only
-  enqueuing when the recorded period moves forward.
+  Uniqueness is on the account and the period it is granting for, which
+  catches a redelivery landing while the first job is still in the table.
+  It is not what stops a period being granted twice: completed jobs are
+  pruned within hours, and a stale subscription event followed by a newer
+  one enqueues an already-granted period again. That guarantee is the
+  granted period recorded on the account, which
+  `Tuist.Runners.Prepaid.apply_standing_minutes/2` checks before granting
+  and only moves forward after.
 
-  Granting twice for one period is survivable in any case, because
-  setting replaces: the second grant withdraws the first and the charge
-  behind it, leaving the account holding one lot of minutes and owing
-  one charge. It is only past an invoice, where the withdrawal can no
-  longer take the charge back, that the customer is out of pocket.
+  Retrying is safe for the same reason it is needed. The charge is raised
+  under a key stable for the account, period and level, so an attempt whose
+  charge Stripe accepted but whose response was lost gets that charge back
+  on the retry rather than raising a second one.
   """
   use Oban.Worker,
     max_attempts: 10,
@@ -34,6 +35,8 @@ defmodule Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"account_id" => account_id, "period_start" => period_start}}) do
+    {:ok, period_start, _offset} = DateTime.from_iso8601(period_start)
+
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} -> apply_standing(account, period_start)
       {:error, :not_found} -> :ok
@@ -52,11 +55,19 @@ defmodule Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker do
 
       :ok
     else
-      account |> Prepaid.apply_standing_minutes() |> handle_result(account, period_start)
+      account |> Prepaid.apply_standing_minutes(period_start) |> handle_result(account, period_start)
     end
   end
 
   defp handle_result({:ok, :no_standing_order}, _account, _period_start), do: :ok
+
+  defp handle_result({:ok, :already_granted}, account, period_start) do
+    Logger.info(
+      "runners: account #{account.id} already holds its standing prepaid minutes for the period opening #{period_start}"
+    )
+
+    :ok
+  end
 
   defp handle_result({:ok, _result}, account, period_start) do
     Logger.info(

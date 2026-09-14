@@ -592,60 +592,55 @@ defmodule Tuist.Runners.PrepaidTest do
     end
   end
 
-  describe "apply_standing_minutes/1" do
-    test "grants the standing level the account carries" do
-      stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
+  describe "bill_prepaid_minutes/3 with an idempotency key" do
+    test "sends the key with the charge, so a retry gets back the charge Stripe already made" do
       stub_account_period(~U[2026-10-21 01:29:59Z])
 
-      expect(Stripe.Invoiceitem, :create, fn params ->
+      expect(Stripe.Invoiceitem, :create, fn params, opts ->
         assert params.amount == 36_000
+        assert opts[:idempotency_key] == "standing-key"
         {:ok, %{id: "ii_1"}}
       end)
 
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.amount_cents == 45_000
-        {:ok, %{id: "credgr_1"}}
-      end)
+      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_1"}} end)
 
-      account = %Account{customer_id: "cus_standing", runner_prepaid_monthly_minutes: 6_000}
-
-      assert {:ok, _} = Prepaid.apply_standing_minutes(account)
+      assert {:ok, %{id: "ii_1"}} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_keyed"}, 6_000, idempotency_key: "standing-key")
     end
 
-    test "does nothing for an account carrying no standing level" do
-      # Almost every account. It must cost no Stripe call at all, since
-      # every renewal in the fleet runs through here.
-      reject(&Stripe.Invoiceitem.create/1)
-      reject(&CreditGrants.create/1)
+    test "keeps a keyed charge when its grant fails, for the retry to grant against" do
+      # Stripe replays a keyed request with the object it first made, even
+      # once that object has been deleted. Withdrawing the charge here would
+      # let the retry grant against a charge that no longer exists.
+      stub_account_period(~U[2026-10-21 01:29:59Z])
+      stub(Stripe.Invoiceitem, :create, fn _params, _opts -> {:ok, %{id: "ii_1"}} end)
+      stub(CreditGrants, :create, fn _attrs -> {:error, :timeout} end)
+      reject(&Stripe.Invoiceitem.delete/1)
 
-      assert {:ok, :no_standing_order} =
-               Prepaid.apply_standing_minutes(%Account{customer_id: "cus_none", runner_prepaid_monthly_minutes: nil})
+      assert {:error, :timeout} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_keyed"}, 6_000, idempotency_key: "standing-key")
     end
+  end
 
-    test "converges on the standing level when the period opens with credit still live" do
-      # A grant normally expires with the period it was bought for, but
-      # one Stripe reported no bounds for is dated a month out and can
-      # outlive its own period. Setting rather than granting means the
-      # account still ends up holding the standing figure.
+  describe "set_minutes/3 on a retry" do
+    test "does not withdraw the grant its retried charge comes back with" do
+      # A retry with the same key gets back the charge its first attempt
+      # made, and the grant that attempt created against it is still live.
+      # That grant is the one being set, so withdrawing it would leave the
+      # account holding nothing and owing nothing.
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
-        {:ok, [prepaid_grant("credgr_old", "ii_old")]}
+        {:ok, [prepaid_grant("credgr_old", "ii_old"), prepaid_grant("credgr_first_attempt", "ii_retried")]}
       end)
 
       stub_account_period(~U[2026-10-21 01:29:59Z])
+      stub(Stripe.Invoiceitem, :create, fn _params, _opts -> {:ok, %{id: "ii_retried"}} end)
+      stub(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_first_attempt"}} end)
 
-      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{id: "ii_old", deleted: true}} end)
+      # Only the grant being replaced: `expect` fails the test on a second call.
+      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{deleted: true}} end)
       expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
 
-      expect(Stripe.Invoiceitem, :create, fn params ->
-        assert params.amount == 36_000
-        {:ok, %{id: "ii_new"}}
-      end)
-
-      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
-
-      account = %Account{customer_id: "cus_standing", runner_prepaid_monthly_minutes: 6_000}
-
-      assert {:ok, _} = Prepaid.apply_standing_minutes(account)
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_retry"}, 6_000, idempotency_key: "standing-key")
     end
   end
 

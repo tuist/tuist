@@ -120,6 +120,18 @@ defmodule Tuist.Runners.Prepaid do
   alternative is a figure typed into ops silently replacing minutes the
   customer is part-way through spending.
 
+  A period can be asked for more than once. Stripe redelivers, and a stale
+  subscription event followed by a newer one enqueues a period again long
+  after its first job has been pruned. `runner_prepaid_granted_period_start`
+  records the last period granted and only ever moves forward, so a period
+  is granted once however many times it is asked for. Granting it a second
+  time would not be harmless: setting replaces, so it would refill a
+  balance the customer is part-way through spending.
+
+  A retried grant carries a charge key stable for the account, period and
+  level. A charge Stripe accepted but whose response never arrived comes
+  back to the retry instead of being raised a second time.
+
   ## When the grant happens
 
   Selling minutes grants them, rather than waiting for the invoice
@@ -149,6 +161,8 @@ defmodule Tuist.Runners.Prepaid do
   and works by keeping the runner item off the subscription. Grants here
   are only ever the paid kind.
   """
+
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
@@ -401,31 +415,47 @@ defmodule Tuist.Runners.Prepaid do
       when is_binary(customer_id) and is_integer(minutes) and minutes > 0 do
     quote = quote_minutes(minutes)
     platforms = Keyword.get(opts, :platforms, @platforms)
+    idempotency_key = Keyword.get(opts, :idempotency_key)
 
-    with {:ok, item} <-
-           Stripe.Invoiceitem.create(%{
-             customer: customer_id,
-             amount: quote.invoiced.amount,
-             currency: "usd",
-             description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
-             metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
-           }) do
+    params = %{
+      customer: customer_id,
+      amount: quote.invoiced.amount,
+      currency: "usd",
+      description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
+      metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
+    }
+
+    with {:ok, item} <- create_charge_item(params, idempotency_key) do
       case grant_billed_item(customer_id, item, quote, platforms) do
         {:ok, _grant} ->
           {:ok, item}
 
         {:error, reason} ->
-          # The charge goes back with the grant that failed. Leaving it
-          # would bill the customer for minutes they never got, and a
-          # retry would add a second charge beside the first. If the
-          # withdrawal itself fails there is still the invoice.paid
-          # worker, which grants against a prepaid line that reaches an
-          # invoice without one.
-          delete_charge_item(item.id)
+          withdraw_ungranted_charge(item, idempotency_key)
           {:error, reason}
       end
     end
   end
+
+  defp create_charge_item(params, nil), do: Stripe.Invoiceitem.create(params)
+
+  defp create_charge_item(params, idempotency_key),
+    do: Stripe.Invoiceitem.create(params, idempotency_key: idempotency_key)
+
+  # An unkeyed charge goes back with the grant that failed. Leaving it would
+  # bill the customer for minutes they never got, and a retry would add a
+  # second charge beside the first. If the withdrawal itself fails there is
+  # still the invoice.paid worker, which grants against a prepaid line that
+  # reaches an invoice without one.
+  #
+  # A keyed charge stays. Stripe replays a keyed request with the object it
+  # made the first time, even once that object has been deleted, so
+  # withdrawing it here would let the retry grant against a charge that no
+  # longer exists and hand out minutes nobody pays for. Left in place, the
+  # retry grants against it, and one whose retries run out still reaches an
+  # invoice for the invoice.paid backstop to grant against.
+  defp withdraw_ungranted_charge(item, nil), do: delete_charge_item(item.id)
+  defp withdraw_ungranted_charge(_item, _idempotency_key), do: :ok
 
   @doc """
   Sets the account's prepaid minutes to `minutes`, replacing whatever it
@@ -449,8 +479,9 @@ defmodule Tuist.Runners.Prepaid do
   def set_minutes(%Account{customer_id: customer_id} = account, minutes, opts)
       when is_binary(customer_id) and is_integer(minutes) and minutes >= 0 do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
-         held = Enum.filter(grants, &live_runner_credit?/1),
          {:ok, granted} <- grant_target(account, minutes, opts) do
+      held = Enum.filter(grants, &(live_runner_credit?(&1) and not funded_by?(&1, granted)))
+
       result =
         case withdraw(held) do
           :ok -> {:ok, granted}
@@ -469,6 +500,13 @@ defmodule Tuist.Runners.Prepaid do
   # asked for.
   defp grant_target(_account, 0, _opts), do: {:ok, :cleared}
   defp grant_target(account, minutes, opts), do: bill_prepaid_minutes(account, minutes, opts)
+
+  # A retried set gets back the charge its first attempt made, and the grant
+  # that attempt already created against it is still live. That grant is
+  # the one being set rather than one to replace, so withdrawing it would
+  # leave the account holding nothing and owing nothing.
+  defp funded_by?(grant, %{id: item_id}), do: grant_metadata(grant, @line_key) == item_id
+  defp funded_by?(_grant, _granted), do: false
 
   @doc """
   The standing monthly level on `account`, or `nil` when it has none.
@@ -489,25 +527,61 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   @doc """
-  Grants `account` its standing monthly level for the period that has
-  just opened.
+  Grants `account` its standing monthly level for the period opening at
+  `period_start`.
 
   Answers `{:ok, :no_standing_order}` for an account carrying no level,
-  which is almost every account.
+  which is almost every account, and `{:ok, :already_granted}` for a
+  period at or before the last one granted, which is what a redelivered or
+  reordered renewal becomes. Neither makes a Stripe call.
 
-  Goes through `set_minutes/3` rather than granting directly, so a
-  period that opens with credit still live on it converges on the
-  standing figure instead of stacking a second grant beside it. The
-  period before it will normally have taken its grant with it, since a
-  grant expires with the period it was bought for, but one Stripe
-  reported no bounds for is dated a month out and can outlive its own
-  period.
+  Goes through `set_minutes/3` rather than granting directly, so a period
+  that opens with credit still live on it converges on the standing figure
+  instead of stacking a second grant beside it. The charge carries a key
+  stable for the account, period and level, so a retry after a lost
+  response gets back the charge Stripe already made. The period is recorded
+  only once the set succeeds, so a failed attempt stays owed.
   """
-  def apply_standing_minutes(%Account{} = account) do
-    case standing_minutes(account) do
-      nil -> {:ok, :no_standing_order}
-      minutes -> set_minutes(account, minutes)
+  def apply_standing_minutes(%Account{} = account, %DateTime{} = period_start) do
+    period_start = DateTime.truncate(period_start, :second)
+
+    cond do
+      is_nil(standing_minutes(account)) ->
+        {:ok, :no_standing_order}
+
+      granted_for?(account, period_start) ->
+        {:ok, :already_granted}
+
+      true ->
+        minutes = standing_minutes(account)
+        idempotency_key = "runner-prepaid-standing-#{account.id}-#{DateTime.to_unix(period_start)}-#{minutes}"
+
+        with {:ok, result} <- set_minutes(account, minutes, idempotency_key: idempotency_key) do
+          record_granted_period(account, period_start)
+          {:ok, result}
+        end
     end
+  end
+
+  defp granted_for?(%Account{runner_prepaid_granted_period_start: nil}, _period_start), do: false
+
+  defp granted_for?(%Account{runner_prepaid_granted_period_start: granted}, period_start),
+    do: not DateTime.before?(granted, period_start)
+
+  # Conditional, so the record only moves forward. A slower job for an older
+  # period finishing after a newer one cannot drag it back and reopen the
+  # newer period to a second grant.
+  defp record_granted_period(%Account{id: account_id}, period_start) do
+    {_updated, nil} =
+      Repo.update_all(
+        from(a in Account,
+          where: a.id == ^account_id,
+          where: is_nil(a.runner_prepaid_granted_period_start) or a.runner_prepaid_granted_period_start < ^period_start
+        ),
+        set: [runner_prepaid_granted_period_start: period_start]
+      )
+
+    :ok
   end
 
   @doc """
