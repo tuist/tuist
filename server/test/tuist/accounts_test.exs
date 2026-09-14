@@ -3526,6 +3526,64 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "list_organization_members_with_role/2" do
+    test "paginates members ordered by account name with the total count" do
+      creator = AccountsFixtures.user_fixture(handle: "aaa-creator#{System.unique_integer([:positive])}")
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      members =
+        for index <- 1..4 do
+          user = AccountsFixtures.user_fixture(handle: "member-#{index}-#{System.unique_integer([:positive])}")
+          Accounts.add_user_to_organization(user, organization, role: :user)
+          user
+        end
+
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(hd(members), other_organization, role: :admin)
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_members_with_role(organization, page: 1, page_size: 3)
+      {second_page, second_total} = Accounts.list_organization_members_with_role(organization, page: 2, page_size: 3)
+
+      # Then
+      assert first_total == 5
+      assert second_total == 5
+
+      assert Enum.map(first_page ++ second_page, fn [user, role] -> {user.id, role} end) ==
+               [{creator.id, "admin"} | Enum.map(members, &{&1.id, "user"})]
+
+      assert Enum.all?(first_page, fn [user, _role] -> user.account.name end)
+    end
+
+    test "filters members by email or account name, case-insensitively" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+      by_email = AccountsFixtures.user_fixture(email: "Alice-#{System.unique_integer([:positive])}@example.com")
+      by_name = AccountsFixtures.user_fixture(handle: "alice-#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(by_email, organization)
+      Accounts.add_user_to_organization(by_name, organization)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "ALICE")
+
+      # Then
+      assert total == 2
+      assert members |> Enum.map(fn [user, _role] -> user.id end) |> Enum.sort() == Enum.sort([by_email.id, by_name.id])
+    end
+
+    test "treats LIKE wildcards in the search term literally" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "%")
+
+      # Then
+      assert members == []
+      assert total == 0
+    end
+  end
+
   describe "account_token/1" do
     test "returns account token" do
       # Given

@@ -393,6 +393,57 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "members pagination" do
+    setup %{organization: organization} do
+      members =
+        for index <- 1..25 do
+          user =
+            AccountsFixtures.user_fixture(
+              handle: "zz-member-#{String.pad_leading("#{index}", 2, "0")}-#{System.unique_integer([:positive])}"
+            )
+
+          Accounts.add_user_to_organization(user, organization)
+          user
+        end
+
+      %{members: members}
+    end
+
+    test "renders one page of members at a time", %{conn: conn, account: account, members: members, user: admin_user} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # Then
+      assert has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 18).id}")
+      refute has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, ".noora-pagination-group")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=2")
+
+      # Then
+      refute has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, "tr#member-#{List.last(members).id}")
+    end
+
+    test "searches across every member, not only the current page", %{conn: conn, account: account, members: members} do
+      last_member = List.last(members)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=1")
+
+      # When
+      lv
+      |> form("form[phx-change='search']", %{search: last_member.account.name})
+      |> render_change()
+
+      # Then
+      assert has_element?(lv, "tr#member-#{last_member.id}")
+      refute has_element?(lv, "tr#member-#{hd(members).id}")
+      refute has_element?(lv, ".noora-pagination-group")
+    end
+  end
+
   describe "avatar rendering" do
     test "renders avatar for member with consecutive delimiters in account name", %{
       conn: conn,
