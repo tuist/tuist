@@ -11,6 +11,7 @@ defmodule TuistWeb.MembersLive do
   alias TuistWeb.Errors.UnauthorizedError
 
   @role_names Accounts.organization_role_names()
+  @members_page_size 20
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -30,12 +31,18 @@ defmodule TuistWeb.MembersLive do
         search_query: "",
         managing_member: nil,
         invitation_disclosure: nil,
-        invite_role: "user"
+        invite_role: "user",
+        members_page: 1
         # invite_emails: []
       )
-      |> assign_organization()
+      |> assign_organization(load_members: false)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    {:noreply, socket |> assign(members_page: parse_page(params["page"])) |> assign_members()}
   end
 
   @impl true
@@ -45,7 +52,7 @@ defmodule TuistWeb.MembersLive do
       <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
       <div data-part="members-section">
         <div data-part="row">
-          <.form for={%{}} phx-change="search">
+          <.form id="search-members-form" for={%{}} phx-change="search">
             <.text_input
               id="search-members"
               name="search"
@@ -53,6 +60,7 @@ defmodule TuistWeb.MembersLive do
               value={@search_query}
               placeholder={dgettext("dashboard_account", "Search members...")}
               show_suffix={false}
+              phx-debounce="300"
             />
           </.form>
 
@@ -285,6 +293,12 @@ defmodule TuistWeb.MembersLive do
                   />
                 </:empty_state>
               </.table>
+              <.pagination_group
+                :if={@members_total_pages > 1}
+                current_page={@members_page}
+                number_of_pages={@members_total_pages}
+                page_patch={&members_page_path(@selected_account, &1)}
+              />
             </div>
             <div
               :if={
@@ -528,12 +542,9 @@ defmodule TuistWeb.MembersLive do
           assign(socket, invitations: invitations, search_query: search)
 
         _ ->
-          members =
-            Enum.filter(socket.assigns.all_members, fn [member, _role] ->
-              String.contains?(member.email, search) || String.contains?(member.account.name, search)
-            end)
-
-          assign(socket, members: members, search_query: search)
+          socket
+          |> assign(search_query: search)
+          |> push_patch(to: members_page_path(socket.assigns.selected_account, 1))
       end
 
     {:noreply, socket}
@@ -541,12 +552,13 @@ defmodule TuistWeb.MembersLive do
 
   def handle_event("select-inner-tab", %{"tab" => tab}, socket) do
     socket =
-      assign(socket,
+      socket
+      |> assign(
         selected_inner_tab: tab,
         search_query: "",
-        members: socket.assigns.all_members,
         invitations: socket.assigns.all_invitations
       )
+      |> push_patch(to: members_page_path(socket.assigns.selected_account, 1))
 
     {:noreply, socket}
   end
@@ -738,22 +750,52 @@ defmodule TuistWeb.MembersLive do
     end
   end
 
-  defp assign_organization(socket) do
+  defp assign_organization(socket, opts \\ []) do
     {:ok, organization} =
       Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id,
         preload: [:invitations]
       )
 
-    members = Accounts.get_organization_members_with_role(organization)
+    socket =
+      assign(socket,
+        organization: organization,
+        invitations: organization.invitations,
+        all_invitations: organization.invitations
+      )
 
-    assign(socket,
-      organization: organization,
-      members: members,
-      all_members: members,
-      invitations: organization.invitations,
-      all_invitations: organization.invitations
-    )
+    if Keyword.get(opts, :load_members, true), do: assign_members(socket), else: socket
   end
+
+  defp assign_members(%{assigns: %{organization: organization, members_page: page, search_query: search}} = socket) do
+    {members, total_count} =
+      Accounts.list_organization_members_with_role(organization,
+        search: search,
+        page: page,
+        page_size: @members_page_size
+      )
+
+    total_pages = max(ceil(total_count / @members_page_size), 1)
+
+    if members == [] and page > total_pages do
+      socket
+      |> assign(members_page: total_pages)
+      |> assign_members()
+    else
+      assign(socket, members: members, members_total_pages: total_pages)
+    end
+  end
+
+  defp members_page_path(account, 1), do: ~p"/#{account.name}/members"
+  defp members_page_path(account, page), do: ~p"/#{account.name}/members?#{[page: page]}"
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {page, ""} when page > 0 -> page
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_value), do: 1
 
   defp invitation_disclosure(invitation) do
     %{
