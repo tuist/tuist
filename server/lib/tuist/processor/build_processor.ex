@@ -17,19 +17,17 @@ defmodule Tuist.Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
-  # Reasons `:zip.unzip/2` returns when the archive itself is malformed. The
-  # download layer guarantees the object was fully written before we open it,
-  # so these are customer-side bad uploads (truncated by the client, wrong
-  # bytes, or already corrupt on their disk) rather than a transport problem.
-  # Callers surface them as `{:error, :corrupt_archive}` and skip retrying.
+  # Reasons `:zip.unzip/2` returns when the archive itself is malformed, taken
+  # from the atoms `stdlib`'s `zip.erl` actually throws. The download layer
+  # guarantees the object was fully written before we open it, so these are
+  # customer-side bad uploads (truncated by the client, wrong bytes, or
+  # already corrupt on their disk) rather than a transport problem. Callers
+  # surface them as `{:error, :corrupt_archive}` and skip retrying.
   @corrupt_archive_zip_reasons ~w(
     bad_eocd
-    eocd_not_found
-    file_header_not_found
-    bad_local_file_header
-    invalid_zip_file
+    bad_eocd64
     bad_central_directory
-    bad_zip_file
+    bad_local_file_header
   )a
 
   def process_build(build_zip_path, xcode_cache_upload_enabled, consume) do
@@ -54,11 +52,12 @@ defmodule Tuist.Processor.BuildProcessor do
       {:error, reason} when reason in @corrupt_archive_zip_reasons ->
         {:error, :corrupt_archive}
 
-      # `:zip.unzip` reports a per-entry failure as `{FileName, Reason}`, most
-      # commonly `:bad_crc` when the archive's entry bytes don't match its
-      # recorded checksum. Same class of problem as a bad EOCD: the customer's
-      # upload is corrupt and retries won't heal it.
-      {:error, {_file, reason}} when reason in @corrupt_archive_zip_reasons ->
+      # `bad_local_file_header` is thrown both bare and as `{bad_local_file_header, Else}`
+      # depending on where the parser rejected the entry, and per-entry failures
+      # arrive as `{FileName, :bad_crc}` when the recorded checksum doesn't
+      # match the entry bytes. Same class of problem as a bad EOCD: the
+      # customer's upload is corrupt and retries won't heal it.
+      {:error, {:bad_local_file_header, _}} ->
         {:error, :corrupt_archive}
 
       {:error, {_file, :bad_crc}} ->
