@@ -424,6 +424,43 @@ defmodule Tuist.SCIMTest do
       assert %{name: "user"} = Accounts.get_user_role_in_organization(admin, org)
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(kept, org)
     end
+
+    test "patch_group/3 ignores an Okta group rename on the admins group", %{organization: org, admin: admin} do
+      ops = [%{"op" => "replace", "value" => %{"id" => "admins", "displayName" => "Engineering"}}]
+
+      {:ok, group} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(admin, org)
+      assert [_ | _] = group.members
+    end
+
+    test "patch_group/3 ignores an Okta group rename on the viewers group", %{organization: org} do
+      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@example.com", role: :viewer})
+      ops = [%{"op" => "replace", "value" => %{"id" => "viewers", "displayName" => "Contractors"}}]
+
+      {:ok, _} = SCIM.patch_group(org, "viewers", ops)
+
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(viewer, org)
+    end
+
+    test "patch_group/3 path-less replace with a members value keeps the listed members", %{
+      organization: org,
+      admin: admin
+    } do
+      {:ok, demoted} = SCIM.provision_user(org, %{user_name: "g-demoted@example.com", role: :admin})
+
+      ops = [
+        %{
+          "op" => "replace",
+          "value" => %{"displayName" => "Engineering", "members" => [%{"value" => to_string(admin.id)}]}
+        }
+      ]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(admin, org)
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(demoted, org)
+    end
   end
 
   defp resolve({:ok, org, token}, expected) do

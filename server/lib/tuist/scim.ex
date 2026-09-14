@@ -584,27 +584,11 @@ defmodule Tuist.SCIM do
           demote_member(organization, user_id, role)
         end)
 
-      op_name == "replace" and path in ["members", nil] ->
-        target_users =
-          value
-          |> extract_member_ids()
-          |> Enum.flat_map(fn user_id ->
-            case get_user(organization, user_id) do
-              {:ok, user} -> [user]
-              {:error, :not_found} -> []
-            end
-          end)
-
-        target_user_ids = MapSet.new(target_users, & &1.id)
-
-        organization
-        |> Accounts.get_organization_members(role)
-        |> Enum.reject(&MapSet.member?(target_user_ids, &1.id))
-        |> Enum.each(&demote_member(organization, &1.id, role))
-
-        Enum.each(target_users, fn user ->
-          add_member_user(organization, user, role)
-        end)
+      op_name == "replace" ->
+        case replacement_member_ids(path, value) do
+          {:ok, user_ids} -> replace_members(organization, role, user_ids)
+          :error -> :ok
+        end
 
       true ->
         :ok
@@ -620,6 +604,35 @@ defmodule Tuist.SCIM do
   end
 
   defp apply_group_op(_organization, _role, _op), do: :ok
+
+  # A path-less replace only targets members when its value carries them. Okta
+  # renames a pushed group with `value: %{"displayName" => ...}` and no path,
+  # and the group names are synthetic, so anything else is ignored.
+  defp replacement_member_ids("members", value), do: {:ok, extract_member_ids(value)}
+  defp replacement_member_ids(nil, value) when is_list(value), do: {:ok, extract_member_ids(value)}
+  defp replacement_member_ids(nil, %{"members" => members}), do: {:ok, extract_member_ids(members)}
+  defp replacement_member_ids(_path, _value), do: :error
+
+  defp replace_members(organization, role, user_ids) do
+    target_users =
+      Enum.flat_map(user_ids, fn user_id ->
+        case get_user(organization, user_id) do
+          {:ok, user} -> [user]
+          {:error, :not_found} -> []
+        end
+      end)
+
+    target_user_ids = MapSet.new(target_users, & &1.id)
+
+    organization
+    |> Accounts.get_organization_members(role)
+    |> Enum.reject(&MapSet.member?(target_user_ids, &1.id))
+    |> Enum.each(&demote_member(organization, &1.id, role))
+
+    Enum.each(target_users, fn user ->
+      add_member_user(organization, user, role)
+    end)
+  end
 
   defp extract_member_ids(values) when is_list(values) do
     Enum.flat_map(values, fn
