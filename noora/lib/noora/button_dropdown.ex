@@ -37,6 +37,8 @@ defmodule Noora.ButtonDropdown do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the button dropdown is disabled")
 
+  attr(:type, :string, default: "button", doc: "The type of the main button")
+
   attr(:on_open_change, :string, default: nil, doc: "Event handler for when the dropdown opens")
 
   attr(:on_highlight_change, :string,
@@ -77,7 +79,7 @@ defmodule Noora.ButtonDropdown do
     doc: "Alignment of the dropdown menu relative to the button"
   )
 
-  attr(:rest, :global, include: ~w(phx-click), doc: "Additional HTML attributes for the main button")
+  attr(:rest, :global, include: ~w(phx-click form), doc: "Additional HTML attributes for the main button")
 
   slot(:icon_left, doc: "Icon displayed on the left of the label")
   slot(:icon_right, doc: "Icon displayed on the right of the label")
@@ -106,7 +108,7 @@ defmodule Noora.ButtonDropdown do
       data-on-interact-outside={@on_interact_outside}
       data-align={@align}
     >
-      <button id={@id <> "-button"} data-part="main-button" disabled={@disabled} type="button" {@rest}>
+      <button id={@id <> "-button"} data-part="main-button" disabled={@disabled} type={@type} {@rest}>
         <div :if={has_slot_content?(@icon_left, assigns)} data-part="icon-left">
           {render_slot(@icon_left)}
         </div>
