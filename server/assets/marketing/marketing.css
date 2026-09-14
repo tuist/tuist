@@ -2,6 +2,10 @@
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
 @import "phoenix-colocated/tuist/colocated.css";
+/* Dashboard components embedded in blog posts render with the app's styles. */
+@import "../app/css/components/widget.css";
+@import "../app/css/components/error_card_section.css";
+@import "../app/css/pages/build_timeline.css";
 @import "css/shared/tokens.css";
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
@@ -17,10 +21,6 @@
 @import "css/routes/changelog-entry.css";
 @import "css/routes/pricing.css";
 @import "css/routes/cache.css";
-@import "css/routes/build-insights.css";
-@import "css/routes/selective-testing.css";
-@import "css/routes/flaky-tests.css";
-@import "css/routes/test-insights.css";
 @import "css/routes/previews.css";
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";

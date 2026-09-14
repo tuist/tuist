@@ -8,12 +8,15 @@ import TuistLogging
 
 public enum LaunchAgentServiceError: Equatable, LocalizedError {
     case failedToLoadLaunchAgent(String)
+    case failedToBootOutLaunchAgent(String)
     case missingExecutablePath
 
     public var errorDescription: String? {
         switch self {
         case let .failedToLoadLaunchAgent(error):
             return "Failed to load LaunchAgent: \(error)"
+        case let .failedToBootOutLaunchAgent(error):
+            return "Failed to boot out the LaunchAgent that is already running: \(error)"
         case .missingExecutablePath:
             return "Failed to determine the current tuist executable path"
         }
@@ -22,12 +25,20 @@ public enum LaunchAgentServiceError: Equatable, LocalizedError {
 
 @Mockable
 public protocol LaunchAgentServicing {
+    /// Bootstraps the agent, returning the process it displaced when a job was
+    /// already running under the label.
+    ///
+    /// A caller that goes on to check the agent's readiness needs it: whatever
+    /// answers on the agent's endpoint straight afterwards can still be the
+    /// displaced process, serving out its last moments from the configuration
+    /// this call replaced.
+    @discardableResult
     func setupLaunchAgent(
         label: String,
         plistFileName: String,
         programArguments: [String],
         environmentVariables: [String: String]
-    ) async throws
+    ) async throws -> Int32?
 
     func teardownLaunchAgent(
         label: String,
@@ -35,6 +46,11 @@ public protocol LaunchAgentServicing {
     ) async throws
 
     func restartLaunchAgent(label: String) async throws
+
+    /// The process currently running the agent, or `nil` when the label is not in
+    /// the domain, when launchd holds it without a process, or when launchd
+    /// cannot be asked.
+    func runningProcessIdentifier(label: String) async -> Int32?
 }
 
 public struct LaunchAgentService: LaunchAgentServicing {
@@ -52,13 +68,15 @@ public struct LaunchAgentService: LaunchAgentServicing {
         self.bootoutTimeout = bootoutTimeout
     }
 
+    @discardableResult
     public func setupLaunchAgent(
         label: String,
         plistFileName: String,
         programArguments: [String],
         environmentVariables: [String: String] = [:]
-    ) async throws {
+    ) async throws -> Int32? {
         let tuistBinaryPath = try await determineTuistBinaryPath()
+        let domain = try await launchctlController.preferredDomain()
 
         let launchAgentsDir = Environment.current.homeDirectory.appending(
             components: "Library", "LaunchAgents"
@@ -69,9 +87,18 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await fileSystem.makeDirectory(at: launchAgentsDir)
         }
 
-        if try await launchctlController.isLoaded(label: label) {
+        let outgoingJob = try await launchctlController.job(label: label)
+        if outgoingJob != nil {
             Logger.current.debug("Existing LaunchAgent found. Booting out...")
-            try await launchctlController.bootout(label: label)
+            do {
+                try await launchctlController.bootout(label: label)
+            } catch {
+                // A job on its way out is exactly what makes launchctl refuse a
+                // bootout, so this failure reaches the user on an ordinary setup.
+                // Typed rather than the raw launchctl termination, which surfaces
+                // as an unreadable `CommandError` dump.
+                throw LaunchAgentServiceError.failedToBootOutLaunchAgent(String(describing: error))
+            }
             await waitUntilBootedOut(label: label)
         }
 
@@ -92,6 +119,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
             programPath: tuistBinaryPath.pathString,
             programArguments: fullArguments,
             label: label,
+            domain: domain,
             environmentVariables: environmentVariables,
             standardOutPath: stdoutLogPath.pathString,
             standardErrorPath: stderrLogPath.pathString
@@ -102,24 +130,32 @@ public struct LaunchAgentService: LaunchAgentServicing {
         Logger.current.debug("Created LaunchAgent plist at: \(plistPath.pathString)")
 
         do {
-            try await launchctlController.bootstrap(plistPath: plistPath)
+            try await launchctlController.bootstrap(plistPath: plistPath, domain: domain)
             Logger.current.debug("Bootstrapped LaunchAgent")
         } catch let commandError as CommandError {
             // `5` is launchd's catch-all, covering both a label that is already
             // bootstrapped and a plist it cannot load at all, so the code alone
-            // cannot decide. Ask the domain instead: the label being there means
-            // the bootstrap was redundant and setup has what it wanted.
+            // cannot decide. Ask the domain instead — and ask which PROCESS holds
+            // the label, not merely whether the label is there.
+            //
+            // The label alone answers "yes" for the job booted out above that has
+            // not finished leaving, which is the case where the plist just written
+            // is precisely what is NOT bootstrapped. Reading that as success hands
+            // the caller a proxy that exits moments later, and a readiness check
+            // against its socket confirms it. Only a process launchd spawned after
+            // the bootout means this configuration is live.
             //
             // Deliberately narrower than the blanket tolerance this replaces
             // (removed in #12014), which reported success for an agent that had
             // genuinely failed to load. Do not widen it back to every `5`.
             if case .terminated(5, _, _) = commandError,
-               await isLoadedIgnoringFailures(label: label)
+               let liveProcessIdentifier = await jobIgnoringFailures(label: label)?.processIdentifier,
+               liveProcessIdentifier != outgoingJob?.processIdentifier
             {
                 Logger.current.debug(
-                    "launchctl refused to bootstrap \(label), which is already loaded: \(commandError)"
+                    "launchctl refused to bootstrap \(label), which is already loaded under \(liveProcessIdentifier): \(commandError)"
                 )
-                return
+                return outgoingJob?.processIdentifier
             }
             var message = String(describing: commandError)
             if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
@@ -139,6 +175,12 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
+
+        return outgoingJob?.processIdentifier
+    }
+
+    public func runningProcessIdentifier(label: String) async -> Int32? {
+        await jobIgnoringFailures(label: label).flatMap(\.processIdentifier)
     }
 
     /// `bootout` returns once launchd has accepted the removal, not once the job
@@ -147,23 +189,24 @@ public struct LaunchAgentService: LaunchAgentServicing {
     /// passing against the previous daemon, which would report success for a
     /// configuration that never took effect.
     ///
-    /// Gives up rather than throwing: a label that outlives the wait leaves the
-    /// bootstrap facing the same ambiguity it already resolves against the
-    /// domain.
+    /// Gives up rather than throwing: a label that outlives the wait is not itself
+    /// a failure, and the bootstrap after it settles the question anyway by
+    /// requiring a process other than the one being booted out.
     private func waitUntilBootedOut(label: String) async {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: bootoutTimeout)
 
         while clock.now < deadline, !Task.isCancelled {
-            if await !isLoadedIgnoringFailures(label: label) { return }
+            if await jobIgnoringFailures(label: label) == nil { return }
             try? await Task.sleep(for: .milliseconds(100))
         }
 
         Logger.current.debug("\(label) is still loaded after booting it out. Continuing.")
     }
 
-    private func isLoadedIgnoringFailures(label: String) async -> Bool {
-        (try? await launchctlController.isLoaded(label: label)) ?? false
+    private func jobIgnoringFailures(label: String) async -> LaunchAgentJob? {
+        guard let job = try? await launchctlController.job(label: label) else { return nil }
+        return job
     }
 
     public func restartLaunchAgent(label: String) async throws {
@@ -179,7 +222,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
             components: "Library", "LaunchAgents", plistFileName
         )
 
-        if try await launchctlController.isLoaded(label: label) {
+        if try await launchctlController.job(label: label) != nil {
             try await launchctlController.bootout(label: label)
             Logger.current.debug("Booted out LaunchAgent")
         }
@@ -202,14 +245,12 @@ public struct LaunchAgentService: LaunchAgentServicing {
         programPath: String,
         programArguments: [String],
         label: String,
+        domain: LaunchAgentDomain,
         environmentVariables: [String: String] = [:],
         standardOutPath: String,
         standardErrorPath: String
     ) -> String {
-        let programArgumentsXML =
-            programArguments
-                .map { "<string>\($0)</string>" }
-                .joined(separator: "\n\t\t")
+        let programArgumentsXML = programArguments.map { "<string>\($0)</string>" }.joined(separator: "\n\t\t")
 
         let environmentVariablesXML: String
         if environmentVariables.isEmpty {
@@ -236,6 +277,8 @@ public struct LaunchAgentService: LaunchAgentServicing {
         <dict>
             <key>Label</key>
             <string>\(label)</string>
+            <key>LimitLoadToSessionType</key>
+            <string>\(domain.sessionType)</string>
             <key>Program</key>
             <string>\(programPath)</string>
             <key>ProgramArguments</key>

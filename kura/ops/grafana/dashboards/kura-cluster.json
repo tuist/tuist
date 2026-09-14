@@ -252,6 +252,24 @@
           "expr": "kura_outbox_messages",
           "legendFormat": "{{region}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_outbox_capacity",
+          "legendFormat": "{{region}} capacity",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "max by (region) (kura_outbox_target_messages)",
+          "legendFormat": "{{region}} deepest peer",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_outbox_peer_capacity",
+          "legendFormat": "{{region}} per-peer share",
+          "refId": "D"
         }
       ],
       "title": "Outbox Depth",
@@ -1073,6 +1091,159 @@
       "title": "Promotion Drops",
       "type": "timeseries",
       "description": "Promotions the queue had no room for. A nonzero find_missing or action_cache rate means read-triggered lifetime extension is not keeping up: those RPCs already told a client the blob is present, so a dropped refresh can let the blob be evicted before the client's follow-up read, which surfaces to the build as a missing object. A nonzero serve rate is benign by comparison, since that read already succeeded and the promotion only speeds up later ones. Vouched triggers have reserved queue headroom and their own drain lane, so they should be the last to drop."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 6,
+        "y": 51
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, route) (rate(kura_public_request_latency_seconds_count{transport=\"grpc\",route=~\".*/(SplitBlob|SpliceBlob)\"}[5m]))",
+          "legendFormat": "{{region}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Request Rate",
+      "type": "timeseries",
+      "description": "Rate of logical blob split and splice requests. Splice performs bounded server-side digest verification before storing a recipe."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 51
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, region, route) (rate(kura_public_request_latency_seconds_bucket{transport=\"grpc\",route=~\".*/(SplitBlob|SpliceBlob)\"}[5m])))",
+          "legendFormat": "{{region}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking p95 Latency",
+      "type": "timeseries",
+      "description": "95th percentile latency for logical blob split and splice requests."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 14,
+        "x": 0,
+        "y": 57
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, operation, outcome) (rate(kura_reapi_chunking_events_total_total[5m]))",
+          "legendFormat": "{{region}} {{operation}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Rollout Outcomes",
+      "type": "timeseries",
+      "description": "Recipe lookup, splice, composite-read, cleanup, and probe-budget outcomes. Invalid recipes, unexplained missing chunks, or sustained resource shedding are rollout stop signals."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 57
+      },
+      "id": 27,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, kind) (rate(kura_reapi_chunking_bytes_total_total[5m]))",
+          "legendFormat": "{{region}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Logical and Recipe Bytes",
+      "type": "timeseries",
+      "description": "Logical bytes accepted or served compared with compact recipe bytes. Use alongside physical artifact write bytes when deciding whether the feature earns its storage and request overhead."
     }
   ],
   "refresh": "10s",

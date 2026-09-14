@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Runners.Analytics
@@ -269,7 +270,9 @@ defmodule Tuist.Runners.AnalyticsTest do
   # these tests only need "promote the claim that exists", so they read it
   # back. The guard itself is covered in the `mark_running/3` describe.
   defp mark_running!(workflow_job_id, runner_name) do
-    claim = Tuist.Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    claim =
+      Tuist.Repo.one!(from(c in Tuist.Runners.Claim, where: c.workflow_job_id == ^workflow_job_id))
+
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

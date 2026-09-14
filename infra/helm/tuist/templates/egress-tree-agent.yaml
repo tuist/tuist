@@ -119,10 +119,6 @@ spec:
               value: ":{{ .Values.egressTreeAgent.metricsPort }}"
             - name: DEFAULT_NODE_EGRESS_MBPS
               value: {{ .Values.egressTreeAgent.defaultNodeEgressMbps | quote }}
-            {{- with .Values.egressTreeAgent.betaPodPrefix }}
-            - name: BETA_POD_PREFIX
-              value: {{ . | quote }}
-            {{- end }}
           securityContext:
             # Privileged like every datapath agent on these nodes: it creates
             # host veth devices, installs qdiscs, writes net sysctls, and

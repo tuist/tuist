@@ -5,6 +5,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - JSON-RPC request handling
 - MCP tools and prompts
 - MCP authorization/serialization helpers
+- Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync
 
@@ -12,6 +13,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - If the skill workflow changes (steps, heuristics, verification, checklist), update the MCP prompt in the same change.
 - If MCP tools or tool payloads change, update the skill or document intentional divergence.
 - Keep the Gradle integration workflow in `gradle_integration_guide.ex` shared by the `integrate_gradle_project` prompt and `get_gradle_integration_guide` tool. When its plugin version changes, update `Constants.gradlePluginVersion`, the Gradle plugin source example, and the installation guide in the same change.
+- Keep the Bazel integration workflow in `bazel_integration_guide.ex` shared by the `integrate_bazel_project` prompt and `get_bazel_integration_guide` tool. Keep its command and diagnostic-tool names aligned with the command-line implementation and the registered Model Context Protocol tools.
 
 ## Documentation Sync
 
@@ -27,3 +29,11 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 
 - Parent boundary: `server/lib/tuist/AGENTS.md`
 - Bounded source-code service: `codebase-search/AGENTS.md`
+
+- Gradle/Bazel step list/detail tools share `Builds.RecordedSteps` with their APIs. They enforce build-read access, preserve opaque IDs, and expose coverage and timestamp-origin metadata; Bazel action logs are fetched separately for details while Gradle logs remain unavailable.
+
+- `Tools.BuildStep` owns shared step input/output schemas. Bazel keeps the same account/project/invocation addressing and project authorization as other Bazel tools because invocation IDs are caller-supplied and project-scoped. Gradle/Xcode retain their Tuist build UUID/dashboard-URL addressing. Do not add an unscoped Bazel invocation lookup merely to match those signatures.
+
+- The Bazel comparison prompt honors step-list coverage: trace profiles contain all recorded intervals; retained summaries have at most 32 actions plus setup. Recommend step detail tools for published action outcomes/logs and invocation logs for broader output; unknown or absent diagnostics never imply success.
+
+- Numeric retained Bazel IDs stay readable across profile publication; missing indexed rows report unavailable rather than an empty available timeline. Gradle step tools include zero-duration cache and skip outcomes.

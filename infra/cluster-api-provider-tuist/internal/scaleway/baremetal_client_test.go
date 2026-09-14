@@ -179,3 +179,57 @@ func TestPartitioningSchemaForFailsClosedOnValidationError(t *testing.T) {
 		t.Fatalf("a rejected schema still reached the install: %+v", api.installReq)
 	}
 }
+
+// A release reinstall issued against a box Scaleway is already installing must
+// read as done, not as a failure. The Elastic Metal delete path retries on any
+// error and only then drops the finalizer, so a controller restart between a
+// successful InstallServer and the finalizer patch would otherwise hold the
+// Machine in Deleting for the whole install: the MachineDeployment stays a
+// replica above spec and a `helm upgrade --atomic` rollback waiting on that
+// count runs out its step ceiling. An install already in flight is the
+// postcondition the reinstall exists to reach, the same reasoning that already
+// treats an absent server as released.
+func TestReinstallServerAcceptsAnInstallAlreadyInFlight(t *testing.T) {
+	for _, status := range []baremetal.ServerInstallStatus{
+		baremetal.ServerInstallStatusToInstall,
+		baremetal.ServerInstallStatusInstalling,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			api := &fakeBaremetalAPI{
+				getServer: &baremetal.Server{
+					ID: "srv", Name: "kura-1", OfferID: "offer",
+					Install: &baremetal.ServerInstall{Status: status},
+				},
+				osList: []*baremetal.OS{{ID: "os", Name: "Ubuntu", Version: "24.04 LTS"}},
+			}
+			c := &BaremetalClient{Baremetal: api}
+
+			if err := c.ReinstallServer(context.Background(), scw.ZoneFrPar1, "srv", "ubuntu_24.04", []string{"key"}); err != nil {
+				t.Fatalf("ReinstallServer: %v", err)
+			}
+			if api.installReq != nil {
+				t.Fatal("queued a second install on a box already installing")
+			}
+		})
+	}
+}
+
+// A finished install is not an in-flight one: the box is back in whatever state
+// the Machine left it, so the release still has to wipe it.
+func TestReinstallServerInstallsOverACompletedInstall(t *testing.T) {
+	api := &fakeBaremetalAPI{
+		getServer: &baremetal.Server{
+			ID: "srv", Name: "kura-1", OfferID: "offer",
+			Install: &baremetal.ServerInstall{Status: baremetal.ServerInstallStatusCompleted},
+		},
+		osList: []*baremetal.OS{{ID: "os", Name: "Ubuntu", Version: "24.04 LTS"}},
+	}
+	c := &BaremetalClient{Baremetal: api}
+
+	if err := c.ReinstallServer(context.Background(), scw.ZoneFrPar1, "srv", "ubuntu_24.04", []string{"key"}); err != nil {
+		t.Fatalf("ReinstallServer: %v", err)
+	}
+	if api.installReq == nil {
+		t.Fatal("a box whose last install completed was left uninstalled on release")
+	}
+}

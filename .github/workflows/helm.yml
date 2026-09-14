@@ -58,7 +58,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   # Helm is pinned here for the generic lint and render jobs. The K3s
   # smoke job uses the infra mise tool pins instead.
@@ -73,9 +72,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -86,6 +84,7 @@ jobs:
             "kura/ops/helm/kura|"
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
+            "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
@@ -124,9 +123,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -155,6 +153,7 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
+            "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
@@ -225,9 +224,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install smoke test tools
         run: mise -C infra install helm kubectl k3d

@@ -26,6 +26,12 @@ defmodule Noora.Avatar do
 
   attr(:image_href, :string, default: nil, doc: "The URL of the image to render as the avatar.")
 
+  attr(:image_alt, :string,
+    default: nil,
+    doc:
+      "Alternative text for the avatar image. Pass an empty string where the person's name is already rendered beside the avatar, so assistive technology does not announce it twice. Leave unset for avatar-only controls, which still need an accessible name of their own."
+  )
+
   attr(:image_decoding, :string,
     values: ~w(sync async auto),
     default: "async",
@@ -85,6 +91,7 @@ defmodule Noora.Avatar do
         :if={@image_href}
         data-part="image"
         src={@image_href}
+        alt={@image_alt}
         decoding={@image_decoding}
         loading={@image_loading}
       />

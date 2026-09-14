@@ -44,9 +44,10 @@ use crate::{
         BackfillBodyFramePrelude, BackfillEntriesPage, BackfillEntry, BackfillUnavailable,
         read_backfill_body_frame_prelude,
     },
+    reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
+    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -137,10 +138,29 @@ pub enum BackfillPassOutcome {
     },
 }
 
+/// Where a pass takes its entries from.
+#[derive(Clone, Debug)]
+pub enum PassSource {
+    /// Walk the peer's index newest-first within the window (a backward
+    /// pass).
+    PeerIndex,
+    /// Apply exactly these entries — one forward page of the arrival feed
+    /// or of the ascending region read (design §3.1, §4.1; implementation
+    /// decision D-9).
+    Entries(Vec<BackfillEntry>),
+}
+
 /// Pass knobs. Production passes take these from config and compiled
 /// constants via [`BackfillPassTuning::from_config`]; tests shrink them.
 #[derive(Clone, Debug)]
 pub struct BackfillPassTuning {
+    pub source: PassSource,
+    /// Whether applies earn arrival-feed rows: yes on a cross-region link,
+    /// never on the sibling link (design §3.1).
+    pub feed_rows: bool,
+    /// Whether body fetches go through the WAN limiter; the sibling link
+    /// bypasses it (design §4.8).
+    pub bandwidth_shaped: bool,
     /// Batch byte threshold and up-front oversized cutoff
     /// (`KURA_BACKFILL_BATCH_BYTES`).
     pub batch_bytes: u64,
@@ -161,6 +181,9 @@ pub struct BackfillPassTuning {
 impl BackfillPassTuning {
     pub fn from_config(config: &Config) -> Self {
         Self {
+            source: PassSource::PeerIndex,
+            feed_rows: true,
+            bandwidth_shaped: true,
             batch_bytes: config.backfill_batch_bytes,
             flush_interval: Duration::from_millis(BACKFILL_BATCH_FLUSH_INTERVAL_MS),
             retry_backoff_base: Duration::from_millis(BACKFILL_RETRY_BACKOFF_BASE_MS),
@@ -283,6 +306,27 @@ struct PassContext<'a> {
 }
 
 impl PassContext<'_> {
+    fn arrival_ordered(&self) -> bool {
+        matches!(&self.tuning.source, PassSource::Entries(_))
+    }
+
+    fn capacity_declines(&self, version_ms: u64) -> bool {
+        let inputs = self.state.store.backfill_capacity_inputs();
+        capacity_complete(
+            inputs.segment_count,
+            inputs.ring_total_segments,
+            inputs.next_evictee_stat_ms,
+            version_ms,
+        )
+    }
+
+    fn note_capacity_skipped(&self) {
+        self.state
+            .metrics
+            .record_backfill_listed_tuple("capacity_skipped");
+        self.update_stats(|stats| stats.tuples_capacity_skipped += 1);
+    }
+
     /// Mutates the stats under the lock and refreshes the pass-progress
     /// gauges from the result, so progress is observable while the pass runs
     /// (the 2026-07-16 silence lesson).
@@ -345,6 +389,19 @@ async fn list_entries(
     context: &PassContext<'_>,
     queue: mpsc::Sender<QueuedFetch>,
 ) -> Result<BackfillPassEnd, PassAbort> {
+    if let PassSource::Entries(entries) = &context.tuning.source {
+        context.update_stats(|stats| stats.pages_listed += 1);
+        for entry in entries {
+            if context.cancel.is_cancelled() {
+                return Err(PassAbort::Cancelled);
+            }
+            let Some(kind) = BackfillRecordKind::from_wire_name(&entry.record_kind) else {
+                continue;
+            };
+            list_entry(context, &queue, kind, entry).await?;
+        }
+        return Ok(BackfillPassEnd::PeerExhausted);
+    }
     let mut after: Option<String> = None;
     loop {
         let page = fetch_listing_page(context, after.as_deref()).await?;
@@ -392,14 +449,12 @@ async fn list_entry(
 
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
-    if kind == BackfillRecordKind::SegmentArtifact && !context.capacity_fired() {
-        let inputs = context.state.store.backfill_capacity_inputs();
-        if capacity_complete(
-            inputs.segment_count,
-            inputs.ring_total_segments,
-            inputs.next_evictee_stat_ms,
-            entry.version_ms,
-        ) {
+    if kind == BackfillRecordKind::SegmentArtifact {
+        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+            context.note_capacity_skipped();
+            return Ok(());
+        }
+        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -419,11 +474,7 @@ async fn list_entry(
             version_ms: entry.version_ms,
         });
         debug_assert_eq!(decision, ListDecision::CapacitySkipped);
-        context
-            .state
-            .metrics
-            .record_backfill_listed_tuple("capacity_skipped");
-        context.update_stats(|stats| stats.tuples_capacity_skipped += 1);
+        context.note_capacity_skipped();
         return Ok(());
     }
 
@@ -656,22 +707,19 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if !context.capacity_fired() {
-            let inputs = context.state.store.backfill_capacity_inputs();
-            if capacity_complete(
-                inputs.segment_count,
-                inputs.ring_total_segments,
-                inputs.next_evictee_stat_ms,
-                item.key.version_ms,
-            ) {
-                context.guard.mark_capacity_complete();
-                context.capacity_fired.store(true, Ordering::Relaxed);
-                tracing::info!(
-                    peer = context.peer,
-                    cursor_version_ms = item.key.version_ms,
-                    "backfill pass capacity-completed at dispatch; segmented fetches stop"
-                );
-            }
+        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+            context.guard.resolve_capacity_declined(&item.key);
+            context.note_capacity_skipped();
+            return Ok(());
+        }
+        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+            context.guard.mark_capacity_complete();
+            context.capacity_fired.store(true, Ordering::Relaxed);
+            tracing::info!(
+                peer = context.peer,
+                cursor_version_ms = item.key.version_ms,
+                "backfill pass capacity-completed at dispatch; segmented fetches stop"
+            );
         }
         if context.capacity_fired() {
             // The claim was stripped by mark_capacity_complete and resolved
@@ -879,7 +927,13 @@ async fn spool_batch_response(
     let cleanup = TempFileCleanup::new(path.clone(), disk_reservation);
     cancellable(
         context,
-        stream_response_to_temp(state, response, &path, limit),
+        stream_response_to_temp(
+            state,
+            response,
+            &path,
+            limit,
+            context.tuning.bandwidth_shaped,
+        ),
     )
     .await?
     .map_err(PassAbort::Hard)?;
@@ -912,7 +966,11 @@ async fn apply_spooled_batch(
     spool: &SpooledResponse,
     bounces: &mpsc::UnboundedSender<ClaimKey>,
 ) -> Result<(), PassAbort> {
-    let mut apply_batch = BackfillApplyBatch::new();
+    let mut apply_batch = if context.tuning.feed_rows {
+        BackfillApplyBatch::new()
+    } else {
+        BackfillApplyBatch::new().without_feed_rows()
+    };
     // Listed keys and transfer sizes of staged records, in staging order —
     // the group-commit callback below resolves them group by group.
     let mut staged_resolutions: Vec<(ClaimKey, u64)> = Vec::new();
@@ -1077,6 +1135,70 @@ where
         )));
     };
     let state = context.state;
+    // Recipes are indexed as capacity-sensitive records even though their
+    // bodies are inline. That keeps an age-bounded pass from accepting a
+    // recipe after it has deliberately stopped fetching segment-backed
+    // chunks. Store the body inline here so the normal recipe reader can use
+    // it after catch-up.
+    if producer == ArtifactProducer::Reapi && is_recipe_key(&meta.key) {
+        if prelude.body_len > MAX_INLINE_REPLICATION_BODY_BYTES {
+            let mut sink = tokio::io::sink();
+            tokio::io::copy(&mut reader.take(prelude.body_len), &mut sink)
+                .await
+                .map_err(|error| {
+                    PassAbort::Hard(format!("failed to discard oversized recipe body: {error}"))
+                })?;
+            return Ok(PresentApply::SkippedUnusable);
+        }
+        let mut body = vec![0_u8; prelude.body_len as usize];
+        reader.read_exact(&mut body).await.map_err(|error| {
+            PassAbort::Hard(format!("failed to read backfill recipe body: {error}"))
+        })?;
+        return match deferred {
+            Some(batch) => {
+                let staged = state
+                    .store
+                    .stage_backfill_inline_apply(
+                        batch,
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        &body,
+                        prelude.version_ms,
+                        meta.branch.as_deref(),
+                        meta.origin_region.as_deref(),
+                    )
+                    .await
+                    .map_err(PassAbort::Hard)?;
+                Ok(match staged {
+                    BackfillStageOutcome::Staged => PresentApply::Staged,
+                    BackfillStageOutcome::Converged => PresentApply::Applied,
+                })
+            }
+            None => {
+                state
+                    .store
+                    .apply_replicated_inline_artifact_from_bytes_with(
+                        ApplyProvenance {
+                            origin_region: meta.origin_region.as_deref(),
+                            sync_feed_row: context.tuning.feed_rows,
+                        },
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        &body,
+                        prelude.version_ms,
+                        meta.branch.as_deref(),
+                        None,
+                    )
+                    .await
+                    .map_err(PassAbort::Hard)?;
+                Ok(PresentApply::Applied)
+            }
+        };
+    }
     match prelude.kind {
         BackfillRecordKind::NamespaceTombstone => Err(PassAbort::Hard(
             "present frame carries a tombstone kind".to_owned(),
@@ -1113,6 +1235,7 @@ where
                             &body,
                             prelude.version_ms,
                             meta.branch.as_deref(),
+                            meta.origin_region.as_deref(),
                         )
                         .await
                         .map_err(PassAbort::Hard)?;
@@ -1181,6 +1304,7 @@ where
                         &meta.content_type,
                         staged_path,
                         prelude.version_ms,
+                        meta.origin_region.as_deref(),
                     )
                     .await
                     .map(|staged| match staged {
@@ -1189,7 +1313,11 @@ where
                     }),
                 None => state
                     .store
-                    .apply_replicated_artifact_from_path(
+                    .apply_replicated_artifact_from_path_with(
+                        ApplyProvenance {
+                            origin_region: meta.origin_region.as_deref(),
+                            sync_feed_row: context.tuning.feed_rows,
+                        },
                         producer,
                         &meta.namespace_id,
                         &meta.key,
@@ -1314,7 +1442,13 @@ async fn apply_individual_response(
     let _cleanup = TempFileCleanup::new(path.clone(), disk_reservation);
     cancellable(
         context,
-        stream_response_to_temp(state, response, &path, limit),
+        stream_response_to_temp(
+            state,
+            response,
+            &path,
+            limit,
+            context.tuning.bandwidth_shaped,
+        ),
     )
     .await?
     .map_err(PassAbort::Hard)?;
@@ -1374,7 +1508,11 @@ async fn apply_tombstone(context: &PassContext<'_>, key: &ClaimKey) -> Result<()
     context
         .state
         .store
-        .apply_replicated_namespace_delete(&key.record_id, key.version_ms)
+        .apply_replicated_namespace_delete_with(
+            &key.record_id,
+            key.version_ms,
+            context.tuning.feed_rows,
+        )
         .await
         .map_err(PassAbort::Hard)?;
     context.guard.resolve_applied(key);
@@ -1552,6 +1690,9 @@ mod tests {
 
     fn tuning() -> BackfillPassTuning {
         BackfillPassTuning {
+            source: PassSource::PeerIndex,
+            feed_rows: true,
+            bandwidth_shaped: true,
             batch_bytes: BACKFILL_BODIES_BATCH_BYTES,
             flush_interval: Duration::from_millis(200),
             retry_backoff_base: Duration::from_millis(10),
@@ -2183,6 +2324,83 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn arrival_ordered_capacity_decline_does_not_skip_a_newer_entry() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        build_index(&peer);
+        let page = peer
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .expect("index page");
+        let entries = page
+            .entries
+            .into_iter()
+            .map(|row| BackfillEntry {
+                record_kind: row.kind.as_str().to_owned(),
+                record_id: row.record_id,
+                version_ms: row.version_ms,
+                size: row.size,
+            })
+            .collect();
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        let local = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut forward = tuning();
+        forward.source = PassSource::Entries(entries);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, forward).await;
+        let BackfillPassOutcome::Completed {
+            capacity_completed,
+            stats,
+            ..
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert!(
+            !capacity_completed,
+            "an arrival page never latches completion"
+        );
+        assert_eq!(stats.tuples_capacity_skipped, 1);
+        assert!(claim_set.is_empty());
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_none()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some(),
+            "the newer entry after a declined older entry still applies"
+        );
+    }
+
+    #[tokio::test]
     async fn crash_between_listing_and_apply_replays_without_loss_or_double_apply() {
         let peer = test_context(|_| {}).await;
         seed_segmented(&peer, "seg-a", b"segment-body", 1_000).await;
@@ -2691,6 +2909,7 @@ mod tests {
                         key: entry.record_id.rsplit('/').next().unwrap_or("k").to_owned(),
                         content_type: "application/octet-stream".to_owned(),
                         branch: None,
+                        origin_region: None,
                     }
                     .to_wire_bytes()
                     .expect("manifest meta should encode");

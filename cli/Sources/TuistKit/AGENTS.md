@@ -16,6 +16,8 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
 - Cache warm selection is scoped from explicit non-test roots; focused test roots may remain in the graph but do not expand binary cache candidates.
+- Cache readiness probes keep their read side open until the daemon responds or closes the connection. Closing immediately after connecting can crash SwiftNIO on Darwin before it accepts the socket.
+- When selective testing skips every test, publish a completed empty test run with the selected scheme name, recovering pruned workspace schemes from the initial graph. A build-only sharding run must also publish it when emitting an empty shard matrix, because no test job will follow.
 
 ## Related Context
 - CLI entry point: `cli/Sources/tuist/AGENTS.md`

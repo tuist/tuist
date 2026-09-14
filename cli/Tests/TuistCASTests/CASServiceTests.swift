@@ -170,6 +170,36 @@
         }
 
         @Test
+        func load_when_the_object_is_absent_reports_a_miss_rather_than_an_error() async throws {
+            // Given
+            let casID = "test-cas-id"
+
+            var request = CompilationCacheService_Cas_V1_CASLoadRequest()
+            request.casID.id = casID.data(using: .utf8)!
+
+            let context = ServerContext.test()
+
+            given(loadCacheCASService)
+                .loadCacheCAS(
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .willThrow(LoadCacheCASServiceError.notFound("Artifact not found"))
+
+            // When
+            let response = try await subject.load(request: request, context: context)
+
+            // Then
+            #expect(
+                response.outcome == .objectNotFound,
+                "An absent object is a cache miss the compiler recompiles from, not a broken cache it aborts on"
+            )
+        }
+
+        @Test
         func save_with_direct_data() async throws {
             // Given
             let testData = Data("direct test data".utf8)

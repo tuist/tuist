@@ -1,6 +1,10 @@
 {{- /*
-Additional OVH fleets, keyed by region (e.g. us-east, us-west) so one cluster can
-back several OVHcloud bare-metal Kura regions. The singular `ovhFleet` (ovh-fleet.yaml)
+Additional OVH fleets, keyed by purpose (e.g. us-east, us-west, runners-linux) so
+one cluster can back several OVHcloud bare-metal node pools. Cache regions were the
+first users and stay the default shape (`machine.nodeTaints` unset renders the
+kura-cache taint); a pool that is not a cache region sets its own taints, which is
+also what keeps it out of the cache-only surfaces keyed off this map (the volume
+quota exporter in kura-fleet-storage.yaml). The singular `ovhFleet` (ovh-fleet.yaml)
 stays as-is for the ca-east validation region — its Secret/MachineDeployment name
 (tuist-tuist-ovh-fleet) is load-bearing for the live staging/canary boxes, so it is
 deliberately not folded into this map. Each entry here renders the same
@@ -33,11 +37,18 @@ spec:
       os: {{ $fleet.machine.os | default "ubuntu_24.04" | quote }}
       fleetName: {{ $fleetName | quote }}
       nodeTaints:
+        {{- with $fleet.machine.nodeTaints }}
+        {{- toYaml . | nindent 8 }}
+        {{- else }}
         - key: tuist.dev/kura-cache
           value: "true"
           effect: NoSchedule
+        {{- end }}
       {{- with $fleet.machine.egressBudgetMbps }}
       egressBudgetMbps: {{ . }}
+      {{- end }}
+      {{- if $fleet.machine.kataRuntime }}
+      kataRuntime: true
       {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1

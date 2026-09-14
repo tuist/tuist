@@ -22,6 +22,7 @@ spec:
       ports:
         - protocol: TCP
           port: http
+    {{- if .Values.server.networkPolicy.kuraEnabled }}
     - from:
         - namespaceSelector:
             matchLabels:
@@ -32,6 +33,7 @@ spec:
       ports:
         - protocol: TCP
           port: http
+    {{- end }}
     {{- with .Values.server.networkPolicy.observabilityNamespace }}
     - from:
         - namespaceSelector:
@@ -51,6 +53,7 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- if .Values.server.networkPolicy.kuraEnabled }}
     - to:
         - namespaceSelector:
             matchLabels:
@@ -58,6 +61,7 @@ spec:
       ports:
         - protocol: TCP
           port: 4000
+    {{- end }}
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

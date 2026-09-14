@@ -110,6 +110,23 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
     end)
   end
 
+  # The atomic-claim primitive moved off the primary key when claims were
+  # re-keyed by Pod, onto a partial unique index on `workflow_job_id`. Two
+  # Pods racing for the same queued job must still collapse to one claim,
+  # or the job is dispatched twice and burns a second runner.
+  test "simultaneous claims for the same job collapse to one" do
+    with_accounts(1, fn [account] ->
+      results =
+        run_concurrently([
+          fn -> attempt_until_decided(83_001, account.id, "fleet-a", "race-pod-1", @linux_resources) end,
+          fn -> attempt_until_decided(83_001, account.id, "fleet-a", "race-pod-2", @linux_resources) end
+        ])
+
+      assert Enum.count(results, &match?({:ok, _claim}, &1)) == 1
+      assert Enum.count(results, &match?({:error, :lost_race}, &1)) == 1
+    end)
+  end
+
   test "one pod cannot acquire concurrent claims across accounts" do
     with_accounts(2, fn [first_account, second_account] ->
       results =

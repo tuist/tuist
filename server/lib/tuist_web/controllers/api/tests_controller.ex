@@ -6,9 +6,11 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
@@ -124,6 +126,7 @@ defmodule TuistWeb.API.TestsController do
            required: [:test_runs, :pagination_metadata]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
@@ -314,6 +317,7 @@ defmodule TuistWeb.API.TestsController do
              nullable: true
            },
            build_system: BuildSystem.schema(),
+           stress_new_tests: StressNewTestsResult,
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -427,11 +431,17 @@ defmodule TuistWeb.API.TestsController do
                              status: %Schema{
                                type: :string,
                                description: "The status of this repetition attempt.",
-                               enum: ["success", "failure"]
+                               enum: ["success", "failure", "skipped"]
                              },
                              duration: %Schema{
                                type: :integer,
                                description: "The duration of this repetition in milliseconds."
+                             },
+                             source: %Schema{
+                               type: :string,
+                               description:
+                                 "Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+                               enum: ["run", "stress"]
                              }
                            },
                            required: [:repetition_number, :name, :status]
@@ -494,7 +504,13 @@ defmodule TuistWeb.API.TestsController do
                                      description: "The status.",
                                      enum: ["success", "failure"]
                                    },
-                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."}
+                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."},
+                                   source: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+                                     enum: ["run", "stress"]
+                                   }
                                  },
                                  required: [:repetition_number, :name, :status]
                                }
@@ -526,6 +542,7 @@ defmodule TuistWeb.API.TestsController do
       },
       unauthorized: {"You need to be authenticated to create a test run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error},
       service_unavailable: {"The test run could not be scheduled for processing", "application/json", Error}
@@ -566,9 +583,27 @@ defmodule TuistWeb.API.TestsController do
             storage_key =
               "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
 
+            # The gate's pass writes its own bundle, uploaded beside the run's under
+            # the same id. The worker folds its executions into the test cases they
+            # belong to, so the key travels with the job rather than being rebuilt there.
+            stress_storage_key =
+              if get_in(body_params, [Access.key(:stress_new_tests), Access.key(:has_result_bundle)]) do
+                "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/stress_result_bundle.zip"
+              end
+
             enqueue_xcresult_processing(%{
               test_run_id: test_run.id,
               storage_key: storage_key,
+              stress_storage_key: stress_storage_key,
+              # The worker replaces this row once the bundle is parsed, from the
+              # attributes it carries, so the gate's verdict rides along or is lost.
+              stress_mode: test_run.stress_mode,
+              stress_outcome: test_run.stress_outcome,
+              stress_skip_reason: test_run.stress_skip_reason,
+              stress_new_count: test_run.stress_new_count,
+              stress_stressed_count: test_run.stress_stressed_count,
+              stress_excluded_count: test_run.stress_excluded_count,
+              stress_known_count: test_run.stress_known_count,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
@@ -723,7 +758,8 @@ defmodule TuistWeb.API.TestsController do
            ]
          }},
       not_found: {"Test run not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -804,7 +840,8 @@ defmodule TuistWeb.API.TestsController do
           shard_plan_id: Map.get(params, :shard_plan_id),
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
-          skip_test_identifiers: Map.get(params, :skip_test_identifiers, [])
+          skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
+          stress_new_tests: Map.get(params, :stress_new_tests)
         })
     end
   end

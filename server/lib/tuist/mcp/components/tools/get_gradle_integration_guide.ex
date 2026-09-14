@@ -44,7 +44,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleIntegrationGuide do
 
   @impl EMCP.Tool
   def description do
-    "Call this before editing when a user asks to speed up, optimize, or connect an existing Gradle or Android build with Tuist. It covers authentication, project creation, plugin setup, cache policy, and proof."
+    "Return the workflow for integrating an existing Gradle or Android build with Tuist. Use when the user asks to speed up, optimize, or connect that build. Covers authentication, project creation, plugin setup, cache policy, and proof."
   end
 
   def execute(_conn, args) do

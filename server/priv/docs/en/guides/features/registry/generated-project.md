@@ -31,3 +31,6 @@ let project = Project(
     ]
 )
 ```
+
+> [!TIP]
+> You don't have to add every package by its registry identifier. Running `tuist registry setup` once the project has been generated also configures Xcode to resolve packages that are declared with a source control URL from the registry, which `registryEnabled` doesn't do on its own. See <.localized_link href="/guides/features/registry/xcode-project#resolving-source-control-packages">Resolving source control packages</.localized_link>.

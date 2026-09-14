@@ -6,13 +6,11 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
   test "builds a deterministic path with visible signed template variables" do
     first_path =
       OpenGraph.image_path(:marketing,
-        title: "About Tuist",
-        icon: "static/marketing/images/about/logo.webp"
+        title: "About Tuist"
       )
 
     second_path =
       OpenGraph.image_path(:marketing,
-        icon: "static/marketing/images/about/logo.webp",
         title: "About Tuist"
       )
 
@@ -26,7 +24,6 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
     assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
 
     assert image_params == %{
-             "icon" => "static/marketing/images/about/logo.webp",
              "template" => "marketing",
              "title" => "About Tuist"
            }

@@ -84,6 +84,47 @@ To bypass quarantine entirely and run everything, including muted and skipped te
 tuist test --skip-quarantine
 ```
 
+## Stress-testing new tests {#stress-testing-new-tests}
+
+The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
+
+A test case counts as new when it hasn't run in CI on the project's default branch in the last 90 days.
+
+### Enabling it
+
+The gate is off by default. Set a mode:
+
+- **`report`**: warns about each flaky test case. The run still exits on its own result.
+- **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
+
+Start with `report` for a couple of weeks to see what `enforce` would have blocked.
+
+Pass it ahead of the passthrough arguments, or set `TUIST_TEST_STRESS_NEW_TESTS` to vary the mode per CI lane:
+
+```sh
+tuist test --stress-new-tests report
+```
+
+### How many times each test reruns
+
+It depends on how long the test case took on the first pass:
+
+| First pass | Reruns |
+| --- | --- |
+| Up to 5s | 10 |
+| Up to 10s | 5 |
+| Up to 30s | 3 |
+| Up to 5min | 2 |
+| Over 5min | Not rerun |
+
+Reruns reuse what the first pass built. The pass stops at 200 test cases or 10 minutes, whichever comes first, and says which limit it hit.
+
+### When the gate doesn't run
+
+- The first pass already failed. Fix those tests first.
+- The project has no default branch, or nothing has run in CI on it yet.
+- More than 30% of the project's test cases look new. Rerunning that many would take longer than it's worth. Expect this on a project that only just started reporting to Tuist, or after a rename that moves a lot of tests at once.
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.

@@ -1,0 +1,213 @@
+/* Outline mode: the page drawn the way Figma's outline view draws it — no
+   fills, every box a 1px stroke, every glyph a 1px stroke — in the site's
+   neutrals with the text boxes in purple. It covers the navbar (inert in
+   this view: its menus cannot open), the 404 hero and the footer, and only while <html data-marketing-outline> is set
+   (the NotFoundOutline hook, from the 404 page's eyebrow). Pseudo-elements
+   lose their fills too, so hairlines and glows read as strokes; the brand
+   logos, which are images, swap for an inline copy of the wordmark's paths
+   drawn as strokes; the footer's dither wordmark does the same. The
+   attribute sits on <html> for the pinned view, or on the spotlight
+   overlay (a clipped, pointer-transparent copy of the regions the hook
+   builds while hovering or while the view grows and shrinks). */
+[data-marketing-outline] {
+  --marketing-outline-frame: var(--marketing-illustration-neutral-6);
+  --marketing-outline-glyph: var(--marketing-illustration-neutral-9);
+  --marketing-outline-text: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+
+  &
+    :is(
+      #marketing-navbar *,
+      #marketing-not-found,
+      #marketing-not-found *,
+      #marketing-footer-new,
+      #marketing-footer-new *
+    ) {
+    outline: 1px solid var(--marketing-outline-frame);
+    outline-offset: -1px;
+    box-shadow: none !important;
+    border-color: var(--marketing-outline-frame) !important;
+    background: transparent !important;
+    background-image: none !important;
+    -webkit-text-stroke: 1px var(--marketing-outline-glyph);
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+    caret-color: transparent;
+    text-decoration-color: var(--marketing-outline-text);
+
+    &::before,
+    &::after {
+      box-shadow: none !important;
+      border-color: var(--marketing-outline-frame) !important;
+      background: transparent !important;
+      background-image: none !important;
+      color: transparent !important;
+    }
+
+    /* Layers with text get the purple box. */
+    &:is(h1, h2, h3, h4, h5, h6, p, a, button, span, li, label, small, strong, em, time, dt, dd, summary) {
+      outline-color: var(--marketing-outline-text);
+    }
+
+    /* Vector art becomes line art (1px on screen whatever the viewBox
+       scale); bitmaps keep only their box. */
+    &:is(svg, svg *) {
+      vector-effect: non-scaling-stroke;
+      fill: none !important;
+      stroke: var(--marketing-outline-frame) !important;
+      stroke-width: 1px;
+    }
+
+    /* The shapes inside an SVG are one layer with it: no box per path
+       (Chrome scales those with the viewBox, into thick frames). */
+    &:is(svg *) {
+      outline: none !important;
+    }
+
+    &:is(img, video, canvas) {
+      opacity: 0.08;
+    }
+  }
+
+  /* The navbar itself is sticky, so it is the one box that keeps the
+     page's background (it is left out of the rule above so the content
+     scrolling under it does not show through the strokes); it still gets
+     its box and its hairline as strokes. Its cursor-glow hairline is a
+     fill, not a stroke. */
+  & #marketing-navbar {
+    outline: 1px solid var(--marketing-outline-frame);
+    outline-offset: -1px;
+    box-shadow: none !important;
+    border-color: var(--marketing-outline-frame) !important;
+    background: var(--noora-surface-background-primary) !important;
+    /* In the pinned view the navbar is a drawing: the hook also marks it
+       inert, so keyboard and focus cannot open its menus either. */
+    pointer-events: none;
+
+    &::after {
+      display: none;
+    }
+  }
+
+  /* The brand: no box around it; the image logo gives way to the inline
+     wordmark drawn as glyph strokes. */
+  /* (!important: the navbar's and footer's own theme-variant rules for the
+     logo pair, and the generic box rule above, are more specific.) */
+  & :is(#marketing-navbar, #marketing-footer-new) [data-part="brand"] {
+    &,
+    & > [data-part="tuist"] {
+      outline: none !important;
+    }
+
+    & [data-part="logo"] {
+      display: none !important;
+    }
+
+    & [data-part="logo-outline"] {
+      display: block !important;
+      outline: none !important;
+      height: 32px;
+      overflow: visible;
+
+      & * {
+        stroke: var(--marketing-outline-glyph) !important;
+      }
+    }
+  }
+
+  /* The hero's copy block and figure share an edge that would draw as a
+     line above the "404": neither gets a box (the hero frame keeps its
+     own). The figure's dither canvas goes and the glyphs it was masking
+     show as strokes, a frame's worth of glyphs, not a text layer. */
+  & #marketing-not-found [data-part="copy"] {
+    outline: none !important;
+  }
+
+  & #marketing-not-found [data-part="figure"] {
+    outline: none !important;
+
+    & > [data-part="figure-dither"] {
+      visibility: hidden;
+    }
+
+    & > [data-part="figure-text"] {
+      -webkit-text-stroke: 1px var(--marketing-outline-glyph);
+      outline: none !important;
+    }
+  }
+
+  /* The footer's big wordmark is a dither canvas shaped by a hidden SVG
+     of the logo's paths: the canvas goes, the SVG fills the box instead
+     and draws the wordmark as glyph strokes, with no box around it. */
+  & #marketing-footer-new [data-part="wordmark"] {
+    outline: none !important;
+
+    & > [data-part="wordmark-dither"] {
+      visibility: hidden;
+    }
+
+    & > svg {
+      inset: 0;
+      outline: none !important;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+
+      & * {
+        stroke: var(--marketing-outline-glyph) !important;
+      }
+    }
+  }
+}
+
+/* The spotlight overlay: over everything, out of the way of the pointer,
+   masked to a soft-edged circle — opaque out to the radius less the
+   feather, gone at the radius — whose centre and radius the hook sets as
+   custom properties, easing the radius itself while the spotlight grows
+   or shrinks. Where the feather fades, the overlay's strokes blend over
+   the real page, so the hover spotlight is sized (in the hook) to stop
+   short of the dithered "404" below the copy. The properties are
+   registered as non-inheriting so a change to them (every frame of a
+   move) restyles the overlay alone, not every element of the copy. */
+@property --marketing-outline-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --marketing-outline-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --marketing-outline-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+#marketing-outline-overlay {
+  --marketing-outline-feather: 64px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2147483000;
+  -webkit-mask-image: radial-gradient(
+    circle at var(--marketing-outline-x) var(--marketing-outline-y),
+    #000 calc(var(--marketing-outline-r) - var(--marketing-outline-feather)),
+    transparent var(--marketing-outline-r)
+  );
+  mask-image: radial-gradient(
+    circle at var(--marketing-outline-x) var(--marketing-outline-y),
+    #000 calc(var(--marketing-outline-r) - var(--marketing-outline-feather)),
+    transparent var(--marketing-outline-r)
+  );
+  /* Its own layer, so the mask animates in the compositor rather than
+     repainting the cloned page every frame. */
+  will-change: transform;
+  /* Opaque: the strokes have transparent fills, so without this the real
+     page's filled text would show through them inside the spotlight. */
+  background: var(--noora-surface-background-primary);
+  overflow: hidden;
+  pointer-events: none;
+}

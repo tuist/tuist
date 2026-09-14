@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Seed an account and wire it to a KuraInstance. Called by preview and pentest deployment workflows. Idempotent."
+#MISE description="Seed an account and optionally wire it to a KuraInstance. Called by preview and pentest deployment workflows. Idempotent."
 #USAGE flag "--namespace <ns>" help="Kubernetes namespace where the preview server runs" default="default"
 
 # Environment-driven inputs (so the same script works for both kind and the
@@ -8,9 +8,9 @@
 #   PREVIEW_ACCOUNT_HANDLE  Account handle to create (matches the
 #                           KuraInstance's tenantID so the Lua hook's
 #                           strict tenant check passes). Default: preview.
-#   KURA_ENDPOINT_URL       Internal URL clients use to reach the preview's
-#                           Kura runtime. Stored on the account's
-#                           kura_servers row.
+#   KURA_ENDPOINT_URL       Optional internal URL clients use to reach the
+#                           preview's Kura runtime. When supplied, it is
+#                           stored on the account's cache-endpoint row.
 #   RELEASE_NAME            Helm release name; used to find the server pod.
 #   PREVIEW_USER_PASSWORD   Password for a newly seeded user, or the value
 #                           used by an explicit rotation. Default:
@@ -49,7 +49,7 @@ SEED_MODULES_PER_TEST="${SEED_MODULES_PER_TEST:-2}"
 SEED_SUITES_PER_MODULE="${SEED_SUITES_PER_MODULE:-2}"
 SEED_CASES_PER_SUITE="${SEED_CASES_PER_SUITE:-4}"
 SEED_CH_BATCH_SIZE="${SEED_CH_BATCH_SIZE:-5000}"
-KURA_ENDPOINT_URL="${KURA_ENDPOINT_URL:?KURA_ENDPOINT_URL must be set}"
+KURA_ENDPOINT_URL="${KURA_ENDPOINT_URL:-}"
 RELEASE_NAME="${RELEASE_NAME:?RELEASE_NAME must be set}"
 SEED_CREDENTIALS_DIRECTORY="${SEED_CREDENTIALS_DIRECTORY:-}"
 
@@ -114,7 +114,11 @@ handle = System.get_env("PREVIEW_ACCOUNT_HANDLE")
 email = System.get_env("PREVIEW_USER_EMAIL")
 password = System.get_env("PREVIEW_USER_PASSWORD")
 rotate_password? = Environment.truthy?(System.get_env("PREVIEW_ROTATE_USER_PASSWORD", "0"))
-endpoint_url = System.get_env("PREVIEW_KURA_URL")
+endpoint_url =
+  case System.get_env("PREVIEW_KURA_URL") do
+    "" -> nil
+    value -> value
+  end
 
 existing_account = Accounts.get_account_by_handle(handle)
 
@@ -176,11 +180,15 @@ if rotate_password? do
   Logger.info("preview-seed: rotated password for " <> email)
 end
 
-Logger.info("preview-seed: wiring Kura endpoint for account handle " <> account.name)
+if endpoint_url do
+  Logger.info("preview-seed: wiring Kura endpoint for account handle " <> account.name)
 
-case Accounts.create_account_cache_endpoint(account, %{url: endpoint_url, technology: :kura}) do
-  {:ok, _} -> Logger.info("preview-seed: created kura cache endpoint " <> endpoint_url)
-  {:error, _} -> Logger.info("preview-seed: kura cache endpoint already present")
+  case Accounts.create_account_cache_endpoint(account, %{url: endpoint_url, technology: :kura}) do
+    {:ok, _} -> Logger.info("preview-seed: created kura cache endpoint " <> endpoint_url)
+    {:error, _} -> Logger.info("preview-seed: kura cache endpoint already present")
+  end
+else
+  Logger.info("preview-seed: no Kura endpoint requested")
 end
 
 System.halt(0)
@@ -226,4 +234,4 @@ else
          "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
          /app/bin/tuist eval "$SEED_SCRIPT"
 fi
-echo "    Seeded account=${PREVIEW_ACCOUNT_HANDLE} endpoint=${KURA_ENDPOINT_URL}"
+echo "    Seeded account=${PREVIEW_ACCOUNT_HANDLE}"

@@ -1,29 +1,33 @@
 package dev.tuist.gradle
 
+import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.File
 import java.lang.management.ManagementFactory
 
 class MachineMetricsCollector(
-    private val sampleIntervalMs: Long = 1000
+    private val sampleIntervalMs: Long = 1000,
+    private val inputTrackingState: InputTrackingState? = null,
+    private val currentTimeMillis: () -> Long = System::currentTimeMillis
 ) {
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
     private var thread: Thread? = null
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
 
+    private var previousSampleTimestamp: Double? = null
+    private var sessionSampleCount = 0
     private var previousNetworkBytesIn = 0L
     private var previousNetworkBytesOut = 0L
     private var previousDiskBytesRead = 0L
     private var previousDiskBytesWritten = 0L
 
+    @Synchronized
     fun start() {
+        if (running) return
         running = true
-        val initialNetwork = readNetworkBytes()
-        previousNetworkBytesIn = initialNetwork.first
-        previousNetworkBytesOut = initialNetwork.second
-        val initialDisk = readDiskBytes()
-        previousDiskBytesRead = initialDisk.first
-        previousDiskBytesWritten = initialDisk.second
+        previousSampleTimestamp = null
+        sessionSampleCount = 0
+        collectSample()
 
         thread = Thread({
             while (running) {
@@ -40,25 +44,35 @@ class MachineMetricsCollector(
         thread?.start()
     }
 
+    @Synchronized
     fun stop(): List<MachineMetricSample> {
+        if (!running) return synchronized(samples) { samples.toList() }
         running = false
         thread?.interrupt()
         thread?.join(2000)
+        if (thread?.isAlive != true) collectSample(minimumElapsedMs = if (sessionSampleCount > 1) 200 else 0)
         return synchronized(samples) { samples.toList() }
     }
 
-    private fun collectSample() {
-        val timestamp = System.currentTimeMillis() / 1000.0
+    private fun collectSample(minimumElapsedMs: Long = 0) {
+        val timestamp = currentTimeMillis() / 1000.0
+        val elapsedSeconds = previousSampleTimestamp?.let { timestamp - it } ?: 0.0
+        if (elapsedSeconds * 1000 < minimumElapsedMs) return
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
-        val network = readNetworkBytes()
-        val disk = readDiskBytes()
+        val network = withoutInputTracking { readNetworkBytes() }
+        val disk = withoutInputTracking { readDiskBytes() }
 
-        val networkIn = maxOf(0L, network.first - previousNetworkBytesIn)
-        val networkOut = maxOf(0L, network.second - previousNetworkBytesOut)
-        val diskRead = maxOf(0L, disk.first - previousDiskBytesRead)
-        val diskWritten = maxOf(0L, disk.second - previousDiskBytesWritten)
+        fun rate(current: Long, previous: Long): Long =
+            if (elapsedSeconds > 0) (maxOf(0L, current - previous) / elapsedSeconds).toLong() else 0L
+
+        val networkIn = rate(network.first, previousNetworkBytesIn)
+        val networkOut = rate(network.second, previousNetworkBytesOut)
+        val diskRead = rate(disk.first, previousDiskBytesRead)
+        val diskWritten = rate(disk.second, previousDiskBytesWritten)
+        previousSampleTimestamp = timestamp
+        sessionSampleCount++
 
         previousNetworkBytesIn = network.first
         previousNetworkBytesOut = network.second
@@ -78,6 +92,15 @@ class MachineMetricsCollector(
 
         synchronized(samples) {
             samples.add(sample)
+        }
+    }
+
+    private fun <T> withoutInputTracking(action: () -> T): T {
+        inputTrackingState?.disableForCurrentThread()
+        return try {
+            action()
+        } finally {
+            inputTrackingState?.restoreForCurrentThread()
         }
     }
 

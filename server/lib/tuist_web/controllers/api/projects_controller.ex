@@ -6,9 +6,9 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
+  alias TuistWeb.API.Schemas.ProjectBuildSystem
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -42,7 +42,7 @@ defmodule TuistWeb.API.ProjectsController do
                "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
              deprecated: true
            },
-           build_system: BuildSystem.schema()
+           build_system: ProjectBuildSystem.schema()
          }
        }},
     responses: %{

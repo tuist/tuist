@@ -596,6 +596,12 @@ impl BackfillLifecycle {
     // so a poisoned lock would panic every restart and take peer discovery
     // down with it. Critical sections mutate atomically (the claims.rs
     // precedent), so a poisoned value is still consistent.
+    /// The node's one shared claim set, so the pull links single-flight
+    /// records with the passes scheduled here.
+    pub(crate) fn claims(&self) -> &Arc<ClaimSet> {
+        &self.claims
+    }
+
     fn lock_machine(&self) -> MutexGuard<'_, LifecycleMachine> {
         self.machine.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -613,16 +619,18 @@ impl BackfillLifecycle {
     /// One level-triggered evaluation, called from the membership loop at its
     /// cadence with that tick's membership delta.
     pub fn evaluate(self: &Arc<Self>, app: &SharedState, update: &MembershipUpdate) {
+        let present: BTreeSet<String> = self.lock_machine().present_peers().into_iter().collect();
+        let (pulling, discovered, lost) = legacy_membership_delta(app, update, &present);
         let control_plane_peers: Vec<String> = app
             .dynamic_peers
             .load()
             .iter()
-            .filter(|url| **url != app.config.node_url)
+            .filter(|url| **url != app.config.node_url && !pulling.contains(*url))
             .cloned()
             .collect();
         let tick = MembershipTick {
-            discovered: &update.discovered_peers,
-            lost: &update.lost_peers,
+            discovered: &discovered,
+            lost: &lost,
             view_settled: update.initial_discovery_completed && !app.runtime.peer_view_pending(),
             control_plane_peers: &control_plane_peers,
             admission: app.memory.allow_background_admission(),
@@ -794,6 +802,47 @@ impl BackfillLifecycle {
             }
         }
     }
+}
+
+/// Translates the level-triggered peer view into the legacy scheduler's edge
+/// input. Mode and capability changes are edges too: a continuously reachable
+/// peer moving from pull back to push must get a catch-up pass.
+fn legacy_membership_delta(
+    app: &SharedState,
+    update: &MembershipUpdate,
+    present: &BTreeSet<String>,
+) -> (BTreeSet<String>, Vec<String>, Vec<String>) {
+    let pulling: BTreeSet<String> = if app.replication_pull() {
+        app.peer_views
+            .load()
+            .iter()
+            .filter(|view| view.pulling)
+            .map(|view| view.url.clone())
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
+    let reachable_push: BTreeSet<String> = app
+        .peer_views
+        .load()
+        .iter()
+        .filter(|view| !pulling.contains(&view.url))
+        .map(|view| view.url.clone())
+        .collect();
+    let mut discovered: BTreeSet<String> = update
+        .discovered_peers
+        .iter()
+        .filter(|peer| !pulling.contains(*peer))
+        .cloned()
+        .collect();
+    discovered.extend(reachable_push.difference(present).cloned());
+    let mut lost: BTreeSet<String> = update.lost_peers.iter().cloned().collect();
+    lost.extend(present.intersection(&pulling).cloned());
+    (
+        pulling,
+        discovered.into_iter().collect(),
+        lost.into_iter().collect(),
+    )
 }
 
 async fn run_managed_pass(
@@ -1280,6 +1329,41 @@ mod tests {
         machine.rearm_present_peers();
         let actions = machine.evaluate(&tick(&[], &[]), now);
         assert_eq!(started_peers(&actions), peers);
+    }
+
+    #[tokio::test]
+    async fn rollback_and_peer_capability_changes_reintroduce_reachable_push_peers() {
+        let context = test_context(|config| config.replication_pull = true).await;
+        let peer = peer_url(1);
+        let view = |pulling| crate::sync::roles::PeerView {
+            url: peer.clone(),
+            region: "local".into(),
+            serving: true,
+            draining: false,
+            pulling,
+            knows_me: true,
+        };
+        let no_membership_edge = MembershipUpdate::default();
+
+        context.state.apply_peer_views(vec![view(true)]);
+        let present = BTreeSet::from([peer.clone()]);
+        let (_, discovered, lost) =
+            legacy_membership_delta(&context.state, &no_membership_edge, &present);
+        assert!(discovered.is_empty());
+        assert_eq!(lost, vec![peer.clone()]);
+
+        assert!(context.state.set_replication_pull(false));
+        let (_, discovered, lost) =
+            legacy_membership_delta(&context.state, &no_membership_edge, &BTreeSet::new());
+        assert_eq!(discovered, vec![peer.clone()]);
+        assert!(lost.is_empty());
+
+        assert!(context.state.set_replication_pull(true));
+        context.state.apply_peer_views(vec![view(false)]);
+        let (_, discovered, lost) =
+            legacy_membership_delta(&context.state, &no_membership_edge, &BTreeSet::new());
+        assert_eq!(discovered, vec![peer]);
+        assert!(lost.is_empty());
     }
 
     #[test]

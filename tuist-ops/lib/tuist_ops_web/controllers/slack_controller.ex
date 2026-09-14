@@ -25,6 +25,7 @@ defmodule TuistOpsWeb.SlackController do
   use TuistOpsWeb, :controller
 
   alias TuistOps.JIT.Approvals
+  alias TuistOps.JIT.Policy
   alias TuistOps.Previews
   alias TuistOps.Environment
   alias TuistOps.JIT.SlackBlocks
@@ -39,6 +40,12 @@ defmodule TuistOpsWeb.SlackController do
   # group identifier persisted on the Request row. The group
   # string is opaque to the gateway path; the Policy module
   # decodes it back to an env name when needed.
+  #
+  # `staging` stays in the map on purpose even though it can no
+  # longer be elevated: keeping it here is what lets `parse_slash`
+  # answer "/elevate staging" with "you already have write" rather
+  # than "unknown env". `elevatable_envs/0` is the list the command
+  # actually accepts.
   @env_to_group %{
     "staging" => "group:tuist-staging-write",
     "canary" => "group:tuist-canary-write",
@@ -467,10 +474,22 @@ defmodule TuistOpsWeb.SlackController do
           {:error, :missing_intent}
       end
 
-    validate_intent(case_result)
+    case_result
+    |> validate_env()
+    |> validate_intent()
   end
 
   defp parse_slash(_), do: {:error, :missing_text}
+
+  defp validate_env({:ok, env, ttl, intent}) do
+    if Policy.always_write_env?(env) do
+      {:error, {:always_write_env, env}}
+    else
+      {:ok, env, ttl, intent}
+    end
+  end
+
+  defp validate_env(other), do: other
 
   defp validate_intent({:ok, env, ttl, intent}) when byte_size(intent) >= 5,
     do: {:ok, env, ttl, intent}
@@ -497,8 +516,19 @@ defmodule TuistOpsWeb.SlackController do
     end
   end
 
+  # The envs an elevation still means something for. Staging's write
+  # tier rides on every engineering identity already (see
+  # `TuistOps.JIT.Policy.always_write_env?/1`), so elevating it would
+  # grant nothing while still pulling a second human into an
+  # approval — the command rejects it with an explanation instead.
+  defp elevatable_envs, do: Enum.reject(@valid_envs, &Policy.always_write_env?/1)
+
   defp human_error({:invalid_env, env}),
-    do: "Unknown env `#{env}`. Use one of: #{Enum.join(@valid_envs, ", ")}."
+    do: "Unknown env `#{env}`. Use one of: #{Enum.join(elevatable_envs(), ", ")}."
+
+  defp human_error({:always_write_env, env}),
+    do:
+      "`#{env}` is writable for everyone on the tailnet — no elevation needed. Just run `kubectl --context tuist-k8s-#{env} ...`."
 
   defp human_error(:missing_intent), do: usage_message()
   defp human_error(:missing_text), do: usage_message()
@@ -506,7 +536,7 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(@valid_envs, ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
   end
 
   defp parse_preview_slash(text) when is_binary(text) do

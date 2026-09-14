@@ -33,7 +33,7 @@ enum ManifestEnvironmentFingerprint {
 
     /// The fingerprint for the environment swifterpm currently runs in.
     static func current() -> String {
-        digest(for: Environment.current)
+        digest(for: Environment.manifest)
     }
 
     /// A deterministic fingerprint for `environment`, encoded as sorted JSON so a value

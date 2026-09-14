@@ -26,6 +26,8 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         project_id: project_id,
         account_id: account_id,
         duration_ms: Keyword.get(attrs, :duration_ms, 10_000),
+        started_at: Keyword.get(attrs, :started_at),
+        machine_metrics: Keyword.get(attrs, :machine_metrics, []),
         status: Keyword.get(attrs, :status, "success"),
         gradle_version: Keyword.get(attrs, :gradle_version, "8.5"),
         java_version: Keyword.get(attrs, :java_version, "17.0.1"),
@@ -35,12 +37,19 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         git_ref: Keyword.get(attrs, :git_ref),
         root_project_name: Keyword.get(attrs, :root_project_name),
         requested_tasks: Keyword.get(attrs, :requested_tasks, []),
+        custom_tags: Keyword.get(attrs, :custom_tags, []),
+        custom_values: Keyword.get(attrs, :custom_values, %{}),
+        configuration_cache: Keyword.get(attrs, :configuration_cache),
+        configuration_operations: Keyword.get(attrs, :configuration_operations, []),
+        artifact_transforms: Keyword.get(attrs, :artifact_transforms, []),
         inserted_at: Keyword.get(attrs, :inserted_at),
         tasks: Keyword.get(attrs, :tasks, [])
       })
 
     Gradle.Build.Buffer.flush()
     Gradle.Task.Buffer.flush()
+    Gradle.ConfigurationOperation.Buffer.flush()
+    Gradle.ArtifactTransform.Buffer.flush()
 
     build_id
   end

@@ -16,8 +16,9 @@
 #      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
 #   4. Install hcloud-cloud-controller-manager (sets providerID,
 #      enables LoadBalancer Services).
-#   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
-#   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
+#   5. Wait for CAPI machines and workload nodes to go Ready (CNI- and
+#      CCM-dependent).
+#   6. Install hcloud-csi-driver (for parity; no PVCs use it today).
 #   7. Install the platform chart (cert-manager, ESO, external-dns,
 #      metrics-server, and ingress-nginx only for app-serving clusters).
 #   8. Install Cluster API core for the Mac mini fleet substrate.
@@ -210,15 +211,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-cont
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 5/13: install hcloud-csi-driver"
-
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
-  --namespace kube-system \
-  -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
-  --wait --timeout 3m
-
-# ---------------------------------------------------------------------------
-log "Step 6/13: wait for CAPI machines and workload nodes to go Ready"
+log "Step 5/13: wait for CAPI machines and workload nodes to go Ready"
 
 echo -n "Waiting for $EXPECTED_MACHINE_COUNT CAPI Machines to exist"
 MACHINE_COUNT=0
@@ -248,7 +241,78 @@ if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" wait --for=condition=
   exit 1
 fi
 
-KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --timeout=5m
+# A CAPI Machine's nodeRef is the authoritative relationship between a live
+# Machine and a workload Node. Previous failed provisioning attempts can leave
+# non-ready Node objects behind even after CAPI removed their Machines. They
+# must not make the bootstrap wait for every Node in the cluster forever, nor
+# remain as targets for the hcloud-csi-node DaemonSet below.
+ACTIVE_NODE_NAMES=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+  -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" \
+  -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' | awk 'NF')
+ACTIVE_NODE_COUNT=$(printf '%s\n' "$ACTIVE_NODE_NAMES" | awk 'NF { count += 1 } END { print count + 0 }')
+
+if [ "$ACTIVE_NODE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Only $ACTIVE_NODE_COUNT/$EXPECTED_MACHINE_COUNT ready CAPI Machines have a workload Node reference."
+  exit 1
+fi
+
+# Do not remove an unreferenced workload Node while the management cluster
+# still has a corresponding Hetzner infrastructure object. A mismatch means
+# deletion is still reconciling and needs an operator's investigation rather
+# than a bootstrap shortcut.
+HCLOUD_MACHINE_COUNT=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get hcloudmachines.infrastructure.cluster.x-k8s.io \
+  -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+if [ "$HCLOUD_MACHINE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Management cluster has $HCLOUD_MACHINE_COUNT/$EXPECTED_MACHINE_COUNT Hetzner infrastructure Machines for $CLUSTER_NAME."
+  err "Refusing to prune workload Nodes while infrastructure deletion is still reconciling."
+  exit 1
+fi
+
+ORPHANED_NODE_NAMES=""
+while IFS= read -r workload_node_name; do
+  [ -z "$workload_node_name" ] && continue
+  node_is_active=false
+  while IFS= read -r active_node_name; do
+    if [ "$workload_node_name" = "$active_node_name" ]; then
+      node_is_active=true
+      break
+    fi
+  done <<< "$ACTIVE_NODE_NAMES"
+
+  if [ "$node_is_active" = false ]; then
+    ORPHANED_NODE_NAMES="${ORPHANED_NODE_NAMES}${workload_node_name}"$'\n'
+  fi
+done < <(KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+
+if [ -n "$ORPHANED_NODE_NAMES" ]; then
+  err "Found workload Node objects without a live CAPI Machine reference:"
+  printf '%s' "$ORPHANED_NODE_NAMES" >&2
+
+  if [ "${PRUNE_ORPHANED_NODES:-}" != "1" ]; then
+    err "After verifying these are stale, rerun with PRUNE_ORPHANED_NODES=1 to remove them."
+    exit 1
+  fi
+
+  while IFS= read -r orphaned_node_name; do
+    [ -z "$orphaned_node_name" ] && continue
+    KUBECONFIG="$WL_KUBECONFIG" kubectl delete node "$orphaned_node_name" --wait=false
+  done <<< "$ORPHANED_NODE_NAMES"
+fi
+
+while IFS= read -r active_node_name; do
+  KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready "node/$active_node_name" --timeout=5m
+done <<< "$ACTIVE_NODE_NAMES"
+
+# ---------------------------------------------------------------------------
+log "Step 6/13: install hcloud-csi-driver"
+
+# hcloud-csi-node is a DaemonSet. Helm's --wait therefore includes every
+# matching node in the readiness target. Waiting for CAPI first prevents a
+# fresh cluster from timing out while worker nodes are still joining.
+KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
+  --namespace kube-system \
+  -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
+  --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
 log "Step 7/13: install shared platform chart"
@@ -499,7 +563,7 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
-  pentest   -> pentest.tuist.dev (plus registry-pentest.tuist.dev and kura-pentest.tuist.dev)
+  pentest   -> pentest.tuist.dev
 
 Verify the certificate and ingress on the new cluster (domain cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health
