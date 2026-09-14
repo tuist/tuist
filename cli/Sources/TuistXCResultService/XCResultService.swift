@@ -11,7 +11,8 @@ import XCResultParser
 public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
-    func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport?
+    func coveredFilePaths(path: AbsolutePath) async throws -> [String]?
+    func parseCoverage(path: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
@@ -67,9 +68,13 @@ public struct XCResultService: XCResultServicing {
         try await parser.parse(path: path, rootDirectory: rootDirectory)
     }
 
-    public func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport? {
+    public func coveredFilePaths(path: AbsolutePath) async throws -> [String]? {
+        try await coverageParser.coveredFilePaths(resultBundlePath: path)
+    }
+
+    public func parseCoverage(path: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport? {
         do {
-            return try await coverageParser.parse(resultBundlePath: path, rootDirectory: rootDirectory)
+            return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
         } catch {
             // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
             AlertController.current.warning(

@@ -62,6 +62,7 @@ defmodule Tuist.Processor.XCResultProcessor do
 
       with {:ok, parsed_data} <-
              span("xcresult.parse", fn -> parse_xcresult_with_telemetry(xcresult_path, root_dir) end) do
+        log_coverage_error(parsed_data)
         quarantined_tests = span("xcresult.read_quarantined_tests", fn -> read_quarantined_tests(xcresult_path) end)
         {:ok, apply_quarantine(parsed_data, quarantined_tests)}
       end
@@ -77,6 +78,14 @@ defmodule Tuist.Processor.XCResultProcessor do
       {:ok, parsed_data}
     end
   end
+
+  # Coverage only enriches a run, so the parser reports why it could not read it
+  # instead of failing the parse; this is the only place that surfaces it.
+  defp log_coverage_error(%{"coverage_error" => message}) when is_binary(message) do
+    Logger.warning("xcresult coverage could not be read: #{message}")
+  end
+
+  defp log_coverage_error(_parsed_data), do: :ok
 
   defp span(name, fun) do
     OpenTelemetry.Tracer.with_span name do

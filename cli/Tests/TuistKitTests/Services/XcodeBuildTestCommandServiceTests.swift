@@ -63,7 +63,7 @@ struct XcodeBuildTestCommandServiceTests {
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(rootDirectoryLocator)
             .locate(from: .any)
@@ -256,7 +256,7 @@ struct XcodeBuildTestCommandServiceTests {
 
             xcResultService.reset()
             given(xcResultService)
-                .parseCoverage(path: .any, rootDirectory: .any)
+                .coveredFilePaths(path: .any)
                 .willReturn(nil)
             given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
@@ -342,7 +342,7 @@ struct XcodeBuildTestCommandServiceTests {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)

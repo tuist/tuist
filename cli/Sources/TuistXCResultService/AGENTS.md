@@ -5,7 +5,7 @@ This module provides XCResult handling helpers for test results.
 ## Responsibilities
 - Model test results (`TestCase`, `TestModule`, `TestStatus`) and failures.
 - Provide structures to parse and surface xcresult data.
-- Read the bundle's `xccov` line coverage on its own (`parseCoverage`), separately from `parse`, so callers that only need test results (the stress gate, selective-testing target names) never spawn `xccov`. The upload boundary attaches it to the `TestSummary` once per run, in every processing mode: the server may parse the tests, but only the client owns the checkout the coverage paths are relative to. A coverage read failure is reported as a warning and dropped: coverage only enriches a run.
+- Read the bundle's `xccov` line coverage on its own (`hasCoverage` / `parseCoverage`), separately from `parse`, so callers that only need test results (the stress gate, selective-testing target names) never spawn `xccov`. Coverage is processed where the bundle is processed: in remote mode the upload boundary writes an `XcodeCoverageManifest` (checkout root spellings, Git blob ids, partial-run flag) into the bundle and the server's macOS processor reads the coverage; in local mode the client reads it with the same shared parser and sends it with the run. A coverage read failure is reported as a warning and dropped: coverage only enriches a run.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

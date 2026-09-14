@@ -8632,109 +8632,188 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
         public typealias GenerationsIndexBefore = Swift.String
-        /// Line coverage from a test run that ran with code coverage enabled: every target the scheme gathered coverage for, and each source file in it with its covered and executable line counts. A file linked into several targets appears under each of them, as `xccov` reports it.
+        /// Line coverage from a test run that ran with code coverage enabled: every source file the run's instrumented binaries compiled, with its per-line execution counts and functions.
         ///
         /// - Remark: Generated from `#/components/schemas/XcodeCoverage`.
         public struct XcodeCoverage: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload`.
-            public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
                 /// Executable lines the tests ran at least once.
                 ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/covered_lines`.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/covered_lines`.
                 public var covered_lines: Swift.Int
                 /// Lines the compiler instrumented.
                 ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/executable_lines`.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/executable_lines`.
                 public var executable_lines: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload`.
-                public struct filesPayloadPayload: Codable, Hashable, Sendable {
-                    /// Executable lines the tests ran at least once.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/covered_lines`.
+                /// How many times each of `line_numbers` ran, index by index.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/execution_counts`.
+                public var execution_counts: [Swift.Int]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload`.
+                public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/covered_lines`.
                     public var covered_lines: Swift.Int
-                    /// Lines the compiler instrumented.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/executable_lines`.
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/executable_lines`.
                     public var executable_lines: Swift.Int
-                    /// The file's path, relative to the project's root directory when it lives under it and absolute otherwise.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/filesPayload/path`.
-                    public var path: Swift.String
-                    /// Creates a new `filesPayloadPayload`.
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/execution_count`.
+                    public var execution_count: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/line_number`.
+                    public var line_number: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/name`.
+                    public var name: Swift.String
+                    /// Creates a new `functionsPayloadPayload`.
                     ///
                     /// - Parameters:
-                    ///   - covered_lines: Executable lines the tests ran at least once.
-                    ///   - executable_lines: Lines the compiler instrumented.
-                    ///   - path: The file's path, relative to the project's root directory when it lives under it and absolute otherwise.
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - execution_count:
+                    ///   - line_number:
+                    ///   - name:
                     public init(
                         covered_lines: Swift.Int,
                         executable_lines: Swift.Int,
-                        path: Swift.String
+                        execution_count: Swift.Int,
+                        line_number: Swift.Int,
+                        name: Swift.String
                     ) {
                         self.covered_lines = covered_lines
                         self.executable_lines = executable_lines
-                        self.path = path
+                        self.execution_count = execution_count
+                        self.line_number = line_number
+                        self.name = name
                     }
                     public enum CodingKeys: String, CodingKey {
                         case covered_lines
                         case executable_lines
-                        case path
+                        case execution_count
+                        case line_number
+                        case name
                     }
                 }
-                /// The source files compiled into the target.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public typealias functionsPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public var functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload
+                /// The Git blob object id of the file's contents, absent for files Git does not track.
                 ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/files`.
-                public typealias filesPayload = [Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayloadPayload]
-                /// The source files compiled into the target.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String?
+                /// The executable lines, ascending.
                 ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/files`.
-                public var files: Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayload
-                /// The target's name.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/line_numbers`.
+                public var line_numbers: [Swift.Int]
+                /// The file's path, relative to the repository's root when it lives under it and absolute otherwise.
                 ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targetsPayload/name`.
-                public var name: Swift.String
-                /// Creates a new `targetsPayloadPayload`.
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/path`.
+                public var path: Swift.String
+                /// The targets whose binaries compiled the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/targets`.
+                public var targets: [Swift.String]
+                /// Creates a new `filesPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - covered_lines: Executable lines the tests ran at least once.
                 ///   - executable_lines: Lines the compiler instrumented.
-                ///   - files: The source files compiled into the target.
-                ///   - name: The target's name.
+                ///   - execution_counts: How many times each of `line_numbers` ran, index by index.
+                ///   - functions:
+                ///   - git_blob_id: The Git blob object id of the file's contents, absent for files Git does not track.
+                ///   - line_numbers: The executable lines, ascending.
+                ///   - path: The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///   - targets: The targets whose binaries compiled the file.
                 public init(
                     covered_lines: Swift.Int,
                     executable_lines: Swift.Int,
-                    files: Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayload,
-                    name: Swift.String
+                    execution_counts: [Swift.Int],
+                    functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload,
+                    git_blob_id: Swift.String? = nil,
+                    line_numbers: [Swift.Int],
+                    path: Swift.String,
+                    targets: [Swift.String]
                 ) {
                     self.covered_lines = covered_lines
                     self.executable_lines = executable_lines
-                    self.files = files
-                    self.name = name
+                    self.execution_counts = execution_counts
+                    self.functions = functions
+                    self.git_blob_id = git_blob_id
+                    self.line_numbers = line_numbers
+                    self.path = path
+                    self.targets = targets
                 }
                 public enum CodingKeys: String, CodingKey {
                     case covered_lines
                     case executable_lines
-                    case files
-                    case name
+                    case execution_counts
+                    case functions
+                    case git_blob_id
+                    case line_numbers
+                    case path
+                    case targets
                 }
             }
-            /// The targets coverage was gathered for.
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public typealias filesPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public var files: Components.Schemas.XcodeCoverage.filesPayload
+            /// Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
             ///
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targets`.
-            public typealias targetsPayload = [Components.Schemas.XcodeCoverage.targetsPayloadPayload]
-            /// The targets coverage was gathered for.
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/partial`.
+            public var partial: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload`.
+            public struct unobserved_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The Git blob object id of the file's contents.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String
+                /// The file's path, relative to the repository's root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload/path`.
+                public var path: Swift.String
+                /// Creates a new `unobserved_filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - git_blob_id: The Git blob object id of the file's contents.
+                ///   - path: The file's path, relative to the repository's root.
+                public init(
+                    git_blob_id: Swift.String,
+                    path: Swift.String
+                ) {
+                    self.git_blob_id = git_blob_id
+                    self.path = path
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case git_blob_id
+                    case path
+                }
+            }
+            /// For a partial run, the repository's source files the run did not observe.
             ///
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/targets`.
-            public var targets: Components.Schemas.XcodeCoverage.targetsPayload
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_files`.
+            public typealias unobserved_filesPayload = [Components.Schemas.XcodeCoverage.unobserved_filesPayloadPayload]
+            /// For a partial run, the repository's source files the run did not observe.
+            ///
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_files`.
+            public var unobserved_files: Components.Schemas.XcodeCoverage.unobserved_filesPayload
             /// Creates a new `XcodeCoverage`.
             ///
             /// - Parameters:
-            ///   - targets: The targets coverage was gathered for.
-            public init(targets: Components.Schemas.XcodeCoverage.targetsPayload) {
-                self.targets = targets
+            ///   - files:
+            ///   - partial: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
+            ///   - unobserved_files: For a partial run, the repository's source files the run did not observe.
+            public init(
+                files: Components.Schemas.XcodeCoverage.filesPayload,
+                partial: Swift.Bool,
+                unobserved_files: Components.Schemas.XcodeCoverage.unobserved_filesPayload
+            ) {
+                self.files = files
+                self.partial = partial
+                self.unobserved_files = unobserved_files
             }
             public enum CodingKeys: String, CodingKey {
-                case targets
+                case files
+                case partial
+                case unobserved_files
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.

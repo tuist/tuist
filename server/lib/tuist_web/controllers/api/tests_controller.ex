@@ -606,8 +606,6 @@ defmodule TuistWeb.API.TestsController do
               stress_stressed_count: test_run.stress_stressed_count,
               stress_excluded_count: test_run.stress_excluded_count,
               stress_known_count: test_run.stress_known_count,
-              coverage_covered_lines: test_run.coverage_covered_lines,
-              coverage_executable_lines: test_run.coverage_executable_lines,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,

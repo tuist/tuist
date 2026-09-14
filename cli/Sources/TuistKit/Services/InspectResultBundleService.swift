@@ -149,14 +149,18 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             buildRunId = mostRecentActivityLogFile.path.basenameWithoutExt
         }
 
-        // Every entry point relativizes coverage against the same root as the remote path,
-        // so a file keeps one spelling across commands and processing modes.
+        // The server that receives a locally processed run has no Xcode to read the coverage
+        // with, so the client reads it, through the same parser the server runs on a bundle.
         var testSummary = testSummary
-        if let resultBundlePath {
-            testSummary.coverage = try await xcResultService.parseCoverage(
-                path: resultBundlePath,
-                rootDirectory: rootDirectory
-            )
+        if let resultBundlePath,
+           let manifest = await coverageManifest(
+               resultBundlePath: resultBundlePath,
+               rootDirectory: gitInfoDirectory,
+               onlyTestIdentifiers: onlyTestIdentifiers,
+               skipTestIdentifiers: skipTestIdentifiers
+           )
+        {
+            testSummary.coverage = try await xcResultService.parseCoverage(path: resultBundlePath, manifest: manifest)
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
@@ -243,6 +247,21 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+
+        // The server reads the coverage from the bundle, but only this checkout can say which
+        // repository files its paths are and which Git blobs they had, so that travels inside the
+        // bundle, the way the quarantined tests do.
+        if let manifest = await coverageManifest(
+            resultBundlePath: resolvedResultBundlePath,
+            rootDirectory: gitInfoDirectory,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
+        ) {
+            try await fileSystem.writeAsJSON(
+                manifest,
+                at: resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
+            )
+        }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
 
@@ -276,13 +295,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             }
         }
 
-        // The server parses the bundle's tests; coverage paths only make sense relative to this
-        // checkout, so the report is read here and travels with the run.
-        let coverage = try await xcResultService.parseCoverage(
-            path: resolvedResultBundlePath,
-            rootDirectory: rootDirectory
-        )
-
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -291,8 +303,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 testPlanName: nil,
                 status: .processing,
                 duration: 0,
-                testModules: [],
-                coverage: coverage
+                testModules: []
             ),
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
@@ -415,6 +426,84 @@ private struct QuarantinedTestEntry: Codable {
 }
 
 extension UploadResultBundleService {
+    /// Source files whose Git blobs the manifest records: what the compiler instruments for
+    /// coverage in Xcode projects.
+    private static let coverageSourceExtensions: Set<String> = [
+        "swift", "m", "mm", "c", "cc", "cp", "cpp", "cxx", "c++", "h", "hh", "hpp", "hxx", "inl",
+    ]
+
+    /// Nil when the bundle has no coverage, which is every run that did not enable it. Coverage
+    /// only enriches a run, so a manifest that cannot be built costs the run its coverage and
+    /// nothing else.
+    private func coverageManifest(
+        resultBundlePath: AbsolutePath,
+        rootDirectory: AbsolutePath,
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
+    ) async -> XcodeCoverageManifest? {
+        do {
+            guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
+
+            let blobIds = await gitController.isInGitRepository(workingDirectory: rootDirectory)
+                ? try await gitController.sourceFileBlobIds(
+                    workingDirectory: rootDirectory,
+                    pathExtensions: Self.coverageSourceExtensions
+                )
+                : [:]
+
+            // Tests left out on purpose leave files unobserved that the skipped tests may cover. A
+            // selective-testing hit is a test target skipped because nothing it depends on changed.
+            let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
+                .contains { $0.values.contains { $0.source != .miss } }
+            let partial = !onlyTestIdentifiers.isEmpty || !skipTestIdentifiers.isEmpty || selectiveTestingSkippedTargets
+
+            return XcodeCoverageManifest(
+                rootDirectories: Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths),
+                partial: partial,
+                files: blobIds.map { XcodeCoverageSourceFile(path: $0.key, gitBlobId: $0.value) }
+                    .sorted { $0.path < $1.path }
+            )
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to prepare the code coverage of \(resultBundlePath.pathString): \(error.localizedDescription)")
+            )
+            return nil
+        }
+    }
+
+    /// Every spelling of the root the covered files use. The compiler records the path the build
+    /// was invoked through, which is not always the one Git reports: `/tmp` is `/private/tmp` on
+    /// macOS, and a checkout can be reached through a symlink. A file whose canonical path is under
+    /// the root contributes the prefix it was recorded with.
+    static func rootSpellings(of root: AbsolutePath, coveredFilePaths: [String]) -> [String] {
+        let canonicalRoot = canonical(root.pathString)
+        var spellings = [root.pathString]
+        if canonicalRoot != root.pathString { spellings.append(canonicalRoot) }
+
+        for path in coveredFilePaths where path.hasPrefix("/") && !spellings.contains(where: { path.hasPrefix($0 + "/") }) {
+            let resolved = canonical(path)
+            guard resolved.hasPrefix(canonicalRoot + "/") else { continue }
+            let relative = resolved.dropFirst(canonicalRoot.count)
+            guard path.hasSuffix(relative) else { continue }
+            spellings.append(String(path.dropLast(relative.count)))
+        }
+        return spellings
+    }
+
+    /// `realpath` of the longest existing prefix with the rest appended, so a file the bundle
+    /// names but the checkout no longer has still resolves through the directories that exist.
+    private static func canonical(_ path: String) -> String {
+        var existing = path
+        var rest: [String] = []
+        while !FileManager.default.fileExists(atPath: existing), existing != "/" {
+            rest.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = (existing as NSString).deletingLastPathComponent
+        }
+        guard let resolved = realpath(existing, nil) else { return path }
+        defer { free(resolved) }
+        return ([String(cString: resolved)] + rest).joined(separator: "/")
+    }
+
     /// One bundle for the server to parse. A run whose candidates were priced at different
     /// repetition counts ran a pass per count, and those are merged the same way the
     /// per-scheme bundles of a multi-scheme run are.

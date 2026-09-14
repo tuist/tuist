@@ -125,6 +125,22 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert log =~ "Test.xcresult"
     end
 
+    test "logs why the coverage could not be read and keeps the parsed tests" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+        {:ok, %{"test_modules" => [], "coverage_error" => "xcresult parsing timed out after 300s"}}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, %{"test_modules" => []}} = XCResultProcessor.process_local(fixture_zip)
+        end)
+
+      assert log =~ "xcresult coverage could not be read: xcresult parsing timed out after 300s"
+    end
+
     @tag :tmp_dir
     test "applies quarantine marking from quarantined_tests.json", %{tmp_dir: tmp_dir} do
       quarantined_tests = [

@@ -8,10 +8,14 @@ public struct TestSummary: Encodable, Sendable {
     public let runDestinations: [RunDestination]
     public let errors: [TestRunError]
     public var coverage: XcodeCoverageReport?
+    /// Why the coverage could not be read, for a bundle that had some. The run's tests are
+    /// reported either way.
+    public var coverageError: String?
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
         case status, duration, errors, coverage
+        case coverageError = "coverage_error"
         case testModules = "test_modules"
         case runDestinations = "run_destinations"
     }

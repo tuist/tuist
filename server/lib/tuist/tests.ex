@@ -507,7 +507,9 @@ defmodule Tuist.Tests do
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
-    xcode_coverage = Map.get(attrs, :xcode_coverage)
+
+    xcode_coverage =
+      XcodeCoverage.evidence(Map.get(attrs, :project_id), Map.get(attrs, :id), Map.get(attrs, :xcode_coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -730,7 +732,7 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
-          xcode_coverage = Map.get(attrs, :xcode_coverage)
+          xcode_coverage = XcodeCoverage.evidence(project_id, existing_test.id, Map.get(attrs, :xcode_coverage))
           XcodeCoverage.insert_files(existing_test, xcode_coverage)
           coverage_attrs = XcodeCoverage.merge_run_attrs(existing_test, xcode_coverage)
 

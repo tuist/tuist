@@ -196,7 +196,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
 
         subject = TestService(
@@ -1798,7 +1798,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -1966,7 +1966,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -4064,7 +4064,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
             xcResultService.reset()
             given(xcResultService)
-                .parseCoverage(path: .any, rootDirectory: .any)
+                .coveredFilePaths(path: .any)
                 .willReturn(nil)
             given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
@@ -4889,7 +4889,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -4990,7 +4990,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -5075,7 +5075,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -5164,7 +5164,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -6132,7 +6132,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
-            .parseCoverage(path: .any, rootDirectory: .any)
+            .coveredFilePaths(path: .any)
             .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)

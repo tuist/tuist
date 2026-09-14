@@ -1,11 +1,14 @@
 defmodule Tuist.Tests.XcodeCoverageFile do
   @moduledoc """
-  One source file's line coverage in one Xcode target, as `xccov` reported it
-  for a test run. Stored in ClickHouse beside the `Tuist.Tests.Test` it
-  belongs to via `test_run_id`.
+  One source file's line coverage for a test run, read from the run's result
+  bundle (`source: "observed"`) or, for a file a partial run did not observe,
+  copied from the latest run that observed the same Git blob
+  (`source: "carried_forward"`, with `source_test_run_id` naming that run).
 
-  A file linked into several targets has a row per target with identical
-  counts, which is how `xccov` reports it; per-run totals dedupe by path.
+  `line_numbers` lists the file's executable lines, ascending, and
+  `execution_counts` how many times each ran. The `function_*` arrays describe
+  the file's functions, index by index. A sharded run has a row per shard that
+  compiled the file; readers merge them.
   """
   use Ecto.Schema
 
@@ -13,10 +16,20 @@ defmodule Tuist.Tests.XcodeCoverageFile do
   schema "xcode_coverage_files" do
     field :test_run_id, Ecto.UUID
     field :project_id, Ch, type: "Int64"
-    field :target_name, Ch, type: "String"
     field :path, Ch, type: "String"
+    field :git_blob_id, Ch, type: "String"
+    field :targets, Ch, type: "Array(LowCardinality(String))"
+    field :source, Ch, type: "LowCardinality(String)"
+    field :source_test_run_id, Ch, type: "Nullable(UUID)"
     field :covered_lines, Ch, type: "UInt32"
     field :executable_lines, Ch, type: "UInt32"
+    field :line_numbers, Ch, type: "Array(UInt32)"
+    field :execution_counts, Ch, type: "Array(UInt64)"
+    field :function_names, Ch, type: "Array(String)"
+    field :function_line_numbers, Ch, type: "Array(UInt32)"
+    field :function_execution_counts, Ch, type: "Array(UInt64)"
+    field :function_covered_lines, Ch, type: "Array(UInt32)"
+    field :function_executable_lines, Ch, type: "Array(UInt32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :test_run, Tuist.Tests.Test, foreign_key: :test_run_id, define_field: false

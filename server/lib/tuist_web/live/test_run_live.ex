@@ -170,6 +170,14 @@ defmodule TuistWeb.TestRunLive do
   end
 
   @doc false
+  def coverage_line_ranges(ranges) do
+    Enum.map_join(ranges, ", ", fn
+      {line, line} -> Integer.to_string(line)
+      {first, last} -> "#{first}–#{last}"
+    end)
+  end
+
+  @doc false
   def stress_candidate_for(candidates_by_identity, test_case_run) do
     Map.get(
       candidates_by_identity,
@@ -636,19 +644,27 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "coverage", params) do
     run = socket.assigns.run
     page = Query.bounded_page(params["coverage-page"])
+    selected_path = params["coverage-file"]
 
-    [targets, files] =
+    [targets, {files, files_count}, file] =
       Tuist.Tasks.parallel_tasks([
-        fn -> XcodeCoverage.targets_for_run(run.id) end,
-        fn -> XcodeCoverage.list_files(run.id, page, @table_page_size) end
+        fn -> XcodeCoverage.targets_for_run(run.project_id, run.id) end,
+        fn -> XcodeCoverage.list_files(run.project_id, run.id, page, @table_page_size) end,
+        fn -> selected_path && XcodeCoverage.file_detail(run.project_id, run.id, selected_path) end
       ])
-
-    files_count = targets |> Enum.map(& &1.files_count) |> Enum.sum()
 
     socket
     |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
-    |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, "#{&1.target_name}/#{&1.path}")))
+    |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, &1.path)))
     |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
+    |> assign(:coverage_file, file)
+    |> assign(
+      :coverage_file_functions,
+      if(file,
+        do: file.functions |> Enum.with_index() |> Enum.map(fn {function, index} -> Map.put(function, :id, index) end),
+        else: []
+      )
+    )
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)

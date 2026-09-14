@@ -100,11 +100,24 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
-  test "shows the coverage tab with the run's targets and least covered files first", %{
+  test "shows the coverage tab with the run's targets, least covered files first, and a file's detail", %{
     conn: conn,
     organization: organization,
     project: project
   } do
+    file = fn path, lines, functions ->
+      %{
+        path: path,
+        git_blob_id: "blob-#{path}",
+        targets: ["Calculator"],
+        covered_lines: Enum.count(lines, fn {_line, count} -> count > 0 end),
+        executable_lines: length(lines),
+        line_numbers: Enum.map(lines, &elem(&1, 0)),
+        execution_counts: Enum.map(lines, &elem(&1, 1)),
+        functions: functions
+      }
+    end
+
     {:ok, test_run} =
       Tuist.Tests.create_test(%{
         id: UUIDv7.generate(),
@@ -119,30 +132,34 @@ defmodule TuistWeb.TestRunLiveTest do
         is_ci: true,
         test_modules: [],
         xcode_coverage: %{
-          targets: [
-            %{
-              name: "Calculator",
-              covered_lines: 5,
-              executable_lines: 17,
-              files: [
-                %{path: "Sources/Calculator/Add.swift", covered_lines: 5, executable_lines: 11},
-                %{path: "Sources/Calculator/Untested.swift", covered_lines: 0, executable_lines: 6}
-              ]
-            }
+          partial: false,
+          unobserved_files: [],
+          files: [
+            file.("Sources/Calculator/Add.swift", [{2, 3}, {3, 0}, {4, 0}, {6, 1}], [
+              %{name: "add(_:_:)", line_number: 2, execution_count: 3, covered_lines: 2, executable_lines: 4}
+            ]),
+            file.("Sources/Calculator/Untested.swift", [{2, 0}, {3, 0}], [])
           ]
         }
       })
 
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage")
+    base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
 
-    assert has_element?(lv, "#widget-coverage-percentage", "29.4%")
+    assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
+    refute has_element?(lv, "#widget-coverage-carried-forward-files")
     assert has_element?(lv, "#coverage-targets-table", "Calculator")
 
     files_html = lv |> element("#coverage-files-table") |> render()
     untested = files_html |> :binary.match("Untested.swift") |> elem(0)
     add = files_html |> :binary.match("Add.swift") |> elem(0)
     assert untested < add
+
+    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Add.swift")
+
+    assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
+    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
+    assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
   end
 
   test "hides the coverage tab for a run that gathered none", %{

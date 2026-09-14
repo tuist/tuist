@@ -974,21 +974,16 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
-    test "passes the coverage report on and carries its totals into the processing job", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
+    test "passes a locally processed run's coverage on", %{conn: conn, user: user, project: project} do
       conn = Authentication.put_current_user(conn, user)
-      test_run_id = UUIDv7.generate()
 
-      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
-
-      # The bundle the worker parses carries the coverage archive but not the
-      # checkout it was measured against, so the totals travel with the job the
-      # same way the stress verdict does.
       expect(Tests, :create_test, fn attrs ->
-        assert [%{name: "Calculator", files: [%{path: "Sources/Add.swift"}]}] = attrs.xcode_coverage.targets
+        assert %{
+                 partial: true,
+                 files: [%{path: "Sources/Add.swift", line_numbers: [1, 2]}],
+                 unobserved_files: [%{path: "Sources/Skipped.swift"}]
+               } =
+                 attrs.xcode_coverage
 
         {:ok,
          %Test{
@@ -998,9 +993,7 @@ defmodule TuistWeb.API.TestsControllerTest do
            account_id: attrs.account_id,
            is_ci: false,
            build_system: "xcode",
-           status: "processing",
-           coverage_covered_lines: 5,
-           coverage_executable_lines: 11,
+           status: "success",
            test_case_runs: []
          }}
       end)
@@ -1011,34 +1004,30 @@ defmodule TuistWeb.API.TestsControllerTest do
         |> post(
           "/api/projects/#{user.account.name}/#{project.name}/tests",
           %{
-            id: test_run_id,
-            duration: 0,
+            duration: 10,
             is_ci: false,
-            status: "processing",
+            status: "success",
             test_modules: [],
             xcode_coverage: %{
-              targets: [
+              partial: true,
+              files: [
                 %{
-                  name: "Calculator",
-                  covered_lines: 5,
-                  executable_lines: 11,
-                  files: [%{path: "Sources/Add.swift", covered_lines: 5, executable_lines: 11}]
+                  path: "Sources/Add.swift",
+                  git_blob_id: "abc",
+                  targets: ["Calculator"],
+                  covered_lines: 1,
+                  executable_lines: 2,
+                  line_numbers: [1, 2],
+                  execution_counts: [3, 0],
+                  functions: []
                 }
-              ]
+              ],
+              unobserved_files: [%{path: "Sources/Skipped.swift", git_blob_id: "def"}]
             }
           }
         )
 
       assert json_response(conn, 200)
-
-      assert_enqueued(
-        worker: ProcessXcresultWorker,
-        args: %{
-          "test_run_id" => test_run_id,
-          "coverage_covered_lines" => 5,
-          "coverage_executable_lines" => 11
-        }
-      )
     end
 
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{

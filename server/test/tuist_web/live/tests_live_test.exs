@@ -40,12 +40,18 @@ defmodule TuistWeb.TestsLiveTest do
         is_ci: true,
         test_modules: [],
         xcode_coverage: %{
-          targets: [
+          partial: false,
+          unobserved_files: [],
+          files: [
             %{
-              name: "Calculator",
+              path: "Sources/Add.swift",
+              git_blob_id: "abc",
+              targets: ["Calculator"],
               covered_lines: 3,
               executable_lines: 4,
-              files: [%{path: "Sources/Add.swift", covered_lines: 3, executable_lines: 4}]
+              line_numbers: [1, 2, 3, 4],
+              execution_counts: [1, 1, 1, 0],
+              functions: []
             }
           ]
         }

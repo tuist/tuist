@@ -180,16 +180,15 @@ struct XCResultServiceTests {
         // Given
         let xcresult = try await fixtureXCResult("test.xcresult")
         let coverageParser = MockXcodeCoverageParsing()
-        let coverage = XcodeCoverageReport(targets: [
-            XcodeCoverageTarget(name: "App", coveredLines: 1, executableLines: 2, files: []),
-        ])
+        let manifest = XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
+        let coverage = XcodeCoverageReport(partial: false, files: [], unobservedFiles: [])
         given(coverageParser)
-            .parse(resultBundlePath: .value(xcresult), rootDirectory: .any)
+            .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest))
             .willReturn(coverage)
         let subject = XCResultService(coverageParser: coverageParser)
 
         // When
-        let got = try await subject.parseCoverage(path: xcresult, rootDirectory: nil)
+        let got = try await subject.parseCoverage(path: xcresult, manifest: manifest)
 
         // Then
         #expect(got == coverage)
@@ -214,12 +213,15 @@ struct XCResultServiceTests {
         let xcresult = try await fixtureXCResult("test.xcresult")
         let coverageParser = MockXcodeCoverageParsing()
         given(coverageParser)
-            .parse(resultBundlePath: .any, rootDirectory: .any)
+            .parse(resultBundlePath: .any, manifest: .any)
             .willThrow(NSError(domain: "xccov", code: 1))
         let subject = XCResultService(coverageParser: coverageParser)
 
         // When / Then
-        #expect(try await subject.parseCoverage(path: xcresult, rootDirectory: nil) == nil)
+        #expect(try await subject.parseCoverage(
+            path: xcresult,
+            manifest: XcodeCoverageManifest(rootDirectories: [], partial: false, files: [])
+        ) == nil)
     }
 
     private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {

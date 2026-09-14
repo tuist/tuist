@@ -482,19 +482,29 @@ import TuistHTTP
     private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
         report.map { report in
             Components.Schemas.XcodeCoverage(
-                targets: report.targets.map { target in
-                    Components.Schemas.XcodeCoverage.targetsPayloadPayload(
-                        covered_lines: target.coveredLines,
-                        executable_lines: target.executableLines,
-                        files: target.files.map { file in
-                            Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayloadPayload(
-                                covered_lines: file.coveredLines,
-                                executable_lines: file.executableLines,
-                                path: file.path
+                files: report.files.map { file in
+                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+                        covered_lines: file.coveredLines,
+                        executable_lines: file.executableLines,
+                        execution_counts: file.executionCounts,
+                        functions: file.functions.map { function in
+                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                                covered_lines: function.coveredLines,
+                                executable_lines: function.executableLines,
+                                execution_count: function.executionCount,
+                                line_number: function.lineNumber,
+                                name: function.name
                             )
                         },
-                        name: target.name
+                        git_blob_id: file.gitBlobId,
+                        line_numbers: file.lineNumbers,
+                        path: file.path,
+                        targets: file.targets
                     )
+                },
+                partial: report.partial,
+                unobserved_files: report.unobservedFiles.map {
+                    Components.Schemas.XcodeCoverage.unobserved_filesPayloadPayload(git_blob_id: $0.gitBlobId, path: $0.path)
                 }
             )
         }

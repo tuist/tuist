@@ -3855,10 +3855,9 @@ components:
       x-struct:
       x-validate:
     XcodeCoverage:
-      description: 'Line coverage from a test run that ran with code coverage enabled: every target the scheme gathered coverage for, and each source file in it with its covered and executable line counts. A file linked into several targets appears under each of them, as `xccov` reports it.'
+      description: "Line coverage from a test run that ran with code coverage enabled: every source file the run's instrumented binaries compiled, with its per-line execution counts and functions."
       properties:
-        targets:
-          description: The targets coverage was gathered for.
+        files:
           items:
             properties:
               covered_lines:
@@ -3871,27 +3870,42 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
-              files:
-                description: The source files compiled into the target.
+              execution_counts:
+                description: How many times each of `line_numbers` ran, index by index.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              functions:
                 items:
                   properties:
                     covered_lines:
-                      description: Executable lines the tests ran at least once.
                       type: integer
                       x-struct:
                       x-validate:
                     executable_lines:
-                      description: Lines the compiler instrumented.
                       type: integer
                       x-struct:
                       x-validate:
-                    path:
-                      description: "The file's path, relative to the project's root directory when it lives under it and absolute otherwise."
+                    execution_count:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    line_number:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
                       type: string
                       x-struct:
                       x-validate:
                   required:
-                    - path
+                    - name
+                    - line_number
+                    - execution_count
                     - covered_lines
                     - executable_lines
                   type: object
@@ -3900,16 +3914,71 @@ components:
                 type: array
                 x-struct:
                 x-validate:
-              name:
-                description: The target's name.
+              git_blob_id:
+                description: The Git blob object id of the file's contents, absent for files Git does not track.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              line_numbers:
+                description: The executable lines, ascending.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root when it lives under it and absolute otherwise."
+                type: string
+                x-struct:
+                x-validate:
+              targets:
+                description: The targets whose binaries compiled the file.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - targets
+              - covered_lines
+              - executable_lines
+              - line_numbers
+              - execution_counts
+              - functions
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        partial:
+          description: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
+          type: boolean
+          x-struct:
+          x-validate:
+        unobserved_files:
+          description: For a partial run, the repository's source files the run did not observe.
+          items:
+            properties:
+              git_blob_id:
+                description: The Git blob object id of the file's contents.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root."
                 type: string
                 x-struct:
                 x-validate:
             required:
-              - name
-              - covered_lines
-              - executable_lines
-              - files
+              - path
+              - git_blob_id
             type: object
             x-struct:
             x-validate:
@@ -3917,7 +3986,9 @@ components:
           x-struct:
           x-validate:
       required:
-        - targets
+        - partial
+        - files
+        - unobserved_files
       title: XcodeCoverage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.XcodeCoverage
