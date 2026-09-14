@@ -64,9 +64,9 @@ The plan was a floor for every account, an amount of the resource that is theirs
 
 ## Inside Kura
 
-Kura took its name from a Japanese word, and the way we built it has one too. 鍛錬, tanren, is what a [swordsmith](https://en.wikipedia.org/wiki/Japanese_swordsmithing) does to steel: heat it, fold it, hammer it flat, and do it again ten or fifteen times, because every pass drives out a little more of what shouldn't be there. Kura was made the same way. Every version of it served our own builds before it served anyone else's, so we were reliably the first people it let down.
+It took a lot of iteration to get here, and every version of it ran our own builds before it ran anyone else's, so we were reliably the first people it let down. We wanted a node that adjusts to the resources it actually has, and that tells the control plane when an account needs more of them, so a team grows into the infrastructure instead of hitting a wall in it. The same signal is what tells us to go and talk to an account, before they have to come and tell us.
 
-That mattered because bounding a resource is much harder than picking a number for it. The same node has to keep the serving path quick while it is also syncing with its peers, and both of those want the memory, the disk and the network at the same moment. Here is the inside of one of them.
+Bounding a resource is much harder than picking a number for it. A node has to keep the serving path quick while it is also syncing with its peers, and both of those want the memory, the disk and the network at the same moment. Here is the inside of one of them.
 
 ### Why Rust
 
