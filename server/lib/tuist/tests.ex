@@ -60,6 +60,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Webhooks.Dispatcher
 
   require Logger
@@ -507,6 +508,9 @@ defmodule Tuist.Tests do
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
 
+    xcode_coverage =
+      XcodeCoverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
+
     attrs =
       if has_flaky_tests and is_ci do
         Map.put(attrs, :is_flaky, true)
@@ -526,6 +530,7 @@ defmodule Tuist.Tests do
       create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
+      XcodeCoverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -749,6 +754,9 @@ defmodule Tuist.Tests do
 
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
+
+          xcode_coverage = XcodeCoverage.rows(project_id, Map.get(attrs, :xcode_coverage))
+          XcodeCoverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test

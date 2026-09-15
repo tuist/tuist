@@ -3811,6 +3811,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modules`.
             public var test_modules: Components.Schemas.TestParams.test_modulesPayload
+            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
+            public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
@@ -3842,6 +3844,7 @@ public enum Components {
             ///   - status: The status of the test run.
             ///   - stress_new_tests:
             ///   - test_modules: The test modules associated with the test run.
+            ///   - xcode_coverage:
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 build_run_id: Swift.String? = nil,
@@ -3868,6 +3871,7 @@ public enum Components {
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
+                xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -3894,6 +3898,7 @@ public enum Components {
                 self.status = status
                 self.stress_new_tests = stress_new_tests
                 self.test_modules = test_modules
+                self.xcode_coverage = xcode_coverage
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3921,6 +3926,7 @@ public enum Components {
                 case status
                 case stress_new_tests
                 case test_modules
+                case xcode_coverage
                 case xcode_version
             }
         }
@@ -8626,6 +8632,159 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
         public typealias GenerationsIndexBefore = Swift.String
+        /// Line coverage from a test run that ran with code coverage enabled: every source file the run's instrumented binaries compiled, with its per-line execution counts and functions.
+        ///
+        /// - Remark: Generated from `#/components/schemas/XcodeCoverage`.
+        public struct XcodeCoverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// Executable lines the tests ran at least once.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// Lines the compiler instrumented.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// How many times each of `line_numbers` ran, index by index.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/execution_counts`.
+                public var execution_counts: [Swift.Int]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload`.
+                public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/execution_count`.
+                    public var execution_count: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/line_number`.
+                    public var line_number: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/name`.
+                    public var name: Swift.String
+                    /// Creates a new `functionsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - execution_count:
+                    ///   - line_number:
+                    ///   - name:
+                    public init(
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        execution_count: Swift.Int,
+                        line_number: Swift.Int,
+                        name: Swift.String
+                    ) {
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.execution_count = execution_count
+                        self.line_number = line_number
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case covered_lines
+                        case executable_lines
+                        case execution_count
+                        case line_number
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public typealias functionsPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public var functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload
+                /// The Git blob object id of the file's contents, absent for files Git does not track.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String?
+                /// Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/is_test`.
+                public var is_test: Swift.Bool?
+                /// The executable lines, ascending.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/line_numbers`.
+                public var line_numbers: [Swift.Int]
+                /// The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/path`.
+                public var path: Swift.String
+                /// The targets whose binaries compiled the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/targets`.
+                public var targets: [Swift.String]
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - covered_lines: Executable lines the tests ran at least once.
+                ///   - executable_lines: Lines the compiler instrumented.
+                ///   - execution_counts: How many times each of `line_numbers` ran, index by index.
+                ///   - functions:
+                ///   - git_blob_id: The Git blob object id of the file's contents, absent for files Git does not track.
+                ///   - is_test: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///   - line_numbers: The executable lines, ascending.
+                ///   - path: The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///   - targets: The targets whose binaries compiled the file.
+                public init(
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    execution_counts: [Swift.Int],
+                    functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload,
+                    git_blob_id: Swift.String? = nil,
+                    is_test: Swift.Bool? = nil,
+                    line_numbers: [Swift.Int],
+                    path: Swift.String,
+                    targets: [Swift.String]
+                ) {
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.execution_counts = execution_counts
+                    self.functions = functions
+                    self.git_blob_id = git_blob_id
+                    self.is_test = is_test
+                    self.line_numbers = line_numbers
+                    self.path = path
+                    self.targets = targets
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case covered_lines
+                    case executable_lines
+                    case execution_counts
+                    case functions
+                    case git_blob_id
+                    case is_test
+                    case line_numbers
+                    case path
+                    case targets
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public typealias filesPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public var files: Components.Schemas.XcodeCoverage.filesPayload
+            /// Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/partial`.
+            public var partial: Swift.Bool
+            /// Creates a new `XcodeCoverage`.
+            ///
+            /// - Parameters:
+            ///   - files:
+            ///   - partial: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
+            public init(
+                files: Components.Schemas.XcodeCoverage.filesPayload,
+                partial: Swift.Bool
+            ) {
+                self.files = files
+                self.partial = partial
+            }
+            public enum CodingKeys: String, CodingKey {
+                case files
+                case partial
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
         public struct RunnerShellSession: Codable, Hashable, Sendable {
             /// When the session expires.
@@ -21500,6 +21659,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modules`.
                     public var test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
+                    public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The version of Xcode used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
@@ -21531,6 +21692,7 @@ public enum Operations {
                     ///   - status: The status of the test run.
                     ///   - stress_new_tests:
                     ///   - test_modules: The test modules associated with the test run.
+                    ///   - xcode_coverage:
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -21557,6 +21719,7 @@ public enum Operations {
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
+                        xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -21583,6 +21746,7 @@ public enum Operations {
                         self.status = status
                         self.stress_new_tests = stress_new_tests
                         self.test_modules = test_modules
+                        self.xcode_coverage = xcode_coverage
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -21610,6 +21774,7 @@ public enum Operations {
                         case status
                         case stress_new_tests
                         case test_modules
+                        case xcode_coverage
                         case xcode_version
                     }
                 }

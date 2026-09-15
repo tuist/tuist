@@ -26,6 +26,10 @@ let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", pac
 let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
 let subprocessDependency: Target.Dependency = .product(name: "Subprocess", package: "swiftlang.swift-subprocess")
 let swifterPMCoreDependency: Target.Dependency = "SwifterPMCore"
+let rosalindDependency: Target.Dependency = .target(
+    name: "Rosalind",
+    condition: .when(platforms: [.macOS, .linux])
+)
 
 // MARK: - Targets
 
@@ -135,7 +139,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
     .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
-    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS, .linux])),
+    rosalindDependency,
     .product(name: "Crypto", package: "apple.swift-crypto"),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
@@ -409,7 +413,7 @@ var tuistInspectCommandDependencies: [Target.Dependency] = [
     "TuistAlert",
     "TuistEncodable",
     .product(name: "Noora", package: "tuist.Noora"),
-    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS, .linux])),
+    rosalindDependency,
 ]
 #if os(macOS)
 tuistDependencies.append(contentsOf: [
@@ -550,6 +554,37 @@ var targets: [Target] = [
             .enableExperimentalFeature("StrictConcurrency"),
             .define("MOCKING", .when(configuration: .debug)),
         ]
+    ),
+    .target(
+        name: "Rosalind",
+        dependencies: [
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+            pathDependency,
+            fileSystemDependency,
+            commandDependency,
+            .product(name: "MachOKit", package: "p-x9.MachOKit", condition: .when(platforms: [.macOS])),
+            .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+            loggingDependency,
+            zipFoundationDependency,
+            mockableDependency,
+        ],
+        path: "cli/Sources/Rosalind",
+        swiftSettings: [
+            .enableExperimentalFeature("StrictConcurrency"),
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .testTarget(
+        name: "RosalindTests",
+        dependencies: [
+            "Rosalind",
+            mockableDependency,
+            .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
+            commandDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "cli/Tests/RosalindTests"
     ),
     .target(
         name: "TuistEnvironment",
@@ -1371,7 +1406,7 @@ targets.append(contentsOf: [
             anyCodableDependency,
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
-            .product(name: "Rosalind", package: "tuist.Rosalind"),
+            "Rosalind",
         ],
         path: "cli/Sources/TuistKit",
         exclude: ["AGENTS.md"],
@@ -1640,6 +1675,7 @@ targets.append(contentsOf: [
         name: "TuistXCResultService",
         dependencies: [
             "TuistSupport",
+            "TuistAlert",
             .product(name: "XCResultParser", package: "XCResultNIF"),
             fileSystemDependency,
             mockableDependency,
@@ -1755,6 +1791,10 @@ var products: [Product] = [
     .library(
         name: "TuistServer",
         targets: ["TuistServer"]
+    ),
+    .library(
+        name: "Rosalind",
+        targets: ["Rosalind"]
     ),
     .library(
         name: "TuistOIDC",
@@ -1899,7 +1939,6 @@ let package = Package(
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.8.0")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

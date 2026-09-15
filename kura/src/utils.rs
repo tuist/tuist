@@ -223,7 +223,7 @@ impl TempFileCleanup {
         self.reservation = Some(reservation);
     }
 
-    fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
+    pub(crate) fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
         match self.reservation.as_mut() {
             Some(reservation) => reservation.grow_to(total),
             None => Ok(()),
