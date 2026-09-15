@@ -61,37 +61,47 @@ struct XcodeCoverageParserTests {
     }
 
     @Test
-    func joinsTheReportAndTheArchiveIntoOneEntryPerFile() async throws {
+    func joinsTheReportAndTheArchiveForTheRepositorysOwnCode() async throws {
         let add = "/private/tmp/repo/Sources/Calculator/Add.swift"
-        let dependency = "/Users/me/DerivedData/SourcePackages/checkouts/Dep/Dep.swift"
-        let file = """
+        let tests = "/private/tmp/repo/Tests/CalculatorTests/CalculatorTests.swift"
+        let checkout = "/private/tmp/repo/.build/checkouts/Dep/Sources/Dep.swift"
+        let outside = "/Users/me/DerivedData/SourcePackages/checkouts/Other/Other.swift"
+        let add_file = """
         {"name": "Add.swift", "path": "\(add)", "coveredLines": 2, "executableLines": 3, "lineCoverage": 0.6,
          "functions": [{"name": "add(_:_:)", "lineNumber": 2, "executionCount": 4, "coveredLines": 2, "executableLines": 3, "lineCoverage": 0.6}]}
         """
+        let other = { (path: String) in
+            """
+            {"name": "F.swift", "path": "\(path)", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1,
+             "functions": [{"name": "f()", "lineNumber": 1, "executionCount": 1, "coveredLines": 1, "executableLines": 1, "lineCoverage": 1}]}
+            """
+        }
         // The framework's file shows up again under the test bundle that links it.
         let json = report("""
-        {"name": "Calculator", "coveredLines": 2, "executableLines": 3, "lineCoverage": 0.6, "buildProductPath": "/dd/Calculator", "files": [\(
-            file
-        )]},
+        {"name": "Calculator", "coveredLines": 2, "executableLines": 3, "lineCoverage": 0.6, "buildProductPath": "/dd/Calculator.framework/Calculator", "files": [\(
+            add_file
+        ), \(other(checkout)), \(other(outside))]},
         {"name": "CalculatorTests", "coveredLines": 3, "executableLines": 4, "lineCoverage": 0.7, "buildProductPath": "/dd/CalculatorTests.xctest/Contents/MacOS/CalculatorTests", "files": [\(
-            file
-        ),
-          {"name": "Dep.swift", "path": "\(
-              dependency
-          )", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
+            add_file
+        ), \(other(tests))]}
         """)
         let archive = """
         {"\(add)": [{"line": 1, "isExecutable": false},
                     {"line": 3, "isExecutable": true, "executionCount": 0},
                     {"line": 2, "isExecutable": true, "executionCount": 4, "subranges": [{"column": 3, "executionCount": 0, "length": 1}]},
                     {"line": 4, "isExecutable": true, "executionCount": 1}],
-         "\(dependency)": [{"line": 7, "isExecutable": true, "executionCount": 2}]}
+         "\(tests)": [{"line": 1, "isExecutable": true, "executionCount": 1}],
+         "\(checkout)": [{"line": 1, "isExecutable": true, "executionCount": 1}],
+         "\(outside)": [{"line": 1, "isExecutable": true, "executionCount": 1}]}
         """
         let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json, archiveJSON: archive))
         let manifest = XcodeCoverageManifest(
             rootDirectories: ["/tmp/repo", "/private/tmp/repo/"],
             partial: false,
-            files: [XcodeCoverageSourceFile(path: "Sources/Calculator/Add.swift", gitBlobId: "a1b2")]
+            files: [
+                XcodeCoverageSourceFile(path: "Sources/Calculator/Add.swift", gitBlobId: "a1b2"),
+                XcodeCoverageSourceFile(path: "Tests/CalculatorTests/CalculatorTests.swift", gitBlobId: "c3d4"),
+            ]
         )
 
         let got = try #require(await subject.parse(
@@ -99,18 +109,9 @@ struct XcodeCoverageParserTests {
             manifest: manifest
         ))
 
+        // Package checkouts, inside the repository or out, are not the repository's code; test code
+        // keeps its counts only.
         #expect(got.files == [
-            XcodeCoverageFile(
-                path: dependency,
-                gitBlobId: nil,
-                targets: ["CalculatorTests"],
-                isTest: true,
-                coveredLines: 1,
-                executableLines: 1,
-                lineNumbers: [7],
-                executionCounts: [2],
-                functions: []
-            ),
             XcodeCoverageFile(
                 path: "Sources/Calculator/Add.swift",
                 gitBlobId: "a1b2",
@@ -129,7 +130,26 @@ struct XcodeCoverageParserTests {
                     ),
                 ]
             ),
+            XcodeCoverageFile(
+                path: "Tests/CalculatorTests/CalculatorTests.swift",
+                gitBlobId: "c3d4",
+                targets: ["CalculatorTests"],
+                isTest: true,
+                coveredLines: 1,
+                executableLines: 1,
+                lineNumbers: [],
+                executionCounts: [],
+                functions: []
+            ),
         ])
+    }
+
+    @Test
+    func leavesOutFilesGitIgnoresInsideTheRepository() {
+        #expect(XcodeCoverageParser.isDependencyPath(".build/checkouts/Dep/Dep.swift"))
+        #expect(XcodeCoverageParser.isDependencyPath("App/DerivedData/SourcePackages/checkouts/Dep/Dep.swift"))
+        #expect(XcodeCoverageParser.isDependencyPath("Pods/Alamofire/Source/Session.swift"))
+        #expect(!XcodeCoverageParser.isDependencyPath("Sources/Calculator/Add.swift"))
     }
 
     @Test

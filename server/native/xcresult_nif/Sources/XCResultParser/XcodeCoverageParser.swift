@@ -72,23 +72,33 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         let roots = Self.roots(manifest.rootDirectories)
         let blobIdsByPath = Dictionary(manifest.files.map { ($0.path, $0.gitBlobId) }, uniquingKeysWith: { first, _ in first })
 
-        let files = Set(archive.keys).union(targetsByPath.keys).map { absolutePath in
+        // Only the repository's own code counts: third-party packages compiled with instrumentation
+        // (checkouts under `.build` or DerivedData) would dominate both the figure and the payload.
+        // In a Git checkout the manifest lists the covered files Git does not ignore, which leaves
+        // out ignored build and checkout directories too.
+        let repositoryPaths = Set(manifest.files.map(\.path))
+        let files = Set(archive.keys).union(targetsByPath.keys).compactMap { absolutePath -> XcodeCoverageFile? in
             let path = Self.relativize(absolutePath, to: roots)
+            guard !path.hasPrefix("/"), !Self.isDependencyPath(path),
+                  repositoryPaths.isEmpty || repositoryPaths.contains(path)
+            else { return nil }
             let lines = (archive[absolutePath] ?? []).filter(\.isExecutable).sorted { $0.line < $1.line }
             let counts = lines.map { $0.executionCount ?? 0 }
             let reported = countsByPath[absolutePath]
             let targets = targetsByPath[absolutePath] ?? []
             let productTargets = targets.filter { !testTargets.contains($0) }
+            let isTest = !targets.isEmpty && productTargets.isEmpty
+            // Test code is left out of every figure, so only its counts travel.
             return XcodeCoverageFile(
                 path: path,
                 gitBlobId: blobIdsByPath[path],
                 targets: productTargets.isEmpty ? targets : productTargets,
-                isTest: !targets.isEmpty && productTargets.isEmpty,
+                isTest: isTest,
                 coveredLines: lines.isEmpty ? reported?.covered ?? 0 : counts.filter { $0 > 0 }.count,
                 executableLines: lines.isEmpty ? reported?.executable ?? 0 : lines.count,
-                lineNumbers: lines.map(\.line),
-                executionCounts: counts,
-                functions: functionsByPath[absolutePath] ?? []
+                lineNumbers: isTest ? [] : lines.map(\.line),
+                executionCounts: isTest ? [] : counts,
+                functions: isTest ? [] : functionsByPath[absolutePath] ?? []
             )
         }.sorted { $0.path < $1.path }
 
@@ -144,6 +154,13 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
             bundleExtensions.contains((component as NSString).pathExtension)
         }
         return innermostBundle.map { ($0 as NSString).pathExtension == "xctest" } ?? false
+    }
+
+    /// Directories package managers and builds check dependencies out into, for a checkout Git
+    /// cannot vouch for.
+    static func isDependencyPath(_ path: String) -> Bool {
+        let dependencyDirectories: Set<String> = [".build", "DerivedData", "SourcePackages", "Pods", "Carthage"]
+        return path.split(separator: "/").contains { dependencyDirectories.contains(String($0)) }
     }
 
     /// Longest first, so a root nested in another one wins.
