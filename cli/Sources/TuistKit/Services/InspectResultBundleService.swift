@@ -432,7 +432,7 @@ private struct QuarantinedTestEntry: Codable {
 extension UploadResultBundleService {
     /// Source files whose Git blobs the manifest records: what the compiler instruments for
     /// coverage in Xcode projects.
-    private static let coverageSourceExtensions: Set<String> = [
+    static let coverageSourceExtensions: Set<String> = [
         "swift", "m", "mm", "c", "cc", "cp", "cpp", "cxx", "c++", "h", "hh", "hpp", "hxx", "inl",
     ]
 
@@ -450,14 +450,35 @@ extension UploadResultBundleService {
         do {
             guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
 
-            let rootSpellings = Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
+            // Test products built in another checkout carry that checkout: the compiler embedded its
+            // paths, and only the build knows which blobs it compiled. The current checkout may be
+            // at other content, so its blobs are never used for those products.
+            let buildSources = await RunMetadataStorage.current.coverageBuildSources
+            var rootSpellings = buildSources?.rootDirectories ?? []
+            for spelling in Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
+                where !rootSpellings.contains(spelling)
+            {
+                rootSpellings.append(spelling)
+            }
             let coveredPaths = Set(coveredFilePaths.map { Self.relativize($0, to: rootSpellings) })
-            let blobIds = await gitController.isInGitRepository(workingDirectory: rootDirectory)
-                ? try await gitController.sourceFileBlobIds(
+            if !coveredPaths.isEmpty, coveredPaths.allSatisfy({ $0.hasPrefix("/") }) {
+                AlertController.current.warning(
+                    .alert(
+                        "None of the \(coveredPaths.count) files covered in \(resultBundlePath.pathString) are under \(rootSpellings.joined(separator: " or ")), so the run has no coverage. If the test products were built in another checkout, build them with 'tuist xcodebuild build-for-testing -testProductsPath' or 'tuist test --build-only' so Tuist records that checkout."
+                    )
+                )
+            }
+            let blobIds: [String: String]
+            if let buildSources {
+                blobIds = buildSources.files.filter { coveredPaths.contains($0.key) }
+            } else if await gitController.isInGitRepository(workingDirectory: rootDirectory) {
+                blobIds = try await gitController.sourceFileBlobIds(
                     workingDirectory: rootDirectory,
                     pathExtensions: Self.coverageSourceExtensions
                 ).filter { coveredPaths.contains($0.key) }
-                : [:]
+            } else {
+                blobIds = [:]
+            }
 
             // The run's coverage only describes the tests that ran. A selective-testing hit is a
             // test target skipped because nothing it depends on changed.
@@ -535,7 +556,9 @@ extension UploadResultBundleService {
         }
         guard let resolved = realpath(existing, nil) else { return path }
         defer { free(resolved) }
-        return ([String(cString: resolved)] + rest).joined(separator: "/")
+        let base = String(cString: resolved)
+        guard !rest.isEmpty else { return base }
+        return (base == "/" ? "" : base) + "/" + rest.joined(separator: "/")
     }
 
     /// One bundle for the server to parse. A run whose candidates were priced at different

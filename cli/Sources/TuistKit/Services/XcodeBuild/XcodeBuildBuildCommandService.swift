@@ -26,6 +26,7 @@ struct XcodeBuildBuildCommandService {
     private let shardPlanService: ShardPlanServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
+    private let coverageBuildSourcesService: CoverageBuildSourcesService
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -38,8 +39,10 @@ struct XcodeBuildBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
+        self.coverageBuildSourcesService = coverageBuildSourcesService
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
         self.configLoader = configLoader
@@ -100,6 +103,16 @@ struct XcodeBuildBuildCommandService {
             startedAt: buildStartedAt,
             passthroughXcodebuildArguments: passthroughXcodebuildArguments
         )
+        // Written before any shard plan uploads the bundle.
+        if let testProductsPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let testProductsPath = try AbsolutePath(validating: testProductsPathString, relativeTo: currentWorkingDirectory)
+            if let config = try? await configLoader.loadConfig(
+                path: path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            ) {
+                await coverageBuildSourcesService.write(to: testProductsPath, config: config)
+            }
+        }
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {

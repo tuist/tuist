@@ -147,6 +147,16 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments += shard.skipTestIdentifiers.flatMap { ["-skip-testing", $0] }
         }
 
+        if passthroughXcodebuildArguments.contains("test-without-building"),
+           let testProductsPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments),
+           let testProductsPath = try? AbsolutePath(
+               validating: testProductsPathString,
+               relativeTo: try await Environment.current.currentWorkingDirectory()
+           )
+        {
+            await RunMetadataStorage.current.restoreCoverageBuildSources(from: testProductsPath)
+        }
+
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {
