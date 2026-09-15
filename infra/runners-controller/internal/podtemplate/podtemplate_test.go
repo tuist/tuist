@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
@@ -93,6 +94,63 @@ func TestBuild_LinuxHasNoGoldenAffinity(t *testing.T) {
 	pod := build(t, basePool("linux"))
 	if pod.Spec.Affinity != nil {
 		t.Fatalf("linux pod got affinity %+v, want nil (no golden-base concept)", pod.Spec.Affinity)
+	}
+}
+
+func TestBuild_LinuxPackingAffinity(t *testing.T) {
+	p := basePool("linux")
+	p.Spec.Placement = &tuistv1.RunnerPoolPlacement{PackOntoOccupiedNodes: true}
+	pod := build(t, p)
+
+	aff := pod.Spec.Affinity
+	if aff == nil || aff.PodAffinity == nil {
+		t.Fatalf("affinity = %+v, want a pod affinity", aff)
+	}
+	if aff.NodeAffinity != nil || aff.PodAntiAffinity != nil {
+		t.Fatalf("affinity = %+v, want only the pod affinity on linux", aff)
+	}
+	if aff.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		t.Fatal("packing affinity must be preferred, never required")
+	}
+	terms := aff.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(terms) != 1 {
+		t.Fatalf("preferred terms = %d, want 1", len(terms))
+	}
+	if terms[0].Weight != 100 {
+		t.Errorf("weight = %d, want 100", terms[0].Weight)
+	}
+	if got, want := terms[0].PodAffinityTerm.TopologyKey, "kubernetes.io/hostname"; got != want {
+		t.Errorf("topologyKey = %q, want %q", got, want)
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(terms[0].PodAffinityTerm.LabelSelector)
+	if err != nil {
+		t.Fatalf("label selector: %v", err)
+	}
+	if !selector.Matches(labels.Set(pod.Labels)) {
+		t.Errorf("selector %q does not match the runner Pod's own labels %v", selector, pod.Labels)
+	}
+	other := basePool("linux")
+	other.Name = "pool-2"
+	if !selector.Matches(labels.Set(build(t, other).Labels)) {
+		t.Errorf("selector %q does not match a runner Pod of another pool", selector)
+	}
+}
+
+func TestBuild_PackingDisabledLeavesNoPodAffinity(t *testing.T) {
+	p := basePool("linux")
+	p.Spec.Placement = &tuistv1.RunnerPoolPlacement{}
+	if aff := build(t, p).Spec.Affinity; aff != nil {
+		t.Fatalf("affinity = %+v, want nil", aff)
+	}
+}
+
+func TestBuild_MacOSPackingKeepsGoldenAffinity(t *testing.T) {
+	p := basePool("")
+	p.Spec.Placement = &tuistv1.RunnerPoolPlacement{PackOntoOccupiedNodes: true}
+	aff := build(t, p).Spec.Affinity
+	if aff == nil || aff.NodeAffinity == nil || aff.PodAffinity == nil {
+		t.Fatalf("affinity = %+v, want both the golden node affinity and the packing pod affinity", aff)
 	}
 }
 

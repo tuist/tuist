@@ -242,6 +242,48 @@ independent workqueues:
     status the scheduler never sees, which is why this lives in the
     controller.
 
+    **Packing small shapes.** A reservation drains a host after a large
+    Pod is already starved; packing keeps hosts from being carved up in
+    the first place. kube-scheduler's default resource scoring picks the
+    least-allocated node, so small Pods spread over every host. In the
+    week to 2026-09-14 the Tuist account's own `2vcpu-8gb` and
+    `4vcpu-16gb` jobs put 14-24 vCPU on every production RISE-L that had
+    no 16 vCPU job, and a customer's 16 vCPU jobs queued for ~280 minutes
+    with the account under its own concurrency limit and the fleet as a
+    whole holding enough vCPU for them. Lowering our account's limit
+    caps the total, not the placement, and slows our own CI on the same
+    fleet, so it is not the lever.
+
+    `spec.placement.packOntoOccupiedNodes` gives a pool's Pods a
+    preferred pod affinity (weight 100, `kubernetes.io/hostname`) toward
+    hosts running any `tuist.dev/runner=true` Pod. The chart sets it on
+    every Linux shape below `runnersFleetLinux.shapePlacement.packBelowVcpus`
+    (16 in production, off elsewhere). InterPodAffinity is normalised
+    over the feasible nodes and weighted 2 in the default profile against
+    1 each for resource and balanced scoring, so an occupied host that
+    still fits wins over an empty one. The scheduler also applies
+    existing Pods' preferred terms to the incoming Pod, so a 16 vCPU Pod,
+    which carries no term itself, is drawn to a partly used host it fits
+    on and leaves the empty host for the next one.
+
+    It is a preference, not a constraint: a Pod that fits no occupied
+    host still lands on an empty one, and nothing is ever left Pending
+    by it. It is also not exact bin-packing: the score counts Pods, not
+    their size, so between two partly used hosts it favours the one with
+    more Pods rather than the fuller one. The exact alternative is a
+    `NodeResourcesFit` `MostAllocated` profile, which needs either a
+    kube-scheduler config change rolled through every control plane or
+    a second scheduler Deployment the runner Pods would depend on.
+    Dedicating hosts to small shapes was rejected because it permanently
+    removes large-shape seats.
+
+    Two existing behaviours change direction. `placement_burst` assumes
+    unbound Pods can all land on one kubelet; they used to converge on
+    the emptiest host and now converge on the busiest one that fits,
+    which the same bound covers. A host that accepts Pods it cannot start
+    now also attracts small Pods for the Pods it already holds, much as
+    it used to attract everything by being the emptiest.
+
   Only nodes that report `Ready=True`, remain schedulable, and have no
   memory, disk, or process identifier pressure contribute to either
   budget. A fleet filtered to zero capacity still takes the existing
