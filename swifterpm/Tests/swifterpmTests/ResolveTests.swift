@@ -359,6 +359,60 @@ struct ResolveTests {
     }
 
     @Test
+    func resolvePreservesValidTransitivePinsWhenTheResolvedFileOriginHashIsStale() async throws {
+        try await withTemporaryDirectory { root in
+            let transitive = root.appendingPathComponent("Transitive")
+            try await writeLibraryPackageManifest(at: transitive, name: "Transitive")
+            try await initGitDependency(at: transitive, tags: ["1.0.0"])
+
+            let direct = root.appendingPathComponent("Direct")
+            try await writeLibraryPackageManifest(
+                at: direct,
+                name: "Direct",
+                dependencyURL: transitive.path
+            )
+            try await initGitDependency(at: direct, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: direct.path,
+                dependencyName: "Direct"
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let initial = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(initial.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
+
+            try await addCommitAndTag(at: transitive, tag: "1.1.0")
+
+            var staleResolved = try await ResolvedFile.read(packageDir: package)
+            staleResolved.originHash = "stale"
+            try await ResolvedFile.write(packageDir: package, resolved: staleResolved)
+
+            let resolved = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(resolved.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
+        }
+    }
+
+    @Test
     func resolveDropsAnOrphanPinInsteadOfFetchingIt() async throws {
         // Reported on Slack: after removing a dependency from Package.swift, a
         // subsequent `tuist install` (SwifterPM.resolve) failed with SwiftPM's
@@ -541,6 +595,43 @@ struct ResolveTests {
         }
     }
 
+    private func writeLibraryPackageManifest(
+        at packageDir: URL,
+        name: String,
+        dependencyURL: String
+    ) async throws {
+        try await fileSystem.makeDirectory(
+            at: packageDir.appendingPathComponent("Sources/\(name)").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "\(name)",
+                products: [
+                    .library(name: "\(name)", targets: ["\(name)"]),
+                ],
+                dependencies: [
+                    .package(url: "\(dependencyURL)", from: "1.0.0"),
+                ],
+                targets: [
+                    .target(name: "\(name)", dependencies: [
+                        .product(name: "Transitive", package: "Transitive"),
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "import Transitive\npublic struct \(name) {}\n",
+            to: packageDir.appendingPathComponent("Sources/\(name)/\(name).swift")
+        )
+    }
+
     private func writeLibraryPackageManifest(at packageDir: URL, name: String) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/\(name)").absolutePath,
@@ -573,7 +664,8 @@ struct ResolveTests {
         at packageDir: URL,
         dependencyURL: String,
         exactVersion: String = "1.0.0",
-        fromVersion: String? = nil
+        fromVersion: String? = nil,
+        dependencyName: String = "Dependency"
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
@@ -600,7 +692,7 @@ struct ResolveTests {
                 ],
                 targets: [
                     .target(name: "App", dependencies: [
-                        .product(name: "Dependency", package: "Dependency"),
+                        .product(name: "\(dependencyName)", package: "\(dependencyName)"),
                     ]),
                 ]
             )
