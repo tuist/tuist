@@ -63,6 +63,29 @@ defmodule Tuist.Oban.RuntimeConfigTest do
     end
   end
 
+  describe "oban_notifier/1" do
+    test ":swift_registry_sync uses Isolated" do
+      # The Postgres notifier's LISTEN connection has been observed
+      # dropping into `connectivity_status=solitary` on sync pods after
+      # multi-hour uptime, at which point the producer supervisor
+      # stops draining the queue. Isolated skips the LISTEN entirely
+      # so there is no long-lived socket that can silently die.
+      assert RuntimeConfig.oban_notifier(:swift_registry_sync) == Oban.Notifiers.Isolated
+    end
+
+    test "every non-sync mode keeps the default Postgres notifier" do
+      # `:web` needs cross-node NOTIFY so that Oban Web / queue-control
+      # commands issued from any node reach the leader-elected pod.
+      # Processor and xcresult-processor pods have not exhibited the
+      # sync-pod failure mode and share the same notifier so peer state
+      # stays coherent.
+      for mode <- Environment.modes(), mode != :swift_registry_sync do
+        assert RuntimeConfig.oban_notifier(mode) == Oban.Notifiers.Postgres,
+               "expected #{inspect(mode)} to use Oban.Notifiers.Postgres so cross-node NOTIFY still works"
+      end
+    end
+  end
+
   describe "crontab/4" do
     test "empty for every non-web mode in every prod-like env, regardless of hosted state" do
       for mode <- Environment.modes(),
