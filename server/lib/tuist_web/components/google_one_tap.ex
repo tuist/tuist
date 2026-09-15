@@ -27,6 +27,7 @@ defmodule TuistWeb.GoogleOneTap do
     >
       <.form for={%{}} action={~p"/auth/google/one-tap"}>
         <input type="hidden" name="credential" />
+        <input type="hidden" name="nonce" />
       </.form>
     </div>
     """

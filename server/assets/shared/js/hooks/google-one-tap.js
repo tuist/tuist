@@ -60,6 +60,7 @@ export const GoogleOneTap = {
             )
               return;
             form.elements.credential.value = credential;
+            form.elements.nonce.value = nonce;
             form.requestSubmit();
           } catch {
             // Google invokes this after mounted returns, outside its error handler.

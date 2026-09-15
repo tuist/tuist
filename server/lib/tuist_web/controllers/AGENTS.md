@@ -5,7 +5,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 ## Responsibilities
 - `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
 - Handle request/response flow and rendering for controller actions.
-- Google One Tap uses protected start and completion requests in `AuthController`; the five-minute session challenge is consumed before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
+- Google One Tap uses protected start and completion requests in `AuthController`; up to ten pending one-hour challenges support independent browser tabs. The submitted nonce selects and consumes only its matching session challenge before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
 

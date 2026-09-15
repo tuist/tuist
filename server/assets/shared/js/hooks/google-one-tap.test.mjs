@@ -12,7 +12,7 @@ function fixture() {
   const state = { submitted: 0, cancelled: 0, listeners: new Set() };
   const form = {
     isConnected: true,
-    elements: { credential: { value: "" } },
+    elements: { credential: { value: "" }, nonce: { value: "" } },
     requestSubmit() {
       state.submitted++;
     },
@@ -93,6 +93,7 @@ test("valid credentials still submit the protected form", async () => {
   await hook.mounted();
   state.callback({ credential: "signed-token" });
   assert.equal(form.elements.credential.value, "signed-token");
+  assert.equal(form.elements.nonce.value, "test-nonce");
   assert.equal(state.submitted, 1);
 });
 

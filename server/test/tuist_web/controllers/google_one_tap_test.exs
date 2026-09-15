@@ -6,9 +6,16 @@ defmodule TuistWeb.GoogleOneTapTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.OAuth.Google
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.GoogleOneTap
+
+  setup_all do
+    key = JOSE.JWK.generate_key({:rsa, 2048})
+    {_, public_key} = key |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    %{key: key, public_key: Map.put(public_key, "kid", "google-key")}
+  end
 
   setup do
     stub(Environment, :google_auth_enabled?, fn -> true end)
@@ -21,17 +28,17 @@ defmodule TuistWeb.GoogleOneTapTest do
     conn = post(conn, "/auth/google/one-tap/start")
     assert %{"client_id" => "tuist-client", "nonce" => nonce} = json_response(conn, 200)
     assert byte_size(nonce) >= 32
-    assert %{nonce: ^nonce} = get_session(conn, :google_one_tap)
+    assert [%{nonce: ^nonce}] = get_session(conn, :google_one_tap)
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
   end
 
   test "logs in an existing user using the verified Google identity", %{conn: conn, claims: claims} do
     user = AccountsFixtures.user_fixture(email: claims["email"])
     conn = start(conn)
-    nonce = get_session(conn, :google_one_tap).nonce
+    nonce = json_response(conn, 200)["nonce"]
     expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
 
-    conn = conn |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token"})
+    conn = complete(conn, "signed-token")
 
     assert redirected_to(conn) =~ "/#{user.account.name}"
     assert get_session(conn, :user_token)
@@ -46,7 +53,7 @@ defmodule TuistWeb.GoogleOneTapTest do
   } do
     claims = Map.merge(claims, %{"email" => "one-tap@tuist.dev", "hd" => "tuist.dev"})
     stub(Google, :verify_identity_token, fn _, _ -> {:ok, claims} end)
-    conn = conn |> start() |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token"})
+    conn = conn |> start() |> complete("signed-token")
 
     assert redirected_to(conn) == "/users/choose-username"
     assert %{"uid" => "google-user", "provider_organization_id" => "tuist.dev"} = get_session(conn, :pending_oauth_signup)
@@ -56,7 +63,7 @@ defmodule TuistWeb.GoogleOneTapTest do
   test "falls back to standard sign-in before linking a third-party email", %{conn: conn, claims: claims} do
     claims = Map.put(claims, "email", "person@example.com")
     stub(Google, :verify_identity_token, fn _, _ -> {:ok, claims} end)
-    conn = conn |> start() |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token"})
+    conn = conn |> start() |> complete("signed-token")
     assert redirected_to(conn) == "/users/auth/google"
     refute get_session(conn, :user_token)
   end
@@ -65,8 +72,63 @@ defmodule TuistWeb.GoogleOneTapTest do
     user = AccountsFixtures.user_fixture(email: "person@example.com")
     AccountsFixtures.oauth2_identity_fixture(user: user, id_in_provider: claims["sub"])
     stub(Google, :verify_identity_token, fn _, _ -> {:ok, Map.put(claims, "email", user.email)} end)
-    conn = conn |> start() |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token"})
+    conn = conn |> start() |> complete("signed-token")
     assert redirected_to(conn) =~ "/#{user.account.name}"
+  end
+
+  test "keeps other tabs' pending challenges after a submission consumes one", %{
+    conn: conn,
+    claims: claims,
+    key: key,
+    public_key: public_key
+  } do
+    user = AccountsFixtures.user_fixture(email: claims["email"])
+    use_public_key(public_key)
+
+    conn = start(conn)
+    nonce_a = json_response(conn, 200)["nonce"]
+    conn = start(recycle(conn))
+    nonce_b = json_response(conn, 200)["nonce"]
+    assert [%{nonce: ^nonce_b}, %{nonce: ^nonce_a}] = get_session(conn, :google_one_tap)
+
+    conn =
+      conn
+      |> recycle()
+      |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, claims), nonce: nonce_b})
+
+    assert redirected_to(conn) =~ "/#{user.account.name}"
+    assert [%{nonce: ^nonce_a}] = get_session(conn, :google_one_tap)
+  end
+
+  test "leaves later tabs' challenges intact when an earlier submission fails", %{
+    conn: conn,
+    claims: claims,
+    key: key,
+    public_key: public_key
+  } do
+    user = AccountsFixtures.user_fixture(email: claims["email"])
+    use_public_key(public_key)
+
+    conn = start(conn)
+    nonce_a = json_response(conn, 200)["nonce"]
+    conn = start(recycle(conn))
+    nonce_b = json_response(conn, 200)["nonce"]
+
+    failed =
+      conn
+      |> recycle()
+      |> post("/auth/google/one-tap", %{credential: "bad-token", nonce: nonce_a})
+
+    assert redirected_to(failed) == "/users/log_in"
+    assert [%{nonce: ^nonce_b}] = get_session(failed, :google_one_tap)
+
+    completion =
+      failed
+      |> recycle()
+      |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, claims), nonce: nonce_b})
+
+    assert redirected_to(completion) =~ "/#{user.account.name}"
+    refute get_session(completion, :google_one_tap)
   end
 
   test "rejects credentials without a challenge", %{conn: conn} do
@@ -78,8 +140,8 @@ defmodule TuistWeb.GoogleOneTapTest do
   test "rejects an expired challenge", %{conn: conn} do
     conn =
       conn
-      |> init_test_session(%{google_one_tap: %{nonce: "old", issued_at: 0}})
-      |> post("/auth/google/one-tap", %{credential: "signed-token"})
+      |> init_test_session(%{google_one_tap: [%{nonce: "old", issued_at: 0}]})
+      |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: "old"})
 
     assert redirected_to(conn) == "/users/log_in"
     refute get_session(conn, :google_one_tap)
@@ -87,7 +149,7 @@ defmodule TuistWeb.GoogleOneTapTest do
 
   test "consumes the challenge on invalid credentials", %{conn: conn} do
     stub(Google, :verify_identity_token, fn _, _ -> {:error, :invalid_token} end)
-    conn = conn |> start() |> recycle() |> post("/auth/google/one-tap", %{credential: "bad-token"})
+    conn = conn |> start() |> complete("bad-token")
     assert redirected_to(conn) == "/users/log_in"
     refute get_session(conn, :google_one_tap)
     refute get_session(conn, :user_token)
@@ -141,5 +203,34 @@ defmodule TuistWeb.GoogleOneTapTest do
     assert get_resp_header(conn, "content-security-policy") == []
   end
 
+  defp complete(conn, credential) do
+    nonce = json_response(conn, 200)["nonce"]
+    conn |> recycle() |> post("/auth/google/one-tap", %{credential: credential, nonce: nonce})
+  end
+
   defp start(conn), do: post(conn, "/auth/google/one-tap/start")
+
+  defp signed_token(key, nonce, claims, overrides \\ %{}) do
+    now = DateTime.to_unix(DateTime.utc_now())
+
+    fields =
+      claims
+      |> Map.merge(%{
+        "aud" => "tuist-client",
+        "iss" => "https://accounts.google.com",
+        "exp" => now + 3600,
+        "iat" => now,
+        "nonce" => nonce
+      })
+      |> Map.merge(overrides)
+
+    key |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "google-key"}, fields) |> JOSE.JWS.compact() |> elem(1)
+  end
+
+  defp use_public_key(public_key) do
+    stub(KeyValueStore, :get, fn
+      [Google, "public_keys"] -> [public_key]
+      key -> Mimic.call_original(KeyValueStore, :get, [key])
+    end)
+  end
 end
