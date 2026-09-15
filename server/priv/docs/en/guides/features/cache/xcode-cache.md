@@ -148,6 +148,8 @@ let tuist = Tuist(
 
 With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
 
+The upload policy is recorded per project on the machine that runs `tuist setup cache`. To change it, update `upload` and run `tuist setup cache` again, and `tuist generate` too if Tuist generates your project. Uploads after that follow the new policy without restarting the cache on that machine. Jobs for the same project that run on one machine at the same time share its policy, so the most recent `tuist setup cache` decides it for all of them.
+
 ### Store size limit {#store-size-limit}
 
 A compilation cache store grows with every build, and `COMPILATION_CACHE_LIMIT_SIZE` doesn't cap its directory. To bound the project's stores, set `storeSizeLimit` in your `Tuist.swift` file:

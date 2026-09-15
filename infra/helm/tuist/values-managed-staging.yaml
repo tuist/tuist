@@ -150,6 +150,8 @@ server:
       value: "1"
     - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
       value: "1"
+    - name: TUIST_KURA_UNUSED_DAYS
+      value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
     - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON

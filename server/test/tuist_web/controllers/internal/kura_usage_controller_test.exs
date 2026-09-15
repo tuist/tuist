@@ -233,6 +233,26 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"])) == nil
   end
 
+  test "a self-hosted node's usage lands on its credential's account whatever the casing of its tenant", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
+    event_id = "self-hosted-mixed-case-#{account.id}"
+
+    conn =
+      post_events(
+        conn,
+        [build_event(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})],
+        authorization: authorization_header("self-hosted-client", "self-hosted-secret")
+      )
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+
+    assert [%UsageEvent{account_id: account_id}] =
+             ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+    assert account_id == account.id
+  end
+
   test "a self-hosted credential cannot attribute storage telemetry to another tenant", %{conn: conn} do
     account = AccountsFixtures.organization_fixture().account
     stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
