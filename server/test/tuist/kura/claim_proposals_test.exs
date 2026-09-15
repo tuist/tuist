@@ -8,6 +8,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
+  alias Tuist.Kura.PlacerClaim
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -116,6 +117,31 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       end
 
     Repo.insert_all(StorageRollup, rows)
+  end
+
+  defp insert_applied_growth!(account, from, to, median_ring_span_seconds, resolved_at) do
+    Repo.insert!(%ClaimProposal{
+      account_id: account.id,
+      region: "us-east",
+      direction: :grow,
+      current_claim_size: from,
+      recommended_claim_size: to,
+      evidence: %{"retention_floor_seconds" => 3 * 86_400, "median_ring_span_seconds" => median_ring_span_seconds},
+      status: :applied,
+      resolved_at: resolved_at,
+      resolved_by: "automatic"
+    })
+  end
+
+  defp pin_resized_claim!(account, server, claim_size, resized_at) do
+    server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
+
+    Repo.insert!(%PlacerClaim{
+      account_id: account.id,
+      claim_size: claim_size,
+      inserted_at: resized_at,
+      updated_at: resized_at
+    })
   end
 
   describe "sweep/2" do
@@ -255,6 +281,40 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       {:ok, _summary} = ClaimProposals.sweep(@today)
 
       assert ClaimProposals.open_proposal_for(account) == nil
+    end
+
+    test "a growth capped below its projection lets the next step confirm on one day", %{
+      account: account,
+      server: server
+    } do
+      resized_at = DateTime.new!(Date.add(@today, -1), ~T[14:00:00], "Etc/UTC")
+      insert_applied_growth!(account, "8Gi", "16Gi", 20_528, resized_at)
+      pin_resized_claim!(account, server, "16Gi", resized_at)
+      seed_churn_rollups(account, 1, @today)
+      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 13 * @gibibyte])
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.current_claim_size == "16Gi"
+      assert proposal.recommended_claim_size == "32Gi"
+      assert proposal.evidence["window_days"] == 1
+      assert proposal.evidence["after_capped_resize"] == true
+    end
+
+    test "a growth that reached its projection leaves the next step to the normal window", %{
+      account: account,
+      server: server
+    } do
+      insert_applied_growth!(account, "8Gi", "16Gi", 20_528, DateTime.new!(Date.add(@today, -3), ~T[14:00:00], "Etc/UTC"))
+
+      resized_at = DateTime.new!(Date.add(@today, -1), ~T[14:00:00], "Etc/UTC")
+      insert_applied_growth!(account, "16Gi", "20Gi", 3 * 86_400, resized_at)
+      pin_resized_claim!(account, server, "20Gi", resized_at)
+      seed_churn_rollups(account, 1, @today)
+      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 17 * @gibibyte])
+
+      assert {:ok, %{evaluated: 1, open: 0}} = ClaimProposals.sweep(@today)
     end
   end
 
