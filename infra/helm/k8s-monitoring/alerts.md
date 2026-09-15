@@ -1630,9 +1630,12 @@ applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
 shed age grows the claim after two consecutive qualifying days when the ring
-cycled about once a day over them, and after five when it did not. A
-two-day rule therefore alerts on a control loop that is mid-confirmation and
-would keep alerting for days while it does its job. A rule at two days was
+cycled about once a day over them, and after five when it did not. The step
+after a resize that landed below its own projection confirms on a single
+qualifying day of the resized ring instead, as long as that day falls within
+the matching rung's own window of the resize. A two-day rule therefore alerts
+on a control loop that is mid-confirmation and would keep alerting for days
+while it does its job. A rule at two days was
 deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
 only on the artifact described below. One day is the tier worth waking
 someone: it means the loop did not keep up, or cannot act at all.
@@ -3390,6 +3393,13 @@ limit in the summary, which is what the on-call needs to pick the lever:
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
+  - `upload_memory` borrows the elastic ceiling headroom before it queues, so
+    on current versions it means an upload waited 30 seconds with the floor
+    and that headroom both spent, or with pressure above normal closing the
+    borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
+    below. Older versions queued on the floor alone, so a shed there can come
+    with pressure normal and the headroom unused.
 - `reapi_write_decode`, `reapi_materialization`: the same budget on the
   remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
   Bazel retries, so this counter is the only place they show, and a

@@ -156,18 +156,23 @@ defmodule Tuist.Accounts do
 
   @doc """
   Batch lookup for `get_account_by_handle/1`. Returns a map of
-  `handle => account_id` for every handle that resolves. Handles that
-  don't match an account are simply absent from the map.
+  `handle => account_id` for every handle that resolves, keyed by the handle
+  as requested. Handles match regardless of casing, like account names, so a
+  handle that differs from the account's only in casing still resolves.
+  Handles that don't match an account are absent from the map.
 
   Use this instead of mapping over `get_account_by_handle/1` to avoid
   the N+1 query pattern when resolving Kura-style handle batches.
   """
   def get_account_ids_by_handles(handles) when is_list(handles) do
-    handles = Enum.uniq(handles)
+    handles = handles |> Enum.filter(&is_binary/1) |> Enum.uniq()
 
-    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
-    |> Repo.all()
-    |> Map.new()
+    ids =
+      from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
+      |> Repo.all()
+      |> Map.new(fn {name, id} -> {String.downcase(name), id} end)
+
+    for handle <- handles, {:ok, id} <- [Map.fetch(ids, String.downcase(handle))], into: %{}, do: {handle, id}
   end
 
   @doc ~S"""
