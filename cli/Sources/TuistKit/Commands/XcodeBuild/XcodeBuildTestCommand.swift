@@ -69,13 +69,6 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     )
     var stressNewTests: StressNewTestsMode?
 
-    @Flag(
-        name: .long,
-        help: "Gather code coverage by passing '-enableCodeCoverage YES' to xcodebuild. Coverage found in the result bundle is always reported, so this is only needed when the scheme does not enable it.",
-        envKey: .testCoverage
-    )
-    var coverage: Bool = false
-
     @Option(
         name: .long,
         help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
@@ -100,8 +93,7 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
                 shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 mode: inspectMode,
-                stressNewTests: stressNewTests,
-                coverage: coverage
+                stressNewTests: stressNewTests
             )
     }
 }

@@ -84,8 +84,7 @@ struct XcodeBuildTestCommandService {
         shardPlanId: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil,
-        stressNewTests: StressNewTestsMode? = nil,
-        coverage: Bool = false
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
         // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
         // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
@@ -98,7 +97,6 @@ struct XcodeBuildTestCommandService {
             resolvedResultBundlePath
         ) = try await resolveResultBundlePath(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         passthroughXcodebuildArguments.append(contentsOf: resultBundlePathArgs)
-        passthroughXcodebuildArguments = Self.enablingCodeCoverage(passthroughXcodebuildArguments, when: coverage)
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
@@ -401,11 +399,6 @@ struct XcodeBuildTestCommandService {
             return nil
         }
         return try? await rootDirectoryLocator.locate(from: workingDirectory)
-    }
-
-    static func enablingCodeCoverage(_ arguments: [String], when enabled: Bool) -> [String] {
-        guard enabled, !arguments.contains("-enableCodeCoverage") else { return arguments }
-        return arguments + ["-enableCodeCoverage", "YES"]
     }
 }
 

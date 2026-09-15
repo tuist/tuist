@@ -147,49 +147,6 @@ struct XcodeBuildTestCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func enablesCodeCoverageWhenAsked() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
-        let resultBundlePath = temporaryDirectory.appending(component: "custom.xcresult")
-        let arguments = ["test", "-scheme", "MyAppTests", "-resultBundlePath", resultBundlePath.pathString]
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(xcodeBuildArgumentParser)
-            .parse(.any)
-            .willReturn(.test(derivedDataPath: nil))
-        given(xcodeBuildController)
-            .run(arguments: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(passthroughXcodebuildArguments: arguments, coverage: true)
-
-        // Then
-        verify(xcodeBuildController)
-            .run(
-                arguments: .value([
-                    "test",
-                    "-scheme", "MyAppTests",
-                    "-resultBundlePath", resultBundlePath.pathString,
-                    "-enableCodeCoverage", "YES",
-                ])
-            )
-            .called(1)
-    }
-
-    @Test
-    func enablingCodeCoverageLeavesTheCallersChoiceAlone() {
-        let explicit = ["test", "-enableCodeCoverage", "NO"]
-        #expect(XcodeBuildTestCommandService.enablingCodeCoverage(explicit, when: true) == explicit)
-        #expect(XcodeBuildTestCommandService.enablingCodeCoverage(["test"], when: false) == ["test"])
-        #expect(
-            XcodeBuildTestCommandService.enablingCodeCoverage(["test"], when: true) == ["test", "-enableCodeCoverage", "YES"]
-        )
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func preservesResultBundlePathWhenPassed() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         // Given

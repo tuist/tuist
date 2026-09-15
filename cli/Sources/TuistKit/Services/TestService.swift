@@ -256,16 +256,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil,
-        stressNewTests: StressNewTestsMode? = nil,
-        coverage: Bool = false
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
-        // Before any branch hands the arguments to xcodebuild: the shard and prebuilt-bundle
-        // paths return early below.
-        var passthroughXcodeBuildArguments = XcodeBuildTestCommandService.enablingCodeCoverage(
-            passthroughXcodeBuildArguments,
-            when: coverage
-        )
-
         if validateTestTargetsParameters {
             try Self.validateParameters(
                 testTargets: testTargets,
@@ -528,6 +520,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             return
         }
+
+        var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
 
         if isSharding, action == .build,
            !passthroughXcodeBuildArguments.contains("-testProductsPath")

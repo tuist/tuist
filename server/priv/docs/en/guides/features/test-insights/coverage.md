@@ -21,18 +21,54 @@ When a test run gathers code coverage, Tuist reads the coverage Xcode writes int
 
 ## Setup {#setup}
 
-Coverage is reported whenever the result bundle contains it. Xcode gathers it when the scheme's test action has *Gather coverage* enabled, or when `xcodebuild` runs with `-enableCodeCoverage YES`.
+Tuist uploads the coverage of every test run whose result bundle contains it. You enable coverage the way Xcode expects, and nothing else is needed.
 
-If your scheme does not enable it, pass `--coverage` to `tuist xcodebuild test` or `tuist test` and Tuist adds the flag for you:
+For projects generated with Tuist, enable it in the scheme's test action:
 
-```bash
-tuist xcodebuild test --coverage -workspace App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 16'
+```swift
+.scheme(
+    name: "App",
+    testAction: .targets(["AppTests"], options: .options(coverage: true, codeCoverageTargets: ["App"]))
+)
 ```
 
-The same works with the `TUIST_TEST_COVERAGE=1` environment variable. A `-enableCodeCoverage` argument you pass yourself always wins.
+or for automatically generated schemes:
 
-> [!NOTE]
-> Coverage is read from the result bundle, so it works with every way of reporting a run: `tuist xcodebuild test`, `tuist test`, and the `tuist inspect test` scheme post-action.
+```swift
+let project = Project(
+    name: "App",
+    options: .options(automaticSchemesOptions: .enabled(codeCoverageEnabled: true)),
+    targets: [...]
+)
+```
+
+Then run your tests as usual, locally and on CI:
+
+```bash
+tuist test App
+```
+
+For other projects, tick *Gather coverage* in the scheme's test options, or pass `-enableCodeCoverage YES`:
+
+```bash
+tuist xcodebuild test -workspace App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 16' -enableCodeCoverage YES
+```
+
+Runs reported through the `tuist inspect test` scheme post-action include coverage in the same way.
+
+### Opting out of the upload {#opting-out}
+
+To upload test runs without their coverage, for example when coverage must not leave your machines, set it in `Tuist.swift`:
+
+```swift
+let tuist = Tuist(
+    fullHandle: "org/app",
+    testInsights: .testInsights(coverage: .coverage(upload: false)),
+    project: .tuist()
+)
+```
+
+The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this setting, so a single run or CI job can opt out (`TUIST_COVERAGE_UPLOAD=0`) or back in (`TUIST_COVERAGE_UPLOAD=1`). Xcode still gathers coverage either way.
 
 ## How it is processed {#how-it-is-processed}
 

@@ -286,6 +286,11 @@ final class DumpServiceTests: TuistTestCase {
                   ]
                 }
               },
+              "testInsights": {
+                "coverage": {
+                  "upload": true
+                }
+              },
               "url": "https://tuist.dev",
               "xcodeCache": {
                 "upload": true

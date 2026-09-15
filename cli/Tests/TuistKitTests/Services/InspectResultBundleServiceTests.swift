@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistAutomation
 import TuistCI
+import TuistConfig
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -924,6 +925,52 @@ struct UploadResultBundleServiceTests {
         verify(xcResultService)
             .parseCoverage(path: .any, manifest: .matching { !$0.partial })
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_leavesCoverageOutWhenTheConfigTurnsItsUploadOff() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        // A manifest an earlier upload of the same bundle left behind.
+        try await fileSystem.writeText("{}", at: xcresultPath.appending(component: XcodeCoverageManifest.fileName))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(
+                fullHandle: "tuist/tuist",
+                testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false))
+            ),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        // Nothing is read from the bundle and nothing is added to it.
+        verify(xcResultService).coveredFilePaths(path: .any).called(0)
+        #expect(try await !fileSystem.exists(xcresultPath.appending(component: XcodeCoverageManifest.fileName)))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadsCoverage_letsTheEnvironmentVariableOverrideTheConfig() throws {
+        let enabled = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+        let disabled = TuistConfig.Tuist.test(
+            fullHandle: "tuist/tuist",
+            testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false))
+        )
+
+        #expect(UploadResultBundleService.uploadsCoverage(config: enabled))
+        #expect(!UploadResultBundleService.uploadsCoverage(config: disabled))
+
+        Environment.mocked?.variables[UploadResultBundleService.coverageUploadVariable] = "0"
+        #expect(!UploadResultBundleService.uploadsCoverage(config: enabled))
+
+        Environment.mocked?.variables[UploadResultBundleService.coverageUploadVariable] = "1"
+        #expect(UploadResultBundleService.uploadsCoverage(config: disabled))
     }
 
     @Test(.inTemporaryDirectory)

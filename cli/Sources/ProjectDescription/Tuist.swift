@@ -73,6 +73,32 @@ public struct Tuist: Codable, Equatable, Sendable {
     @available(*, deprecated, renamed: "XcodeCache")
     public typealias Cache = XcodeCache
 
+    /// Options for configuring Test Insights.
+    public struct TestInsights: Codable, Equatable, Sendable {
+        /// Options for the code coverage of test runs.
+        public struct Coverage: Codable, Equatable, Sendable {
+            /// When `true` (default), the code coverage a test run gathered is uploaded with it.
+            /// Set to `false` to upload test runs without their coverage.
+            public let upload: Bool
+
+            /// Creates code coverage options.
+            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
+            ///   The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
+            public static func coverage(upload: Bool = true) -> Self {
+                Coverage(upload: upload)
+            }
+        }
+
+        /// The code coverage options.
+        public let coverage: Coverage
+
+        /// Creates Test Insights options.
+        /// - Parameter coverage: The code coverage options.
+        public static func testInsights(coverage: Coverage = .coverage()) -> Self {
+            TestInsights(coverage: coverage)
+        }
+    }
+
     /// Configures the project Tuist will interact with.
     /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
     public let project: TuistProject
@@ -88,6 +114,9 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// The Xcode Cache configuration.
     public let xcodeCache: XcodeCache
+
+    /// The Test Insights configuration.
+    public let testInsights: TestInsights
 
     /// The base URL that points to the Tuist server.
     public let url: String
@@ -134,6 +163,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.inspectOptions = inspectOptions
         self.network = network
         xcodeCache = .xcodeCache()
+        testInsights = .testInsights()
         self.url = url
         dumpIfNeeded(self)
     }
@@ -142,6 +172,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
         xcodeCache: XcodeCache = .xcodeCache(),
+        testInsights: TestInsights = .testInsights(),
         url: String = "https://tuist.dev",
         network: Network = .network(),
         project: TuistProject
@@ -151,11 +182,12 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.inspectOptions = inspectOptions
         self.network = network
         self.xcodeCache = xcodeCache
+        self.testInsights = testInsights
         self.url = url
         dumpIfNeeded(self)
     }
 
-    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:url:network:project:)")
+    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:testInsights:url:network:project:)")
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),

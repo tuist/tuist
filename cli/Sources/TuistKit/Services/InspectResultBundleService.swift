@@ -155,6 +155,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         if let resultBundlePath,
            let manifest = await coverageManifest(
                resultBundlePath: resultBundlePath,
+               config: config,
                rootDirectory: gitInfoDirectory,
                onlyTestIdentifiers: onlyTestIdentifiers,
                skipTestIdentifiers: skipTestIdentifiers
@@ -251,16 +252,19 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // The server reads the coverage from the bundle, but only this checkout can say which
         // repository files its paths are and which Git blobs they had, so that travels inside the
         // bundle, the way the quarantined tests do.
+        let coverageManifestPath = resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
         if let manifest = await coverageManifest(
             resultBundlePath: resolvedResultBundlePath,
+            config: config,
             rootDirectory: gitInfoDirectory,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers
         ) {
-            try await fileSystem.writeAsJSON(
-                manifest,
-                at: resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
-            )
+            try await fileSystem.writeAsJSON(manifest, at: coverageManifestPath)
+        } else if try await fileSystem.exists(coverageManifestPath) {
+            // An earlier upload of this bundle wrote one; the server reads coverage from whatever
+            // manifest the bundle carries.
+            try await fileSystem.remove(coverageManifestPath)
         }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
@@ -437,10 +441,12 @@ extension UploadResultBundleService {
     /// nothing else.
     private func coverageManifest(
         resultBundlePath: AbsolutePath,
+        config: Tuist,
         rootDirectory: AbsolutePath,
         onlyTestIdentifiers: [String],
         skipTestIdentifiers: [String]
     ) async -> XcodeCoverageManifest? {
+        guard Self.uploadsCoverage(config: config) else { return nil }
         do {
             guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
 
@@ -474,6 +480,17 @@ extension UploadResultBundleService {
             )
             return nil
         }
+    }
+
+    static let coverageUploadVariable = "TUIST_COVERAGE_UPLOAD"
+
+    /// The environment variable, when set, wins over `Tuist.swift`, so a single run or CI job can
+    /// opt out of, or back into, a team-wide setting.
+    static func uploadsCoverage(config: Tuist) -> Bool {
+        guard Environment.current.variables[coverageUploadVariable] != nil else {
+            return config.testInsights.coverage.upload
+        }
+        return Environment.current.isVariableTruthy(coverageUploadVariable)
     }
 
     /// Every spelling of the root the covered files use. The compiler records the path the build
