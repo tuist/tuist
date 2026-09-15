@@ -18,6 +18,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -62,6 +63,7 @@ defmodule TuistWeb.TestRunLive do
     end
 
     slug = Projects.get_project_slug_from_id(project.id)
+    socket = assign(socket, :coverage_enabled, FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account))
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
@@ -639,6 +641,10 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failed_test_case_runs, meta, params)
+  end
+
+  defp assign_tab_data(%{assigns: %{coverage_enabled: false}} = socket, "coverage", params) do
+    assign_tab_data(socket, "overview", params)
   end
 
   defp assign_tab_data(socket, "coverage", params) do

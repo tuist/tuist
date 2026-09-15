@@ -484,9 +484,12 @@ extension UploadResultBundleService {
 
     static let coverageUploadVariable = "TUIST_COVERAGE_UPLOAD"
 
-    /// The environment variable, when set, wins over `Tuist.swift`, so a single run or CI job can
+    /// Coverage is in early access behind the `COVERAGE` client feature flag
+    /// (`TUIST_FEATURE_FLAG_COVERAGE=1`), so released CLIs do no coverage work until it ships. Once
+    /// on, the environment variable, when set, wins over `Tuist.swift`, so a single run or CI job can
     /// opt out of, or back into, a team-wide setting.
     static func uploadsCoverage(config: Tuist) -> Bool {
+        guard ClientFeatureFlags.contains("COVERAGE") else { return false }
         guard Environment.current.variables[coverageUploadVariable] != nil else {
             return config.testInsights.coverage.upload
         }

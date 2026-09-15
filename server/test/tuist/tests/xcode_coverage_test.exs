@@ -112,6 +112,18 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     end
   end
 
+  describe "the xcode_coverage feature flag" do
+    test "drops the coverage of an account that does not have it", %{project: project, account: account} do
+      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
+
+      assert {:ok, stored} = Tests.get_test(test.id)
+      assert stored.coverage_executable_lines == 0
+      assert {[], 0} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+    end
+  end
+
   describe "partial runs" do
     test "are marked partial and never borrow coverage from earlier runs", %{project: project, account: account} do
       {:ok, _full} = create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter()])})
@@ -140,7 +152,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
           partial: true
         )
 
-      rows = XcodeCoverage.rows(other_shard)
+      rows = XcodeCoverage.rows(project.id, other_shard)
       XcodeCoverage.insert_files(stored, rows)
 
       assert %{coverage_covered_lines: 3, coverage_executable_lines: 5, coverage_partial: true} =

@@ -40,7 +40,7 @@ defmodule Tuist.Processor.XCResultProcessor do
       temp_dir = make_temp_dir()
 
       try do
-        result = process_archive(archive_path, temp_dir)
+        result = process_archive(archive_path, temp_dir, Keyword.get(opts, :read_coverage, false))
 
         with {:ok, parsed_data} <- result do
           OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
@@ -54,11 +54,15 @@ defmodule Tuist.Processor.XCResultProcessor do
     end
   end
 
-  defp process_archive(archive_path, temp_dir) do
+  defp process_archive(archive_path, temp_dir, read_coverage) do
     with :ok <- span("xcresult.extract_archive", fn -> extract_archive(archive_path, temp_dir) end),
          xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir),
          :ok <- validate_xcresult(xcresult_path) do
       root_dir = Path.dirname(xcresult_path)
+
+      # The parser reads coverage from any bundle that carries a manifest; without
+      # it, xccov is never spawned for an account that has coverage turned off.
+      if not read_coverage, do: File.rm(Path.join(xcresult_path, "tuist_coverage_manifest.json"))
 
       with {:ok, parsed_data} <-
              span("xcresult.parse", fn -> parse_xcresult_with_telemetry(xcresult_path, root_dir) end) do

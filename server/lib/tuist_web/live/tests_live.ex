@@ -13,6 +13,7 @@ defmodule TuistWeb.TestsLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -207,7 +208,10 @@ defmodule TuistWeb.TestsLive do
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_test_scheme = params["analytics-test-scheme"] || "any"
-    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+    coverage_enabled = FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account)
+
+    analytics_selected_widget = selected_analytics_widget(params["analytics-selected-widget"], coverage_enabled)
+
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
     duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
@@ -233,6 +237,7 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
+    |> assign(:coverage_enabled, coverage_enabled)
     |> assign_async(
       [
         :test_runs_analytics,
@@ -252,7 +257,11 @@ defmodule TuistWeb.TestsLive do
           Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
 
         test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
-        test_runs_coverage_analytics = Analytics.test_run_coverage_analytics(project.id, opts)
+
+        test_runs_coverage_analytics =
+          if coverage_enabled,
+            do: Analytics.test_run_coverage_analytics(project.id, opts),
+            else: %{coverage: 0.0, runs_count: 0, trend: nil, dates: [], values: []}
 
         {:ok,
          %{
@@ -396,6 +405,12 @@ defmodule TuistWeb.TestsLive do
       {:ok, %{most_flaky_test_cases: most_flaky_test_cases}}
     end)
   end
+
+  # The coverage widget is hidden from accounts without coverage, so a link that selects it
+  # falls back to the default widget.
+  defp selected_analytics_widget("coverage", false), do: "test_run_count"
+  defp selected_analytics_widget(nil, _coverage_enabled), do: "test_run_count"
+  defp selected_analytics_widget(widget, _coverage_enabled), do: widget
 
   defp analytics_chart_data(
          analytics_selected_widget,

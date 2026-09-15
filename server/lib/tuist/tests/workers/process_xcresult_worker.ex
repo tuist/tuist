@@ -29,6 +29,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     ]
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Projects
   alias Tuist.Storage
@@ -255,7 +256,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
               test_run_id: test_run_id,
               account_handle: args["account_handle"],
               project_handle: args["project_handle"],
-              s3_bucket: Environment.s3_bucket_name()
+              s3_bucket: Environment.s3_bucket_name(),
+              read_coverage: FeatureFlags.xcode_coverage_enabled?(account)
             ]
 
             XCResultProcessor.process_local(temp_path, opts)

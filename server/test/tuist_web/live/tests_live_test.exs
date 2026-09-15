@@ -62,6 +62,22 @@ defmodule TuistWeb.TestsLiveTest do
     assert has_element?(lv, "#widget-coverage", "75.0%")
   end
 
+  test "hides the line coverage widget from an account without the xcode_coverage flag", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests?analytics-selected-widget=coverage")
+
+    render_async(lv, @render_async_timeout)
+
+    refute has_element?(lv, "#widget-coverage")
+    refute has_element?(lv, "#coverage-chart")
+  end
+
   test "leaves partial runs out of the line coverage widget", %{
     conn: conn,
     organization: organization,

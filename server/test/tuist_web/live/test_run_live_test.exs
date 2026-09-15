@@ -161,6 +161,50 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
   end
 
+  test "hides the coverage tab from an account without the xcode_coverage flag", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          partial: false,
+          files: [
+            %{
+              path: "Sources/Add.swift",
+              git_blob_id: "abc",
+              targets: ["App"],
+              covered_lines: 1,
+              executable_lines: 2,
+              line_numbers: [1, 2],
+              execution_counts: [1, 0],
+              functions: []
+            }
+          ]
+        }
+      })
+
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage")
+
+    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
+    refute has_element?(lv, "#widget-coverage-percentage")
+  end
+
   test "hides the coverage tab for a run that gathered none", %{
     conn: conn,
     organization: organization,

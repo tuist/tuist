@@ -835,6 +835,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_readsTheBundlesCoverageAgainstTheCheckout() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         let coverage = XcodeCoverageReport(partial: true, files: [])
@@ -896,6 +897,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_doesNotMarkARunPartialForQuarantinedTestsAlone() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         given(xcResultService)
@@ -929,6 +931,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_leavesCoverageOutWhenTheConfigTurnsItsUploadOff() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -957,6 +960,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadsCoverage_letsTheEnvironmentVariableOverrideTheConfig() throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let enabled = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
         let disabled = TuistConfig.Tuist.test(
             fullHandle: "tuist/tuist",
@@ -971,6 +975,28 @@ struct UploadResultBundleServiceTests {
 
         Environment.mocked?.variables[UploadResultBundleService.coverageUploadVariable] = "1"
         #expect(UploadResultBundleService.uploadsCoverage(config: disabled))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_doesNoCoverageWorkWithoutTheFeatureFlag() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        verify(xcResultService).coveredFilePaths(path: .any).called(0)
+        #expect(try await !fileSystem.exists(xcresultPath.appending(component: XcodeCoverageManifest.fileName)))
     }
 
     @Test(.inTemporaryDirectory)
@@ -999,6 +1025,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_writesTheCoverageManifestIntoTheBundle() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)

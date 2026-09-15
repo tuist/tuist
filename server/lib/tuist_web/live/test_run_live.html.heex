@@ -228,7 +228,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@run.coverage_executable_lines > 0}
+      :if={@coverage_enabled and @run.coverage_executable_lines > 0}
       label={dgettext("dashboard_tests", "Coverage")}
       selected={@selected_tab == "coverage"}
       patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
@@ -2223,7 +2223,7 @@
   </.card>
 
   <div
-    :if={@selected_tab == "coverage" and @run.coverage_executable_lines > 0}
+    :if={@selected_tab == "coverage" and @coverage_enabled and @run.coverage_executable_lines > 0}
     data-part="coverage"
   >
     <.card

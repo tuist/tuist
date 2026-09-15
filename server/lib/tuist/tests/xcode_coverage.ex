@@ -22,18 +22,32 @@ defmodule Tuist.Tests.XcodeCoverage do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Tests.Test
   alias Tuist.Tests.XcodeCoverageFile
 
   @insert_chunk_size 2_000
 
   @doc """
-  The rows to store for the `xcode_coverage` block reported with a run.
+  The rows to store for the `xcode_coverage` block reported with a run, or nil
+  when the project's account does not have coverage enabled.
   """
-  def rows(nil), do: nil
+  def rows(_project_id, nil), do: nil
 
-  def rows(coverage) do
+  def rows(project_id, coverage) do
+    if enabled_for_project?(project_id), do: rows(coverage)
+  end
+
+  defp enabled_for_project?(project_id) do
+    case Projects.get_project_by_id(project_id) do
+      nil -> false
+      project -> FeatureFlags.xcode_coverage_enabled?(project.account)
+    end
+  end
+
+  defp rows(coverage) do
     %{partial: Map.get(coverage, :partial, false), files: coverage |> Map.get(:files, []) |> Enum.map(&file_row/1)}
   end
 
