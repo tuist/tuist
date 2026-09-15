@@ -104,6 +104,19 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       assert row.desired_segment_count == 50
     end
 
+    test "resolves a tenant whose casing differs from the account handle" do
+      account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+      event_id = "snapshot-mixed-case-#{account.id}"
+
+      {:ok, 1} =
+        StorageTelemetry.create_storage_snapshots([
+          snapshot_payload(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})
+        ])
+
+      row = ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^event_id))
+      assert row.account_id == account.id
+    end
+
     test "an absent oldest-segment timestamp lands as the epoch" do
       {:ok, 1} =
         StorageTelemetry.create_storage_snapshots([

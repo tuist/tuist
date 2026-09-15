@@ -6275,4 +6275,14 @@ defmodule Tuist.AccountsTest do
     {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
     token
   end
+
+  describe "get_account_ids_by_handles/1" do
+    test "keys each account id by the handle as requested, whatever its casing" do
+      account = organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
+      downcased = String.downcase(account.name)
+
+      assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
+               %{account.name => account.id, downcased => account.id}
+    end
+  end
 end
