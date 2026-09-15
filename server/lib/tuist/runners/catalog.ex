@@ -196,7 +196,7 @@ defmodule Tuist.Runners.Catalog do
   """
   def xcode_versions do
     raw =
-      case Application.get_env(:tuist, :runner_macos_xcode_versions, []) do
+      case Tuist.Environment.runner_macos_xcode_versions() do
         list when is_list(list) -> list
         _ -> []
       end

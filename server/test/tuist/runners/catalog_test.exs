@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.CatalogTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.Runners.Catalog
@@ -250,25 +250,25 @@ defmodule Tuist.Runners.CatalogTest do
 
   describe "xcode_versions/0" do
     test "lists a stable release ahead of its prerelease channel" do
-      put_xcode_versions(["26.0.1", "27.0-beta", "26.5", "27.0", "26.4.1", "26.6", "26.3"])
+      stub_xcode_versions(["26.0.1", "27.0-beta", "26.5", "27.0", "26.4.1", "26.6", "26.3"])
 
       assert xcode_version_names() == ["27.0", "27.0-beta", "26.6", "26.5", "26.4.1", "26.3", "26.0.1"]
     end
 
     test "compares version segments numerically" do
-      put_xcode_versions(["26.9", "26.10", "26.2"])
+      stub_xcode_versions(["26.9", "26.10", "26.2"])
 
       assert xcode_version_names() == ["26.10", "26.9", "26.2"]
     end
 
     test "lists a patch release ahead of its minor release" do
-      put_xcode_versions(["26.4", "26.3", "26.4.1"])
+      stub_xcode_versions(["26.4", "26.3", "26.4.1"])
 
       assert xcode_version_names() == ["26.4.1", "26.4", "26.3"]
     end
 
     test "sorts unparseable versions last" do
-      put_xcode_versions(["nightly", "26.5", "26.x", "26.10"])
+      stub_xcode_versions(["nightly", "26.5", "26.x", "26.10"])
 
       names = xcode_version_names()
 
@@ -317,10 +317,10 @@ defmodule Tuist.Runners.CatalogTest do
     shape
   end
 
-  defp put_xcode_versions(versions) do
-    previous = Application.get_env(:tuist, :runner_macos_xcode_versions)
-    Application.put_env(:tuist, :runner_macos_xcode_versions, Enum.map(versions, &%{xcode_version: &1}))
-    on_exit(fn -> Application.put_env(:tuist, :runner_macos_xcode_versions, previous) end)
+  defp stub_xcode_versions(versions) do
+    stub(Tuist.Environment, :runner_macos_xcode_versions, fn ->
+      Enum.map(versions, &%{xcode_version: &1})
+    end)
   end
 
   defp xcode_version_names do
