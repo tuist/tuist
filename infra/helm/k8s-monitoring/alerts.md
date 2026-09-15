@@ -1630,9 +1630,12 @@ applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
 shed age grows the claim after two consecutive qualifying days when the ring
-cycled about once a day over them, and after five when it did not. A
-two-day rule therefore alerts on a control loop that is mid-confirmation and
-would keep alerting for days while it does its job. A rule at two days was
+cycled about once a day over them, and after five when it did not. The step
+after a resize that landed below its own projection confirms on a single
+qualifying day of the resized ring instead, as long as that day falls within
+the matching rung's own window of the resize. A two-day rule therefore alerts
+on a control loop that is mid-confirmation and would keep alerting for days
+while it does its job. A rule at two days was
 deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
 only on the artifact described below. One day is the tier worth waking
 someone: it means the loop did not keep up, or cannot act at all.
