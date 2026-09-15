@@ -393,6 +393,20 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 /// building, which the size caps alone never release.
 const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 
+/// How often `bound_store` measures a store whose project set a size limit.
+/// Measuring walks the store directory, and a prune that could not rotate the
+/// store (another process still holds it open) would otherwise be retried on
+/// every tick.
+const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
+/// The per-generation limit that keeps a pruned store at about
+/// `store_size_limit` bytes. A pruned store keeps two generations, the primary
+/// and the upstream it demoted, so each gets half. Never 0, which
+/// `set_ondisk_limit` reads as imposing no limit.
+fn generation_limit(store_size_limit: u64) -> u64 {
+    (store_size_limit / 2).max(1)
+}
+
 /// A cached resolve outcome for a key.
 enum Resolution {
     /// Lookup metadata cannot suppress a replacement upload after a failed
@@ -1397,6 +1411,7 @@ struct SourceContext {
     trunk: Option<String>,
     ci_branch: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
 /// How long a recorded context is reused before the proxy re-reads the registry,
@@ -1409,6 +1424,7 @@ struct SourceBranches {
     branch: Option<String>,
     trunk: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
 /// What `tuist setup cache` recorded for an instance.
@@ -1447,6 +1463,10 @@ struct RegisteredSource {
     /// Absent is permissive: nothing recorded is nothing to withhold.
     #[serde(default = "uploads_by_default")]
     upload: bool,
+    /// The project's `xcodeCache.storeSizeLimit`, in bytes: what `bound_stores`
+    /// prunes the project's stores back to. Absent is unbounded.
+    #[serde(default, rename = "storeSizeLimit")]
+    store_size_limit: Option<u64>,
 }
 
 fn uploads_by_default() -> bool {
@@ -1529,6 +1549,8 @@ pub struct Proxy {
     // When we last said a refresh was held off for a busy machine (see
     // `log_busy`).
     busy_logged_at: Mutex<Option<Instant>>,
+    // cas_path -> when `bound_store` last measured it.
+    store_bound_checked: Mutex<HashMap<String, Instant>>,
 
     // Keys answered by a per-key lookup while a snapshot was Ready: they fell
     // out of the server's size-capped wire view, which ranks by version — a
@@ -1594,6 +1616,7 @@ impl Proxy {
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             busy_logged_at: Mutex::new(None),
+            store_bound_checked: Mutex::new(HashMap::new()),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
@@ -3189,6 +3212,60 @@ impl Proxy {
         }
     }
 
+    /// Prunes every store this proxy holds whose project set
+    /// `xcodeCache.storeSizeLimit` and that has grown past it. Called from the
+    /// maintenance loop and skipped while the machine is busy: a store only
+    /// rotates when the proxy's handle is its last, which a running build's
+    /// compilers prevent, and the prune holds the store's write lock while it
+    /// deletes.
+    pub fn bound_stores(&self) {
+        if self.busy_reason().is_some() {
+            return;
+        }
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
+                continue;
+            };
+            if let Some(limit) = self.source_context(&instance).store_size_limit {
+                self.bound_store(&cas_path, state, limit);
+            }
+        }
+    }
+
+    /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL and
+    /// prunes it when it occupies more than `limit` bytes.
+    fn bound_store(&self, cas_path: &str, state: &PathState, limit: u64) {
+        {
+            let mut checked = self.store_bound_checked.lock().unwrap();
+            if checked
+                .get(cas_path)
+                .is_some_and(|at| at.elapsed() < STORE_BOUND_INTERVAL)
+            {
+                return;
+            }
+            checked.insert(cas_path.to_string(), Instant::now());
+        }
+        let size = directory_size(cas_path);
+        if size <= limit {
+            return;
+        }
+        match state.prune_ondisk(generation_limit(limit)) {
+            Ok(reclaimed) => crate::log_line(&format!(
+                "store {cas_path} occupies {size} bytes, past its {limit}-byte limit: pruning reclaimed {reclaimed} bytes"
+            )),
+            Err(message) => crate::log_line(&format!(
+                "store {cas_path} occupies {size} bytes, past its {limit}-byte limit: prune failed: {message}"
+            )),
+        }
+    }
+
     /// Why background snapshot work should wait, or None when the machine is
     /// free enough to do it. Two signals, both cheap enough for every tick:
     ///
@@ -3915,6 +3992,7 @@ impl Proxy {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
                         upload: context.upload,
+                        store_size_limit: context.store_size_limit,
                     };
                 }
             }
@@ -3924,6 +4002,7 @@ impl Proxy {
         let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
         // Unknown instance: nothing recorded, so nothing to withhold.
         let upload = source.as_ref().map(|source| source.upload).unwrap_or(true);
+        let store_size_limit = source.as_ref().and_then(|source| source.store_size_limit);
         {
             let cache = self.source_cache.lock().unwrap();
             let changed = cache
@@ -3943,9 +4022,15 @@ impl Proxy {
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
                 upload,
+                store_size_limit,
             },
         );
-        SourceBranches { branch, trunk, upload }
+        SourceBranches {
+            branch,
+            trunk,
+            upload,
+            store_size_limit,
+        }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
@@ -3956,6 +4041,7 @@ impl Proxy {
             trunk: source.trunk.clone(),
             ci_branch: source.ci_branch.clone(),
             upload: source.upload,
+            store_size_limit: source.store_size_limit,
         };
         if let Some(path) = self.registry_path.as_deref() {
             match load_sources(&sources_path_for(path)) {
@@ -5387,6 +5473,7 @@ mod tests {
                 "tuist/ci":        {"trunk": "main", "branch": "feature/x"},
                 "tuist/no-trunk":  {"branch": "feature/y"},
                 "tuist/read-only": {"trunk": "main", "upload": false},
+                "tuist/bounded":   {"trunk": "main", "storeSizeLimit": 1073741824},
                 "tuist/newer":     {"trunk": "main", "something-we-do-not-know": 1},
                 "tuist/dev":       {"trunk": "main"},
                 "tuist/bare":      {}
@@ -5423,6 +5510,10 @@ mod tests {
         assert_eq!(bare.trunk, None);
         assert_eq!(bare.ci_branch, None);
         assert!(bare.upload, "nothing recorded is nothing to withhold");
+        assert_eq!(bare.store_size_limit, None, "nothing recorded is no limit");
+
+        let bounded = sources.get("tuist/bounded").expect("bounded entry");
+        assert_eq!(bounded.store_size_limit, Some(1024 * 1024 * 1024));
 
         // Unreadable is not the same as empty: a project this read forgot would
         // come back as unknown, and unknown has to be allowed to upload.
@@ -6576,6 +6667,56 @@ mod tests {
             generations(&dir),
             before,
             "an over-limit store must still rotate after concurrent registration"
+        );
+    }
+
+    #[test]
+    fn a_store_size_limit_is_split_across_the_two_generations_a_pruned_store_keeps() {
+        assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
+        assert_eq!(
+            generation_limit(1),
+            1,
+            "a limit of 0 would lift the bound instead of imposing one"
+        );
+    }
+
+    /// A project's `storeSizeLimit` is enforced without a caller asking: a store
+    /// past it is rotated and pruned, a store within it is left alone, and a
+    /// store is measured at most once per STORE_BOUND_INTERVAL.
+    #[test]
+    fn a_store_past_its_projects_size_limit_is_pruned() {
+        const LIMIT: u64 = 2 * 1024 * 1024;
+        let proxy = test_proxy();
+
+        let within = TempCasDir::new("bound-within");
+        let within_state = path_state_for(&within.path());
+        fill_to(within_state, &within, 24 * 1024 * 1024);
+        let untouched = generations(&within);
+        proxy.bound_store(&within.path(), within_state, u64::MAX);
+        assert_eq!(
+            generations(&within),
+            untouched,
+            "a store within its limit is left alone"
+        );
+
+        let over = TempCasDir::new("bound-over");
+        let over_state = path_state_for(&over.path());
+        fill_to(over_state, &over, 24 * 1024 * 1024);
+        assert_eq!(generations(&over).len(), 1);
+        proxy.bound_store(&over.path(), over_state, LIMIT);
+        let bounded = generations(&over);
+        assert_eq!(
+            bounded.len(),
+            2,
+            "a store past its limit rotates, keeping the full generation as upstream"
+        );
+
+        fill_to(over_state, &over, directory_size(&over.path()) + 24 * 1024 * 1024);
+        proxy.bound_store(&over.path(), over_state, LIMIT);
+        assert_eq!(
+            generations(&over),
+            bounded,
+            "a store measured within STORE_BOUND_INTERVAL is not measured again"
         );
     }
 

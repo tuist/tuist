@@ -812,6 +812,63 @@ struct SetupCacheCommandServiceTests {
         """)
     }
 
+    /// The proxy prunes a project's stores back to its `xcodeCache.storeSizeLimit`,
+    /// and this record is the only way the limit reaches it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheStoreSizeLimit() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(storeSizeLimit: 21_474_836_480)))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "storeSizeLimit" : 21474836480,
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
+    }
+
+    /// The proxy reads the limit as an unsigned integer, and a value it cannot parse
+    /// makes it reject the whole registry.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotRecordANonPositiveStoreSizeLimit() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(storeSizeLimit: -1)))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(!sources.contains("storeSizeLimit"))
+    }
+
     /// The registry is machine-wide, and setting one project up rewrites the whole
     /// file, so every other project's row has to survive being read and written back
     /// untouched. A row carrying a branch but no trunk is the case that a positional

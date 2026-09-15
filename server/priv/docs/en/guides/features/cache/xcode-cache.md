@@ -148,6 +148,28 @@ let tuist = Tuist(
 
 With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
 
+### Store size limit {#store-size-limit}
+
+A compilation cache store grows with every build, and `COMPILATION_CACHE_LIMIT_SIZE` doesn't cap its directory. To bound the project's stores, set `storeSizeLimit` in your `Tuist.swift` file:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "your-org/your-project",
+    xcodeCache: .xcodeCache(
+        storeSizeLimit: .gigabytes(20)
+    ),
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true
+        )
+    )
+)
+```
+
+While no build is running, Tuist checks each of the project's stores every 10 minutes and prunes a store that occupies more than the limit, so the store settles at about the limit. A store can grow past the limit while builds are running. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+
 ### Module cache hashes {#module-cache-hashes}
 
 Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
@@ -224,10 +246,9 @@ tuist cache
 
 #### Stateful store {#stateful-store}
 
-To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path.
+To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path, and bound its size with a [store size limit](#store-size-limit).
 
-- `COMPILATION_CACHE_LIMIT_SIZE` doesn't cap the store directory, so the store keeps growing across builds. Budget disk space for it, and reset it when needed as described in [Resetting a compilation cache store](#resetting-a-compilation-cache-store).
-- Measure the store by its allocated blocks, for example with `du -sh "$CAS_PATH"`, not by file sizes. The store preallocates sparse files, so file sizes report much more than the store occupies.
+Measure the store by its allocated blocks, for example with `du -sh "$CAS_PATH"`, not by file sizes. The store preallocates sparse files, so file sizes report much more than the store occupies.
 
 ### Resetting a compilation cache store {#resetting-a-compilation-cache-store}
 

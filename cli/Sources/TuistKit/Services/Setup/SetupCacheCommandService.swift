@@ -60,11 +60,15 @@ private struct RegisteredSource: Codable {
     /// Swift, while the build system's Clang caching runs in its own process
     /// with no plugin options at all. Recorded here so one answer covers both.
     let upload: Bool
+    /// The project's `xcodeCache.storeSizeLimit`, in bytes. The proxy prunes the
+    /// project's stores back to it while the machine is idle.
+    let storeSizeLimit: Int?
 
-    init(trunk: String?, branch: String?, upload: Bool) {
+    init(trunk: String?, branch: String?, upload: Bool, storeSizeLimit: Int?) {
         self.trunk = trunk
         self.branch = branch
         self.upload = upload
+        self.storeSizeLimit = storeSizeLimit
     }
 
     /// Hand-written rather than synthesized, so that an absent field means here
@@ -78,6 +82,7 @@ private struct RegisteredSource: Codable {
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         // Nothing recorded is nothing to withhold (`uploads_by_default` there).
         upload = try container.decodeIfPresent(Bool.self, forKey: .upload) ?? true
+        storeSizeLimit = try container.decodeIfPresent(Int.self, forKey: .storeSizeLimit)
     }
 }
 
@@ -162,7 +167,8 @@ struct SetupCacheCommandService {
         fullHandle: String,
         trunk: String?,
         branch: String?,
-        upload: Bool
+        upload: Bool,
+        storeSizeLimit: Int?
     ) async throws {
         // Derived from the proxy's OWN socket, not from `stateDirectory`. The two
         // agree by default and diverge under `XDG_STATE_HOME`, which the socket
@@ -203,7 +209,15 @@ struct SetupCacheCommandService {
                 let contents = try await fileSystem.readTextFile(at: sourcesPath)
                 entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
             }
-            entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
+            entries[fullHandle] = RegisteredSource(
+                trunk: trunk,
+                branch: branch,
+                upload: upload,
+                // The proxy reads the limit as an unsigned integer and rejects the
+                // whole registry when one does not parse, so a non-positive limit
+                // is recorded as none.
+                storeSizeLimit: storeSizeLimit.flatMap { $0 > 0 ? $0 : nil }
+            )
 
             let encoder = JSONEncoder()
             // Sorted so a rewrite that changes nothing produces the same bytes,
@@ -334,7 +348,8 @@ struct SetupCacheCommandService {
                 fullHandle: fullHandle,
                 trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
                 branch: await ciBranch(sourceRoot: path),
-                upload: config.xcodeCache.upload
+                upload: config.xcodeCache.upload,
+                storeSizeLimit: config.xcodeCache.storeSizeLimit
             )
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
         } else {

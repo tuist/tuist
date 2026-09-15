@@ -54,19 +54,43 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// Options for configuring the Xcode Cache behavior.
     public struct XcodeCache: Codable, Equatable, Sendable {
+        /// A size on disk.
+        public struct Size: Codable, Equatable, Sendable {
+            /// The size in bytes.
+            public let bytes: Int
+
+            /// A size in megabytes, where a megabyte is 1024 × 1024 bytes.
+            public static func megabytes(_ megabytes: Int) -> Self {
+                Size(bytes: megabytes * 1024 * 1024)
+            }
+
+            /// A size in gigabytes, where a gigabyte is 1024 × 1024 × 1024 bytes.
+            public static func gigabytes(_ gigabytes: Int) -> Self {
+                Size(bytes: gigabytes * 1024 * 1024 * 1024)
+            }
+        }
+
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
         /// Set to `false` for read-only mode (downloads only, no uploads).
         public let upload: Bool
 
+        /// The size the project's local compilation cache stores are pruned to. When no build is running,
+        /// a store that occupies more than this size is pruned, so it settles at about this size. When `nil`
+        /// (default), stores aren't pruned.
+        public let storeSizeLimit: Size?
+
         /// Creates Xcode Cache options.
-        /// - Parameter upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
-        public static func xcodeCache(upload: Bool = true) -> Self {
-            XcodeCache(upload: upload)
+        /// - Parameters:
+        ///   - upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
+        ///   - storeSizeLimit: The size the project's local compilation cache stores are pruned to. Defaults to `nil`,
+        ///     which doesn't prune them.
+        public static func xcodeCache(upload: Bool = true, storeSizeLimit: Size? = nil) -> Self {
+            XcodeCache(upload: upload, storeSizeLimit: storeSizeLimit)
         }
 
-        @available(*, deprecated, renamed: "xcodeCache(upload:)")
+        @available(*, deprecated, renamed: "xcodeCache(upload:storeSizeLimit:)")
         public static func cache(upload: Bool = true) -> Self {
-            XcodeCache(upload: upload)
+            XcodeCache(upload: upload, storeSizeLimit: nil)
         }
     }
 
