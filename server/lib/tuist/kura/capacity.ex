@@ -9,7 +9,7 @@ defmodule Tuist.Kura.Capacity do
   forecast built from a quota table in this repo did, by a factor of about
   three, until it was replaced by this.
 
-  Two questions are left that the scheduler cannot answer, and both are
+  Three questions are left that the scheduler cannot answer, and all three are
   answered from the numbers it places against rather than from a table:
 
     * whether the region as a whole is tight enough that Air's inactivity
@@ -23,6 +23,11 @@ defmodule Tuist.Kura.Capacity do
       instead of leaving the instance Pending in one that does not. A per-node
       reading over every resource the pod requests, because the scheduler
       declines per node and the resource that binds differs by region.
+    * whether a particular instance can be placed or grown where it already
+      is (`placeable?/2`), so admission refuses a claim the scheduler will not
+      be able to honour rather than leaving a replica Pending and its rolling
+      rebuild deadlocked. Per node again, and counting back what the
+      instance's own replicas release, because a resize replaces them.
 
   Reservations rather than live usage on purpose. A freshly provisioned
   instance holds almost nothing and fills over days, so a region full of new
@@ -493,7 +498,7 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib(region_id) do
-    case Client.list_pods(@namespace, "#{@managed_by_selector},tuist.dev/region=#{region_id}") do
+    case Client.list_pods(@namespace, region_selector(region_id)) do
       {:ok, pods} ->
         pods
         |> Enum.reject(&terminal?/1)
@@ -523,6 +528,173 @@ defmodule Tuist.Kura.Capacity do
     do: parse_quantity(quantity) || 0
 
   defp container_requested_bytes(_container), do: 0
+
+  @doc """
+  Whether every replica of `server` can be placed on a node of its region:
+  `true`, `false`, or `nil` when the cluster cannot say.
+
+  The region totals above cannot answer this. They compare one sum against
+  another, and the scheduler places each replica whole on one node, so a
+  region with room to spare in aggregate can have no node that takes a
+  replica. On 2026-09-11 one did: 646 GiB of headroom spread over three boxes
+  with 649, 143 and 117 GiB free, and an instance whose two replicas their
+  local volumes pinned to the 117.
+
+  Two questions, because an instance that is already running is not placed
+  the way a new one is:
+
+    * every node the instance's replicas already sit on has to hold them at
+      the new size. A local volume pins its pod to its box, and neither side
+      of that will yield: the claim does not release while the pod references
+      it, and the pod does not schedule while the claim pins it. What the
+      replicas hold today is counted back, because the rebuild hands it in
+      before asking for the replacement. Leaving it out would refuse resizes
+      that plainly fit.
+    * an instance with nothing placed has to fit whole somewhere. Its
+      replicas split across nodes if no single node takes them all, because
+      the controller's affinity only prefers co-location.
+
+  Nothing is asked of the replicas an already-placed instance is missing. One
+  Pending for its own reasons was Pending before the claim moved and stays
+  Pending after it, and refusing over it would block the account's growth on
+  a condition the growth neither caused nor worsens.
+
+  Against what a node makes allocatable, not against the pressure line the
+  region reads against. This answers what the scheduler will do, and the
+  scheduler places up to the node's allocatable; holding admission to the
+  lower line here would refuse instances the cluster would have taken, and
+  refuse them after `room_for?/2` had already told placement the region had
+  room for them. The pressure line still bounds the region as a whole.
+
+  `nil` for everything that stops the reading being trusted: a cluster that
+  cannot be read, a node with no name or no readable allocatable, a region
+  with no Ready node in it, or an instance on a box the region's node list
+  does not answer for. All of them admit, deliberately. A false refusal here
+  stops every legitimate claim growth in the region and produces nothing an
+  operator would see, while the scheduler still refuses to overfill a node.
+  """
+  def placeable?(%Regions{} = region, %Server{} = server) do
+    with handle when is_binary(handle) <- account_handle(server),
+         per_replica when per_replica > 0 <- claim_gib(region, server),
+         free when is_map(free) <- free_gib_by_node(region.id),
+         held when is_map(held) <- held_gib_by_node(region.id, handle),
+         true <- Enum.all?(Map.keys(held), &is_map_key(free, &1)) do
+      fits?(free, held, per_replica, replicas(region))
+    else
+      _ -> nil
+    end
+  end
+
+  # Nothing placed: every replica has to come out of what the nodes have free,
+  # and the nodes take as many each as they cover.
+  defp fits?(free, held, per_replica, replicas) when map_size(held) == 0 do
+    free |> Enum.map(fn {_node, gib} -> div(gib, per_replica) end) |> Enum.sum() >= replicas
+  end
+
+  # Already placed: each box has to hold the replicas its volumes pin to it,
+  # out of what it has free plus what those replicas hand back.
+  defp fits?(free, held, per_replica, _replicas) do
+    Enum.all?(held, fn {node, %{replicas: count, reserved_gib: reserved}} ->
+      Map.fetch!(free, node) + reserved >= count * per_replica
+    end)
+  end
+
+  # The handle the controller labels the instance's pods with. Read off the
+  # row rather than asked for, so a caller holding a bare `%Server{}`, which is
+  # what the claim re-pin builds, needs to know nothing about labels.
+  defp account_handle(%Server{account: %Account{name: name}}), do: String.downcase(name)
+
+  defp account_handle(%Server{account_id: account_id}) when is_integer(account_id) do
+    case Repo.one(from(account in Account, where: account.id == ^account_id, select: account.name)) do
+      name when is_binary(name) -> String.downcase(name)
+      _ -> nil
+    end
+  end
+
+  defp account_handle(%Server{}), do: nil
+
+  # Disk each Ready node of the region has left to hand out, in gibibytes, as
+  # `%{node => gib}`, or `nil` when the cluster cannot be read.
+  defp free_gib_by_node(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "free_gib_by_node", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_free_gib_by_node(region_id) end
+    )
+  end
+
+  defp measure_free_gib_by_node(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
+         [_ | _] = nodes <- Enum.filter(items, &ready?/1),
+         allocatable when is_map(allocatable) <- allocatable_bytes_by_node(nodes),
+         {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id), timeout: @read_timeout) do
+      reserved = reserved_bytes_by_node(pods)
+
+      Map.new(allocatable, fn {node, bytes} ->
+        {node, div(max(bytes - Map.get(reserved, node, 0), 0), @gib)}
+      end)
+    else
+      _ -> nil
+    end
+  end
+
+  # Every node or none. A box whose allocatable this cannot read would
+  # otherwise read as a box with nothing on it, which is the direction that
+  # refuses.
+  defp allocatable_bytes_by_node(nodes) do
+    readings = Enum.map(nodes, &allocatable_reading/1)
+
+    if Enum.any?(readings, &is_nil/1), do: nil, else: Map.new(readings)
+  end
+
+  defp allocatable_reading(node) do
+    case {node_name(node), allocatable_bytes(node)} do
+      {name, bytes} when is_binary(name) and name != "" and bytes > 0 -> {name, bytes}
+      _ -> nil
+    end
+  end
+
+  # Where the account's replicas sit in the region and what they hold, as
+  # `%{node => %{replicas:, reserved_gib:}}`. `%{}` when it has none placed,
+  # `nil` when the pods cannot be read.
+  defp held_gib_by_node(region_id, account_handle) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "held_gib_by_node", region_id, account_handle],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_held_gib_by_node(region_id, account_handle) end
+    )
+  end
+
+  defp measure_held_gib_by_node(region_id, account_handle) do
+    case Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout) do
+      {:ok, pods} ->
+        Map.new(placed_by_node(pods), fn {node, on_node} ->
+          {node, %{replicas: length(on_node), reserved_gib: div(pod_bytes(on_node), @gib)}}
+        end)
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  defp reserved_bytes_by_node(pods) do
+    Map.new(placed_by_node(pods), fn {node, on_node} -> {node, pod_bytes(on_node)} end)
+  end
+
+  # A pod with no node holds nothing on any of them. One still waiting for a
+  # node is exactly the instance this reading exists to keep from being made.
+  defp placed_by_node(pods) do
+    pods
+    |> Enum.reject(&terminal?/1)
+    |> Enum.group_by(&pod_node_name/1)
+    |> Map.delete(nil)
+  end
+
+  defp pod_bytes(pods), do: pods |> Enum.map(&requested_bytes/1) |> Enum.sum()
+
+  defp region_selector(region_id), do: "#{@managed_by_selector},tuist.dev/region=#{region_id}"
 
   @doc """
   Gibibytes a region may reserve before Air's window shortens, or `nil` when
