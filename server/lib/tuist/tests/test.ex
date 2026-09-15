@@ -62,9 +62,7 @@ defmodule Tuist.Tests.Test do
     field :stress_known_count, Ch, type: "UInt32", default: 0
     field :coverage_covered_lines, Ch, type: "UInt32", default: 0
     field :coverage_executable_lines, Ch, type: "UInt32", default: 0
-    field :coverage_observed_covered_lines, Ch, type: "UInt32", default: 0
-    field :coverage_observed_executable_lines, Ch, type: "UInt32", default: 0
-    field :coverage_carried_forward_files, Ch, type: "UInt32", default: 0
+    field :coverage_partial, :boolean, default: false
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
@@ -115,9 +113,7 @@ defmodule Tuist.Tests.Test do
       :stress_known_count,
       :coverage_covered_lines,
       :coverage_executable_lines,
-      :coverage_observed_covered_lines,
-      :coverage_observed_executable_lines,
-      :coverage_carried_forward_files
+      :coverage_partial
     ])
     |> validate_required([
       :id,

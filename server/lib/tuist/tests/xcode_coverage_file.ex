@@ -1,9 +1,7 @@
 defmodule Tuist.Tests.XcodeCoverageFile do
   @moduledoc """
   One source file's line coverage for a test run, read from the run's result
-  bundle (`source: "observed"`) or, for a file a partial run did not observe,
-  copied from the latest run that observed the same Git blob
-  (`source: "carried_forward"`, with `source_test_run_id` naming that run).
+  bundle.
 
   `line_numbers` lists the file's executable lines, ascending, and
   `execution_counts` how many times each ran. The `function_*` arrays describe
@@ -19,8 +17,6 @@ defmodule Tuist.Tests.XcodeCoverageFile do
     field :path, Ch, type: "String"
     field :git_blob_id, Ch, type: "String"
     field :targets, Ch, type: "Array(LowCardinality(String))"
-    field :source, Ch, type: "LowCardinality(String)"
-    field :source_test_run_id, Ch, type: "Nullable(UUID)"
     field :covered_lines, Ch, type: "UInt32"
     field :executable_lines, Ch, type: "UInt32"
     field :line_numbers, Ch, type: "Array(UInt32)"

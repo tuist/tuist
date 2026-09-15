@@ -27,11 +27,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
   end
 
   defp coverage(files, opts \\ []) do
-    %{
-      partial: Keyword.get(opts, :partial, false),
-      files: files,
-      unobserved_files: Keyword.get(opts, :unobserved_files, [])
-    }
+    %{partial: Keyword.get(opts, :partial, false), files: files}
   end
 
   defp add do
@@ -73,8 +69,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       assert {:ok, stored} = Tests.get_test(test.id)
       assert {stored.coverage_covered_lines, stored.coverage_executable_lines} == {4, 9}
-      assert {stored.coverage_observed_covered_lines, stored.coverage_observed_executable_lines} == {4, 9}
-      assert stored.coverage_carried_forward_files == 0
+      refute stored.coverage_partial
 
       # A file compiled into several targets counts towards each of them.
       assert project.id
@@ -91,7 +86,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
                "Sources/Formatter/Formatter.swift"
              ]
 
-      assert Enum.all?(files, &(&1.observed and not &1.carried_forward))
+      assert Enum.map(files, & &1.git_blob_id) == ["untested1", "add1", "formatter1"]
     end
 
     test "describes one file's lines, uncovered ranges and functions", %{project: project, account: account} do
@@ -99,7 +94,6 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
 
-      assert detail.source == "observed"
       assert detail.git_blob_id == "add1"
       assert detail.targets == ["Calculator", "CalculatorTests"]
       assert {detail.covered_lines, detail.executable_lines} == {2, 5}
@@ -119,113 +113,43 @@ defmodule Tuist.Tests.XcodeCoverageTest do
   end
 
   describe "partial runs" do
-    test "carry forward earlier evidence for unchanged files where it covers lines the run did not", %{
-      project: project,
-      account: account
-    } do
-      {:ok, full} = create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter()])})
+    test "are marked partial and never borrow coverage from earlier runs", %{project: project, account: account} do
+      {:ok, _full} = create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter()])})
 
-      # Only a test that reaches line 2 of the unchanged add file ran; the formatter's target
-      # was not built at all; the untested file changed since, so its old evidence no longer
-      # describes it.
       partial_add = file("Sources/Calculator/Add.swift", "add1", ["Calculator"], [{2, 1}, {3, 0}, {4, 0}, {6, 0}, {7, 0}])
-
-      {:ok, partial} =
-        create_test(project, account, %{
-          xcode_coverage:
-            coverage([partial_add],
-              partial: true,
-              unobserved_files: [
-                %{path: "Sources/Formatter/Formatter.swift", git_blob_id: "formatter1"},
-                %{path: "Sources/Calculator/Untested.swift", git_blob_id: "untested2"},
-                %{path: "README.swift", git_blob_id: "never-observed"}
-              ]
-            )
-        })
+      {:ok, partial} = create_test(project, account, %{xcode_coverage: coverage([partial_add], partial: true)})
 
       assert {:ok, stored} = Tests.get_test(partial.id)
-      assert {stored.coverage_observed_covered_lines, stored.coverage_observed_executable_lines} == {1, 5}
-      assert {stored.coverage_covered_lines, stored.coverage_executable_lines} == {4, 7}
-      assert stored.coverage_carried_forward_files == 2
+      assert stored.coverage_partial
+      assert {stored.coverage_covered_lines, stored.coverage_executable_lines} == {1, 5}
 
-      {files, 2} = XcodeCoverage.list_files(project.id, partial.id, 1, 20)
-
-      assert Enum.map(files, &{&1.path, &1.observed, &1.carried_forward, &1.covered_lines}) == [
-               {"Sources/Calculator/Add.swift", true, true, 2},
-               {"Sources/Formatter/Formatter.swift", false, true, 2}
-             ]
-
-      add_detail = XcodeCoverage.file_detail(project.id, partial.id, "Sources/Calculator/Add.swift")
-      assert add_detail.source == "observed_and_carried_forward"
-      assert add_detail.source_test_run_id == full.id
-      assert add_detail.uncovered_ranges == [{3, 4}, {7, 7}]
-
-      formatter_detail = XcodeCoverage.file_detail(project.id, partial.id, "Sources/Formatter/Formatter.swift")
-      assert formatter_detail.source == "carried_forward"
-
-      # Evidence that covers nothing the run did not is not worth a row.
-      assert %{carried_forward: []} =
-               XcodeCoverage.evidence(project.id, UUIDv7.generate(), coverage([add()], partial: true))
-    end
-
-    test "never carry anything forward for a run that ran every test", %{project: project, account: account} do
-      {:ok, _full} = create_test(project, account, %{xcode_coverage: coverage([formatter()])})
-
-      {:ok, run} =
-        create_test(project, account, %{
-          xcode_coverage:
-            coverage([add()], unobserved_files: [%{path: "Sources/Formatter/Formatter.swift", git_blob_id: "formatter1"}])
-        })
-
-      assert {:ok, %{coverage_carried_forward_files: 0, coverage_executable_lines: 5}} = Tests.get_test(run.id)
+      assert {[%{path: "Sources/Calculator/Add.swift", covered_lines: 1}], 1} =
+               XcodeCoverage.list_files(project.id, partial.id, 1, 20)
     end
   end
 
   describe "sharded runs" do
-    test "merge the shards' lines with the evidence carried forward", %{
-      project: project,
-      account: account
-    } do
-      {:ok, _earlier} = create_test(project, account, %{xcode_coverage: coverage([formatter()])})
+    test "merge the shards' lines and stay partial once any shard was", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
 
-      # A second shard ran other tests over the same file, and carried the formatter forward
-      # before a third shard observed it.
+      # Another shard ran other tests over the same file.
       other_shard =
         coverage(
           [file("Sources/Calculator/Add.swift", "add1", ["CalculatorTests"], [{2, 1}, {3, 5}, {4, 0}, {6, 0}, {7, 0}])],
-          partial: true,
-          unobserved_files: [%{path: "Sources/Formatter/Formatter.swift", git_blob_id: "formatter1"}]
+          partial: true
         )
 
-      evidence = XcodeCoverage.evidence(project.id, test.id, other_shard)
-      assert [%{source: "carried_forward"}] = evidence.carried_forward
-      XcodeCoverage.insert_files(stored, evidence)
+      rows = XcodeCoverage.rows(other_shard)
+      XcodeCoverage.insert_files(stored, rows)
 
-      assert %{
-               coverage_covered_lines: 5,
-               coverage_executable_lines: 7,
-               coverage_observed_covered_lines: 3,
-               coverage_carried_forward_files: 1
-             } =
-               XcodeCoverage.merge_run_attrs(stored, evidence)
-
-      third_shard = coverage([file("Sources/Formatter/Formatter.swift", "formatter1", ["Formatter"], [{1, 0}, {2, 0}])])
-      evidence = XcodeCoverage.evidence(project.id, test.id, third_shard)
-      XcodeCoverage.insert_files(stored, evidence)
-
-      # The formatter's own shard ran none of its lines; the evidence carried forward still counts.
-      assert %{
-               coverage_covered_lines: 5,
-               coverage_observed_covered_lines: 3,
-               coverage_observed_executable_lines: 7,
-               coverage_carried_forward_files: 1
-             } = XcodeCoverage.merge_run_attrs(stored, evidence)
+      assert %{coverage_covered_lines: 3, coverage_executable_lines: 5, coverage_partial: true} =
+               XcodeCoverage.merge_run_attrs(stored, rows)
 
       detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert Enum.take(detail.lines, 2) == [{2, 4}, {3, 5}]
       assert detail.uncovered_ranges == [{4, 4}, {7, 7}]
+      assert detail.targets == ["Calculator", "CalculatorTests"]
     end
   end
 

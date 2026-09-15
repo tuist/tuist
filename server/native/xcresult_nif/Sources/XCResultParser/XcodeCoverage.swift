@@ -1,8 +1,8 @@
 import Foundation
 
 /// What only the client knows about the checkout a coverage run was built from, and the result
-/// bundle cannot tell whoever processes it: where the checkout lived, the Git blob every tracked
-/// source file had, and whether the run left tests out on purpose.
+/// bundle cannot tell whoever processes it: where the checkout lived, the Git blob of each file the
+/// run covered, and whether the run left tests out on purpose.
 ///
 /// The client writes it into the result bundle as ``fileName`` before uploading it, or hands it
 /// to the parser directly when it processes the bundle itself. A bundle without one is not read
@@ -15,11 +15,11 @@ public struct XcodeCoverageManifest: Codable, Equatable, Sendable {
     public let rootDirectories: [String]
 
     /// Whether the run ran a subset of its tests on purpose (selective testing, `-only-testing`,
-    /// `-skip-testing`), so files it did not observe may still be covered by the tests it skipped.
+    /// `-skip-testing`), so its coverage describes only the tests that ran.
     public let partial: Bool
 
-    /// The checkout's tracked source files, relative to the root, with the Git blob of the
-    /// contents that were built.
+    /// The covered files Git tracks, relative to the root, with the Git blob of the contents that
+    /// were built.
     public let files: [XcodeCoverageSourceFile]
 
     enum CodingKeys: String, CodingKey {
@@ -58,19 +58,10 @@ public struct XcodeCoverageReport: Codable, Equatable, Sendable {
     /// One entry per source file the run's instrumented binaries compiled, whichever targets
     /// linked it.
     public let files: [XcodeCoverageFile]
-    /// The manifest's files the run did not observe. Only listed for a partial run, where they
-    /// are the ones earlier evidence can stand in for.
-    public let unobservedFiles: [XcodeCoverageSourceFile]
 
-    enum CodingKeys: String, CodingKey {
-        case partial, files
-        case unobservedFiles = "unobserved_files"
-    }
-
-    public init(partial: Bool, files: [XcodeCoverageFile], unobservedFiles: [XcodeCoverageSourceFile]) {
+    public init(partial: Bool, files: [XcodeCoverageFile]) {
         self.partial = partial
         self.files = files
-        self.unobservedFiles = unobservedFiles
     }
 }
 

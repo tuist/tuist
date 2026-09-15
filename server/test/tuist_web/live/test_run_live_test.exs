@@ -133,7 +133,6 @@ defmodule TuistWeb.TestRunLiveTest do
         test_modules: [],
         xcode_coverage: %{
           partial: false,
-          unobserved_files: [],
           files: [
             file.("Sources/Calculator/Add.swift", [{2, 3}, {3, 0}, {4, 0}, {6, 1}], [
               %{name: "add(_:_:)", line_number: 2, execution_count: 3, covered_lines: 2, executable_lines: 4}
@@ -147,7 +146,7 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
 
     assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
-    refute has_element?(lv, "#widget-coverage-carried-forward-files")
+    refute has_element?(lv, "#coverage-partial-run")
     assert has_element?(lv, "#coverage-targets-table", "Calculator")
 
     files_html = lv |> element("#coverage-files-table") |> render()

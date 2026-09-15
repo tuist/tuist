@@ -3958,37 +3958,13 @@ components:
           x-struct:
           x-validate:
         partial:
-          description: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
+          description: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
           type: boolean
-          x-struct:
-          x-validate:
-        unobserved_files:
-          description: For a partial run, the repository's source files the run did not observe.
-          items:
-            properties:
-              git_blob_id:
-                description: The Git blob object id of the file's contents.
-                type: string
-                x-struct:
-                x-validate:
-              path:
-                description: "The file's path, relative to the repository's root."
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - path
-              - git_blob_id
-            type: object
-            x-struct:
-            x-validate:
-          type: array
           x-struct:
           x-validate:
       required:
         - partial
         - files
-        - unobserved_files
       title: XcodeCoverage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.XcodeCoverage

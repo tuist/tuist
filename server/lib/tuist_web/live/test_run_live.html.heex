@@ -2232,41 +2232,30 @@
       data-part="coverage-summary-card"
     >
       <.card_section data-part="coverage-summary-section">
+        <.alert
+          :if={@run.coverage_partial}
+          id="coverage-partial-run"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "This run skipped tests, so its coverage only reflects the tests that ran. It is left out of the coverage trend."
+            )
+          }
+        />
         <div data-part="widgets">
           <.widget
             title={dgettext("dashboard_tests", "Line coverage")}
             description={
               dgettext(
                 "dashboard_tests",
-                "Share of executable lines the tests ran at least once, counting each source file once and including files carried forward from earlier runs."
+                "Share of executable lines the tests ran at least once, counting each source file once."
               )
             }
             value={"#{XcodeCoverage.percentage(@run.coverage_covered_lines, @run.coverage_executable_lines)}%"}
             id="widget-coverage-percentage"
-          />
-          <.widget
-            :if={@run.coverage_carried_forward_files > 0}
-            title={dgettext("dashboard_tests", "Observed coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Line coverage of the files this run's own tests ran, without the files carried forward."
-              )
-            }
-            value={"#{XcodeCoverage.percentage(@run.coverage_observed_covered_lines, @run.coverage_observed_executable_lines)}%"}
-            id="widget-coverage-observed-percentage"
-          />
-          <.widget
-            :if={@run.coverage_carried_forward_files > 0}
-            title={dgettext("dashboard_tests", "Carried-forward files")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Files whose coverage includes an earlier run's: this run skipped tests, and their contents are unchanged since that run observed them."
-              )
-            }
-            value={format_number(@run.coverage_carried_forward_files)}
-            id="widget-coverage-carried-forward-files"
           />
           <.widget
             title={dgettext("dashboard_tests", "Covered lines")}
@@ -2350,26 +2339,6 @@
           />
         </div>
         <dl data-part="coverage-file-details">
-          <div>
-            <dt>{dgettext("dashboard_tests", "Evidence")}</dt>
-            <dd :if={@coverage_file.source == "observed"}>
-              {dgettext("dashboard_tests", "Observed by this run")}
-            </dd>
-            <dd :if={@coverage_file.source != "observed"}>
-              {if @coverage_file.source == "carried_forward",
-                do: dgettext("dashboard_tests", "Carried forward from"),
-                else:
-                  dgettext(
-                    "dashboard_tests",
-                    "Observed by this run, with lines carried forward from"
-                  )}
-              <.link navigate={
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@coverage_file.source_test_run_id}?tab=coverage&coverage-file=#{@coverage_file.path}"
-              }>
-                {dgettext("dashboard_tests", "an earlier run")}
-              </.link>
-            </dd>
-          </div>
           <div :if={@coverage_file.git_blob_id != ""}>
             <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
             <dd><code>{@coverage_file.git_blob_id}</code></dd>
@@ -2423,26 +2392,6 @@
             >
               {file.path}
             </.link>
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Evidence")}>
-            <.badge_cell
-              :if={file.observed and not file.carried_forward}
-              label={dgettext("dashboard_tests", "Observed")}
-              color="neutral"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={file.observed and file.carried_forward}
-              label={dgettext("dashboard_tests", "Observed + carried forward")}
-              color="information"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={not file.observed}
-              label={dgettext("dashboard_tests", "Carried forward")}
-              color="information"
-              style="light-fill"
-            />
           </:col>
           <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
             <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />

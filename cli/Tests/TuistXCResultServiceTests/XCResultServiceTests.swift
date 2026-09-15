@@ -181,7 +181,7 @@ struct XCResultServiceTests {
         let xcresult = try await fixtureXCResult("test.xcresult")
         let coverageParser = MockXcodeCoverageParsing()
         let manifest = XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
-        let coverage = XcodeCoverageReport(partial: false, files: [], unobservedFiles: [])
+        let coverage = XcodeCoverageReport(partial: false, files: [])
         given(coverageParser)
             .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest))
             .willReturn(coverage)

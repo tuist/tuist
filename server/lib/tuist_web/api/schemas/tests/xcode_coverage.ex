@@ -8,15 +8,6 @@ defmodule TuistWeb.API.Schemas.Tests.XcodeCoverage do
 
   require OpenApiSpex
 
-  @source_file %Schema{
-    type: :object,
-    properties: %{
-      path: %Schema{type: :string, description: "The file's path, relative to the repository's root."},
-      git_blob_id: %Schema{type: :string, description: "The Git blob object id of the file's contents."}
-    },
-    required: [:path, :git_blob_id]
-  }
-
   OpenApiSpex.schema(%{
     title: "XcodeCoverage",
     type: :object,
@@ -26,7 +17,7 @@ defmodule TuistWeb.API.Schemas.Tests.XcodeCoverage do
       partial: %Schema{
         type: :boolean,
         description:
-          "Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward."
+          "Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran."
       },
       files: %Schema{
         type: :array,
@@ -77,13 +68,8 @@ defmodule TuistWeb.API.Schemas.Tests.XcodeCoverage do
           },
           required: [:path, :targets, :covered_lines, :executable_lines, :line_numbers, :execution_counts, :functions]
         }
-      },
-      unobserved_files: %Schema{
-        type: :array,
-        items: @source_file,
-        description: "For a partial run, the repository's source files the run did not observe."
       }
     },
-    required: [:partial, :files, :unobserved_files]
+    required: [:partial, :files]
   })
 end

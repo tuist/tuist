@@ -56,6 +56,13 @@ public actor RunMetadataStorage {
         self.binaryCacheItems = binaryCacheItems
     }
 
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so a run
+    /// that skips only them still runs its whole selection.
+    public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
+    public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
+        self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
+    }
+
     /// Selective testing-specific cache items
     public private(set) var selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]) {

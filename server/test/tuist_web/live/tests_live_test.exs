@@ -41,7 +41,6 @@ defmodule TuistWeb.TestsLiveTest do
         test_modules: [],
         xcode_coverage: %{
           partial: false,
-          unobserved_files: [],
           files: [
             %{
               path: "Sources/Add.swift",
@@ -61,6 +60,46 @@ defmodule TuistWeb.TestsLiveTest do
     render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "#widget-coverage", "75.0%")
+  end
+
+  test "leaves partial runs out of the line coverage widget", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          partial: true,
+          files: [
+            %{
+              path: "Sources/Add.swift",
+              git_blob_id: "abc",
+              targets: ["Calculator"],
+              covered_lines: 1,
+              executable_lines: 4,
+              line_numbers: [1, 2, 3, 4],
+              execution_counts: [1, 0, 0, 0],
+              functions: []
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
+    render_async(lv, @render_async_timeout)
+
+    refute has_element?(lv, "#widget-coverage", "25.0%")
   end
 
   test "renders the shared test dashboard for Bazel projects", %{

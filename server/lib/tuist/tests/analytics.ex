@@ -101,6 +101,8 @@ defmodule Tuist.Tests.Analytics do
         where: t.ran_at <= ^end_datetime,
         where: t.coverage_executable_lines > 0,
         group_by: t.id,
+        # Every shard rewrites the row, so only the latest version says whether the run is partial.
+        having: fragment("argMax(?, ?)", t.coverage_partial, t.inserted_at) == false,
         select: %{
           id: t.id,
           ran_at: min(t.ran_at),

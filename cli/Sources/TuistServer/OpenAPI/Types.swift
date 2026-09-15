@@ -8756,64 +8756,25 @@ public enum Components {
             public typealias filesPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload]
             /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
             public var files: Components.Schemas.XcodeCoverage.filesPayload
-            /// Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
+            /// Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
             ///
             /// - Remark: Generated from `#/components/schemas/XcodeCoverage/partial`.
             public var partial: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload`.
-            public struct unobserved_filesPayloadPayload: Codable, Hashable, Sendable {
-                /// The Git blob object id of the file's contents.
-                ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload/git_blob_id`.
-                public var git_blob_id: Swift.String
-                /// The file's path, relative to the repository's root.
-                ///
-                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_filesPayload/path`.
-                public var path: Swift.String
-                /// Creates a new `unobserved_filesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - git_blob_id: The Git blob object id of the file's contents.
-                ///   - path: The file's path, relative to the repository's root.
-                public init(
-                    git_blob_id: Swift.String,
-                    path: Swift.String
-                ) {
-                    self.git_blob_id = git_blob_id
-                    self.path = path
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case git_blob_id
-                    case path
-                }
-            }
-            /// For a partial run, the repository's source files the run did not observe.
-            ///
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_files`.
-            public typealias unobserved_filesPayload = [Components.Schemas.XcodeCoverage.unobserved_filesPayloadPayload]
-            /// For a partial run, the repository's source files the run did not observe.
-            ///
-            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/unobserved_files`.
-            public var unobserved_files: Components.Schemas.XcodeCoverage.unobserved_filesPayload
             /// Creates a new `XcodeCoverage`.
             ///
             /// - Parameters:
             ///   - files:
-            ///   - partial: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so files it did not observe may carry earlier coverage forward.
-            ///   - unobserved_files: For a partial run, the repository's source files the run did not observe.
+            ///   - partial: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
             public init(
                 files: Components.Schemas.XcodeCoverage.filesPayload,
-                partial: Swift.Bool,
-                unobserved_files: Components.Schemas.XcodeCoverage.unobserved_filesPayload
+                partial: Swift.Bool
             ) {
                 self.files = files
                 self.partial = partial
-                self.unobserved_files = unobserved_files
             }
             public enum CodingKeys: String, CodingKey {
                 case files
                 case partial
-                case unobserved_files
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.

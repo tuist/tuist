@@ -444,21 +444,26 @@ extension UploadResultBundleService {
         do {
             guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
 
+            let rootSpellings = Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
+            let coveredPaths = Set(coveredFilePaths.map { Self.relativize($0, to: rootSpellings) })
             let blobIds = await gitController.isInGitRepository(workingDirectory: rootDirectory)
                 ? try await gitController.sourceFileBlobIds(
                     workingDirectory: rootDirectory,
                     pathExtensions: Self.coverageSourceExtensions
-                )
+                ).filter { coveredPaths.contains($0.key) }
                 : [:]
 
-            // Tests left out on purpose leave files unobserved that the skipped tests may cover. A
-            // selective-testing hit is a test target skipped because nothing it depends on changed.
+            // The run's coverage only describes the tests that ran. A selective-testing hit is a
+            // test target skipped because nothing it depends on changed.
             let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
                 .contains { $0.values.contains { $0.source != .miss } }
-            let partial = !onlyTestIdentifiers.isEmpty || !skipTestIdentifiers.isEmpty || selectiveTestingSkippedTargets
+            let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
+            let partial = !onlyTestIdentifiers.isEmpty
+                || skipTestIdentifiers.contains { !skippedQuarantinedTests.contains($0) }
+                || selectiveTestingSkippedTargets
 
             return XcodeCoverageManifest(
-                rootDirectories: Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths),
+                rootDirectories: rootSpellings,
                 partial: partial,
                 files: blobIds.map { XcodeCoverageSourceFile(path: $0.key, gitBlobId: $0.value) }
                     .sorted { $0.path < $1.path }
@@ -488,6 +493,15 @@ extension UploadResultBundleService {
             spellings.append(String(path.dropLast(relative.count)))
         }
         return spellings
+    }
+
+    /// The path relative to the longest root spelling it lives under, the way the parser
+    /// relativizes it, or the path unchanged.
+    private static func relativize(_ path: String, to roots: [String]) -> String {
+        for root in roots.sorted(by: { $0.count > $1.count }) where path.hasPrefix(root + "/") {
+            return String(path.dropFirst(root.count + 1))
+        }
+        return path
     }
 
     /// `realpath` of the longest existing prefix with the rest appended, so a file the bundle

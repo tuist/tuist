@@ -129,35 +129,24 @@ struct XcodeCoverageParserTests {
                 ]
             ),
         ])
-        #expect(got.unobservedFiles.isEmpty)
     }
 
     @Test
-    func listsTheFilesAPartialRunDidNotObserve() async throws {
+    func carriesThePartialFlagOver() async throws {
         let json = report("""
         {"name": "A", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "buildProductPath": "/a",
          "files": [{"name": "F.swift", "path": "/repo/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
         """)
         let archive = #"{"/repo/F.swift": [{"line": 1, "isExecutable": true, "executionCount": 1}]}"#
         let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json, archiveJSON: archive))
-        let files = [
-            XcodeCoverageSourceFile(path: "F.swift", gitBlobId: "f"),
-            XcodeCoverageSourceFile(path: "Skipped.swift", gitBlobId: "s"),
-        ]
-        let bundle = try AbsolutePath(validating: "/run.xcresult")
 
-        let partial = try #require(await subject.parse(
-            resultBundlePath: bundle,
-            manifest: XcodeCoverageManifest(rootDirectories: ["/repo"], partial: true, files: files)
-        ))
-        let full = try #require(await subject.parse(
-            resultBundlePath: bundle,
-            manifest: XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: files)
+        let got = try #require(await subject.parse(
+            resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+            manifest: XcodeCoverageManifest(rootDirectories: ["/repo"], partial: true, files: [])
         ))
 
-        #expect(partial.partial)
-        #expect(partial.unobservedFiles == [XcodeCoverageSourceFile(path: "Skipped.swift", gitBlobId: "s")])
-        #expect(full.unobservedFiles.isEmpty)
+        #expect(got.partial)
+        #expect(got.files.map(\.path) == ["F.swift"])
     }
 
     @Test

@@ -836,7 +836,7 @@ struct UploadResultBundleServiceTests {
     func uploadTestSummary_readsTheBundlesCoverageAgainstTheCheckout() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
-        let coverage = XcodeCoverageReport(partial: true, files: [], unobservedFiles: [])
+        let coverage = XcodeCoverageReport(partial: true, files: [])
         given(xcResultService)
             .coveredFilePaths(path: .value(xcresultPath))
             .willReturn(["/tmp/project/Sources/A.swift"])
@@ -849,10 +849,8 @@ struct UploadResultBundleServiceTests {
                 manifest: .value(XcodeCoverageManifest(
                     rootDirectories: ["/tmp/project", "/private/tmp/project"],
                     partial: true,
-                    files: [
-                        XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa"),
-                        XcodeCoverageSourceFile(path: "Sources/B.swift", gitBlobId: "bbb"),
-                    ]
+                    // B.swift is tracked but the run did not cover it.
+                    files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
                 ))
             )
             .willReturn(coverage)
@@ -892,6 +890,39 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any
             )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_doesNotMarkARunPartialForQuarantinedTestsAlone() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/tmp/project/Sources/A.swift"])
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/A.swift": "aaa"])
+        given(xcResultService)
+            .parseCoverage(path: .any, manifest: .matching { !$0.partial })
+            .willReturn(XcodeCoverageReport(partial: false, files: []))
+
+        let storage = RunMetadataStorage()
+        await storage.update(skippedQuarantinedTestIdentifiers: ["AppTests/FlakyTests"])
+        try await RunMetadataStorage.$current.withValue(storage) {
+            _ = try await subject.uploadTestSummary(
+                testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+                resultBundlePath: xcresultPath,
+                projectDerivedDataDirectory: nil,
+                config: .test(fullHandle: "tuist/tuist"),
+                shardPlanId: nil,
+                shardIndex: nil,
+                skipTestIdentifiers: ["AppTests/FlakyTests"]
+            )
+        }
+
+        verify(xcResultService)
+            .parseCoverage(path: .any, manifest: .matching { !$0.partial })
             .called(1)
     }
 

@@ -36,7 +36,7 @@ The same works with the `TUIST_TEST_COVERAGE=1` environment variable. A `-enable
 
 ## How it is processed {#how-it-is-processed}
 
-When Tuist processes the result bundle on the server, which is the default for Tuist-hosted projects, the server reads the coverage with `xccov`. The CLI only adds a small manifest to the uploaded bundle: the repository's root directory and the [Git blob id](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects) of each tracked source file, which only your checkout knows. When the CLI processes the bundle itself, it reads the coverage with the same parser and sends it with the run.
+When Tuist processes the result bundle on the server, which is the default for Tuist-hosted projects, the server reads the coverage with `xccov`. The CLI only adds a small manifest to the uploaded bundle: the repository's root directory and the <a href="https://git-scm.com/book/en/v2/Git-Internals-Git-Objects">Git blob id</a> of each covered file, which only your checkout knows. When the CLI processes the bundle itself, it reads the coverage with the same parser and sends it with the run.
 
 ## What is stored {#what-is-stored}
 
@@ -48,18 +48,19 @@ For a run split into shards, the shards' lines are combined: a line counts as co
 
 ## Runs that skip tests {#runs-that-skip-tests}
 
-A run that leaves tests out on purpose, through <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, `-only-testing`, or `-skip-testing`, does not run every test that covers its files. Xcode still builds the skipped tests' targets, so their sources show up with the lines only the skipped tests reach left uncovered, or do not show up at all. Reporting what the run observed alone would make coverage drop every time tests are skipped.
+A run that leaves tests out on purpose, through <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, `-only-testing`, or `-skip-testing`, only measures the tests that ran. Tuist marks its coverage as partial on the run page and leaves it out of the coverage trend, so skipped tests never make coverage look lower than it is.
 
-Instead, for every source file of such a run, Tuist looks for the latest run in the last 30 days that observed the same file with the same Git blob id, and counts the lines that run covered as covered. The run's **Line coverage** includes that evidence; the **Observed coverage** widget shows the figure without it, and the files table marks the files whose coverage includes it. A file whose contents changed never takes earlier coverage.
+To track your project's coverage over time, gather coverage on runs that execute every test, for example on your default branch.
 
 ## Dashboard {#dashboard}
 
 Open a test run and select the **Coverage** tab to see the run's line coverage, its targets, and its files sorted from least to most covered. Select a file to see its uncovered lines and its functions.
 
-The tests overview shows the **Line coverage** widget: the share of executable lines covered across the runs in the selected period that gathered coverage, with its trend against the previous period and a chart over time. Runs without coverage are left out of the figure rather than dragging it down.
+The tests overview shows the **Line coverage** widget: the share of executable lines covered across the runs in the selected period that gathered coverage and ran every test, with its trend against the previous period and a chart over time. Runs without coverage are left out of the figure rather than dragging it down.
 
 ## Limitations {#limitations}
 
 - Coverage is recorded per run. Which test covered which line is not recorded yet.
 - Partial-line coverage (a line whose branches only some tests took) is not stored; a line counts as covered when it ran at all.
-- Files outside the repository, such as package checkouts in derived data, are stored with their absolute path and no Git blob id, so they are never carried forward.
+- Files outside the repository, such as package checkouts in derived data, are stored with their absolute path and no Git blob id.
+- A run that skips tests does not borrow coverage from earlier runs, so its figure is lower than the project's.

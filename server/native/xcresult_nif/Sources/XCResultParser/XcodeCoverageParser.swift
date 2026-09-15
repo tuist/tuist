@@ -88,12 +88,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
             )
         }.sorted { $0.path < $1.path }
 
-        let observedPaths = Set(files.map(\.path))
-        return XcodeCoverageReport(
-            partial: manifest.partial,
-            files: files,
-            unobservedFiles: manifest.partial ? manifest.files.filter { !observedPaths.contains($0.path) } : []
-        )
+        return XcodeCoverageReport(partial: manifest.partial, files: files)
     }
 
     /// Runs xccov against the bundle and returns what it printed, or nil when the bundle has no

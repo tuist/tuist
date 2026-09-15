@@ -980,8 +980,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       expect(Tests, :create_test, fn attrs ->
         assert %{
                  partial: true,
-                 files: [%{path: "Sources/Add.swift", line_numbers: [1, 2]}],
-                 unobserved_files: [%{path: "Sources/Skipped.swift"}]
+                 files: [%{path: "Sources/Add.swift", line_numbers: [1, 2]}]
                } =
                  attrs.xcode_coverage
 
@@ -1021,8 +1020,7 @@ defmodule TuistWeb.API.TestsControllerTest do
                   execution_counts: [3, 0],
                   functions: []
                 }
-              ],
-              unobserved_files: [%{path: "Sources/Skipped.swift", git_blob_id: "def"}]
+              ]
             }
           }
         )

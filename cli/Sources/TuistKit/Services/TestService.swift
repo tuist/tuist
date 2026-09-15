@@ -295,6 +295,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
         let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+        await RunMetadataStorage.current.update(
+            skippedQuarantinedTestIdentifiers: Set(skippedQuarantinedTests.map(\.description))
+        )
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(

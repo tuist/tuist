@@ -502,10 +502,7 @@ import TuistHTTP
                         targets: file.targets
                     )
                 },
-                partial: report.partial,
-                unobserved_files: report.unobservedFiles.map {
-                    Components.Schemas.XcodeCoverage.unobserved_filesPayloadPayload(git_blob_id: $0.gitBlobId, path: $0.path)
-                }
+                partial: report.partial
             )
         }
     }
