@@ -738,6 +738,27 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
+        func test_binaryCacheWarming_generates_schemes_after_cache_replacement() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                GenerateCacheableSchemesGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
         func test_binaryCacheWarming_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
             // Given
             let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])

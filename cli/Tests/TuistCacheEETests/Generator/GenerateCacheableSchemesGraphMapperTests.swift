@@ -175,4 +175,72 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
+
+    func test_binaries_scheme_includes_source_dependencies_of_the_targets_to_cache() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let projectPath = directory.appending(component: "App")
+
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .staticFramework)
+        let servicesMockSupport = Target.test(
+            name: "ServicesMockSupport",
+            destinations: [.iPhone],
+            product: .staticFramework
+        )
+        let services = Target.test(name: "Services", destinations: [.iPhone], product: .staticFramework)
+        let resources = Target.test(name: "Resources", destinations: [.iPhone], product: .bundle)
+        let macOnlyDependency = Target.test(
+            name: "MacOnlyDependency",
+            destinations: [.iPhone, .mac],
+            product: .staticFramework
+        )
+        let unrelated = Target.test(name: "Unrelated", destinations: [.iPhone], product: .staticFramework)
+        let cachedFramework = GraphDependency.testXCFramework(path: directory.appending(component: "Cached.xcframework"))
+
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [
+            .iOS: Set([.named(feature.name), .named(services.name)]),
+        ])
+        let project = Project.test(
+            path: projectPath,
+            name: "App",
+            targets: [feature, servicesMockSupport, services, resources, macOnlyDependency, unrelated]
+        )
+        let featureDependency = GraphDependency.target(name: feature.name, path: projectPath)
+        let servicesMockSupportDependency = GraphDependency.target(name: servicesMockSupport.name, path: projectPath)
+        let macOnlyDependencyDependency = GraphDependency.target(name: macOnlyDependency.name, path: projectPath)
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [projectPath]),
+            projects: [projectPath: project],
+            dependencies: [
+                featureDependency: [
+                    servicesMockSupportDependency,
+                    macOnlyDependencyDependency,
+                    cachedFramework,
+                ],
+                servicesMockSupportDependency: [
+                    .target(name: services.name, path: projectPath),
+                    .target(name: resources.name, path: projectPath),
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: featureDependency, to: macOnlyDependencyDependency): try XCTUnwrap(.when([.macos])),
+            ]
+        )
+
+        // When
+        let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+                .buildAction?.targets
+                .map(\.name),
+            [
+                "Feature",
+                "Services",
+                "ServicesMockSupport",
+            ]
+        )
+    }
 }

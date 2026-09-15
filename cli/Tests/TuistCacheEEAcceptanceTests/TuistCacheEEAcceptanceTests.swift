@@ -701,6 +701,38 @@ struct TuistCacheEEAcceptanceTests {
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
     }
 
+    /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
+    /// source and Feature builds it. Its Swift dependency scan resolves the package's clang module only when
+    /// the warm scheme builds it directly.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        for targetName in ["Services", "Feature"] {
+            let artifact = try #require(
+                try await fileSystem.glob(
+                    directory: mockedEnvironment.cacheDirectory,
+                    include: ["**/\(targetName).xcframework"]
+                ).collect().first
+            )
+            try await fileSystem.remove(artifact.parentDirectory)
+        }
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature, Services")
+        TuistTest.expectLogs("2 targets stored: Feature, Services")
+    }
+
     /// Foundation's #bundle macro expands to Bundle.module only when
     /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
     /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422
