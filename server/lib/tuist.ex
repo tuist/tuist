@@ -214,6 +214,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
+      OAuth.Google,
       OAuth.Introspection,
       OAuth2.SSOClient,
       OAuth2.SSRFGuard,

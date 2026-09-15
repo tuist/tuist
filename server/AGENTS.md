@@ -138,6 +138,7 @@ The marketing site redesign launches as a whole behind a single FunWithFlags boo
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Google One Tap browser sign-in: `google-one-tap.md`
 - Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
