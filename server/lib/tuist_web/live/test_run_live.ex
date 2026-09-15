@@ -323,6 +323,13 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, reload_run_state(socket)}
   end
 
+  # The account/project PubSub topic carries broadcasts from siblings (Xcode
+  # builds, command events, ...). Ignore anything unrelated to this test run
+  # rather than crashing the LiveView.
+  def handle_info(_event, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("refresh_test_run", _params, socket) do
     {:noreply, reload_run_state(socket)}
   end
