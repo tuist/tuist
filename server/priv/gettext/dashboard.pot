@@ -342,8 +342,8 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:32
-#: lib/tuist_web/controllers/auth_controller.ex:181
+#: lib/tuist_web/controllers/auth_controller.ex:35
+#: lib/tuist_web/controllers/auth_controller.ex:207
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -523,8 +523,8 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:492
-#: lib/tuist_web/controllers/auth_controller.ex:664
+#: lib/tuist_web/controllers/auth_controller.ex:518
+#: lib/tuist_web/controllers/auth_controller.ex:690
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
@@ -535,42 +535,42 @@ msgstr ""
 msgid "Shards"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:501
+#: lib/tuist_web/controllers/auth_controller.ex:527
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:762
+#: lib/tuist_web/controllers/auth_controller.ex:788
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:643
+#: lib/tuist_web/controllers/auth_controller.ex:669
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:706
+#: lib/tuist_web/controllers/auth_controller.ex:732
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:678
+#: lib/tuist_web/controllers/auth_controller.ex:704
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:629
+#: lib/tuist_web/controllers/auth_controller.ex:655
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:657
+#: lib/tuist_web/controllers/auth_controller.ex:683
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:685
+#: lib/tuist_web/controllers/auth_controller.ex:711
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
 msgstr ""
@@ -580,52 +580,52 @@ msgstr ""
 msgid "Tuist Ops"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:692
+#: lib/tuist_web/controllers/auth_controller.ex:718
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:699
+#: lib/tuist_web/controllers/auth_controller.ex:725
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:755
+#: lib/tuist_web/controllers/auth_controller.ex:781
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:636
+#: lib/tuist_web/controllers/auth_controller.ex:662
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:748
+#: lib/tuist_web/controllers/auth_controller.ex:774
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:650
+#: lib/tuist_web/controllers/auth_controller.ex:676
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:727
+#: lib/tuist_web/controllers/auth_controller.ex:753
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:713
+#: lib/tuist_web/controllers/auth_controller.ex:739
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:720
+#: lib/tuist_web/controllers/auth_controller.ex:746
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:671
+#: lib/tuist_web/controllers/auth_controller.ex:697
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
 msgstr ""
@@ -1881,7 +1881,7 @@ msgstr ""
 msgid "vCPU limit"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:734
+#: lib/tuist_web/controllers/auth_controller.ex:760
 #, elixir-autogen, elixir-format
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
 msgstr ""
@@ -1891,7 +1891,7 @@ msgstr ""
 msgid "Superseded"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:741
+#: lib/tuist_web/controllers/auth_controller.ex:767
 #, elixir-autogen, elixir-format
 msgid "Your organization must verify a login email domain that matches your email before new users can sign in. Ask an organization admin to review the single sign-on domain settings."
 msgstr ""
