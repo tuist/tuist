@@ -25,9 +25,12 @@ public struct Tuist: Equatable, Hashable, Sendable {
 
     public struct XcodeCache: Equatable, Hashable, Sendable {
         public let upload: Bool
+        /// In bytes. `nil` leaves the project's compilation cache stores unpruned.
+        public let storeSizeLimit: Int?
 
-        public init(upload: Bool = true) {
+        public init(upload: Bool = true, storeSizeLimit: Int? = nil) {
             self.upload = upload
+            self.storeSizeLimit = storeSizeLimit
         }
     }
 
