@@ -3,7 +3,7 @@ module kura-throughput-client
 go 1.25.0
 
 require (
-	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260908043556-f8649ddbbfe6
+	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260911204522-f61a6ca850bd
 	google.golang.org/grpc v1.83.2
 	gopkg.in/yaml.v3 v3.0.1
 )
