@@ -16,6 +16,7 @@
 pub mod analytics;
 pub mod endpoint;
 pub mod proxy;
+pub mod proxy_failure;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
@@ -1030,6 +1031,7 @@ unsafe fn load_object_impl(
             }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
+                note_proxy_failure(state, &message);
             }
         }
     }
@@ -1189,6 +1191,7 @@ unsafe fn actioncache_get_impl(
                     client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
                 {
                     log_line(&format!("proxy graph preparation failed: {message}"));
+                    note_proxy_failure(state, &message);
                 }
             }
             if !value_graph_is_available(state, value_id) {
@@ -1225,9 +1228,16 @@ unsafe fn actioncache_get_impl(
         Err(message) => {
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             log_line(&format!("proxy resolve error: {message}"));
+            note_proxy_failure(state, &message);
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
     }
+}
+
+/// A request the proxy failed degrades to a miss, the same answer a cold cache gives,
+/// so outside `TUIST_CAS_LOG` this record is the only thing telling the two apart.
+fn note_proxy_failure(state: &CasState, message: &str) {
+    proxy_failure::note(&state.proxy.socket_path, message);
 }
 
 /// Validate the local closure without consulting the remote. Root containment
@@ -1433,9 +1443,13 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            // Failure is fine: the record survives for the proxy sweep.
-            let _ =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
+            // The spool record survives a failure for the proxy sweep, but a sweep needs
+            // a proxy, so the failure is still noted.
+            if let Err(message) =
+                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy())
+            {
+                note_proxy_failure(state, &message);
+            }
         }
         return;
     }
