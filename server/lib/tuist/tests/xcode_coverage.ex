@@ -337,6 +337,10 @@ defmodule Tuist.Tests.XcodeCoverage do
     |> Enum.map(fn chunk -> {chunk |> hd() |> elem(0), chunk |> List.last() |> elem(0)} end)
   end
 
+  # xccov gives a function its first line but not its range, so the union of
+  # the lines several shards covered in it cannot be told apart from lines of
+  # other functions. Its covered lines are exact when at most one report
+  # covered any, and nil (unknown) otherwise; calls add up across shards.
   defp merged_functions(rows) do
     rows
     |> Enum.flat_map(fn row ->
@@ -350,11 +354,18 @@ defmodule Tuist.Tests.XcodeCoverage do
     end)
     |> Enum.group_by(fn {name, line, _, _, _} -> {name, line} end)
     |> Enum.map(fn {{name, line}, entries} ->
+      covered_lines =
+        case entries |> Enum.map(&elem(&1, 3)) |> Enum.filter(&(&1 > 0)) do
+          [] -> 0
+          [covered] -> covered
+          _ -> nil
+        end
+
       %{
         name: name,
         line_number: line,
         execution_count: entries |> Enum.map(&elem(&1, 2)) |> Enum.sum(),
-        covered_lines: entries |> Enum.map(&elem(&1, 3)) |> Enum.max(),
+        covered_lines: covered_lines,
         executable_lines: entries |> Enum.map(&elem(&1, 4)) |> Enum.max()
       }
     end)

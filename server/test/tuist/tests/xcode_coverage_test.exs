@@ -220,6 +220,30 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       assert detail.targets == ["Calculator", "CalculatorTests"]
     end
 
+    test "show a function's coverage only when at most one shard covered it", %{project: project, account: account} do
+      function = fn covered ->
+        %{name: "add(_:_:)", line_number: 2, execution_count: covered, covered_lines: covered, executable_lines: 2}
+      end
+
+      shard = fn lines, covered ->
+        coverage([file("Sources/Calculator/Add.swift", "add1", ["Calculator"], lines, [function.(covered)])])
+      end
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: shard.([{2, 1}, {3, 0}], 1)})
+      {:ok, stored} = Tests.get_test(test.id)
+
+      # A shard that ran none of the function leaves the other shard's count exact.
+      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([{2, 0}, {3, 0}], 0)), 1)
+      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      assert [%{covered_lines: 1, executable_lines: 2, execution_count: 1}] = detail.functions
+
+      # Two shards each covered one line: 1/2 twice could be the same line or both.
+      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([{2, 0}, {3, 1}], 1)), 1)
+      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      assert {detail.covered_lines, detail.executable_lines} == {2, 2}
+      assert [%{covered_lines: nil, executable_lines: 2, execution_count: 2}] = detail.functions
+    end
+
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)

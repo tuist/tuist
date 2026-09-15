@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -205,6 +206,58 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#widget-coverage-file-percentage", "80.0%")
     assert has_element?(lv, "#widget-coverage-file-lines", "8 / 10")
     assert has_element?(lv, "#coverage-file-uncovered-lines", "Unavailable")
+  end
+
+  test "shows a function several shards covered as unavailable", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    shard = fn lines ->
+      %{
+        partial: false,
+        files: [
+          %{
+            path: "Sources/Calculator/Add.swift",
+            git_blob_id: "add1",
+            targets: ["Calculator"],
+            covered_lines: 1,
+            executable_lines: 2,
+            line_numbers: [2, 3],
+            execution_counts: lines,
+            functions: [%{name: "add(_:_:)", line_number: 2, execution_count: 1, covered_lines: 1, executable_lines: 2}]
+          }
+        ]
+      }
+    end
+
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: shard.([1, 0])
+      })
+
+    {:ok, stored} = Tuist.Tests.get_test(test_run.id)
+    XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([0, 1])), 1)
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Add.swift"
+      )
+
+    assert has_element?(lv, "#widget-coverage-file-lines", "2 / 2")
+    assert has_element?(lv, "#coverage-functions-table", "Unavailable")
   end
 
   test "hides the coverage tab from an account without the xcode_coverage flag", %{

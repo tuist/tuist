@@ -2371,7 +2371,12 @@
             <.text_cell label={format_number(function.execution_count)} />
           </:col>
           <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
+            <.text_cell
+              :if={is_nil(function.covered_lines)}
+              label={dgettext("dashboard_tests", "Unavailable")}
+            />
             <.coverage_cell
+              :if={function.covered_lines}
               covered={function.covered_lines}
               executable={function.executable_lines}
             />
