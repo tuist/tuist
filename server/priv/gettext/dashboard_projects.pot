@@ -2683,11 +2683,6 @@ msgstr ""
 msgid "Apply to existing matches"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1037
-#, elixir-autogen, elixir-format
-msgid "By default, actions run only for new matches."
-msgstr ""
-
 #: lib/tuist_web/live/project_automations_live.html.heex:1058
 #, elixir-autogen, elixir-format
 msgid "Complete a valid condition to see matching tests."
@@ -2753,4 +2748,9 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:1124
 #, elixir-autogen, elixir-format
 msgid "e.g. 30d"
+msgstr ""
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1037
+#, elixir-autogen, elixir-format
+msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
 msgstr ""
