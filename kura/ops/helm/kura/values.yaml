@@ -25,6 +25,10 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port-name: "http"
   prometheus.io/path: "/metrics"
+  # Kura has a large per-node metric surface. Keep its scrape cadence just
+  # below Grafana Cloud's one-DPM included rate; the managed monitoring chart
+  # maps this legacy annotation into annotation autodiscovery.
+  prometheus.io/scrape-interval: "65s"
 podLabels: {}
 
 podSecurityContext: {}

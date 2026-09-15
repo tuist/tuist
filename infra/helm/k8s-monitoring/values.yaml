@@ -212,6 +212,22 @@ k8s-monitoring:
           regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
           action = "drop"
         }
+        // Kura runs one StatefulSet pod per cache node. Its four latency
+        // histograms below therefore multiply every node by 17 classic
+        // buckets, even though the dashboards only need an approximate
+        // percentile and the count/sum series for rates and mean latency.
+        // Keep every other bucket so histogram_quantile remains useful, but
+        // remove alternating buckets. This takes the largest Kura families
+        // from 17 to 10 buckets (and the multipart family from 15 to 8)
+        // without changing labels or making duplicate remote-write series.
+        // The 14-day observed DPM p95 was 1.052 before the Kura-specific
+        // scrape interval below; bucket reduction is the cardinality lever.
+        write_relabel_config {
+          source_labels = ["cluster", "__name__", "le"]
+          separator = ";"
+          regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|replication_request_duration_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
@@ -268,7 +284,10 @@ k8s-monitoring:
               threshold_ms: 2000
             - name: healthy-sample
               type: probabilistic
-              sampling_percentage: 10
+              # Errors and traces slower than 2s are retained above. Keep a
+              # smaller representative sample for healthy traffic to contain
+              # trace ingestion and downstream service-graph cost.
+              sampling_percentage: 5
           collector:
             alloy:
               resources:
@@ -608,7 +627,10 @@ k8s-monitoring:
         selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
 
         stage.sampling {
-          rate = 0.1
+          // Kura request volume is high and routine 2xx/404 lines are not
+          // useful at the current 10% rate. Keep every error and sample one
+          // percent of normal traffic for capacity and adoption analysis.
+          rate = 0.01
           drop_counter_reason = "kura_ingress_request_sampling"
         }
       }
@@ -717,6 +739,7 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
+      metricsScrapeInterval: "prometheus.io/scrape-interval"
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
