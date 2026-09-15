@@ -2894,12 +2894,12 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 			statuses: map[string]runtimeStatus{
 				name + "-0": {
 					Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2,
-					BackfillingPeers: 0, OutboxMessages: 10, MemoryPressureState: 0,
+					BackfillingPeers: 0, MemoryPressureState: 0,
 					FDTimeoutCount: 2, PeerConnectionFailureCount: 1,
 				},
 				name + "-1": {
 					Ready: false, State: "bootstrapping", RingMembers: 1,
-					BackfillingPeers: 1, OutboxMessages: 5, MemoryPressureState: 2,
+					BackfillingPeers: 1, MemoryPressureState: 2,
 					FDTimeoutCount: 1, PeerConnectionFailureCount: 4,
 				},
 			},
@@ -2920,9 +2920,6 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 	}
 	if health.BackfillingPeers != 1 {
 		t.Fatalf("expected summed backfilling peers, got %d", health.BackfillingPeers)
-	}
-	if health.OutboxMessages != 15 {
-		t.Fatalf("expected summed outbox depth, got %d", health.OutboxMessages)
 	}
 	if health.FDTimeoutCount != 3 {
 		t.Fatalf("expected summed fd timeouts, got %d", health.FDTimeoutCount)
@@ -3615,7 +3612,6 @@ func TestRuntimeStatusDecodesTheBackfillWireContract(t *testing.T) {
 		"ring_fingerprint": "aaaa000011112222",
 		"writer_lock_owned": true,
 		"backfill_backfilling_peers": 2,
-		"outbox_messages": 7,
 		"memory_pressure_state": 1,
 		"fd_timeout_count": 4,
 		"peer_connection_failure_count": 5
