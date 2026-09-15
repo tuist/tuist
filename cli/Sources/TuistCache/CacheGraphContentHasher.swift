@@ -88,7 +88,12 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         }
 
         let version = versionFetcher.version()
-        let hashes = try await graphContentHasher.contentHashes(
+        let additionalStrings = [
+            resolvedConfiguration,
+            try await SwiftVersionProvider.current.swiftlangVersion(),
+            version.rawValue,
+        ]
+        var hashes = try await graphContentHasher.contentHashes(
             for: hashingGraph,
             include: {
                 isGraphTargetHashable(
@@ -97,12 +102,17 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 )
             },
             destination: destination,
-            additionalStrings: [
-                resolvedConfiguration,
-                try await SwiftVersionProvider.current.swiftlangVersion(),
-                version.rawValue,
-            ]
+            additionalStrings: additionalStrings
         )
+
+        let fingerprints = try await BinaryCacheFingerprintHasher().fingerprints(
+            graph: hashingGraph,
+            targets: Set(hashes.keys),
+            additionalStrings: additionalStrings
+        )
+        for (target, values) in fingerprints {
+            hashes[target]?.binaryCacheFingerprints = values
+        }
 
         return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in
             guard let project = graph.projects[target.path],

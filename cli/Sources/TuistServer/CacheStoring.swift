@@ -8,11 +8,13 @@
     public struct CacheStorableTarget: Hashable, Equatable {
         public let target: GraphTarget
         public let hash: String
+        public let metadata: CacheStorableItemMetadata
         public var name: String { target.target.name }
 
-        public init(target: GraphTarget, hash: String) {
+        public init(target: GraphTarget, hash: String, metadata: CacheStorableItemMetadata = .init()) {
             self.target = target
             self.hash = hash
+            self.metadata = metadata
         }
 
         public func hash(into hasher: inout Hasher) {
@@ -47,7 +49,19 @@
     }
 
     public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
-        public init() {}
+        public var binaryCacheFingerprints: [String: String]
+
+        public init(binaryCacheFingerprints: [String: String] = [:]) {
+            self.binaryCacheFingerprints = binaryCacheFingerprints
+        }
+
+        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            binaryCacheFingerprints = try container
+                .decodeIfPresent([String: String].self, forKey: .binaryCacheFingerprints) ?? [:]
+        }
     }
 
     @Mockable
@@ -85,7 +99,7 @@
         ) async throws -> [CacheStorableTarget: AbsolutePath] {
             Dictionary(
                 uniqueKeysWithValues: try await fetch(
-                    Set(targets.map { CacheStorableItem(name: $0.name, hash: $0.hash) }),
+                    Set(targets.map { CacheStorableItem(name: $0.name, hash: $0.hash, metadata: $0.metadata) }),
                     cacheCategory: cacheCategory
                 )
                 .compactMap { item, path -> (CacheStorableTarget, AbsolutePath)? in
@@ -102,12 +116,12 @@
             cacheCategory: RemoteCacheCategory
         ) async throws -> [CacheStorableTarget] {
             let items = Dictionary(
-                uniqueKeysWithValues: targets.map {
-                    target, paths -> (CacheStorableItem, [AbsolutePath]) in
+                uniqueKeysWithValues: targets.map { target, paths -> (CacheStorableItem, [AbsolutePath]) in
                     (
                         CacheStorableItem(
                             name: target.name,
-                            hash: target.hash
+                            hash: target.hash,
+                            metadata: target.metadata
                         ),
                         paths
                     )

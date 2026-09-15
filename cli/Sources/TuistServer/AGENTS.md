@@ -14,3 +14,4 @@ This module handles CLI integration with the Tuist Server APIs.
 ## Invariants
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided.
+- Cache request metadata carries SDK build fingerprints separately from the existing exact content hash; preserve it through target-to-item storage conversions.

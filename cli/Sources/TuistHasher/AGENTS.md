@@ -15,3 +15,4 @@ This module provides hashing utilities used across CLI modules.
 
 ## Invariants
 - Cached hashes are stored in-memory and keyed by absolute file path.
+- Binary-cache fingerprints normalize destinations and deployment targets per compilation variant, hash applicable dependencies recursively, and keep macros on their host platform. Never remove platform identity without checking artifact coverage at lookup.

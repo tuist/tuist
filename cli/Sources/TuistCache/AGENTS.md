@@ -16,3 +16,5 @@ This module handles CLI integration with the cache service and cache features.
 - Explicit cache warm target selection scopes transitive cache candidates from non-test roots only.
 - Caller-owned cache-warm scratch directories reject foreign build misses because their scripts control output locations.
 - Cache version bumps invalidate incompatible artifacts.
+- XCFramework compatibility fingerprints are per SDK variant and independent of unrelated consumers. Initial coverage is iOS device/simulator, Catalyst, and macOS using standard architectures; other platforms and custom architecture settings retain exact-hash lookup.
+- Compatibility indexes reference one immutable payload and are disposable cache metadata. Verify the artifact manifest and actual slice coverage before reuse.

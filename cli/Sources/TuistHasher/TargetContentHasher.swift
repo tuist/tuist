@@ -19,6 +19,7 @@ public protocol TargetContentHashing {
 }
 
 public struct TargetContentHash: Equatable {
+    public var binaryCacheFingerprints: [String: String] = [:]
     public let hash: String
     public let hashedPaths: [AbsolutePath: String]
     public let subhashes: TargetContentHashSubhashes

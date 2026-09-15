@@ -17,3 +17,4 @@ This module contains core domain abstractions and shared models used across the 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
+- XCFramework index metadata belongs to the bounded `binaryCacheIndex` support-cache category; payloads remain in the binary-cache budget.

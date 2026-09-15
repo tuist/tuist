@@ -23,6 +23,9 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The Tuist Binaries cache
     case binaries
 
+    /// SDK build fingerprints pointing to immutable XCFramework artifacts.
+    case binaryCacheIndex
+
     /// The Tuist Selective Tests cache
     case selectiveTests
 
@@ -46,6 +49,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "Runs"
         case .binaries:
             return "Binaries"
+        case .binaryCacheIndex:
+            return "BinaryCacheIndex"
         case .selectiveTests:
             return "SelectiveTests"
         case .generationMetadata:
@@ -86,7 +91,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             // Recomputed from the sources they were derived from: a manifest reload, one swiftc
             // invocation, a project generation.
             return .support(maxAge: 7 * Self.day)
-        case .plugins, .selectiveTests, .generationMetadata:
+        case .plugins, .selectiveTests, .generationMetadata, .binaryCacheIndex:
             // Refetched over the network, or read long after the run that wrote them, so these are
             // kept for as long as they plausibly stay relevant.
             return .support(maxAge: 30 * Self.day)
@@ -103,6 +108,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         .projectDescriptionHelpers,
         .selectiveTests,
         .generationMetadata,
+        .binaryCacheIndex,
         .plugins,
     ]
 }

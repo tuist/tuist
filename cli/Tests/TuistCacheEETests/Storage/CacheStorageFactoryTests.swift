@@ -56,7 +56,7 @@ struct CacheStorageFactoryTests {
         let got = try await subject.cacheStorage(config: .test(fullHandle: nil))
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
     }
 
     @Test
@@ -85,7 +85,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
         }
     }
 
@@ -113,7 +113,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
         }
     }
 
@@ -131,7 +131,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
     }
 
     @Test
@@ -186,7 +186,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
             verify(serverAuthenticationController)
                 .authenticationToken(
                     serverURL: .value(Constants.URLs.production),
@@ -221,7 +221,7 @@ struct CacheStorageFactoryTests {
         // Then
         // A rejected refresh has already cost the user their credentials, so the
         // warning keeps pointing at the sign-in that gets the remote cache back.
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: Invalid token",
         ])
@@ -248,7 +248,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: The refreshing of the access and refresh token pair for the URL https://tuist.dev failed after 15 seconds.",
         ])
@@ -275,7 +275,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: an unexpected error (TokenCarryingError)",
         ])
@@ -300,7 +300,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "No authentication token for https://tuist.dev was found. Skipping the remote cache and continuing with the local one.",
         ])
@@ -328,5 +328,12 @@ struct CacheStorageFactoryTests {
                 )
             )
         }
+    }
+
+    private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {
+        if let indexed = storage as? BinaryCacheStorage {
+            return await indexed.storage as? CacheStorage
+        }
+        return storage as? CacheStorage
     }
 }

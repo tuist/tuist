@@ -24,3 +24,4 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Core domain models: `cli/Sources/TuistCore/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
+- Cache warming carries the preload graph's SDK fingerprints through archiving and publication; do not recompute them from the graph after binary replacement.

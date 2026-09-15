@@ -192,7 +192,7 @@ import XcodeGraph
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
-            let cacheableTargets = try await cacheableTargets(
+            let (cacheableTargets, fingerprints) = try await cacheableTargets(
                 for: graph,
                 configuration: requestedConfiguration,
                 config: config,
@@ -243,6 +243,7 @@ import XcodeGraph
                 projectPath: projectPath,
                 configuration: configuration,
                 hashesByTargetToBeCached: cacheableTargets,
+                fingerprints: fingerprints,
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                 noUpload: noUpload,
                 isReleaseConfiguration: isReleaseConfiguration,
@@ -279,6 +280,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
@@ -294,6 +296,7 @@ import XcodeGraph
                             projectPath: projectPath,
                             configuration: configuration,
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
+                            fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
                             in: temporaryDirectory,
@@ -310,6 +313,7 @@ import XcodeGraph
                         projectPath: projectPath,
                         configuration: configuration,
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
+                        fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
                         in: path,
@@ -345,6 +349,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
             in scratchDirectory: AbsolutePath,
@@ -459,6 +464,7 @@ import XcodeGraph
 
             let successfullyStoredTargets = try await store(
                 artifactsToStore,
+                fingerprints: fingerprints,
                 cacheStorage: cacheStorage,
                 scratchDirectory: scratchDirectory
             )
@@ -1061,6 +1067,7 @@ import XcodeGraph
 
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
@@ -1068,14 +1075,18 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
+                        acc[CacheStorableTarget(
+                            target: next.graphTarget,
+                            hash: next.hash,
+                            metadata: .init(binaryCacheFingerprints: fingerprints[next.hash] ?? [:])
+                        )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = scratchDirectory.appending(
                             components: "Metadatas",
                             "\(storableTarget.name)-\(storableTarget.hash)",
                             "Metadata.plist"
                         )
-                        let metadata = CacheStorableItemMetadata()
+                        let metadata = storableTarget.metadata
                         try await fileSystem.makeDirectory(at: metadataFilePath.parentDirectory)
                         try await fileSystem.writeAsPlist(metadata, at: metadataFilePath)
                         var paths = paths
@@ -1094,7 +1105,7 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
-        ) async throws -> [(GraphTarget, String)] {
+        ) async throws -> ([(GraphTarget, String)], [String: [String: String]]) {
             let graphTraverser = GraphTraverser(graph: graph)
 
             // Apply the same profile-based filtering used by `tuist generate`.
@@ -1128,7 +1139,7 @@ import XcodeGraph
                 )
             case .noNonTestRoots:
                 Logger.current.info("No non-test targets were selected for binary cache warming")
-                return []
+                return ([], [:])
             }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
@@ -1140,7 +1151,11 @@ import XcodeGraph
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
+                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
+                    name: $0.key.target.name,
+                    hash: $0.value.hash,
+                    metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+                ) }),
                 cacheCategory: .binaries
             )
 
@@ -1166,9 +1181,12 @@ import XcodeGraph
                 cacheItems.map(\.key.hash)
             )
 
-            return cacheableTargets.compactMap {
+            return (cacheableTargets.compactMap {
                 existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
-            }
+            }, Dictionary(
+                selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
+                uniquingKeysWith: { first, _ in first }
+            ))
         }
     }
 #endif
