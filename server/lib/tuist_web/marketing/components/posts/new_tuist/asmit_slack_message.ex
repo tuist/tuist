@@ -29,9 +29,9 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
       [data-part="asmit-slack-message"] {
         margin: var(--noora-spacing-7) 0;
         border-radius: var(--noora-radius-3);
-        border: 1px solid #e6e6e6;
-        background: #ffffff;
-        color: #1d1c1d;
+        border: 1px solid light-dark(#e6e6e6, #3d3f42);
+        background: light-dark(#ffffff, #1a1d21);
+        color: light-dark(#1d1c1d, #d1d2d3);
         padding: var(--noora-spacing-5) var(--noora-spacing-6);
         font-family: "Lato", "Slack-Lato", -apple-system, system-ui, sans-serif;
         line-height: 1.46;
@@ -48,7 +48,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
           width: 36px;
           height: 36px;
           border-radius: 6px;
-          background-color: #ebeaeb;
+          background-color: light-dark(#ebeaeb, #ababad);
           background-repeat: no-repeat;
           background-size: 42px 52px;
           background-position: center 45%;
@@ -67,19 +67,19 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
         }
 
         & [data-part="name"] {
-          color: #1d1c1d;
+          color: light-dark(#1d1c1d, #d1d2d3);
           font-weight: 900;
           font-size: 15px;
           letter-spacing: -0.1px;
         }
 
         & [data-part="timestamp"] {
-          color: #616061;
+          color: light-dark(#616061, #ababad);
           font-size: 12px;
         }
 
         & [data-part="body"] {
-          color: #1d1c1d;
+          color: light-dark(#1d1c1d, #d1d2d3);
           font-size: 15px;
         }
 
@@ -107,9 +107,9 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
           gap: 6px;
           padding: 3px 8px 3px 6px;
           border-radius: 12px;
-          border: 1px solid #dcdcdc;
-          background: #f4f4f5;
-          color: #616061;
+          border: 1px solid light-dark(#dcdcdc, #565856);
+          background: light-dark(#f4f4f5, #222529);
+          color: light-dark(#616061, #ababad);
           font-size: 13px;
           font-weight: 700;
           cursor: pointer;
@@ -119,14 +119,14 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
         }
 
         & [data-part="reaction"]:hover {
-          background: #eeeef0;
-          border-color: #cfcfd1;
+          background: light-dark(#eeeef0, #35373b);
+          border-color: light-dark(#cfcfd1, #ababad);
         }
 
         & [data-part="reaction"][data-reacted="true"] {
-          background: rgba(138, 99, 210, 0.12);
-          border-color: rgba(138, 99, 210, 0.55);
-          color: #6b3fbf;
+          background: light-dark(rgba(138, 99, 210, 0.12), rgba(167, 139, 250, 0.18));
+          border-color: light-dark(rgba(138, 99, 210, 0.55), rgba(167, 139, 250, 0.65));
+          color: light-dark(#6b3fbf, #c4b5fd);
         }
 
         & [data-part="reaction"] {
@@ -183,9 +183,9 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
           width: 30px;
           height: 24px;
           border-radius: 12px;
-          border: 1px solid #dcdcdc;
+          border: 1px solid light-dark(#dcdcdc, #565856);
           background: transparent;
-          color: #616061;
+          color: light-dark(#616061, #ababad);
           cursor: not-allowed;
           font-family: inherit;
         }

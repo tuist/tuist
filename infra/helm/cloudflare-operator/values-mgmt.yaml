@@ -3,9 +3,12 @@
 # configuration is global, not per-env.
 
 image:
-  # Built from a8112699ff19, the #13096 merge that added the
-  # CloudflareBotManagement controller.
-  # Keep the human-readable tag and immutable multi-platform digest
-  # together so reviewers can trace both the source and deployed bytes.
-  tag: sha-a8112699ff19
-  digest: sha256:6e9540ee3c3028d2d8f8d3c4ae71392e1cbbfd46534509b5885b1240a927aff3
+  # Bumped by Flux's image-automation-controller — see
+  # `infra/flux/cloudflare-operator/image-automation.yaml`. The
+  # trailing `$imagepolicy` marker is what the Setters strategy scans
+  # for; every merge to main that publishes a newer
+  # `sha-<epoch>-<sha>` tag triggers a `fluxcdbot` commit that rewrites
+  # this line and only this line. Editing the marker (or removing it)
+  # stops the automation for this pin.
+  # https://fluxcd.io/flux/components/image/imageupdateautomations/#update-strategy
+  tag: sha-33909c11f299 # {"$imagepolicy": "flux-system:cloudflare-operator:tag"}

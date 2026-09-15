@@ -10,9 +10,9 @@ same-host affinity, or runner-specific pod replacement state machine.
   waits for Kubernetes readiness between replacements. Each pod retains its own
   local PVC across process restarts. Both claims and both memory reservations
   count against capacity; co-location is preferred, as in other managed regions.
-- Both pods continuously replicate writes through the account mesh and persistent
-  outbox. Restarting a pod triggers initial peer backfill. The standby is writable
-  and participates in replication throughout its lifetime.
+- Both pods continuously pull each other's writes over the arrival feed.
+  Restarting a pod triggers a bootstrap pass from its sibling. The standby is
+  writable and participates in replication throughout its lifetime.
 - HTTP and gRPC enter through the regional ingress-nginx gateway and the same
   primary-pinned Service. Selection prefers fully joined members; if none are available, a Ready
   serving survivor can retain or take over the role while its sibling restarts.
@@ -24,8 +24,8 @@ same-host affinity, or runner-specific pod replacement state machine.
 This is asynchronous replication. Kubernetes Ready and runtime-routable do not
 prove that initial backfill has completed or every newly acknowledged write has
 reached the standby. The change does not introduce a stronger consistency or
-zero-error rollout guarantee than the other managed instances. Continuous
-outbox progress and backfill health remain operational checks for both.
+zero-error rollout guarantee than the other managed instances. Feed cursor
+lag and catch-up health remain operational checks for both.
 
 ## Private entrance
 
@@ -180,9 +180,9 @@ Before production rollout, exercise this staging scenario from a runner VM:
    HTTP/gRPC failures, cache misses, latencies and payload digests throughout;
    keep a large streaming transfer running across the primary handover.
 2. Observe both pods' `/status/rollout` through the existing authenticated peer
-   status path. Check `backfill_initial_cycle` completes and outbox counters
-   return toward baseline after writes and after the standby rejoins. Inspect
-   `kura_outbox_target_messages` for the sibling target, not only the aggregate.
+   status path. Check `backfill_initial_cycle` completes and
+   `kura_sync_forward_cursor_lag_entries` returns to zero after writes and
+   after the standby rejoins.
 3. Confirm HTTP and gRPC reject a connection from outside the runner CIDR,
    including a forged `X-Forwarded-For` header, while the same requests succeed
    from the PN. Check DNS has only the private A address and TLS validates.

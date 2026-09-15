@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -60,6 +61,12 @@ defmodule Tuist.Application do
     Tuist.License.assert_valid!()
 
     application
+  end
+
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
   end
 
   defp load_secrets_in_application do
@@ -285,12 +292,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -326,9 +329,6 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Cachex, [:tuist, []]},
         Cache,
