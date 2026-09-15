@@ -36,8 +36,8 @@ export const GoogleOneTap = {
         signal: this.abortController.signal,
       });
       if (!response.ok) return;
-      const { client_id, nonce } = await response.json();
-      if (!client_id || !nonce || this.abortController.signal.aborted || !this.el.isConnected) return;
+      const { client_id, nonce, csrf_token } = await response.json();
+      if (!client_id || !nonce || !csrf_token || this.abortController.signal.aborted || !this.el.isConnected) return;
 
       await loadGoogleIdentity();
       if (this.abortController.signal.aborted || !this.el.isConnected) return;
@@ -59,6 +59,7 @@ export const GoogleOneTap = {
               !form?.isConnected
             )
               return;
+            form.elements._csrf_token.value = csrf_token;
             form.elements.credential.value = credential;
             form.elements.nonce.value = nonce;
             form.requestSubmit();
