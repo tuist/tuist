@@ -251,7 +251,7 @@ Tuist rejects a caller-owned scratch directory when a foreign build target needs
 
 `tuist cache` passes `COMPILATION_CACHE_CAS_PATH` to the builds it runs, using the first of these locations:
 
-1. `TUIST_COMPILATION_CACHE_CAS_PATH`, when it's set to an absolute path (Tuist 4.208.0 or later).
+1. `TUIST_COMPILATION_CACHE_CAS_PATH`, when it's set to an absolute path.
 2. `CompilationCache.noindex` inside `TUIST_CACHE_WARM_SCRATCH_DIRECTORY`, when it's set.
 3. `CompilationCache.noindex` inside the default derived data directory.
 

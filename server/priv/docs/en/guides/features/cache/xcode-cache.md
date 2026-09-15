@@ -150,7 +150,7 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 
 ### Module cache hashes {#module-cache-hashes}
 
-From Tuist 4.206.0, compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
+Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
 
 > [!NOTE]
 > **Prefix mapping settings are hashed**
@@ -215,50 +215,26 @@ xcodebuild build -workspace App.xcworkspace -scheme App \
 - The store path isn't part of compilation cache keys. A build with a fresh store looks up the same keys, starts with an empty local store, and replays hits from the remote cache.
 - The derived data path is part of compilation cache keys, because the keys include the absolute paths of a compilation's outputs. Builds that use different derived data paths don't hit each other's outputs. On Xcode 27 and later, the prefix mapping settings make the keys independent of the derived data path.
 
-For `tuist cache`, set `TUIST_COMPILATION_CACHE_CAS_PATH` (Tuist 4.208.0 or later). It takes precedence over the store inside the <.localized_link href="/guides/features/cache/module-cache#cache-warm-scratch-directory">cache warm scratch directory</.localized_link> and over the default location:
+For `tuist cache`, set `TUIST_COMPILATION_CACHE_CAS_PATH`. It takes precedence over the store inside the <.localized_link href="/guides/features/cache/module-cache#cache-warm-scratch-directory">cache warm scratch directory</.localized_link> and over the default location:
 
 ```bash
 export TUIST_COMPILATION_CACHE_CAS_PATH="$(mktemp -d)/CompilationCache"
 tuist cache
 ```
 
-#### Drain uploads before deleting the store {#drain-uploads-before-deleting-the-store}
-
-When a build uploads to the remote cache, `tuist-cas-proxy` publishes compilation outputs in the background from a spool at `<cas path>/tuist-spool`. Deleting the store also deletes the spool. On builds that upload, run `tuist-cas-proxy --drain` before deleting the store to wait for the spool to reach the remote cache:
-
-```bash
-tuist-cas-proxy --drain "$CAS_PATH" --timeout-ms 300000
-rm -rf "$CAS_PATH"
-```
-
-`tuist-cas-proxy` ships next to the `tuist` executable. `--timeout-ms` defaults to two minutes. The exit code reports the result:
-
-| Exit code | Meaning |
-| --- | --- |
-| `0` | Drained. Every output the store recorded reached the remote cache. |
-| `3` | Records remain after the timeout. Deleting the store drops the outputs that weren't uploaded. |
-| Any other code | The proxy couldn't be asked, for example because no proxy is listening. The state of the spool is unknown. |
-
 #### Stateful store {#stateful-store}
 
-To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path. Bound its size with `tuist-cas-proxy --prune` (Tuist 4.208.0 or later), run after the build processes exit:
+To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path.
 
-```bash
-tuist-cas-proxy --prune "$CAS_PATH" --limit-bytes 10737418240
-```
-
-`--prune` rotates the store's generations against the limit and deletes the generations that fall off the chain. It exits with `0` when it pruned or found nothing to collect, and with `1` when it couldn't prune.
-
-- The limit applies to each generation, not to the whole directory. A pruned store keeps two generations, so it settles at about twice the limit. With a 10 GiB limit, budget about 20 GiB of disk.
+- `COMPILATION_CACHE_LIMIT_SIZE` doesn't cap the store directory, so the store keeps growing across builds. Budget disk space for it, and reset it when needed as described in [Resetting a compilation cache store](#resetting-a-compilation-cache-store).
 - Measure the store by its allocated blocks, for example with `du -sh "$CAS_PATH"`, not by file sizes. The store preallocates sparse files, so file sizes report much more than the store occupies.
-- `COMPILATION_CACHE_LIMIT_SIZE` alone never caps the directory. Without `--prune`, the store keeps growing past the limit.
 
 ### Resetting a compilation cache store {#resetting-a-compilation-cache-store}
 
 > [!WARNING]
-> **Don't delete and recreate a store path while `tuist-cas-proxy` is running**
+> **Tear down the cache before deleting and recreating a store path**
 >
-> The proxy keeps the stores it serves open. Deleting a store directory and creating it again at the same path while the proxy is running can stall cache lookups for that path. This includes deleting `DerivedData` when the store is in its default location. To reset a store, stop the proxy first:
+> Deleting a store directory and creating it again at the same path while the Xcode cache is set up on the machine can stall cache lookups for that path. This includes deleting `DerivedData` when the store is in its default location. To reset a store, tear down the cache first:
 >
 > ```bash
 > tuist teardown cache
@@ -266,7 +242,7 @@ tuist-cas-proxy --prune "$CAS_PATH" --limit-bytes 10737418240
 > tuist setup cache
 > ```
 >
-> An ephemeral store uses a new path for every build, so deleting it after the build doesn't recreate a path the proxy has open.
+> An ephemeral store uses a new path for every build, so deleting it after the build doesn't recreate a path.
 
 ## Troubleshooting {#troubleshooting}
 
@@ -329,11 +305,11 @@ A build log that mixes successful `uploaded CAS output` notes with `deadlineExce
 
 When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
 
-### Finding the cache proxy's diagnostics {#cache-proxy-diagnostics}
+### Finding the Xcode cache's diagnostics {#xcode-cache-diagnostics}
 
-`tuist-cas-proxy` and the CAS plugin that the compiler loads write their diagnostics, such as hit and miss counts, lookup latency, and errors, only to the file named by `TUIST_CAS_LOG`. They never appear in the build output.
+The Xcode cache writes its diagnostics, such as hit and miss counts, lookup latency, and errors, only to the file named by `TUIST_CAS_LOG`. They never appear in the build output.
 
-- On CI, from Tuist 4.207.0, the file defaults to `~/.local/state/tuist/cas.log`, or `$XDG_STATE_HOME/tuist/cas.log` when `XDG_STATE_HOME` is an absolute path. Upload it as a job artifact to inspect it after the job. Set `TUIST_CAS_LOG` to an empty value to turn it off.
-- On developer machines, there's no default. Set `TUIST_CAS_LOG` in the environment that runs `tuist setup cache`, which passes it to the proxy, and in the environment that runs the build, which passes it to the plugin.
+- On CI, the file defaults to `~/.local/state/tuist/cas.log`, or `$XDG_STATE_HOME/tuist/cas.log` when `XDG_STATE_HOME` is an absolute path. Upload it as a job artifact to inspect it after the job. Set `TUIST_CAS_LOG` to an empty value to turn it off.
+- On developer machines, there's no default. Set `TUIST_CAS_LOG` both in the environment that runs `tuist setup cache` and in the environment that runs the build.
 
 When the file grows past 32 MiB, it's truncated in place and logging continues, so the file holds the most recent output.
