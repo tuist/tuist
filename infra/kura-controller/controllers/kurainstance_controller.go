@@ -238,6 +238,9 @@ type runtimeStatus struct {
 	// in flight, which is what the rollout gate needs: a rollout restarts
 	// every pod, so backfill running afterwards is expected work.
 	BackfillBudgetExhaustedRealPeers int64 `json:"backfill_budget_exhausted_real_peers"`
+	// GatewayGRPCPort is the gRPC-only listener the process has bound, zero
+	// when it has none. It is the evidence the gRPC Ingress switches on.
+	GatewayGRPCPort int32 `json:"gateway_grpc_port"`
 }
 
 // podRuntimeSample is one pod's last observed /status/rollout report plus
@@ -469,6 +472,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileInstancePublicPeerService(ctx, instance, gatewayPod); err != nil {
 		return ctrl.Result{}, err
 	}
+	// The gRPC Ingress follows the pods' evidence for the gRPC-only port. It
+	// reconciles before the Service so a move back to the co-hosted port lands
+	// before the Service can select a pod without the gRPC-only listener.
+	if err := r.reconcileGRPCIngress(ctx, instance, pods, samples, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -482,9 +491,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicDNSEndpoint(ctx, instance, primaryPod); err != nil {
@@ -1784,7 +1790,7 @@ var grpcPublicPathPrefixes = []string{
 // of its own. Host equals PublicHost (not GRPCPublicHost) so existing CRs
 // that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
 // single host as soon as this controller rolls out.
-func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus, primaryPod string) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
 	// PrivateHost opts into the same gateway path. Without it, private
 	// instances have no ingress. For gateway instances, gRPC
@@ -1808,7 +1814,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Spec.TLS = nil
 		// This Ingress exists so ingress-nginx renders these paths with
 		// grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
-		servicePort := grpcIngressServicePort(instance)
+		servicePort := grpcIngressServicePort(pods, samples, primaryPod)
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcPublicPathPrefixes))
 		for _, prefix := range grpcPublicPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
@@ -1828,69 +1834,69 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 	return err
 }
 
-// gatewayGRPCMinimumVersion is the first Kura release that binds
-// KURA_GATEWAY_GRPC_PORT.
-var gatewayGRPCMinimumVersion = [3]int{0, 47, 0}
+const gatewayGRPCPortEnvVar = "KURA_GATEWAY_GRPC_PORT"
 
-// grpcIngressServicePort routes gRPC to the gRPC-only port once both the
-// requested and the running image bind it, and to the co-hosted port otherwise.
-// ingress-nginx reuses pooled upstream connections by address alone, so gRPC and
-// HTTP/1.1 sent to one pod port would be handed each other's connections.
-// Requiring the running image keeps gRPC on the co-hosted port until a rollout
-// onto a new image completes, and a rollback moves it back immediately.
-func grpcIngressServicePort(instance *kurav1alpha1.KuraInstance) string {
-	if imageServesGatewayGRPC(instance.Spec.Image) && imageServesGatewayGRPC(instance.Status.ObservedImage) {
-		return "grpc"
+// grpcIngressServicePort routes gRPC to the gRPC-only port only on evidence from
+// the pods: every ready pod sampled this pass reports serving it and declares
+// it, and the primary is among them. ingress-nginx reuses pooled upstream
+// connections by address alone, so gRPC and HTTP/1.1 sent to one pod port would
+// be handed each other's connections. Without that evidence gRPC stays on the
+// co-hosted port, which every Kura image serves.
+func grpcIngressServicePort(pods []corev1.Pod, samples map[string]runtimeStatus, primaryPod string) string {
+	primaryServes := false
+	for i := range pods {
+		pod := &pods[i]
+		status, fresh := samples[pod.Name]
+		if !fresh || !podReady(pod) {
+			continue
+		}
+		if status.GatewayGRPCPort != gatewayGRPCPort || !podDeclaresContainerPort(pod, "grpc", gatewayGRPCPort) {
+			return "http"
+		}
+		if pod.Name == primaryPod {
+			primaryServes = true
+		}
 	}
-	return "http"
+	if !primaryServes {
+		return "http"
+	}
+	return "grpc"
 }
 
-// imageServesGatewayGRPC reports whether a Kura image binds the gateway gRPC
-// port. A tag that is not a release version, such as the sha- builds staging
-// deploys from main, counts as current.
-func imageServesGatewayGRPC(image string) bool {
-	if image == "" {
+func podDeclaresContainerPort(pod *corev1.Pod, name string, port int32) bool {
+	for _, container := range pod.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		for _, containerPort := range container.Ports {
+			if containerPort.Name == name && containerPort.ContainerPort == port {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// templateServesGatewayGRPC decides whether the pod template carries the
+// gateway gRPC env var and port. Adding them changes the template, which
+// restarts every pod, so they are only added alongside a change that restarts
+// the pods anyway (a new StatefulSet or a new image) and kept once present.
+func templateServesGatewayGRPC(existing *corev1.PodTemplateSpec, instance *kurav1alpha1.KuraInstance) bool {
+	for _, container := range existing.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		if container.Image != instance.Spec.Image {
+			return true
+		}
+		for _, env := range container.Env {
+			if env.Name == gatewayGRPCPortEnvVar {
+				return true
+			}
+		}
 		return false
 	}
-	version, ok := kuraImageVersion(image)
-	if !ok {
-		return true
-	}
-	for i := range version {
-		if version[i] != gatewayGRPCMinimumVersion[i] {
-			return version[i] > gatewayGRPCMinimumVersion[i]
-		}
-	}
 	return true
-}
-
-// kuraImageVersion parses the major.minor.patch release version from an image
-// reference's tag, ignoring any digest, leading v, and pre-release suffix.
-func kuraImageVersion(image string) ([3]int, bool) {
-	if at := strings.Index(image, "@"); at >= 0 {
-		image = image[:at]
-	}
-	colon := strings.LastIndex(image, ":")
-	if colon < 0 || strings.Contains(image[colon:], "/") {
-		return [3]int{}, false
-	}
-	tag := strings.TrimPrefix(image[colon+1:], "v")
-	if suffix := strings.IndexAny(tag, "-+"); suffix >= 0 {
-		tag = tag[:suffix]
-	}
-	parts := strings.Split(tag, ".")
-	if len(parts) != 3 {
-		return [3]int{}, false
-	}
-	var version [3]int
-	for i, part := range parts {
-		number, err := strconv.Atoi(part)
-		if err != nil || number < 0 {
-			return [3]int{}, false
-		}
-		version[i] = number
-	}
-	return version, true
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -3097,7 +3103,8 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		if err != nil {
 			return err
 		}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
+		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC)
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
@@ -3674,7 +3681,7 @@ func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, in
 	return false, nil
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, gatewayGRPC bool) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
@@ -3690,8 +3697,8 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports:           containerPorts(instance),
-				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
+				Ports:           containerPorts(instance, gatewayGRPC),
+				Env:             podEnv(instance, otlpTracesEndpoint, environment, gatewayGRPC),
 				EnvFrom:         sharedSecretsEnvFrom(),
 				Resources:       defaultResources(instance, binPackCeiling),
 				VolumeMounts:    volumeMounts(instance),
@@ -4347,10 +4354,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if len(instance.Spec.MeshExternalPeers) > 0 {
 		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
-	if imageServesGatewayGRPC(instance.Spec.Image) {
-		env = append(env, corev1.EnvVar{Name: "KURA_GATEWAY_GRPC_PORT", Value: fmt.Sprintf("%d", gatewayGRPCPort)})
-	}
 	return env
+}
+
+func podEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, gatewayGRPC bool) []corev1.EnvVar {
+	env := baseEnv(instance, otlpTracesEndpoint, environment)
+	if gatewayGRPC {
+		env = append(env, corev1.EnvVar{Name: gatewayGRPCPortEnvVar, Value: fmt.Sprintf("%d", gatewayGRPCPort)})
+	}
+	return append(env, instance.Spec.ExtraEnv...)
 }
 
 func managedCacheEnvDefaults() []corev1.EnvVar {
@@ -4371,15 +4383,15 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 }
 
 // containerPorts exposes the plain co-hosted cache port (HTTP + h2c gRPC), the
-// internal mTLS peer port, and the gRPC-only gateway port on images that bind
-// it. Customer-facing TLS terminates at the regional Kura ingress, not inside
-// each Kura runtime pod.
-func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
+// internal mTLS peer port, and the gRPC-only gateway port on templates that
+// carry it. Customer-facing TLS terminates at the regional Kura ingress, not
+// inside each Kura runtime pod.
+func containerPorts(instance *kurav1alpha1.KuraInstance, gatewayGRPC bool) []corev1.ContainerPort {
 	ports := []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
-	if imageServesGatewayGRPC(instance.Spec.Image) {
+	if gatewayGRPC {
 		ports = append(ports, corev1.ContainerPort{Name: "grpc", ContainerPort: gatewayGRPCPort})
 	}
 	return ports

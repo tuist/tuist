@@ -1917,7 +1917,7 @@ func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", "", false),
+			Template:             podTemplate(legacyInstance, "", "production", "", false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -2354,7 +2354,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", "", false),
+			Template:             podTemplate(instance, "", "production", "", false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2412,7 +2412,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "", false)
+	stsTemplate := podTemplate(instance, "", "production", "", false, false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -4502,79 +4502,198 @@ func TestKuraInstanceReconcileFailsBackWhenWildcardSecretDisappears(t *testing.T
 	}
 }
 
-func TestImageServesGatewayGRPC(t *testing.T) {
-	cases := map[string]bool{
-		"":                                    false,
-		"ghcr.io/tuist/kura:0.46.0":           false,
-		"ghcr.io/tuist/kura:0.5.2":            false,
-		"ghcr.io/tuist/kura:0.47.0":           true,
-		"ghcr.io/tuist/kura:v0.47.1":          true,
-		"ghcr.io/tuist/kura:0.47.0-rc.1":      true,
-		"ghcr.io/tuist/kura:1.0.0":            true,
-		"ghcr.io/tuist/kura:0.47.0@sha256:ab": true,
-		"ghcr.io/tuist/kura:sha-4fbea0289708": true,
-		"ghcr.io/tuist/kura":                  true,
-		"localhost:5000/kura":                 true,
+func gatewayGRPCTestPod(name string, ready bool, declaresGRPC bool) corev1.Pod {
+	ports := []corev1.ContainerPort{{Name: "http", ContainerPort: httpPort}}
+	if declaresGRPC {
+		ports = append(ports, corev1.ContainerPort{Name: "grpc", ContainerPort: gatewayGRPCPort})
 	}
-	for image, want := range cases {
-		if got := imageServesGatewayGRPC(image); got != want {
-			t.Errorf("imageServesGatewayGRPC(%q) = %t, want %t", image, got, want)
-		}
+	condition := corev1.ConditionFalse
+	if ready {
+		condition = corev1.ConditionTrue
+	}
+	return corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: kuraContainerName, Ports: ports}}},
+		Status: corev1.PodStatus{
+			Phase:      corev1.PodRunning,
+			Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: condition}},
+		},
 	}
 }
 
-func TestGRPCIngressServicePortFollowsRequestedAndRunningImage(t *testing.T) {
+func TestGRPCIngressServicePortRequiresEvidenceFromServingPods(t *testing.T) {
+	serving := runtimeStatus{Ready: true, State: "serving", GatewayGRPCPort: gatewayGRPCPort}
+	legacy := runtimeStatus{Ready: true, State: "serving"}
 	cases := []struct {
-		name     string
-		image    string
-		observed string
-		want     string
+		name    string
+		pods    []corev1.Pod
+		samples map[string]runtimeStatus
+		primary string
+		want    string
 	}{
-		{name: "not yet rolled out", image: "ghcr.io/tuist/kura:0.47.0", observed: "", want: "http"},
-		{name: "rolling onto a gateway image", image: "ghcr.io/tuist/kura:0.47.0", observed: "ghcr.io/tuist/kura:0.46.0", want: "http"},
-		{name: "running a gateway image", image: "ghcr.io/tuist/kura:0.47.0", observed: "ghcr.io/tuist/kura:0.47.0", want: "grpc"},
-		{name: "rolling back", image: "ghcr.io/tuist/kura:0.46.0", observed: "ghcr.io/tuist/kura:0.47.0", want: "http"},
-		{name: "staging build", image: "ghcr.io/tuist/kura:sha-4fbea0289708", observed: "ghcr.io/tuist/kura:sha-4fbea0289708", want: "grpc"},
+		{
+			name:    "every ready pod serves and declares the port",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, true)},
+			samples: map[string]runtimeStatus{"kura-0": serving, "kura-1": serving},
+			primary: "kura-0",
+			want:    "grpc",
+		},
+		{
+			name:    "image rolled out but pods still lack the port and listener",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, false), gatewayGRPCTestPod("kura-1", true, false)},
+			samples: map[string]runtimeStatus{"kura-0": legacy, "kura-1": legacy},
+			primary: "kura-0",
+			want:    "http",
+		},
+		{
+			name:    "port declared but the running process does not serve it",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, true)},
+			samples: map[string]runtimeStatus{"kura-0": legacy, "kura-1": legacy},
+			primary: "kura-0",
+			want:    "http",
+		},
+		{
+			name:    "a ready pod mid-rollout lacks the listener",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, false)},
+			samples: map[string]runtimeStatus{"kura-0": serving, "kura-1": legacy},
+			primary: "kura-0",
+			want:    "http",
+		},
+		{
+			name:    "an unready restarting pod does not block the switch",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", false, false)},
+			samples: map[string]runtimeStatus{"kura-0": serving},
+			primary: "kura-0",
+			want:    "grpc",
+		},
+		{
+			name:    "the primary has no fresh sample",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, true)},
+			samples: map[string]runtimeStatus{"kura-1": serving},
+			primary: "kura-0",
+			want:    "http",
+		},
+		{
+			name:    "no primary",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true)},
+			samples: map[string]runtimeStatus{"kura-0": serving},
+			primary: "",
+			want:    "http",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			instance := &kurav1alpha1.KuraInstance{
-				Spec:   kurav1alpha1.KuraInstanceSpec{Image: tc.image},
-				Status: kurav1alpha1.KuraInstanceStatus{ObservedImage: tc.observed},
-			}
-			if got := grpcIngressServicePort(instance); got != tc.want {
+			if got := grpcIngressServicePort(tc.pods, tc.samples, tc.primary); got != tc.want {
 				t.Fatalf("grpcIngressServicePort() = %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-func TestGatewayGRPCPortPodWiringGatesOnRequestedImage(t *testing.T) {
-	for image, want := range map[string]bool{
-		"ghcr.io/tuist/kura:0.46.0": false,
-		"ghcr.io/tuist/kura:0.47.0": true,
-	} {
-		instance := &kurav1alpha1.KuraInstance{
-			ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
-			Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "tuist", TenantID: "tuist", Region: "eu", Image: image},
+func TestReconcileGRPCIngressWaitsForPodsToServeTheGatewayPort(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	// The runtime image rolled out before this controller, so both image fields
+	// are current while the pods still run without the gateway configuration.
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.50.0",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-west",
+		},
+		Status: kurav1alpha1.KuraInstanceStatus{ObservedImage: "ghcr.io/tuist/kura:0.50.0"},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(),
+		Scheme: scheme,
+	}
+	backendPort := func() string {
+		t.Helper()
+		ingress := &networkingv1.Ingress{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, ingress); err != nil {
+			t.Fatal(err)
 		}
-		hasPort := false
-		for _, port := range containerPorts(instance) {
-			if port.Name == "grpc" && port.ContainerPort == gatewayGRPCPort {
-				hasPort = true
+		return ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Name
+	}
+
+	legacyPods := []corev1.Pod{gatewayGRPCTestPod("kura-tuist-eu-1-0", true, false), gatewayGRPCTestPod("kura-tuist-eu-1-1", true, false)}
+	legacySamples := map[string]runtimeStatus{
+		"kura-tuist-eu-1-0": {Ready: true, State: "serving"},
+		"kura-tuist-eu-1-1": {Ready: true, State: "serving"},
+	}
+	if err := reconciler.reconcileGRPCIngress(ctx, instance, legacyPods, legacySamples, "kura-tuist-eu-1-0"); err != nil {
+		t.Fatal(err)
+	}
+	if got := backendPort(); got != "http" {
+		t.Fatalf("expected gRPC Ingress to stay on the co-hosted port until pods serve the gateway port, got %q", got)
+	}
+
+	servingPods := []corev1.Pod{gatewayGRPCTestPod("kura-tuist-eu-1-0", true, true), gatewayGRPCTestPod("kura-tuist-eu-1-1", true, true)}
+	servingSamples := map[string]runtimeStatus{
+		"kura-tuist-eu-1-0": {Ready: true, State: "serving", GatewayGRPCPort: gatewayGRPCPort},
+		"kura-tuist-eu-1-1": {Ready: true, State: "serving", GatewayGRPCPort: gatewayGRPCPort},
+	}
+	if err := reconciler.reconcileGRPCIngress(ctx, instance, servingPods, servingSamples, "kura-tuist-eu-1-0"); err != nil {
+		t.Fatal(err)
+	}
+	if got := backendPort(); got != "grpc" {
+		t.Fatalf("expected gRPC Ingress to move to the gateway port once every ready pod serves it, got %q", got)
+	}
+
+	if err := reconciler.reconcileGRPCIngress(ctx, instance, legacyPods, legacySamples, "kura-tuist-eu-1-0"); err != nil {
+		t.Fatal(err)
+	}
+	if got := backendPort(); got != "http" {
+		t.Fatalf("expected gRPC Ingress to return to the co-hosted port when pods stop serving the gateway port, got %q", got)
+	}
+}
+
+func TestTemplateServesGatewayGRPCOnlyAlongsideARestart(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{Image: "ghcr.io/tuist/kura:0.50.0"}}
+	template := func(image string, gatewayEnv bool) *corev1.PodTemplateSpec {
+		container := corev1.Container{Name: kuraContainerName, Image: image}
+		if gatewayEnv {
+			container.Env = []corev1.EnvVar{{Name: gatewayGRPCPortEnvVar, Value: "4001"}}
+		}
+		return &corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{container}}}
+	}
+	cases := []struct {
+		name     string
+		existing *corev1.PodTemplateSpec
+		want     bool
+	}{
+		{name: "new StatefulSet", existing: &corev1.PodTemplateSpec{}, want: true},
+		{name: "same image without the gateway configuration", existing: template("ghcr.io/tuist/kura:0.50.0", false), want: false},
+		{name: "image change pending", existing: template("ghcr.io/tuist/kura:0.49.0", false), want: true},
+		{name: "already configured", existing: template("ghcr.io/tuist/kura:0.50.0", true), want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := templateServesGatewayGRPC(tc.existing, instance); got != tc.want {
+				t.Fatalf("templateServesGatewayGRPC() = %t, want %t", got, tc.want)
 			}
-		}
-		if hasPort != want {
-			t.Errorf("containerPorts for %s exposes grpc = %t, want %t", image, hasPort, want)
-		}
-		hasEnv := false
-		for _, env := range baseEnv(instance, "", "") {
-			if env.Name == "KURA_GATEWAY_GRPC_PORT" && env.Value == "4001" {
-				hasEnv = true
-			}
-		}
-		if hasEnv != want {
-			t.Errorf("baseEnv for %s sets KURA_GATEWAY_GRPC_PORT = %t, want %t", image, hasEnv, want)
-		}
+		})
+	}
+
+	withGateway := podTemplate(instance, "", "production", "", false, true).Spec.Containers[0]
+	withoutGateway := podTemplate(instance, "", "production", "", false, false).Spec.Containers[0]
+	if !podDeclaresContainerPort(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{withGateway}}}, "grpc", gatewayGRPCPort) {
+		t.Fatal("expected a gateway template to declare the grpc container port")
+	}
+	if podDeclaresContainerPort(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{withoutGateway}}}, "grpc", gatewayGRPCPort) {
+		t.Fatal("expected a template without the gateway configuration to omit the grpc container port")
+	}
+	if !hasEnvVar(withGateway.Env, gatewayGRPCPortEnvVar) || hasEnvVar(withoutGateway.Env, gatewayGRPCPortEnvVar) {
+		t.Fatal("expected KURA_GATEWAY_GRPC_PORT only on the gateway template")
 	}
 }
