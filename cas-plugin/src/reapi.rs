@@ -414,6 +414,25 @@ pub struct Remote {
     shed_writes: AtomicU64,
 }
 
+const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+const REACHABILITY_ATTEMPTS: usize = 2;
+const REACHABILITY_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// A request body holding one gRPC message frame.
+struct OneFrame(Option<hyper::body::Bytes>);
+
+impl hyper::body::Body for OneFrame {
+    type Data = hyper::body::Bytes;
+    type Error = std::convert::Infallible;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+        std::task::Poll::Ready(self.0.take().map(|data| Ok(hyper::body::Frame::data(data))))
+    }
+}
+
 fn retryable(status: &tonic::Status) -> bool {
     match status.code() {
         tonic::Code::Unavailable
@@ -1536,40 +1555,62 @@ impl Remote {
         )
     }
 
-    /// Whether the endpoint answers gRPC. A status the server sends back, a
-    /// refusal included, counts as reachable; only transport failures that
-    /// survive the retry policy do not.
+    /// Whether a gRPC server at the endpoint answers a `GetCapabilities` call.
+    ///
+    /// Sent as a raw HTTP/2 request because a tonic `Status` does not say who
+    /// produced it: a refused connection and a server's own `UNAVAILABLE`
+    /// arrive identically. Any HTTP 200 response is an answer, whatever
+    /// `grpc-status` it carries. A connection or protocol failure, a non-200
+    /// response, or no response within the timeout is not.
     pub fn reachable(&self) -> bool {
         let Ok(channel) = self.channel() else {
             return false;
         };
-        let result = retry_call(|| {
-            let mut client = CapabilitiesClient::new(channel.clone());
-            let request = self.authed(reapi::GetCapabilitiesRequest {
-                instance_name: self.config.instance.clone(),
-            });
-            runtime()
-                .block_on(async {
-                    tokio::time::timeout(Duration::from_secs(5), client.get_capabilities(request))
-                        .await
-                })
-                .unwrap_or_else(|_| {
-                    Err(tonic::Status::deadline_exceeded(
-                        "capabilities probe timed out",
-                    ))
-                })
-        });
-        match result {
-            Ok(_) => true,
-            Err(status) => !matches!(
-                status.code(),
-                tonic::Code::Unavailable
-                    | tonic::Code::Unknown
-                    | tonic::Code::DeadlineExceeded
-                    | tonic::Code::Cancelled
-                    | tonic::Code::Internal
-            ),
+        (0..REACHABILITY_ATTEMPTS).any(|_| self.answers_capabilities(channel.clone()))
+    }
+
+    fn answers_capabilities(&self, mut channel: Channel) -> bool {
+        use prost::Message as _;
+        use tonic::codegen::{http, Service};
+
+        let message = reapi::GetCapabilitiesRequest {
+            instance_name: self.config.instance.clone(),
         }
+        .encode_to_vec();
+        let mut frame = Vec::with_capacity(5 + message.len());
+        frame.push(0);
+        frame.extend_from_slice(&(message.len() as u32).to_be_bytes());
+        frame.extend_from_slice(&message);
+
+        let Ok(mut request) = http::Request::post(CAPABILITIES_PATH)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers")
+            .body(tonic::body::Body::new(OneFrame(Some(
+                hyper::body::Bytes::from(frame),
+            ))))
+        else {
+            return false;
+        };
+        let (metadata, _, ()) = self.authed(()).into_parts();
+        request.headers_mut().extend(metadata.into_headers());
+
+        runtime().block_on(async move {
+            let exchange = async {
+                if std::future::poll_fn(|cx| channel.poll_ready(cx))
+                    .await
+                    .is_err()
+                {
+                    return false;
+                }
+                matches!(
+                    channel.call(request).await,
+                    Ok(response) if response.status() == http::StatusCode::OK
+                )
+            };
+            tokio::time::timeout(REACHABILITY_TIMEOUT, exchange)
+                .await
+                .unwrap_or(false)
+        })
     }
 
     // Only enable the algorithm/parameters this implementation understands. A
