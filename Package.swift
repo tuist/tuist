@@ -1640,6 +1640,7 @@ targets.append(contentsOf: [
         name: "TuistXCResultService",
         dependencies: [
             "TuistSupport",
+            "TuistAlert",
             .product(name: "XCResultParser", package: "XCResultNIF"),
             fileSystemDependency,
             mockableDependency,
