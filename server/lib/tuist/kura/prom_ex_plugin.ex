@@ -93,7 +93,7 @@ defmodule Tuist.Kura.PromExPlugin do
           counter(
             @metric_prefix ++ [:drain_pending, :count],
             event_name: Telemetry.event_name_drain_pending(),
-            description: "Instances entering drain-pending, split by whether capacity pressure shortened the window.",
+            description: "Instances entering drain-pending, by the reason the drain started.",
             tags: [:plan, :region, :reason]
           ),
           counter(
@@ -141,9 +141,8 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_seed_declined(),
             description:
               "Accounts not seeded an instance ahead of their first cache request, because the " <>
-                "region they resolve to is over its pressure line. They are still provisioned on " <>
-                "first use, so sustained counts measure how much of the head start the fleet " <>
-                "cannot currently afford.",
+                "region they resolve to is over its pressure line or their last instance was " <>
+                "reclaimed for never storing anything. They are still provisioned on first use.",
             tags: [:plan, :region, :reason]
           ),
           counter(
