@@ -27,6 +27,7 @@ public enum Module: String, CaseIterable {
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
     case server = "TuistServer"
+    case rosalind = "Rosalind"
     case oidc = "TuistOIDC"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
@@ -531,7 +532,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:project-loading")
         case .dependencies:
             moduleTags.append("domain:dependencies")
-        case .server, .oidc:
+        case .server, .rosalind, .oidc:
             moduleTags.append("domain:server")
         case .kit:
             moduleTags.append("domain:cli")
@@ -853,7 +854,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
@@ -984,6 +985,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftToolsSupport"),
                 ]
+            case .rosalind:
+                [
+                    .external(name: "Crypto"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "MachOKit", condition: .when([.macos])),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "Logging"),
+                    .external(name: "ZIPFoundation"),
+                ]
             case .server:
                 [
                     .target(name: Module.android.targetName),
@@ -1015,7 +1026,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Rosalind", condition: .when([.macos])),
+                    .target(name: Module.rosalind.targetName, condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                     .external(name: "Crypto"),
                 ]
@@ -1601,7 +1612,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                     .external(name: "Mockable"),
                     .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -1866,7 +1877,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "SwiftyJSON"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                     .external(name: "Noora"),
                     .external(name: "Command"),
                     .external(name: "OpenAPIRuntime"),
@@ -2062,6 +2073,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
                 ]
+            case .rosalind:
+                [
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                ]
             case .xcodeProjectOrWorkspacePathLocator:
                 [
                     .target(name: Module.testing.targetName),
@@ -2243,6 +2259,8 @@ public enum Module: String, CaseIterable {
             default: .macOS("15.0")
             }
 
+        let excludedFiles = ["AGENTS.md", "*.docc", "*.docc/**"] + (self == .rosalind ? ["Proto/*.proto"] : [])
+
         return .target(
             name: name,
             destinations: destinations,
@@ -2255,7 +2273,7 @@ public enum Module: String, CaseIterable {
             buildableFolders: [
                 .folder(
                     buildableFolderPath,
-                    exceptions: [.exception(excluded: ["AGENTS.md", "*.docc", "*.docc/**"])]
+                    exceptions: [.exception(excluded: excludedFiles)]
                 ),
             ],
             dependencies: dependencies,

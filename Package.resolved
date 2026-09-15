@@ -1,5 +1,5 @@
 {
-  "originHash" : "dff0b889c1b02206ebd1335c1d0147c5ec9f47a60fdab5238691ac11318a9145",
+  "originHash" : "35f256b8622f6281dabecf6a903d83abd72ca78312a72756cfb896303215cb27",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -696,14 +696,6 @@
       "originalLocation" : "https://github.com/tuist/Path.git",
       "state" : {
         "version" : "0.3.8"
-      }
-    },
-    {
-      "identity" : "tuist.Rosalind",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "0.8.1"
       }
     },
     {
