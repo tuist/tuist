@@ -262,7 +262,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8189",
+                validatingOpenAPIServerURL: "http://localhost:8378",
                 variables: []
             )
         }
@@ -270,7 +270,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8189",
+            validatingOpenAPIServerURL: "http://localhost:8378",
             variables: []
         )
     }
@@ -284,6 +284,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CompleteMultipartUploadRequest`.
         public struct CompleteMultipartUploadRequest: Codable, Hashable, Sendable {
+            /// Lowercase hex SHA-256 (64 characters) of the assembled artifact. When present, the server refuses the completion with 422 if the assembled bytes do not match, and otherwise serves the digest back as the tuist-checksum-sha256 header on downloads.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteMultipartUploadRequest/checksum_sha256`.
+            public var checksum_sha256: Swift.String?
             /// Ordered list of part numbers that were uploaded
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteMultipartUploadRequest/parts`.
@@ -291,11 +295,17 @@ public enum Components {
             /// Creates a new `CompleteMultipartUploadRequest`.
             ///
             /// - Parameters:
+            ///   - checksum_sha256: Lowercase hex SHA-256 (64 characters) of the assembled artifact. When present, the server refuses the completion with 422 if the assembled bytes do not match, and otherwise serves the digest back as the tuist-checksum-sha256 header on downloads.
             ///   - parts: Ordered list of part numbers that were uploaded
-            public init(parts: [Swift.Int]) {
+            public init(
+                checksum_sha256: Swift.String? = nil,
+                parts: [Swift.Int]
+            ) {
+                self.checksum_sha256 = checksum_sha256
                 self.parts = parts
             }
             public enum CodingKeys: String, CodingKey {
+                case checksum_sha256
                 case parts
             }
         }
@@ -3920,7 +3930,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Parts mismatch or missing parts
+            /// Parts mismatch or missing parts, or a malformed checksum_sha256
             ///
             /// - Remark: Generated from `#/paths//api/cache/module/complete/post(completeModuleCacheMultipartUpload)/responses/400`.
             ///
@@ -4142,6 +4152,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/complete/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/complete/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeModuleCacheMultipartUpload.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeModuleCacheMultipartUpload.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The assembled artifact does not match checksum_sha256
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/complete/post(completeModuleCacheMultipartUpload)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.completeModuleCacheMultipartUpload.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.completeModuleCacheMultipartUpload.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
@@ -5260,6 +5321,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/headers/tuist-checksum-sha256`.
+                    public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    public init(tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil) {
+                        self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadModuleCacheArtifact.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/content/application\/octet-stream`.
@@ -5282,8 +5359,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.Ok.Body) {
+                public init(
+                    headers: Operations.downloadModuleCacheArtifact.Output.Ok.Headers = .init(),
+                    body: Operations.downloadModuleCacheArtifact.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -5321,17 +5403,24 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/headers/etag`.
                     public var etag: Swift.String?
+                    /// Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/headers/tuist-checksum-sha256`.
+                    public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
                     /// Creates a new `Headers`.
                     ///
                     /// - Parameters:
                     ///   - content_hyphen_range: The range served, as `bytes <first>-<last>/<total>`
                     ///   - etag: The representation served, to be echoed in `If-Range` when resuming
+                    ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
                     public init(
                         content_hyphen_range: Swift.String? = nil,
-                        etag: Swift.String? = nil
+                        etag: Swift.String? = nil,
+                        tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil
                     ) {
                         self.content_hyphen_range = content_hyphen_range
                         self.etag = etag
+                        self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
                     }
                 }
                 /// Received HTTP response headers
