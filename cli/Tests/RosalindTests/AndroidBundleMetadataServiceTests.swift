@@ -1,20 +1,40 @@
 import Command
 import FileSystem
 import Foundation
-import Mockable
 import Path
 import Testing
 
 @testable import Rosalind
 
+private struct TestCommandRunner: CommandRunning {
+    let handler: @Sendable ([String]) -> AsyncThrowingStream<CommandEvent, any Error>
+
+    func run(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+        handler(arguments)
+    }
+}
+
+private func commandOutput(_ output: String) -> AsyncThrowingStream<CommandEvent, any Error> {
+    AsyncThrowingStream { continuation in
+        continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
+        continuation.finish()
+    }
+}
+
+private func commandFailure(_ error: any Error) -> AsyncThrowingStream<CommandEvent, any Error> {
+    AsyncThrowingStream { continuation in
+        continuation.finish(throwing: error)
+    }
+}
+
 struct AndroidBundleMetadataServiceTests {
     // MARK: - APK Metadata
 
     @Test func apkMetadata_parsesAllFields() async throws {
-        let commandRunner = MockCommandRunning()
-        let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
-        let path = try AbsolutePath(validating: "/path/to/app.apk")
-
         let output = """
         package: name='com.example.app' versionCode='1' versionName='1.0.0'
         sdkVersion:'21'
@@ -22,16 +42,11 @@ struct AndroidBundleMetadataServiceTests {
         application-label:'My App'
         application-label-en:'My App'
         """
-
-        given(commandRunner)
-            .run(arguments: .any, environment: .any, workingDirectory: .any)
-            .willProduce { arguments, _, _ in
-                let commandOutput = arguments.contains("which") ? "/usr/bin/aapt2\n" : output
-                return AsyncThrowingStream { continuation in
-                    continuation.yield(CommandEvent.standardOutput(Array(commandOutput.utf8)))
-                    continuation.finish()
-                }
-            }
+        let commandRunner = TestCommandRunner { arguments in
+            commandOutput(arguments.contains("which") ? "/usr/bin/aapt2\n" : output)
+        }
+        let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
+        let path = try AbsolutePath(validating: "/path/to/app.apk")
 
         let metadata = try await subject.apkMetadata(at: path)
 
@@ -41,21 +56,12 @@ struct AndroidBundleMetadataServiceTests {
     }
 
     @Test func apkMetadata_usesDefaults_whenOptionalFieldsMissing() async throws {
-        let commandRunner = MockCommandRunning()
+        let output = "package: name='com.example.app' versionCode='1'\n"
+        let commandRunner = TestCommandRunner { arguments in
+            commandOutput(arguments.contains("which") ? "/usr/bin/aapt2\n" : output)
+        }
         let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
         let path = try AbsolutePath(validating: "/path/to/app.apk")
-
-        let output = "package: name='com.example.app' versionCode='1'\n"
-
-        given(commandRunner)
-            .run(arguments: .any, environment: .any, workingDirectory: .any)
-            .willProduce { arguments, _, _ in
-                let commandOutput = arguments.contains("which") ? "/usr/bin/aapt2\n" : output
-                return AsyncThrowingStream { continuation in
-                    continuation.yield(CommandEvent.standardOutput(Array(commandOutput.utf8)))
-                    continuation.finish()
-                }
-            }
 
         let metadata = try await subject.apkMetadata(at: path)
 
@@ -65,21 +71,13 @@ struct AndroidBundleMetadataServiceTests {
     }
 
     @Test func apkMetadata_throws_whenPackageNameMissing() async throws {
-        let commandRunner = MockCommandRunning()
+        let output = "sdkVersion:'21'\ntargetSdkVersion:'34'\n"
+        let commandRunner = TestCommandRunner { arguments in
+            commandOutput(arguments.contains("which") ? "/usr/bin/aapt2\n" : output)
+        }
         let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
         let path = try AbsolutePath(validating: "/path/to/app.apk")
 
-        let output = "sdkVersion:'21'\ntargetSdkVersion:'34'\n"
-
-        given(commandRunner)
-            .run(arguments: .any, environment: .any, workingDirectory: .any)
-            .willProduce { arguments, _, _ in
-                let commandOutput = arguments.contains("which") ? "/usr/bin/aapt2\n" : output
-                return AsyncThrowingStream { continuation in
-                    continuation.yield(CommandEvent.standardOutput(Array(commandOutput.utf8)))
-                    continuation.finish()
-                }
-            }
 
         await #expect {
             try await subject.apkMetadata(at: path)
@@ -94,10 +92,6 @@ struct AndroidBundleMetadataServiceTests {
         let failingPath = try AbsolutePath(validating: "/path/to/failing.apk")
         let okPath = try AbsolutePath(validating: "/path/to/ok.apk")
         let commandError = CommandError.terminated(1, stderr: "badging failed", command: [])
-        let commandRunner = MockCommandRunning()
-        let subject = AndroidBundleMetadataService(
-            commandRunner: commandRunner
-        )
         let isolatedLock = PoolLock(capacity: 1)
 
         let okOutput = """
@@ -105,28 +99,18 @@ struct AndroidBundleMetadataServiceTests {
         sdkVersion:'21'
         application-label:'My App'
         """
+        let commandRunner = TestCommandRunner { arguments in
+            if arguments.contains("which") {
+                return commandOutput("/usr/bin/aapt2\n")
+            }
+            if arguments.contains(failingPath.pathString) {
+                return commandFailure(commandError)
+            }
+            return commandOutput(okOutput)
+        }
+        let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
 
         try await AndroidBundleMetadataService.$poolLock.withValue(isolatedLock) {
-            given(commandRunner)
-                .run(arguments: .any, environment: .any, workingDirectory: .any)
-                .willProduce { arguments, _, _ in
-                    if arguments.contains("which") {
-                        return AsyncThrowingStream { continuation in
-                            continuation.yield(CommandEvent.standardOutput(Array("/usr/bin/aapt2\n".utf8)))
-                            continuation.finish()
-                        }
-                    }
-                    if arguments.contains(failingPath.pathString) {
-                        return AsyncThrowingStream { continuation in
-                            continuation.finish(throwing: commandError)
-                        }
-                    }
-                    return AsyncThrowingStream { continuation in
-                        continuation.yield(CommandEvent.standardOutput(Array(okOutput.utf8)))
-                        continuation.finish()
-                    }
-                }
-
             await #expect {
                 try await subject.apkMetadata(at: failingPath)
             } throws: { error in
