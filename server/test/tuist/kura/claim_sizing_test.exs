@@ -21,7 +21,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
         snapshot_count: 0,
         max_occupancy_percent: nil,
         max_live_segment_bytes: nil,
-        last_ring_budget_bytes: nil
+        last_ring_budget_bytes: nil,
+        min_ring_budget_bytes: nil
       },
       Map.new(attrs)
     )
@@ -92,6 +93,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
         current_claim_size: "16Gi",
         rollups: [],
         last_resized_at: nil,
+        capped_resize_from: nil,
         today: @today
       },
       attrs
@@ -559,6 +561,206 @@ defmodule Tuist.Kura.ClaimSizingTest do
         )
 
       assert {:grow, "64Gi", _evidence} = ClaimSizing.evaluate(context)
+    end
+  end
+
+  describe "evaluate/2 after a capped resize" do
+    # A 16Gi claim grown to 32Gi runs a 26Gi ring. 21 hours of shedding sits
+    # under a third of the 3-day floor, and 20Gi a day is under one ring, so
+    # only the five-day rung accepts it on its own.
+    defp resized_churn(count, end_day, attrs \\ []) do
+      churn_days(
+        count,
+        end_day,
+        Keyword.merge(
+          [
+            median_shed_age_seconds: 21 * 3_600,
+            median_ring_span_seconds: 21 * 3_600,
+            evicted_bytes: 20 * @gibibyte,
+            last_ring_budget_bytes: 26 * @gibibyte,
+            min_ring_budget_bytes: 26 * @gibibyte
+          ],
+          attrs
+        )
+      )
+    end
+
+    defp resized_context(attrs) do
+      context(
+        Keyword.merge(
+          [
+            plan: :enterprise,
+            current_claim_size: "32Gi",
+            last_resized_at: DateTime.new!(Date.add(@today, -1), ~T[14:00:00], "Etc/UTC"),
+            capped_resize_from: "16Gi"
+          ],
+          attrs
+        )
+      )
+    end
+
+    test "grows on one qualifying day of the resized ring" do
+      assert {:grow, "64Gi", evidence} = ClaimSizing.evaluate(resized_context(rollups: resized_churn(1, @today)))
+      assert evidence["window_days"] == 1
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
+      assert evidence["after_capped_resize"] == true
+    end
+
+    test "an uncapped previous resize serves out the normal window" do
+      context =
+        resized_context(
+          capped_resize_from: nil,
+          last_resized_at: DateTime.new!(Date.add(@today, -5), ~T[14:00:00], "Etc/UTC")
+        )
+
+      assert ClaimSizing.evaluate(context(context, rollups: resized_churn(1, @today))) == :none
+      assert ClaimSizing.evaluate(context(context, rollups: resized_churn(4, @today))) == :none
+
+      assert {:grow, "128Gi", evidence} = ClaimSizing.evaluate(context(context, rollups: resized_churn(5, @today)))
+      assert evidence["window_days"] == 5
+      refute Map.has_key?(evidence, "after_capped_resize")
+    end
+
+    test "a day no longer shedding under the floor does not grow" do
+      rollups =
+        resized_churn(1, @today, median_shed_age_seconds: 4 * @day_seconds, median_ring_span_seconds: 4 * @day_seconds)
+
+      assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
+    end
+
+    test "a day without evictions does not qualify" do
+      rollups = [
+        rollup(@today,
+          snapshot_count: 96,
+          max_occupancy_percent: 70,
+          max_live_segment_bytes: 18 * @gibibyte,
+          last_ring_budget_bytes: 26 * @gibibyte,
+          min_ring_budget_bytes: 26 * @gibibyte
+        )
+      ]
+
+      assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
+    end
+
+    test "idle days after a qualifying day of the resized ring do not end the fast track" do
+      # Days the account did not build are passed over here as in any window,
+      # so the resized ring's one qualifying day still confirms two days later.
+      idle =
+        for offset <- [-1, 0] do
+          rollup(Date.add(@today, offset),
+            snapshot_count: 96,
+            max_occupancy_percent: 98,
+            last_ring_budget_bytes: 26 * @gibibyte,
+            min_ring_budget_bytes: 26 * @gibibyte
+          )
+        end
+
+      context = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -3), ~T[14:00:00], "Etc/UTC"))
+      rollups = resized_churn(1, Date.add(@today, -2)) ++ idle
+
+      assert {:grow, "64Gi", %{"window_days" => 1, "after_capped_resize" => true}} =
+               ClaimSizing.evaluate(context(context, rollups: rollups))
+    end
+
+    test "a day still reporting the ring the capped resize replaced does not qualify" do
+      for ring_budget_bytes <- [13 * @gibibyte, nil] do
+        rollups =
+          resized_churn(1, @today, last_ring_budget_bytes: ring_budget_bytes, min_ring_budget_bytes: ring_budget_bytes)
+
+        assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
+      end
+    end
+
+    test "a day that also ran the replaced ring does not qualify, whichever ring reported last" do
+      # Evictions cover the whole day, so a rollout finishing after midnight
+      # sheds on the old ring before the resized one snapshots.
+      rollups = resized_churn(1, @today, min_ring_budget_bytes: 13 * @gibibyte)
+
+      assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
+    end
+
+    test "the resize day itself does not qualify" do
+      context = resized_context(last_resized_at: DateTime.new!(@today, ~T[09:00:00], "Etc/UTC"))
+
+      assert ClaimSizing.evaluate(context(context, rollups: resized_churn(1, @today))) == :none
+    end
+
+    test "a rung fast-tracks only until its own window could have run since the resize" do
+      # 60 hours clears every rung but the fourteen-day one.
+      rollups = resized_churn(1, @today, median_shed_age_seconds: 60 * 3_600, median_ring_span_seconds: 60 * 3_600)
+
+      within = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[14:00:00], "Etc/UTC"))
+
+      assert {:grow, "48Gi", %{"after_capped_resize" => true}} =
+               ClaimSizing.evaluate(context(within, rollups: rollups))
+
+      expired = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -15), ~T[14:00:00], "Etc/UTC"))
+
+      assert ClaimSizing.evaluate(context(expired, rollups: rollups)) == :none
+    end
+
+    test "the fast-tracked step keeps the one-day bound and the plan ceiling" do
+      # The projection is far past 4x, so only the bound decides where it lands.
+      rollups = resized_churn(1, @today, median_shed_age_seconds: 1_800, median_ring_span_seconds: 3_600)
+
+      assert {:grow, "64Gi", %{"window_days" => 1}} =
+               ClaimSizing.evaluate(resized_context(plan: :enterprise, rollups: rollups))
+
+      assert {:grow, "256Gi", %{"window_days" => 1}} =
+               ClaimSizing.evaluate(
+                 resized_context(
+                   plan: :enterprise,
+                   current_claim_size: "200Gi",
+                   capped_resize_from: "100Gi",
+                   rollups:
+                     Enum.map(
+                       rollups,
+                       &Map.merge(&1, %{last_ring_budget_bytes: 190 * @gibibyte, min_ring_budget_bytes: 190 * @gibibyte})
+                     )
+                 )
+               )
+    end
+  end
+
+  describe "capped_growth?/2" do
+    test "a growth clamped below the projection its evidence names was capped" do
+      # 20,528 seconds of ring span against a 3-day floor projects about 15.8x.
+      proposal = %{
+        direction: :grow,
+        current_claim_size: "16Gi",
+        recommended_claim_size: "32Gi",
+        evidence: %{"retention_floor_seconds" => 3 * @day_seconds, "median_ring_span_seconds" => 20_528}
+      }
+
+      assert ClaimSizing.capped_growth?(proposal)
+      refute ClaimSizing.capped_growth?(%{proposal | recommended_claim_size: "253Gi"})
+    end
+
+    test "a growth that landed on its projection was not capped" do
+      proposal = %{
+        direction: :grow,
+        current_claim_size: "16Gi",
+        recommended_claim_size: "20Gi",
+        evidence: %{"retention_floor_seconds" => 3 * @day_seconds, "median_ring_span_seconds" => 3 * @day_seconds}
+      }
+
+      refute ClaimSizing.capped_growth?(proposal)
+    end
+
+    test "a shrink, or evidence without a ring span, was not a capped growth" do
+      refute ClaimSizing.capped_growth?(%{
+               direction: :shrink,
+               current_claim_size: "32Gi",
+               recommended_claim_size: "16Gi",
+               evidence: %{"max_occupancy_percent" => 20}
+             })
+
+      refute ClaimSizing.capped_growth?(%{
+               direction: :grow,
+               current_claim_size: "16Gi",
+               recommended_claim_size: "32Gi",
+               evidence: %{"retention_floor_seconds" => 3 * @day_seconds, "median_ring_span_seconds" => nil}
+             })
     end
   end
 

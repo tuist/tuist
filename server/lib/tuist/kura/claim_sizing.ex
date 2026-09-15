@@ -8,7 +8,9 @@ defmodule Tuist.Kura.ClaimSizing do
   so produces no shed age at all. Confirmation scales with severity: the worse
   the shedding, the shorter the window, and a tier's window can be bought down
   with the volume the ring cycled in place of elapsed time. The step a reading
-  may take scales with the confirmation behind it.
+  may take scales with the confirmation behind it. A step clamped below its own
+  projection lets the next one confirm on a single day of the resized ring,
+  within each rung's own window of the resize.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -71,6 +73,8 @@ defmodule Tuist.Kura.ClaimSizing do
       keys) covering the policy windows
     * `:last_resized_at` - when sizing last changed this account's claim, or
       `nil`; only rollups from days after it are evaluated
+    * `:capped_resize_from` - the claim the last applied resize grew from when
+      that growth was capped (see `capped_growth?/2`), or `nil`
     * `:today` - the evaluation date
 
   Returns `{:grow | :shrink, recommended_claim_size, evidence}` or `:none`.
@@ -94,6 +98,28 @@ defmodule Tuist.Kura.ClaimSizing do
         :none
     end
   end
+
+  @doc """
+  Whether an applied growth landed below the claim its own evidence projected,
+  because the step bound or the plan ceiling clamped it.
+  """
+  def capped_growth?(proposal, policy \\ @default_policy)
+
+  def capped_growth?(
+        %{direction: :grow, current_claim_size: current, recommended_claim_size: recommended, evidence: evidence},
+        policy
+      ) do
+    with {:ok, current_bytes} <- Regions.parse_storage_quantity(current),
+         {:ok, recommended_bytes} <- Regions.parse_storage_quantity(recommended),
+         %{"retention_floor_seconds" => floor_seconds, "median_ring_span_seconds" => span_seconds}
+         when is_number(floor_seconds) and is_number(span_seconds) <- evidence do
+      recommended_bytes < round(projected_bytes(current_bytes, floor_seconds, span_seconds, policy))
+    else
+      _ -> false
+    end
+  end
+
+  def capped_growth?(_proposal, _policy), do: false
 
   # Days up to and including a resize measured the previous claim's ring.
   defp reject_pre_resize(rollups, nil), do: rollups
@@ -123,7 +149,12 @@ defmodule Tuist.Kura.ClaimSizing do
   defp grow_verdict(by_date, floor_seconds, current_bytes, context, policy) do
     idle_dates = idle_dates(by_date, policy)
 
-    Enum.find_value(policy.grow_windows, fn rung ->
+    rung_verdict(policy.grow_windows, by_date, idle_dates, floor_seconds, current_bytes, context, policy) ||
+      capped_resize_verdict(by_date, idle_dates, floor_seconds, current_bytes, context, policy)
+  end
+
+  defp rung_verdict(rungs, by_date, idle_dates, floor_seconds, current_bytes, context, policy) do
+    Enum.find_value(rungs, fn rung ->
       threshold_seconds = shed_age_threshold(rung.shed_age_under, floor_seconds)
       standing = &grow_standing(&1, idle_dates, threshold_seconds)
 
@@ -136,6 +167,34 @@ defmodule Tuist.Kura.ClaimSizing do
         _ -> nil
       end
     end)
+  end
+
+  # The capped step's evidence already proved the ring short, so a rung
+  # confirms on one day of the resized ring, at the one-day bound, until its
+  # own window could have run since the resize.
+  defp capped_resize_verdict(_by_date, _idle_dates, _floor_seconds, _current_bytes, %{capped_resize_from: nil}, _policy),
+    do: nil
+
+  defp capped_resize_verdict(by_date, idle_dates, floor_seconds, current_bytes, context, policy) do
+    previous_bytes = quantity_bytes(context.capped_resize_from)
+    resize_date = DateTime.to_date(context.last_resized_at)
+    resized = Map.filter(by_date, fn {_date, rollup} -> resized_ring?(rollup, previous_bytes) end)
+
+    Enum.find_value(policy.grow_windows, fn rung ->
+      horizon = Date.add(resize_date, rung.window_days)
+      days = Map.filter(resized, fn {date, _rollup} -> Date.compare(date, horizon) != :gt end)
+
+      case rung_verdict([%{rung | window_days: 1}], days, idle_dates, floor_seconds, current_bytes, context, policy) do
+        nil -> nil
+        {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      end
+    end)
+  end
+
+  # A claim funds a ring smaller than itself, so the day's smallest ring clears
+  # the replaced claim only when no instance ran the old ring that day.
+  defp resized_ring?(%{min_ring_budget_bytes: ring_bytes}, previous_bytes) do
+    is_integer(ring_bytes) and ring_bytes > previous_bytes
   end
 
   defp shed_age_threshold({:seconds, seconds}, _floor_seconds), do: seconds
@@ -218,10 +277,9 @@ defmodule Tuist.Kura.ClaimSizing do
   # and holidays differ by country, one account can build from several, and a
   # local weekend straddles UTC dates. A full ring that cycled at most one ring
   # per retention floor wrote so little that, at that rate, the ring would
-  # hold the floor, so what it evicted is older builds leaving. For an account
-  # writing steadily that is a shed age of at least the floor, which no rung
-  # accepts, so the line only decides days whose volume and shed age disagree.
-  # A ring under the shrink line that evicted nothing is the claim fitting.
+  # hold the floor, so a long shed age that day is older builds leaving rather
+  # than a reading of the claim. A ring under the shrink line that evicted
+  # nothing is the claim fitting.
   defp idle_dates(by_date, policy) do
     for {date, rollup} <- by_date, idle_day?(rollup, policy), into: MapSet.new(), do: date
   end
@@ -279,17 +337,20 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
-  # Projected from the retention the current claim buys, plus headroom so a
-  # correct resize does not land on the boundary it is escaping.
   defp grow_target_bytes(window, current_bytes, floor_seconds, rung, policy) do
-    span_seconds = window |> Enum.map(& &1.median_ring_span_seconds) |> median() |> max(1)
+    span_seconds = window |> Enum.map(& &1.median_ring_span_seconds) |> median()
 
-    projected = current_bytes * (floor_seconds / span_seconds) * policy.grow_headroom_factor
-
-    projected
+    current_bytes
+    |> projected_bytes(floor_seconds, span_seconds, policy)
     |> min(current_bytes * max_step_factor(rung, policy))
     |> max(current_bytes)
     |> round()
+  end
+
+  # Projected from the retention the current claim buys, plus headroom so a
+  # correct resize does not land on the boundary it is escaping.
+  defp projected_bytes(current_bytes, floor_seconds, span_seconds, policy) do
+    current_bytes * (floor_seconds / max(span_seconds, 1)) * policy.grow_headroom_factor
   end
 
   # The bound scales with the confirmation behind the reading: one day buys a

@@ -138,10 +138,19 @@ defmodule Tuist.Kura.ClaimProposals do
       |> Repo.all()
       |> Map.new(&{&1.account_id, &1})
 
+    last_applied_proposals =
+      ClaimProposal
+      |> where([proposal], proposal.account_id in ^account_ids and proposal.status == :applied)
+      |> distinct([proposal], proposal.account_id)
+      |> order_by([proposal], desc: proposal.resolved_at)
+      |> Repo.all()
+      |> Map.new(&{&1.account_id, &1})
+
     %{
       rollups: rollups,
       placer_claims: placer_claims,
       open_proposals: open_proposals,
+      last_applied_proposals: last_applied_proposals,
       pinned_claims: pinned_claims(account_ids)
     }
   end
@@ -189,6 +198,7 @@ defmodule Tuist.Kura.ClaimProposals do
       current_claim_size: current,
       rollups: Map.get(inputs.rollups, account.id, []),
       last_resized_at: placer_claim && placer_claim.updated_at,
+      capped_resize_from: capped_resize_from(Map.get(inputs.last_applied_proposals, account.id), policy),
       today: today
     }
 
@@ -201,6 +211,12 @@ defmodule Tuist.Kura.ClaimProposals do
         record(account, open, direction, recommended, evidence, current)
         :open
     end
+  end
+
+  defp capped_resize_from(nil, _policy), do: nil
+
+  defp capped_resize_from(proposal, policy) do
+    if ClaimSizing.capped_growth?(proposal, policy), do: proposal.current_claim_size
   end
 
   defp record(account, open, direction, recommended, evidence, current) do

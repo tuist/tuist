@@ -428,6 +428,14 @@ impl MemoryController {
         self.inner.pools.elastic_transient_reserved_bytes() as u64
     }
 
+    /// Transient bytes held across both pools. File-cache policies compare a
+    /// reservation against this to detect overlapping work, and a borrowed
+    /// reservation is as much an overlap as a floor-derived one.
+    pub fn foreground_transient_reserved_bytes(&self) -> u64 {
+        self.transient_reserved_bytes()
+            .saturating_add(self.elastic_transient_reserved_bytes())
+    }
+
     /// Everything a borrowing foreground caller may hold: the floor-derived
     /// pool plus the ceiling headroom above it. Callers that size a window
     /// against the budget have to use this, or they clamp themselves to the
@@ -724,8 +732,8 @@ impl MemoryController {
     /// A foreground reservation that may draw on ceiling headroom above the
     /// floor-derived pool while pressure is normal.
     ///
-    /// For the callers whose only alternative is to refuse the write outright.
-    /// `reserve_foreground_memory` waits instead, so it stays on the floor.
+    /// For callers that would otherwise refuse or queue a write. A caller that
+    /// queues does so on the floor-derived pool.
     pub(crate) fn try_reserve_elastic_foreground_memory(
         &self,
         requested_bytes: u64,
@@ -741,11 +749,17 @@ impl MemoryController {
         .map(ForegroundMemoryReservation::new)
     }
 
+    /// Upload staging admission. Borrows ceiling headroom before queueing: a
+    /// refused upload is dropped rather than retried by the client, and a queue
+    /// behind a full floor used to shed uploads while the headroom sat idle.
+    /// Unlike a materialized response, the reservation covers the staging
+    /// file's page cache, which writeback makes reclaimable even while a slow
+    /// client holds the permit.
     pub(crate) async fn reserve_foreground_memory(
         &self,
         requested_bytes: u64,
     ) -> Result<(ForegroundMemoryReservation, bool), ForegroundAdmissionTimeout> {
-        match self.try_reserve_foreground_memory(requested_bytes) {
+        match self.try_reserve_elastic_foreground_memory(requested_bytes) {
             Ok(reservation) => Ok((reservation, false)),
             Err(()) => {
                 self.inner
