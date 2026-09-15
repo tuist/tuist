@@ -1519,18 +1519,45 @@ impl DemandCoalescer {
     }
 }
 
-/// What setup recorded for an instance, memoized on a TTL so a publish does not
-/// re-read the registry file.
+/// What setup recorded for an instance, memoized so a publish does not re-read
+/// the registry file.
 struct SourceContext {
     read_at: Instant,
+    /// The fingerprint of the sources file this was read from. Setup changes a
+    /// project's upload policy by replacing the file, and the build it runs next
+    /// starts publishing within seconds, so a replaced file is re-read at once
+    /// rather than when the TTL runs out.
+    sources: Option<SourcesFingerprint>,
     trunk: Option<String>,
     ci_branch: Option<String>,
     upload: bool,
 }
 
-/// How long a recorded context is reused before the proxy re-reads the registry,
-/// so a project set up after startup is picked up within seconds.
+/// How long a recorded context is reused while the sources file is unchanged.
 const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
+
+/// What is on disk at the sources registry's path, identified without reading
+/// it: two `stat`s return the same fingerprint only if nothing wrote the file in
+/// between. Setup swaps the file in by rename, which is a new inode, and the
+/// change time moves on any other write, since no writer can set it back.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct SourcesFingerprint {
+    device: u64,
+    inode: u64,
+    changed_seconds: i64,
+    changed_nanoseconds: i64,
+}
+
+fn sources_fingerprint(path: &Path) -> Option<SourcesFingerprint> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = std::fs::metadata(path).ok()?;
+    Some(SourcesFingerprint {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        changed_seconds: metadata.ctime(),
+        changed_nanoseconds: metadata.ctime_nsec(),
+    })
+}
 
 /// The (branch, trunk) pair `source_context` resolves, cloned out from under the
 /// cache lock.
@@ -1624,8 +1651,9 @@ pub struct Proxy {
     // Instances a build has touched since this proxy started; bounds trunk
     // ingestion to projects actually in use (see `instance_active`).
     active_instances: Mutex<HashSet<String>>,
-    // instance -> the last context read from the registry, refreshed on a short
-    // TTL so per-publish tagging is a cache hit rather than a file read.
+    // instance -> the last context read from the registry, refreshed when the
+    // file is replaced or on a short TTL, so per-publish tagging is a cache hit
+    // rather than a file read.
     source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
@@ -3083,8 +3111,8 @@ impl Proxy {
     /// trunk build's outputs would land tagged `feature` and drop out of the
     /// trunk view they belong in.
     ///
-    /// Binding at accept costs nothing: the context is memoized, so this reads
-    /// the registry at most once per TTL per instance, never per publish.
+    /// Binding at accept costs a `stat`: the context is memoized, so this reads
+    /// the registry only when setup has replaced it or the TTL has run out.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
         // The project's answer, enforced where both lanes meet. The plugin
         // declines to publish when its own option says so, but that option only
@@ -4090,14 +4118,24 @@ impl Proxy {
         self.source_context(instance).trunk
     }
 
-    /// What setup recorded for the instance, memoized on GIT_CONTEXT_TTL so a
-    /// publish does not re-read the registry. A refresh re-reads it, so a project
-    /// set up after this proxy started is picked up without a restart.
+    /// What setup recorded for the instance, memoized so a publish does not
+    /// re-read the registry. The memo holds only while the sources file's
+    /// fingerprint matches the one it was read under, and for at most
+    /// GIT_CONTEXT_TTL, so a policy setup rewrites applies to the next
+    /// publication and a project set up after this proxy started is picked up
+    /// without a restart.
     fn source_context(&self, instance: &str) -> SourceBranches {
+        // Taken before the read. A rename landing between the two then shows up
+        // as a new fingerprint on the next call, instead of pairing the new
+        // file's fingerprint with the old file's contents until the TTL runs out.
+        let sources = self
+            .registry_path
+            .as_deref()
+            .and_then(|path| sources_fingerprint(&sources_path_for(path)));
         {
             let cache = self.source_cache.lock().unwrap();
             if let Some(context) = cache.get(instance) {
-                if context.read_at.elapsed() < GIT_CONTEXT_TTL {
+                if context.sources == sources && context.read_at.elapsed() < GIT_CONTEXT_TTL {
                     return SourceBranches {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
@@ -4115,11 +4153,13 @@ impl Proxy {
             let cache = self.source_cache.lock().unwrap();
             let changed = cache
                 .get(instance)
-                .map(|context| context.ci_branch != branch || context.trunk != trunk)
+                .map(|context| {
+                    context.ci_branch != branch || context.trunk != trunk || context.upload != upload
+                })
                 .unwrap_or(true);
             if changed {
                 crate::log_line(&format!(
-                    "source context for {instance}: branch={branch:?} trunk={trunk:?}"
+                    "source context for {instance}: branch={branch:?} trunk={trunk:?} upload={upload}"
                 ));
             }
         }
@@ -4127,6 +4167,7 @@ impl Proxy {
             instance.to_string(),
             SourceContext {
                 read_at: Instant::now(),
+                sources,
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
                 upload,
@@ -4136,8 +4177,8 @@ impl Proxy {
     }
 
     /// What setup registered for the instance, reloading the sources registry so
-    /// a mapping written after startup is visible. Cheap: only runs on a TTL
-    /// miss in `git_context`.
+    /// a mapping written after startup is visible. Only runs when the memo in
+    /// `source_context` is stale.
     fn registered_source(&self, instance: &str) -> Option<RegisteredSource> {
         let clone = |source: &RegisteredSource| RegisteredSource {
             trunk: source.trunk.clone(),
@@ -7013,6 +7054,167 @@ mod tests {
         let remote = proxy.remote_for("tuist/writer");
         proxy.queue_view_refresh(&remote, "tuist/writer", b"key-2", &manifest);
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `tuist setup cache` changes a project's upload policy by replacing the
+    /// sources registry, and leaves a proxy that is already running in place. The
+    /// build the job runs next starts publishing seconds later, well inside the
+    /// TTL, so a memo still holding the previous job's policy would publish a
+    /// read-only job's outputs, or drop an uploading job's.
+    #[test]
+    fn a_replaced_upload_policy_applies_to_the_next_publication_over_the_socket() {
+        let dir = std::env::temp_dir().join(format!("tuist-policy-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        // The way setup writes it: staged beside the registry, then renamed over it.
+        let record_policy = |upload: bool| {
+            let staged = dir.join("registry.sources.staged");
+            std::fs::write(
+                &staged,
+                format!(r#"{{"tuist/lane":{{"trunk":"main","upload":{upload}}}}}"#),
+            )
+            .expect("stage sources");
+            std::fs::rename(&staged, &sources).expect("replace sources");
+        };
+        record_policy(true);
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+        let socket_path = dir.join("proxy.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket_path).expect("bind");
+        std::thread::spawn(move || proxy.serve(listener));
+        let client = crate::proxy_proto::ProxyClient {
+            socket_path: socket_path.to_string_lossy().into_owned(),
+        };
+
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let cas_path = dir.join("cas").to_string_lossy().into_owned();
+        let publish = |name: &str| {
+            let record = spool.join(name);
+            std::fs::write(&record, b"record").expect("record");
+            client
+                .publish(&cas_path, "tuist/lane", &record.to_string_lossy())
+                .expect("the proxy answers");
+            record
+        };
+        let published = |count: usize| {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while captured.lock().unwrap().len() < count && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            captured.lock().unwrap().len()
+        };
+
+        publish("from-the-uploading-job");
+        assert_eq!(published(1), 1, "an uploading project publishes");
+
+        // The read-only job's setup, moments after the uploading job's build
+        // read the policy.
+        record_policy(false);
+        let withheld = publish("from-the-read-only-job");
+        assert!(
+            !withheld.exists(),
+            "the very next publication is refused, not the first one after the TTL"
+        );
+
+        record_policy(true);
+        publish("from-the-next-uploading-job");
+        assert_eq!(published(2), 2, "and turning uploads back on holds just as soon");
+
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        let records: Vec<String> = captured
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|item| {
+                let (_, rest) = take_u16_field(item).expect("instance");
+                let (_, rest) = take_u16_field(rest).expect("cas path");
+                let (_, rest) = take_u16_field(rest).expect("branch");
+                let (_, record) = take_u16_field(rest).expect("trunk");
+                String::from_utf8_lossy(record).into_owned()
+            })
+            .collect();
+        assert!(records[0].ends_with("from-the-uploading-job"), "{records:?}");
+        assert!(records[1].ends_with("from-the-next-uploading-job"), "{records:?}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The memo's other half: a context whose sources fingerprint still matches
+    /// the file on disk is trusted, but only for GIT_CONTEXT_TTL, which is what
+    /// bounds a change the fingerprint cannot show and retries a registry that
+    /// could not be read.
+    #[test]
+    fn a_memoized_policy_is_reread_when_the_registry_changes_or_the_ttl_runs_out() {
+        let dir = std::env::temp_dir().join(format!("tuist-policy-ttl-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        std::fs::write(&sources, r#"{"tuist/lane":{"trunk":"main","upload":true}}"#)
+            .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        // A memo that disagrees with the file it was read from: what a change
+        // the sources fingerprint cannot show looks like.
+        let contradict_the_registry = || {
+            proxy
+                .source_cache
+                .lock()
+                .unwrap()
+                .get_mut("tuist/lane")
+                .expect("memoized")
+                .upload = false;
+        };
+
+        assert!(proxy.upload_enabled("tuist/lane"));
+        contradict_the_registry();
+        assert!(
+            !proxy.upload_enabled("tuist/lane"),
+            "an unchanged registry is not read again inside the TTL"
+        );
+
+        proxy
+            .source_cache
+            .lock()
+            .unwrap()
+            .get_mut("tuist/lane")
+            .expect("memoized")
+            .read_at = Instant::now()
+            .checked_sub(GIT_CONTEXT_TTL + Duration::from_secs(1))
+            .expect("an instant older than the TTL");
+        assert!(proxy.upload_enabled("tuist/lane"), "past the TTL it is read again");
+
+        contradict_the_registry();
+        // Rewritten in place with the same bytes: a new fingerprint all the same.
+        std::fs::write(&sources, r#"{"tuist/lane":{"trunk":"main","upload":true}}"#)
+            .expect("rewrite sources");
+        assert!(
+            proxy.upload_enabled("tuist/lane"),
+            "a registry written since the memo is read again inside the TTL"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
