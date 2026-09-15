@@ -590,6 +590,9 @@ defmodule L10n.ProviderGate do
     error in [ReqLLM.Error.API.Request, ReqLLM.Error.API.Response] -> {:error, error}
   end
 
+  def normalize_error(%ReqLLM.Error.API.Stream{cause: cause}) when is_map(cause),
+    do: normalize_error(cause)
+
   def normalize_error(%{status: status}) when status in [401, 402, 403, 429, 500, 502, 503, 504],
     do: {:provider_unavailable, status}
 

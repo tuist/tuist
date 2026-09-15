@@ -500,6 +500,21 @@ defmodule L10n.ProviderGateTest do
     end)
   end
 
+  test "a streaming payment error stops queued work" do
+    error =
+      ReqLLM.Error.API.Stream.exception(
+        cause: ReqLLM.Error.API.Request.exception(reason: "Payment required", status: 402)
+      )
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> {:error, error} end)
+
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> flunk("must not call provider") end)
+    end)
+  end
+
   test "numbers in validation messages do not look like provider failures" do
     L10n.ProviderGate.with_gate(fn gate ->
       assert {:error, "Invalid translation of entry 402"} =
