@@ -399,13 +399,9 @@ const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 /// every tick.
 const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
-/// The per-generation limit that keeps a pruned store at about
-/// `store_size_limit` bytes. A pruned store keeps two generations, the primary
-/// and the upstream it demoted, so each gets half. Never 0, which
-/// `set_ondisk_limit` reads as imposing no limit.
-fn generation_limit(store_size_limit: u64) -> u64 {
-    (store_size_limit / 2).max(1)
-}
+/// How many rotations `prune_to_limit` forces after the prune against the limit
+/// itself. Two leave only generations created during that call.
+const MAX_FORCED_ROTATIONS: usize = 2;
 
 /// A cached resolve outcome for a key.
 enum Resolution {
@@ -1080,6 +1076,52 @@ impl PathState {
 
         outcome?;
         Ok(reclaimed_bytes(&self.cas_path, &before))
+    }
+
+    /// Prunes the store until it occupies at most `limit` bytes, returning the
+    /// bytes reclaimed.
+    ///
+    /// A prune against `limit` alone does not get there. llcas starts a new
+    /// generation on close only when the PRIMARY is past half its limit
+    /// (`UnifiedOnDiskCache::hasExceededSizeLimit`), and the prune keeps the two
+    /// newest generations. When the UPSTREAM is the oversized one (a store that
+    /// grew during a build, or one that was already large), the small primary
+    /// never rotates without further writes and the oversized generation stays.
+    /// A 1-byte limit rotates any non-empty primary, which demotes it and lets
+    /// the prune collect that upstream. This repeats until the store fits, or
+    /// until a rotation changes no generation, which is what a store another
+    /// process holds open looks like.
+    fn prune_to_limit(&self, limit: u64) -> Result<u64, String> {
+        let mut reclaimed = self.prune_ondisk(limit)?;
+        for _ in 0..MAX_FORCED_ROTATIONS {
+            if directory_size(&self.cas_path) <= limit {
+                break;
+            }
+            let before: HashSet<String> = generation_sizes(&self.cas_path).into_keys().collect();
+            reclaimed += self.prune_ondisk(1)?;
+            let after: HashSet<String> = generation_sizes(&self.cas_path).into_keys().collect();
+            if after == before {
+                break;
+            }
+        }
+        // A forced prune leaves its 1-byte limit on the live handle, where the
+        // next close would rotate on it.
+        self.set_limit(limit);
+        Ok(reclaimed)
+    }
+
+    /// Sets the size limit on the live handle, if there is one.
+    fn set_limit(&self, limit_bytes: u64) {
+        let cas = self.cas.read().unwrap();
+        let (Some(set_limit), Some(live)) = (self.up.llcas_cas_set_ondisk_size_limit, *cas) else {
+            return;
+        };
+        if let Err(message) = unsafe { set_ondisk_limit(self.up, set_limit, live, limit_bytes) } {
+            crate::log_line(&format!(
+                "proxy prune: could not set the limit on {}: {message}",
+                self.cas_path
+            ));
+        }
     }
 
     /// Validate the complete local graph while keeping all ids on one handle.
@@ -3240,7 +3282,7 @@ impl Proxy {
     }
 
     /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL and
-    /// prunes it when it occupies more than `limit` bytes.
+    /// prunes it within `limit` bytes when it occupies more.
     fn bound_store(&self, cas_path: &str, state: &PathState, limit: u64) {
         {
             let mut checked = self.store_bound_checked.lock().unwrap();
@@ -3256,7 +3298,7 @@ impl Proxy {
         if size <= limit {
             return;
         }
-        match state.prune_ondisk(generation_limit(limit)) {
+        match state.prune_to_limit(limit) {
             Ok(reclaimed) => crate::log_line(&format!(
                 "store {cas_path} occupies {size} bytes, past its {limit}-byte limit: pruning reclaimed {reclaimed} bytes"
             )),
@@ -6670,21 +6712,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_store_size_limit_is_split_across_the_two_generations_a_pruned_store_keeps() {
-        assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
-        assert_eq!(
-            generation_limit(1),
-            1,
-            "a limit of 0 would lift the bound instead of imposing one"
-        );
-    }
-
     /// A project's `storeSizeLimit` is enforced without a caller asking: a store
-    /// past it is rotated and pruned, a store within it is left alone, and a
-    /// store is measured at most once per STORE_BOUND_INTERVAL.
+    /// within it is left alone, a store past it is brought within it in one
+    /// pass, and a store is measured at most once per STORE_BOUND_INTERVAL.
     #[test]
-    fn a_store_past_its_projects_size_limit_is_pruned() {
+    fn a_store_past_its_projects_size_limit_is_pruned_within_it() {
         const LIMIT: u64 = 2 * 1024 * 1024;
         let proxy = test_proxy();
 
@@ -6702,21 +6734,45 @@ mod tests {
         let over = TempCasDir::new("bound-over");
         let over_state = path_state_for(&over.path());
         fill_to(over_state, &over, 24 * 1024 * 1024);
-        assert_eq!(generations(&over).len(), 1);
         proxy.bound_store(&over.path(), over_state, LIMIT);
-        let bounded = generations(&over);
-        assert_eq!(
-            bounded.len(),
-            2,
-            "a store past its limit rotates, keeping the full generation as upstream"
+        let bounded = directory_size(&over.path());
+        assert!(
+            bounded <= LIMIT,
+            "a store past its limit must end within it, but occupies {bounded} bytes"
         );
 
-        fill_to(over_state, &over, directory_size(&over.path()) + 24 * 1024 * 1024);
+        fill_to(over_state, &over, 24 * 1024 * 1024);
         proxy.bound_store(&over.path(), over_state, LIMIT);
-        assert_eq!(
-            generations(&over),
-            bounded,
+        assert!(
+            directory_size(&over.path()) > LIMIT,
             "a store measured within STORE_BOUND_INTERVAL is not measured again"
+        );
+    }
+
+    /// The shape a prune against the limit alone leaves behind: the oversized
+    /// generation demoted to upstream under a nearly empty primary, which llcas
+    /// never rotates again without writes. Pruned against the limit alone, this
+    /// store stayed at ~24 MiB against a 2 MiB limit across any number of idle
+    /// passes.
+    #[test]
+    fn an_oversized_upstream_generation_is_collected_without_further_writes() {
+        const LIMIT: u64 = 2 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-upstream");
+        let state = path_state_for(&dir.path());
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        state.prune_ondisk(LIMIT).unwrap();
+        assert_eq!(
+            generations(&dir).len(),
+            2,
+            "the oversized generation is now the upstream"
+        );
+        assert!(directory_size(&dir.path()) > LIMIT);
+
+        state.prune_to_limit(LIMIT).unwrap();
+        let bounded = directory_size(&dir.path());
+        assert!(
+            bounded <= LIMIT,
+            "the oversized upstream must be collected, but the store occupies {bounded} bytes"
         );
     }
 

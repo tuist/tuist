@@ -168,7 +168,7 @@ let tuist = Tuist(
 )
 ```
 
-While no build is running, Tuist checks each of the project's stores every 10 minutes and prunes a store that occupies more than the limit, so the store settles at about the limit. A store can grow past the limit while builds are running. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+While no build is running, Tuist checks each of the project's stores every 10 minutes and deletes the oldest part of a store that occupies more than the limit until the store is within it. A store can grow past the limit while builds are running. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
 
 ### Module cache hashes {#module-cache-hashes}
 
