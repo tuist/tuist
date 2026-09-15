@@ -24,11 +24,11 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 | `xcode_version` | Pushed tag         | Bundle path                          | Alias                          |
 |-----------------|--------------------|--------------------------------------|--------------------------------|
 | 27.0            | `:27-0`            | `/Applications/Xcode_27.0.app`       | _(none — already major-minor)_ |
+| 26.6            | `:26-6`            | `/Applications/Xcode_26.6.app`       | _(none — already major-minor)_ |
 | 26.5            | `:26-5`            | `/Applications/Xcode_26.5.app`       | _(none — already major-minor)_ |
 | 26.4.1          | `:26-4-1`          | `/Applications/Xcode_26.4.1.app`     | `Xcode_26.4.app` → `Xcode_26.4.1.app` |
 | 26.3            | `:26-3`            | `/Applications/Xcode_26.3.app`       | _(none — already major-minor)_ |
 | 26.0.1          | `:26-0-1`          | `/Applications/Xcode_26.0.1.app`     | `Xcode_26.0.app` → `Xcode_26.0.1.app` |
-| 27.0-beta-6     | `:27-0-beta-6` + `:27-0-beta` | `/Applications/Xcode_27.0-beta-6.app`| `Xcode_27.0.app` → `Xcode_27.0-beta-6.app` |
 
 When `xcode_version` carries a patch component (three-segment
 `X.Y.Z`), the image lays down a symlink at the matching
@@ -194,12 +194,12 @@ gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.3
 gh workflow run macos-xcode-image.yml -f xcode_version=26.0.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
+gh workflow run macos-xcode-image.yml -f xcode_version=26.6
 gh workflow run macos-xcode-image.yml -f xcode_version=27.0
-gh workflow run macos-xcode-image.yml -f xcode_version=27.0-beta-6
 ```
 
 Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.0.1 → `:26-0-1`,
-26.5 → `:26-5`, 27.0 → `:27-0`, 27.0-beta-6 → `:27-0-beta-6`. Each invocation
+26.5 → `:26-5`, 26.6 → `:26-6`, 27.0 → `:27-0`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
@@ -215,8 +215,9 @@ The current Tahoe-era profile set is:
 Exact tags are immutable: a patch bump from Apple (26.4.1 to
 26.4.2) republishes under a *new* tag, never over an existing one,
 and so does each beta. Prereleases additionally publish a moving
-channel tag (`:27-0-beta`), which is the one `profiles.json` names
-so that a beta bump needs no repo edit. Promotion is covered by the
+channel tag (`27.0-beta-6` also moves `:27-0-beta`), which is what
+`profiles.json` names while a beta is active, so a beta bump needs
+no repo edit. Promotion is covered by the
 two sections below.
 
 ## Promoting a new Xcode to customer runners
