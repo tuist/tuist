@@ -156,29 +156,42 @@ defmodule Tuist.Accounts do
 
   @doc """
   Batch lookup for `get_account_by_handle/1`. Returns a map of
-  `handle => account_id` for every handle that resolves. Handles that
-  don't match an account are simply absent from the map.
+  `handle => account_id` for every handle that resolves, keyed by the handle
+  as requested. Handles match regardless of casing, like account names, so a
+  handle that differs from the account's only in casing still resolves.
+  Handles that don't match an account are absent from the map.
 
   Use this instead of mapping over `get_account_by_handle/1` to avoid
   the N+1 query pattern when resolving Kura-style handle batches.
   """
   def get_account_ids_by_handles(handles) when is_list(handles) do
-    handles = Enum.uniq(handles)
+    handles = handles |> Enum.filter(&is_binary/1) |> Enum.uniq()
 
-    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
-    |> Repo.all()
-    |> Map.new()
+    ids =
+      from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
+      |> Repo.all()
+      |> Map.new(fn {name, id} -> {String.downcase(name), id} end)
+
+    for handle <- handles, {:ok, id} <- [Map.fetch(ids, String.downcase(handle))], into: %{}, do: {handle, id}
   end
 
   @doc ~S"""
   Given an id, it returns the organization associated with it.
+
+  The id may be an integer or a string of digits; any other value returns
+  `{:error, :not_found}` rather than raising, so callers exposed to
+  user-controlled input (e.g. the SSO entry point at
+  `/users/auth/okta?organization_id=...`) don't crash on malformed values.
   """
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
-      nil -> {:error, :not_found}
-      %Organization{} = organization -> {:ok, organization}
+    with {:ok, id} when not is_nil(id) <- Ecto.Type.cast(:id, id),
+         %Organization{} = organization <-
+           Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
     end
   end
 

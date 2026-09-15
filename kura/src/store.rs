@@ -3016,7 +3016,7 @@ impl Store {
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
         let drop_cached_pages = file_cache_policy.should_drop(
             self.memory.should_reclaim_file_cache(),
-            self.memory.transient_reserved_bytes(),
+            self.memory.foreground_transient_reserved_bytes(),
         );
         if self.positioned_segment_writes_enabled()
             && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
@@ -3355,7 +3355,7 @@ impl Store {
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                     && file_cache_policy.should_drop(
                         self.memory.should_reclaim_file_cache(),
-                        self.memory.transient_reserved_bytes(),
+                        self.memory.foreground_transient_reserved_bytes(),
                     )
                 {
                     let destination = writer
@@ -3422,7 +3422,7 @@ impl Store {
             let drop_final_range = copied > advised_through
                 && file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 );
             if drop_final_range {
                 let destination = writer
@@ -6154,7 +6154,7 @@ impl Store {
                 assembled_bytes = assembled_bytes.saturating_add(read as u64);
                 if file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 ) && assembled_bytes.saturating_sub(advised_through)
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                 {
@@ -10863,6 +10863,7 @@ mod tests {
             peer_tls: None,
             public_tls: None,
             https_port: 0,
+            gateway_grpc_port: None,
             accelerated_file_serving: AcceleratedFileServingConfig {
                 enabled: true,
                 mode: AcceleratedFileServingMode::Splice,
@@ -18708,6 +18709,41 @@ mod tests {
         store
             .try_start_multipart_upload("acme", "ios", "builds", "recovered", "Module")
             .expect("recovered headroom should admit another session");
+    }
+
+    #[tokio::test]
+    async fn multipart_completion_beyond_the_window_fits_beside_other_uploads() {
+        const MIB: u64 = 1024 * 1024;
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.memory_soft_limit_bytes = 64 * MIB;
+            config.memory_hard_limit_bytes = 128 * MIB;
+        });
+        assert_eq!(store.memory.transient_capacity_bytes(), 64 * MIB);
+        let upload_id = store
+            .try_start_multipart_upload("acme", "ios", "builds", "large", "Module")
+            .expect("session should start");
+        for part_number in 1..=2 {
+            let part = config.tmp_dir.join(format!("part-{part_number}"));
+            std::fs::write(&part, vec![0_u8; 10 * MIB as usize]).expect("part should be written");
+            store
+                .add_multipart_part(&upload_id, part_number, &part, 10 * MIB)
+                .await
+                .expect("part should upload");
+        }
+        // Assembly copies parts already on disk under the bounded policy, so it
+        // is charged one drop interval rather than the whole window.
+        let _other_uploads = store
+            .memory
+            .try_reserve_foreground_memory(48 * MIB)
+            .expect("the pool should admit the other uploads");
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            store.complete_multipart_upload_and_replicate(&upload_id, &[1, 2]),
+        )
+        .await
+        .expect("completion should not queue behind the other uploads")
+        .expect("completion should succeed");
     }
 
     #[test]

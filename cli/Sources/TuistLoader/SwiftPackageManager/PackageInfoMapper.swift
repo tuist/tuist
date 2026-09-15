@@ -40,9 +40,6 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
 
-    /// Thrown when an included local package test target depends on a product from another package.
-    case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
-
     /// Thrown when an included local package test target depends on an executable target that is not mapped.
     case unsupportedExecutableTargetInLocalPackageTest(package: String, target: String, executable: String)
 
@@ -73,12 +70,6 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
-        case let .unsupportedExternalProductInLocalPackageTest(package, target, product):
-            return """
-            The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
-            Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
-            the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
-            """
         case let .unsupportedExecutableTargetInLocalPackageTest(package, target, executable):
             return """
             The test target `\(target)` in the local package `\(package)` depends on the executable target `\(executable)`, \
@@ -757,26 +748,6 @@ public struct PackageInfoMapper: PackageInfoMapping {
         default:
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
-        }
-
-        if target.type == .test,
-           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
-           let productName = target.dependencies.compactMap({ dependency -> String? in
-               switch dependency {
-               case let .product(name, package: _, moduleAliases: _, condition: _):
-                   return name
-               case let .byName(name, condition: _) where targetsByName[name] == nil:
-                   return name
-               case .target, .byName:
-                   return nil
-               }
-           }).first
-        {
-            throw PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
-                package: packageInfo.name,
-                target: target.name,
-                product: productName
-            )
         }
 
         if target.type == .test,

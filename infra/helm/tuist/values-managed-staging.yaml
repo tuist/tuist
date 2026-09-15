@@ -82,6 +82,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so staging exercises the public-dashboard challenge
+  # in the earliest cascade rung. See values-managed-production.yaml and
+  # PR #13205 for context.
+  publicPageChallenge:
+    enabled: true
+
   replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
@@ -143,6 +149,8 @@ server:
       # backfilled demand, which is not a concern here.
       value: "1"
     - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_UNUSED_DAYS
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
@@ -990,10 +998,7 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

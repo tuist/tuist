@@ -15,6 +15,11 @@ defmodule Tuist.Storage do
   @delete_objects_max_concurrency 4
   @file_upload_chunk_max_attempts 3
   @file_upload_chunk_attempt_timeout 30_000
+  # ExAws only retries a stalled ranged GET once the HTTP receive timeout fires,
+  # so it has to be well below the per-chunk task timeout; with both at 60s a
+  # single stall killed the whole download before any retry could run.
+  @file_download_chunk_timeout to_timeout(minute: 3)
+  @file_download_http_opts [receive_timeout: 15_000, pool_timeout: 5_000]
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -299,8 +304,8 @@ defmodule Tuist.Storage do
         {config, bucket_name} = s3_config_and_bucket(actor)
 
         bucket_name
-        |> ExAws.S3.download_file(object_key, file_path)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.S3.download_file(object_key, file_path, timeout: @file_download_chunk_timeout)
+        |> ExAws.request(Map.put(config, :http_opts, @file_download_http_opts))
         |> normalize_download_error()
     end
   catch

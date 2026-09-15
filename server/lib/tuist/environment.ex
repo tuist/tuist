@@ -553,6 +553,14 @@ defmodule Tuist.Environment do
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
 
   @doc """
+  Days a Kura instance may stay in service without storing anything before it
+  is drained and reclaimed, measured from when it entered service.
+
+  Read from `TUIST_KURA_UNUSED_DAYS`.
+  """
+  def kura_unused_days, do: positive_env_integer("TUIST_KURA_UNUSED_DAYS", 7)
+
+  @doc """
   Days an account-region's demand must have been tracked before it can be
   archived, however old the recorded demand looks.
 
@@ -1874,6 +1882,16 @@ defmodule Tuist.Environment do
   """
   def runners_macos_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
+  parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
+  `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`
+  normalizes and orders them.
+  """
+  def runner_macos_xcode_versions do
+    Application.get_env(:tuist, :runner_macos_xcode_versions, [])
   end
 
   @doc """

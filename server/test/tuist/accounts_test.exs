@@ -1931,6 +1931,28 @@ defmodule Tuist.AccountsTest do
       # When / Then
       assert {:error, :not_found} == Accounts.get_organization_by_id(999)
     end
+
+    test "returns not found error when id is a non-integer string" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1,`")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("not-a-number")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1abc")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("")
+    end
+
+    test "returns not found error when id is nil or an unexpected type" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id(nil)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(-1)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(%{})
+    end
+
+    test "returns organization when id is a string of digits" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org-string-id", creator: user})
+
+      # When / Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(Integer.to_string(organization.id))
+    end
   end
 
   describe "find_or_create_user_from_oauth2" do
@@ -6252,5 +6274,15 @@ defmodule Tuist.AccountsTest do
     jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
     {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
     token
+  end
+
+  describe "get_account_ids_by_handles/1" do
+    test "keys each account id by the handle as requested, whatever its casing" do
+      account = organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
+      downcased = String.downcase(account.name)
+
+      assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
+               %{account.name => account.id, downcased => account.id}
+    end
   end
 end

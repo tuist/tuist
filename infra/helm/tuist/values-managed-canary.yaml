@@ -65,6 +65,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -328,15 +334,24 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # Step 6a, the full parity gate, is disarmed. Its last run found five copied
-    # tables differing from the system of record across the whole dataset:
-    # shard_plans, xcode_targets, command_events and cacheable_tasks short of
-    # rows, and test_runs with a differing duration. Reads stay where they are
-    # until those are explained and repaired.
+    # A second repair pass, before the parity gate goes back on.
+    #
+    # The gate's last run found five copied tables differing from the system of
+    # record: rows the first repair's gap fill could not see, because it skipped
+    # every row with a NULL column and every newer version of a row the
+    # destination already held. With that fixed, this runs the repair again. The
+    # ledger has September recorded as done up to the first repair's cutoff, so
+    # a later cutoff is what makes September a new chunk to gap-fill. Rows after
+    # it were delivered by the mirror, which has recorded no error, retried or
+    # dropped write since that first cutoff.
+    #
+    # A chunk that would copy rows the destination already holds is recorded as
+    # failed and copies nothing, without failing the deploy.
     migration:
-      enabled: false
-      name: parity
-      task: Tuist.Release.check_clickhouse_parity
+      enabled: true
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-15T12:00:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -792,10 +807,7 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

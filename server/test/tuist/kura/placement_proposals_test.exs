@@ -123,6 +123,22 @@ defmodule Tuist.Kura.PlacementProposalsTest do
                PlacementProposals.open_proposal_for(account)
     end
 
+    test "corrects a first placement seeded where the project was created" do
+      # Where a project was created is not necessarily where its builds run, so
+      # the seed's row is a guess like any first placement and the fast rung
+      # still applies.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      seeded_at_creation!(account, "us-west")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :correct, from_region: "us-west", to_region: "us-east", status: :open} =
+               PlacementProposals.open_proposal_for(account)
+    end
+
     test "proposes nothing into a region that has no room" do
       # The traffic still points at the preferred region, but the scheduler
       # could not place an instance there; it maps onto the region the account
@@ -515,6 +531,12 @@ defmodule Tuist.Kura.PlacementProposalsTest do
         "preferred_region" => preferred,
         "plan" => "pro"
       })
+
+    account
+  end
+
+  defp seeded_at_creation!(account, region) do
+    {:ok, _row} = PlacerRegions.put_primary(account, region, %{"signal" => PlacerRegion.creation_origin_signal()})
 
     account
   end

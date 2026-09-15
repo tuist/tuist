@@ -22,6 +22,7 @@ defmodule Tuist.Kura.StorageRollup do
     field :max_occupancy_percent, :integer
     field :max_live_segment_bytes, :integer
     field :last_ring_budget_bytes, :integer
+    field :min_ring_budget_bytes, :integer
 
     belongs_to :account, Account
 

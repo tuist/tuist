@@ -104,6 +104,19 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       assert row.desired_segment_count == 50
     end
 
+    test "resolves a tenant whose casing differs from the account handle" do
+      account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+      event_id = "snapshot-mixed-case-#{account.id}"
+
+      {:ok, 1} =
+        StorageTelemetry.create_storage_snapshots([
+          snapshot_payload(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})
+        ])
+
+      row = ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^event_id))
+      assert row.account_id == account.id
+    end
+
     test "an absent oldest-segment timestamp lands as the epoch" do
       {:ok, 1} =
         StorageTelemetry.create_storage_snapshots([
@@ -261,10 +274,12 @@ defmodule Tuist.Kura.StorageTelemetryTest do
   end
 
   describe "snapshot_day_aggregates/1" do
-    test "reports the day's peak occupancy and latest budget" do
+    test "reports the day's peak occupancy, latest budget and smallest budget" do
       account_id = System.unique_integer([:positive]) + 1_000_000
 
       insert_snapshot_rows([
+        snapshot_row(account_id, "snap-0-#{account_id}", ~N[2026-08-20 00:10:00], 0, 0, []),
+        snapshot_row(account_id, "snap-3-#{account_id}", ~N[2026-08-20 00:20:00], 5_368_709_120, 1_073_741_824, []),
         snapshot_row(account_id, "snap-1-#{account_id}", ~N[2026-08-20 08:00:00], 10_737_418_240, 2_147_483_648, []),
         snapshot_row(account_id, "snap-2-#{account_id}", ~N[2026-08-20 20:00:00], 10_737_418_240, 4_294_967_296, []),
         # Redelivery of the same snapshot window.
@@ -280,10 +295,11 @@ defmodule Tuist.Kura.StorageTelemetryTest do
 
       assert aggregate.account_id == account_id
       assert aggregate.date == ~D[2026-08-20]
-      assert aggregate.snapshot_count == 2
+      assert aggregate.snapshot_count == 4
       assert aggregate.max_occupancy_percent == 40
       assert aggregate.max_live_segment_bytes == 4_294_967_296
       assert aggregate.last_ring_budget_bytes == 10_737_418_240
+      assert aggregate.min_ring_budget_bytes == 5_368_709_120
     end
   end
 
