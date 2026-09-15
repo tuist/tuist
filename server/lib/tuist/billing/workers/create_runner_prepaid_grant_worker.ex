@@ -1,6 +1,6 @@
 defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
   @moduledoc """
-  Turns a paid prepaid invoice into a Stripe credit grant.
+  Turns a finalized or paid prepaid invoice into a Stripe credit grant.
 
   The job carries only the invoice id and re-reads the invoice from
   Stripe on every attempt, rather than freezing the webhook's copy into
@@ -9,14 +9,16 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
   missing platform scope — is picked up by the retry instead of being
   replayed wrong.
 
-  Runs for every paid invoice, not only ones that look prepaid, because
-  the webhook payload carries at most the first handful of an invoice's
-  lines and a prepaid line further down a busy bill would otherwise go
-  unseen. `Tuist.Runners.Prepaid` pages the lines endpoint and decides
-  on the full picture; an ordinary invoice costs one cheap no-op.
+  Runs for every finalized and paid invoice, not only ones that look
+  prepaid, because the webhook payload carries at most the first handful
+  of an invoice's lines and a prepaid line further down a busy bill would
+  otherwise go unseen. `Tuist.Runners.Prepaid` pages the lines endpoint
+  and decides on the full picture; an ordinary invoice costs one cheap
+  no-op.
 
-  Uniqueness is on the invoice id for all time, so Stripe redelivering
-  `invoice.paid` cannot enqueue a second run. That is the outermost of
+  Uniqueness is on the invoice id for all time, so Stripe redelivering an
+  invoice event, or sending both `invoice.finalized` and `invoice.paid`
+  for one invoice, cannot enqueue a second run. That is the outermost of
   three layers: Oban drops the duplicate job, each request carries an
   idempotency key derived from the invoice and line, and
   `Tuist.Runners.Prepaid` checks Stripe for a grant against the same
@@ -49,7 +51,7 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
 
     with {:ok, invoice} <- Stripe.Invoice.retrieve(invoice_id) do
       invoice
-      |> Prepaid.grant_for_paid_invoice()
+      |> Prepaid.grant_for_invoice()
       |> handle_result(invoice_id, attempt)
     end
   end
@@ -66,11 +68,21 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
 
   defp handle_result({:error, :no_runner_prices_configured}, invoice_id, attempt) when attempt <= @max_price_snoozes do
     Logger.warning(
-      "runners: prepaid invoice #{invoice_id} is paid but no runner Stripe Price is configured; " <>
+      "runners: prepaid invoice #{invoice_id} is billed but no runner Stripe Price is configured; " <>
         "retrying in #{@price_retry_seconds}s"
     )
 
     {:snooze, @price_retry_seconds}
+  end
+
+  # Retrying cannot make this credit usable, so it fails into alerting for
+  # the customer to be credited by hand.
+  defp handle_result({:error, {:standing_period_ended, line_id}} = error, invoice_id, _attempt) do
+    Logger.error(
+      "runners: standing prepaid line #{line_id} on invoice #{invoice_id} was not granted before its period ended"
+    )
+
+    error
   end
 
   defp handle_result(result, _invoice_id, _attempt), do: result

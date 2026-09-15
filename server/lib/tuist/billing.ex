@@ -416,16 +416,19 @@ defmodule Tuist.Billing do
   # usually unchanged by the plan change, deleting and re-adding them would
   # silently discard the runner usage already accrued this cycle.
   #
-  # So: keep every existing item whose Price is a configured runner Price,
-  # delete the rest, and add only the runner Prices that aren't on the
-  # subscription yet. Runner items keep their Stripe item IDs and their
-  # accrued usage across the change.
+  # The standing prepaid minutes item belongs to the account rather than the
+  # plan too, and deleting it would end a recurring prepaid arrangement.
+  #
+  # So: keep every existing item whose Price is a configured runner Price or
+  # the prepaid Price, delete the rest, and add only the runner Prices that
+  # aren't on the subscription yet. Kept items keep their Stripe item IDs,
+  # their accrued usage, and their quantity across the change.
   defp reconcile_subscription_items(stripe_subscription, subscription_items) do
-    runner_price_ids = configured_runner_price_ids()
+    kept_price_ids = plan_independent_price_ids()
 
     {retained, replaced} =
       Enum.split_with(stripe_subscription.items.data, fn item ->
-        MapSet.member?(runner_price_ids, subscription_item_price_id(item))
+        MapSet.member?(kept_price_ids, subscription_item_price_id(item))
       end)
 
     retained_price_ids = MapSet.new(retained, &subscription_item_price_id/1)
@@ -440,8 +443,30 @@ defmodule Tuist.Billing do
     deletions ++ additions
   end
 
+  defp plan_independent_price_ids do
+    case runner_prepaid_price_id() do
+      nil -> configured_runner_price_ids()
+      price_id -> MapSet.put(configured_runner_price_ids(), price_id)
+    end
+  end
+
   defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id
   defp subscription_item_price_id(_item), do: nil
+
+  @doc """
+  The Price the standing prepaid minutes item is billed on, or `nil` until
+  one is configured for the environment.
+
+  Kept apart from the `runners` map on purpose. Every entry there is a
+  metered runner Price attached to every subscription, while the prepaid
+  item is licensed and carried only by accounts that buy it.
+  """
+  def runner_prepaid_price_id do
+    case Map.get(Tuist.Environment.stripe_prices() || %{}, "runner_prepaid_minutes") do
+      price_id when is_binary(price_id) and price_id != "" -> price_id
+      _ -> nil
+    end
+  end
 
   defp configured_runner_price_ids do
     (Tuist.Environment.stripe_prices() || %{})
@@ -598,7 +623,10 @@ defmodule Tuist.Billing do
 
     changes =
       if Trials.on_trial?(account) do
-        Enum.map(present, &%{id: &1.id, deleted: true})
+        # The standing prepaid item goes with the runner items. With no
+        # runner usage invoiced, the credit it buys would have nothing to
+        # pay for.
+        Enum.map(present ++ prepaid_items(stripe_subscription), &%{id: &1.id, deleted: true})
       else
         present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
 
@@ -618,6 +646,13 @@ defmodule Tuist.Billing do
         # invoice usage the account ran while it had no runner item at
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
+    end
+  end
+
+  defp prepaid_items(stripe_subscription) do
+    case runner_prepaid_price_id() do
+      nil -> []
+      price_id -> Enum.filter(stripe_subscription.items.data, &(subscription_item_price_id(&1) == price_id))
     end
   end
 
