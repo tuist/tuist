@@ -428,6 +428,11 @@ defmodule Tuist.StorageTest do
 
       stub(Environment, :s3_bucket_name, fn -> "bucket" end)
 
+      expect(ExAws.S3, :download_file, fn bucket, path, dest, opts ->
+        send(test_pid, {:download_opts, opts})
+        Mimic.call_original(ExAws.S3, :download_file, [bucket, path, dest, opts])
+      end)
+
       stub(ExAws.Config, :new, fn :s3 ->
         Map.merge(Mimic.call_original(ExAws.Config, :new, [:s3]), %{
           http_client: __MODULE__.FakeHttpClient,
@@ -444,8 +449,10 @@ defmodule Tuist.StorageTest do
       # Then
       assert {:ok, :done} = result
       assert File.read!(file_path) == content
+      assert_received {:download_opts, download_opts}
       assert_received {:http_opts, http_opts}
-      assert Keyword.fetch!(http_opts, :receive_timeout) < to_timeout(minute: 3)
+      assert Keyword.fetch!(http_opts, :receive_timeout) < Keyword.fetch!(download_opts, :timeout)
+      assert Keyword.fetch!(download_opts, :timeout) > to_timeout(minute: 1)
       File.rm(file_path)
     end
 
