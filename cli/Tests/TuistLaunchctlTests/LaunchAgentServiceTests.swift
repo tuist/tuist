@@ -836,6 +836,78 @@ struct LaunchAgentServiceTests {
         ), "a launch input that cannot be inspected")
     }
 
+    /// Homebrew and most version managers switch versions by repointing a
+    /// symlink at a binary installed long before. The plist names the link, and
+    /// every file behind it predates the running process, so only the link
+    /// shows the switch.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func isLaunchAgentCurrent_isFalseWhenTheBinarysSymlinkWasRepointed() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        for version in ["4.1.0", "4.2.0"] {
+            let bin = temporaryDirectory.appending(components: "Cellar", version, "bin")
+            try await fileSystem.makeDirectory(at: bin)
+            try await fileSystem.writeText("tuist \(version)", at: bin.appending(component: "tuist"))
+        }
+        let link = temporaryDirectory.appending(components: "bin", "tuist")
+        try await fileSystem.makeDirectory(at: link.parentDirectory)
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "../Cellar/4.1.0/bin/tuist")
+        let installed = try await installAgent(binary: link)
+        let subject = service(launchedAt: Date())
+        let isCurrent = {
+            await subject.isLaunchAgentCurrent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: Self.programArguments,
+                environmentVariables: Self.environmentVariables,
+                launchInputs: [installed.launchInput]
+            )
+        }
+        #expect(await isCurrent())
+
+        try FileManager.default.removeItem(atPath: link.pathString)
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "../Cellar/4.2.0/bin/tuist")
+
+        #expect(await !isCurrent())
+    }
+
+    /// The same through a directory, the way an `Xcode.app` links to a versioned
+    /// Xcode.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func isLaunchAgentCurrent_isFalseWhenADirectorySymlinkToALaunchInputWasRepointed() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        for xcode in ["Xcode-26.5.0.app", "Xcode-27.0.0.app"] {
+            let lib = temporaryDirectory.appending(components: xcode, "Contents", "Developer", "usr", "lib")
+            try await fileSystem.makeDirectory(at: lib)
+            try await fileSystem.writeText(xcode, at: lib.appending(component: "libToolchainCASPlugin.dylib"))
+        }
+        let link = temporaryDirectory.appending(component: "Xcode.app")
+        try FileManager.default.createSymbolicLink(
+            atPath: link.pathString,
+            withDestinationPath: temporaryDirectory.appending(component: "Xcode-26.5.0.app").pathString
+        )
+        let plugin = link.appending(components: "Contents", "Developer", "usr", "lib", "libToolchainCASPlugin.dylib")
+        _ = try await installAgent()
+        let subject = service(launchedAt: Date())
+        let isCurrent = {
+            await subject.isLaunchAgentCurrent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: Self.programArguments,
+                environmentVariables: Self.environmentVariables,
+                launchInputs: [plugin]
+            )
+        }
+        #expect(await isCurrent())
+
+        try FileManager.default.removeItem(atPath: link.pathString)
+        try FileManager.default.createSymbolicLink(
+            atPath: link.pathString,
+            withDestinationPath: temporaryDirectory.appending(component: "Xcode-27.0.0.app").pathString
+        )
+
+        #expect(await !isCurrent())
+    }
+
     @Test func launchDate_isWhenTheProcessStarted() throws {
         let launchedAt = try #require(LaunchAgentService.launchDate(ofProcess: getpid()))
         #expect(launchedAt <= Date())
@@ -850,16 +922,22 @@ struct LaunchAgentServiceTests {
         "TUIST_TOKEN": "token",
     ]
 
-    /// Installs `tuist.test` through `setupLaunchAgent` from a binary and a launch
-    /// input written beforehand, and leaves launchd reporting a process for it.
-    private func installAgent() async throws -> (plistPath: AbsolutePath, launchInput: AbsolutePath) {
+    /// Installs `tuist.test` through `setupLaunchAgent` from `binary` (a new file
+    /// when not given) and a launch input written beforehand, and leaves launchd
+    /// reporting a process for it.
+    private func installAgent(binary: AbsolutePath? = nil) async throws -> (plistPath: AbsolutePath, launchInput: AbsolutePath) {
         let environment = try #require(Environment.mocked)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let binary = temporaryDirectory.appending(component: "tuist")
-        try await fileSystem.writeText("tuist", at: binary)
+        let executable: AbsolutePath
+        if let binary {
+            executable = binary
+        } else {
+            executable = temporaryDirectory.appending(component: "tuist")
+            try await fileSystem.writeText("tuist", at: executable)
+        }
         let launchInput = temporaryDirectory.appending(component: "tuist-cas-proxy")
         try await fileSystem.writeText("tuist-cas-proxy", at: launchInput)
-        environment.currentExecutablePathStub = binary
+        environment.currentExecutablePathStub = executable
         given(launchctlController)
             .bootstrap(plistPath: .any, domain: .any)
             .willReturn()

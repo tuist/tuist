@@ -232,7 +232,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
         // of them is running what they replaced. A file that cannot be inspected
         // is not evidence that it did not change.
         return ([plistPath, tuistBinaryPath] + launchInputs).allSatisfy { path in
-            statusChangeDate(of: path).map { $0 < launchedAt } ?? false
+            lastChangeDate(resolving: path).map { $0 < launchedAt } ?? false
         }
     }
 
@@ -390,12 +390,44 @@ public struct LaunchAgentService: LaunchAgentServicing {
     }
 }
 
-/// The file's `st_ctime`, following symlinks. Unlike the modification date,
-/// an installer cannot carry it over from an archive, so a binary replaced by
-/// an older-dated copy still reads as changed.
-private func statusChangeDate(of path: AbsolutePath) -> Date? {
+/// The latest `st_ctime` among the file `path` names and every symlink passed
+/// on the way to it, or `nil` when any of them cannot be inspected.
+///
+/// The change time rather than the modification date, because an installer
+/// cannot carry it over from an archive. The symlinks, because switching
+/// versions usually repoints one at a binary installed long before: the path
+/// stays the same, every file behind it is older than the process, and only
+/// the link, which repointing replaces, is newer. Not the directories on the
+/// way, whose change time moves whenever an entry inside them does.
+private func lastChangeDate(resolving path: AbsolutePath) -> Date? {
+    var pending = Array(path.pathString.split(separator: "/").map(String.init).reversed())
+    var resolved: [String] = []
+    var latest = Date.distantPast
+    var symlinksFollowed = 0
+    while let component = pending.popLast() {
+        if component == "." { continue }
+        if component == ".." {
+            _ = resolved.popLast()
+            continue
+        }
+        let candidate = "/" + (resolved + [component]).joined(separator: "/")
+        guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: candidate) else {
+            resolved.append(component)
+            continue
+        }
+        symlinksFollowed += 1
+        guard symlinksFollowed <= 32, let changedAt = changeDate(of: candidate) else { return nil }
+        latest = max(latest, changedAt)
+        if target.hasPrefix("/") { resolved = [] }
+        pending.append(contentsOf: target.split(separator: "/").map(String.init).reversed())
+    }
+    return changeDate(of: "/" + resolved.joined(separator: "/")).map { max(latest, $0) }
+}
+
+/// `st_ctime` of the entry itself, not of what it links to.
+private func changeDate(of path: String) -> Date? {
     var status = stat()
-    guard stat(path.pathString, &status) == 0 else { return nil }
+    guard lstat(path, &status) == 0 else { return nil }
     #if os(Linux)
         let changedAt = status.st_ctim
     #else
