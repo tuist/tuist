@@ -1629,8 +1629,9 @@ its proposals unattended every ten minutes, within a fleet-wide budget of five
 applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
-shed age grows the claim after two consecutive qualifying days when the ring
-cycled about once a day over them, and after five when it did not. A
+shed age grows the claim after two qualifying days when the ring cycled about
+once a day over them, and after five when it did not. Days the account did
+not build are passed over rather than restarting the count. A
 two-day rule therefore alerts on a control loop that is mid-confirmation and
 would keep alerting for days while it does its job. A rule at two days was
 deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
