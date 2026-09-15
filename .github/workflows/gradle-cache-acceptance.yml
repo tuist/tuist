@@ -86,6 +86,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          # The legacy `tools` package does not resolve with cmdline-tools 16.0.
+          packages: platform-tools
       - name: Install server deps
         uses: ./.github/actions/mix-deps-get
         with:
