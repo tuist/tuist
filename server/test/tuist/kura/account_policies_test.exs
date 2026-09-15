@@ -876,6 +876,39 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-west"}}
     end
 
+    test "places an account with no counted traffic nearest the origin hint" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "eu-west"])
+
+      assert AccountPolicies.resolve_with_origin_hint(account, "FR") ==
+               {:ok, %{plan: :pro, service_region: "eu-west"}}
+    end
+
+    test "counted traffic outranks the origin hint" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "eu-west"])
+      seed_origin(account, "US-VA")
+
+      assert AccountPolicies.resolve_with_origin_hint(account, "FR") ==
+               {:ok, %{plan: :pro, service_region: "us-east"}}
+    end
+
+    test "steers a hinted account off a full region without binding it" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "eu-west", "eu-east"])
+      room(%{"eu-west" => false, "eu-east" => true, "us-east" => true})
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve_with_origin_hint(account, "FR") ==
+               {:ok, %{plan: :pro, service_region: "eu-east"}}
+
+      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      assert PlacerRegions.all_for(account) == []
+    end
+
     test "a spill racing itself follows the placement the other resolution recorded" do
       # Two demand flushes on two nodes read the same account with no primary
       # and, from separately cached room readings, spill it into different

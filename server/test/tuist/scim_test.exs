@@ -237,6 +237,33 @@ defmodule Tuist.SCIMTest do
       refute Accounts.belongs_to_organization?(user, org)
     end
 
+    test "patch_user/3 deactivates when Entra ID sends active as a string", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-leaver@example.com"})
+
+      ops = [%{"op" => "Replace", "path" => "active", "value" => "False"}]
+
+      assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
+      assert updated.active == false
+      refute Accounts.belongs_to_organization?(user, org)
+    end
+
+    test "patch_user/3 applies an app role Entra ID sends as a JSON-encoded assignment", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-admin@example.com"})
+
+      ops = [
+        %{
+          "op" => "Add",
+          "path" => "roles",
+          "value" => [
+            %{"value" => ~s({"id":"06b07648-ecfe-589f-9d2f-6325724a46ee","value":"Admin","displayName":"Admin"})}
+          ]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
     test "patch_user/3 returns a changeset when an email update conflicts", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@example.com"})
       _taken = user_fixture(email: "taken-rename@example.com")

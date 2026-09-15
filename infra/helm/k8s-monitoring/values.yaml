@@ -1750,6 +1750,91 @@ k8s-monitoring:
           }
         }
 
+        // Regional Kura ingress controllers (`kura-<region>-ingress-nginx`).
+        // They run host-network on the Kura boxes and are the only place a
+        // malformed response between client and Kura shows up: status `009`
+        // or `000` with a healthy upstream, or a 502 on gRPC. Kura's own
+        // latency and error metrics stay clean while that happens.
+        //
+        // Scraped here rather than through annotationAutodiscovery so the
+        // metric set can be cut to the request counter. The controller also
+        // exports per-Ingress request, response and upstream histograms, and
+        // every Kura instance owns two Ingresses, so its full output grows with
+        // every account admitted to a region.
+        discovery.kubernetes "tuist_kura_ingress_nginx" {
+          role = "pod"
+          namespaces {
+            names = ["platform"]
+          }
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/component=controller"
+          }
+        }
+
+        discovery.relabel "tuist_kura_ingress_nginx" {
+          targets = discovery.kubernetes.tuist_kura_ingress_nginx.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-.+-ingress-nginx"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:10254"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-(.+)-ingress-nginx"
+            target_label = "kura_gateway"
+            replacement = "$1"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_ingress_nginx" {
+          targets = discovery.relabel.tuist_kura_ingress_nginx.output
+          forward_to = [prometheus.relabel.tuist_kura_ingress_nginx.receiver]
+          job_name = "kura-ingress-nginx"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_kura_ingress_nginx" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
+          }
+        }
+
     # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:

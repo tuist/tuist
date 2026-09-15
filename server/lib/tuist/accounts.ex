@@ -172,13 +172,21 @@ defmodule Tuist.Accounts do
 
   @doc ~S"""
   Given an id, it returns the organization associated with it.
+
+  The id may be an integer or a string of digits; any other value returns
+  `{:error, :not_found}` rather than raising, so callers exposed to
+  user-controlled input (e.g. the SSO entry point at
+  `/users/auth/okta?organization_id=...`) don't crash on malformed values.
   """
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
-      nil -> {:error, :not_found}
-      %Organization{} = organization -> {:ok, organization}
+    with {:ok, id} when not is_nil(id) <- Ecto.Type.cast(:id, id),
+         %Organization{} = organization <-
+           Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
     end
   end
 

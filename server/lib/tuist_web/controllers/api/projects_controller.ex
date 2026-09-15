@@ -10,6 +10,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.API.Schemas.ProjectBuildSystem
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -121,7 +122,10 @@ defmodule TuistWeb.API.ProjectsController do
             [build_system: String.to_existing_atom(build_system)]
           end
 
-        case Projects.create_project(%{name: project_handle, account: account}, opts) do
+        case Projects.create_project(
+               %{name: project_handle, account: account},
+               Keyword.put(opts, :origin, RemoteIp.origin(conn))
+             ) do
           {:ok, project} ->
             conn
             |> put_status(:ok)

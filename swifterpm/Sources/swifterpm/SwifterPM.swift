@@ -228,6 +228,7 @@ public struct SwifterPM: Sendable {
             try await PackageResolver.pruneStalePinsIfNeeded(
                 packageDir: package,
                 scratchDir: scratch,
+                cacheRoot: cacheRoot,
                 disableSandbox: request.disableSandbox
             )
         }
