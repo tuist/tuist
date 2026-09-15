@@ -111,15 +111,15 @@ defmodule Tuist.Kura.PromExPlugin do
           counter(
             @metric_prefix ++ [:archived, :count],
             event_name: Telemetry.event_name_archived(),
-            description: "Instances archived after a successful drain.",
-            tags: [:plan, :region]
+            description: "Instances archived after a successful drain, by the reason the drain started.",
+            tags: [:plan, :region, :reason]
           ),
           sum(
             @metric_prefix ++ [:reclaimed, :bytes],
             event_name: Telemetry.event_name_archived(),
             measurement: :reclaimed_bytes,
-            description: "Enforced warm quota reclaimed by archival.",
-            tags: [:plan, :region]
+            description: "Enforced warm quota reclaimed by archival, by the reason the drain started.",
+            tags: [:plan, :region, :reason]
           ),
           distribution(
             @metric_prefix ++ [:drain_duration, :milliseconds],

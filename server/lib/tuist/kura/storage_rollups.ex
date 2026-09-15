@@ -61,6 +61,15 @@ defmodule Tuist.Kura.StorageRollups do
     |> Repo.all()
   end
 
+  @doc """
+  The rollups of `account_ids` in `region` on or after `since_date`.
+  """
+  def for_region(region, account_ids, since_date) do
+    StorageRollup
+    |> where([rollup], rollup.region == ^region and rollup.account_id in ^account_ids and rollup.date >= ^since_date)
+    |> Repo.all()
+  end
+
   # Homogeneous keys: `insert_all` requires them.
   defp merge_aggregates(evictions, snapshots) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
