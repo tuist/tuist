@@ -484,6 +484,17 @@ server:
   turnstile:
     enabled: false
     secretsFrom: eso
+  # Second Turnstile-backed gate: interstitial challenge in front of public
+  # project dashboards (see #13205). Uses the same Turnstile keys as
+  # `server.turnstile`; this switch just decides whether the plug/live-hook
+  # pair enforces the check. Layered defence in depth on top of
+  # Cloudflare Super Bot Fight Mode at the edge — SBFM's
+  # `managed_challenge` still lets a chunk of definitely-automated traffic
+  # through, so browser sessions get gated at the app layer too.
+  # `Environment.public_page_challenge_required?/0` additionally requires
+  # `hosted: true`; leave that in sync per env.
+  publicPageChallenge:
+    enabled: false
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and

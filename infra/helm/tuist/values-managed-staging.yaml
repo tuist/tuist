@@ -82,6 +82,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so staging exercises the public-dashboard challenge
+  # in the earliest cascade rung. See values-managed-production.yaml and
+  # PR #13205 for context.
+  publicPageChallenge:
+    enabled: true
+
   replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
