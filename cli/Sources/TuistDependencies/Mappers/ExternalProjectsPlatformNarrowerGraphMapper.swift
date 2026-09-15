@@ -48,9 +48,11 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         if !narrowedTests.isEmpty {
             // Only tests with inferred platforms may extend the production traversal. Orphan
             // tests must not propagate their broad declared destinations back into runtime targets.
+            // Preserve production destinations when tests connect dependencies with disjoint platforms.
+            let productionDestinations = externalTargetSupportedDestinations
             externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations(
                 including: Set(narrowedTests)
-            )
+            ).merging(productionDestinations) { _, production in production }
         }
         externalTargetSupportedDestinations.merge(testDestinations) { _, testDestinations in testDestinations }
 

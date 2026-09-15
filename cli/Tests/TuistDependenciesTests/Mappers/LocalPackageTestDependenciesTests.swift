@@ -146,4 +146,83 @@ struct LocalPackageTestDependenciesTests {
             #expect(target.metadata.tags.contains("tuist:prunable"))
         }
     }
+
+    @Test(arguments: [false, true])
+    func preservesProductionPlatformsWithDisjointTestDependencies(crossPackageSupport: Bool) async throws {
+        let appPath = try AbsolutePath(validating: "/App")
+        let runtimePath = try AbsolutePath(validating: "/RuntimePackage")
+        let supportPath = crossPackageSupport ? try AbsolutePath(validating: "/SupportPackage") : runtimePath
+        let runtime = Target.test(
+            name: "Runtime", destinations: [.iPhone, .mac], product: .staticFramework,
+            deploymentTargets: .init(iOS: "15.0", macOS: "12.0")
+        )
+        let runtimeHelper = Target.test(
+            name: "RuntimeHelper", destinations: [.iPhone, .mac], product: .staticFramework,
+            deploymentTargets: .init(iOS: "15.0", macOS: "12.0")
+        )
+        let support = Target.test(
+            name: "Support", destinations: [.iPhone, .mac], product: .staticFramework,
+            deploymentTargets: .init(iOS: "15.0", macOS: "12.0")
+        )
+        let testOnlySupport = Target.test(name: "TestOnlySupport", destinations: [.iPhone, .mac], product: .staticFramework)
+        let tests = Target.test(
+            name: "RuntimeTests", destinations: [.iPhone, .mac], product: .unitTests,
+            dependencies: [
+                .target(name: "Runtime"),
+                crossPackageSupport ? .project(target: "Support", path: supportPath) : .target(name: "Support"),
+                .target(name: "TestOnlySupport"),
+            ],
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        var projects: [AbsolutePath: Project] = [
+            appPath: .test(path: appPath, targets: [
+                .test(name: "App", destinations: [.iPhone], product: .app),
+                .test(name: "Tool", destinations: [.mac], product: .commandLineTool),
+            ]),
+            runtimePath: .test(
+                path: runtimePath,
+                targets: [runtime, runtimeHelper, testOnlySupport, tests] + (crossPackageSupport ? [] : [support]),
+                type: .external(hash: nil)
+            ),
+        ]
+        if crossPackageSupport {
+            projects[supportPath] = .test(path: supportPath, targets: [support], type: .external(hash: nil))
+        }
+        let graph = Graph.test(
+            projects: projects,
+            dependencies: [
+                .target(name: "App", path: appPath): [.target(name: "Runtime", path: runtimePath)],
+                .target(name: "Tool", path: appPath): [.target(name: "Support", path: supportPath)],
+                .target(name: "Runtime", path: runtimePath): [.target(name: "RuntimeHelper", path: runtimePath)],
+                .target(name: "RuntimeTests", path: runtimePath): [
+                    .target(name: "Runtime", path: runtimePath),
+                    .target(name: "Support", path: supportPath),
+                    .target(name: "TestOnlySupport", path: runtimePath),
+                ],
+            ]
+        )
+        let (narrowed, _, _) = try await ExternalProjectsPlatformNarrowerGraphMapper().map(
+            graph: graph, environment: MapperEnvironment()
+        )
+        for name in ["Runtime", "RuntimeHelper"] {
+            let target = try #require(narrowed.projects[runtimePath]?.targets[name])
+            #expect(target.destinations == [.iPhone])
+            #expect(target.deploymentTargets == .iOS("15.0"))
+        }
+        let mappedSupport = try #require(narrowed.projects[supportPath]?.targets["Support"])
+        #expect(mappedSupport.destinations == [.mac])
+        #expect(mappedSupport.deploymentTargets == .macOS("12.0"))
+        for name in ["RuntimeTests", "TestOnlySupport"] {
+            let target = try #require(narrowed.projects[runtimePath]?.targets[name])
+            #expect(target.destinations == [.iPhone, .mac])
+        }
+        let (pruned, _, _) = try await PruneOrphanExternalTargetsGraphMapper().map(
+            graph: narrowed, environment: MapperEnvironment()
+        )
+        for project in pruned.projects.values {
+            for target in project.targets.values {
+                #expect(!target.metadata.tags.contains("tuist:prunable"))
+            }
+        }
+    }
 }
