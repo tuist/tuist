@@ -26,6 +26,7 @@ struct XcodeBuildBuildCommandService {
     private let shardPlanService: ShardPlanServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
+    private let casProxyFailureService: CASProxyFailureServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -38,7 +39,8 @@ struct XcodeBuildBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -51,6 +53,7 @@ struct XcodeBuildBuildCommandService {
         self.shardPlanService = shardPlanService
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
+        self.casProxyFailureService = casProxyFailureService
     }
 
     func run(

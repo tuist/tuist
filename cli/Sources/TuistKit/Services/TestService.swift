@@ -133,6 +133,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
+    private let casProxyFailureService: CASProxyFailureServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -175,7 +176,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardService: ShardServicing = ShardService(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
+        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -205,6 +207,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.xcActivityLogController = xcActivityLogController
         self.uploadBuildRunService = uploadBuildRunService
         self.stressNewTestsService = stressNewTestsService
+        self.casProxyFailureService = casProxyFailureService
     }
 
     public static func validateParameters(

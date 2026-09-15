@@ -37,6 +37,7 @@ struct XcodeBuildTestCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
+    private let casProxyFailureService: CASProxyFailureServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -55,7 +56,8 @@ struct XcodeBuildTestCommandService {
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
+        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -74,6 +76,7 @@ struct XcodeBuildTestCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
         self.stressNewTestsService = stressNewTestsService
+        self.casProxyFailureService = casProxyFailureService
     }
 
     func run(
