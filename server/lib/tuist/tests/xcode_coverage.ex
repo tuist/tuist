@@ -68,15 +68,20 @@ defmodule Tuist.Tests.XcodeCoverage do
 
   @doc """
   Stores one report's files and publishes the run's totals over every shard
-  reported so far. `shard_index` is nil for an unsharded run.
+  reported so far. `shard_index` is nil for an unsharded run, and
+  `expected_shards` is how many shards the run's plan has: until each of them
+  reported coverage, the published totals are partial, since the missing
+  shards' tests are not in them.
   """
-  def publish(%Test{}, nil, _shard_index), do: :ok
+  def publish(test, coverage, shard_index, expected_shards \\ 1)
 
-  def publish(%Test{} = test, coverage, shard_index) do
+  def publish(%Test{}, nil, _shard_index, _expected_shards), do: :ok
+
+  def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
     reported_at = NaiveDateTime.utc_now()
     insert_files(test, coverage, shard_index, reported_at)
-    publish_totals(test, coverage, shard_index, reported_at)
+    publish_totals(test, coverage, shard_index, expected_shards, reported_at)
   end
 
   defp insert_files(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at) do
@@ -98,7 +103,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   # The report's own files are merged from memory, since rows inserted moments
   # ago are not reliably read back within the same request; the other shards'
   # latest reports come from ClickHouse.
-  defp publish_totals(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at) do
+  defp publish_totals(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, expected_shards, reported_at) do
     others = other_shards(project_id, test_run_id, shard_index)
 
     {covered, executable} =
@@ -116,7 +121,7 @@ defmodule Tuist.Tests.XcodeCoverage do
         test_run_id: test_run_id,
         covered_lines: covered,
         executable_lines: executable,
-        partial: coverage.partial or others.partial,
+        partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
         version:
           (others.shards_count + 1) * @shard_count_weight +
             NaiveDateTime.diff(newest_report_at, ~N[1970-01-01 00:00:00], :microsecond),

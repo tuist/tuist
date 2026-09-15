@@ -11,6 +11,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
   alias Tuist.Tests.XcodeCoverageRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -242,6 +243,21 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert {detail.covered_lines, detail.executable_lines} == {2, 2}
       assert [%{covered_lines: nil, executable_lines: 2, execution_count: 2}] = detail.functions
+    end
+
+    test "stay out of the trend until every shard of the plan reported coverage", %{project: project, account: account} do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: shard_plan.id, shard_index: 0, xcode_coverage: coverage([add()])}
+
+      {:ok, test} = create_test(project, account, sharded)
+
+      # The other shard has not reported, or never will: its tests' coverage is missing.
+      assert %{partial: true} = published_totals(project, test)
+
+      {:ok, _test} =
+        create_test(project, account, %{sharded | shard_index: 1, xcode_coverage: coverage([untested()])})
+
+      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 7, partial: false}
     end
 
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
