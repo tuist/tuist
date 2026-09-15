@@ -108,6 +108,7 @@ msgstr ""
 msgid "Contact us"
 msgstr ""
 
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Continue"
@@ -525,4 +526,34 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "Verifying, one moment..."
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:87
+#, elixir-autogen, elixir-format
+msgid "Just a quick check"
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:89
+#, elixir-autogen, elixir-format
+msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
+#, elixir-autogen, elixir-format
+msgid "Too many attempts. Please wait a moment and try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:110
+#, elixir-autogen, elixir-format
+msgid "Turnstile is unavailable. Please try again shortly."
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
+#, elixir-autogen, elixir-format
+msgid "Verification failed. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:26
+#, elixir-autogen, elixir-format
+msgid "Verify you're human"
 msgstr ""

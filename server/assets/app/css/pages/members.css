@@ -13,6 +13,10 @@
     & > [data-part="root"] {
       & > [data-part="content"] {
         margin-top: var(--noora-spacing-9);
+
+        & .noora-pagination-group {
+          margin-top: var(--noora-spacing-7);
+        }
       }
     }
   }

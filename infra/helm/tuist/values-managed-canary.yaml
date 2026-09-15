@@ -65,6 +65,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -328,75 +334,15 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # One step of the migration, run as a Job by the chart. The sequence is
-    # advanced by changing `task` and deploying, so each step is a reviewed
-    # change in the release history rather than a command typed at a database.
-    #
-    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
-    # deploy that first introduced the workload, this one has somewhere to
-    # clone to. The Job is a post-upgrade hook, so it runs once the release is
-    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
-    # the destination from already exists.
-    #
-    # Gate: table, view and migration-version counts match the source. Engines
-    # need no assertion, because `database_replicated_allow_only_replicated_engine`
-    # makes the destination reject a non-replicated table, so creation
-    # succeeding is the proof.
-    #
-    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
-    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
-    # one enabled re-runs it on every deploy. That was harmless for the clone,
-    # which creates what is missing and leaves the rest alone, and it is not
-    # harmless for what comes next.
-    #
-    # `name` and `task` are the step this would run if it were enabled, which
-    # is why they name the *next* one rather than the last that ran.
-    #
-    # `cutoff` is deliberately absent, and arming the backfill without it fails
-    # loudly rather than copying to a stale timestamp. Set it to a moment after
-    # the deploy that turns dual writes on above has finished rolling out: the
-    # backfill covers everything before it, the mirror covers everything after,
-    # and naming the boundary is what stops the two from leaving a gap.
-    # A repair pass, and a step back from 6a.
-    #
-    # The full parity gate ran and failed, which is the gate working: 13 of 69
-    # copied tables differ over the whole dataset, and the deploy rolled back
-    # with it. The shape is consistent. Both servers report the same min_time
-    # and max_time, and the destination simply holds fewer rows: shard_plans
-    # short by 299, xcode_targets by 232, command_events by 215, and the test
-    # family by 24 to 55 each. Rows missing from the middle of the range, not a
-    # truncated range.
-    #
-    # That is writes the mirror lost, and the hourly worker could never have
-    # seen it: it compares a two-hour window, so this history slid past it
-    # every hour while reporting agreement. The full check is the first thing
-    # to look at all of it.
-    #
-    # Most of it is explained. The xcresult-processor mirrored nothing at all
-    # until it had a tailnet route, so every test row written between the last
-    # backfill's cutoff and that landing reached Cloud alone, and the rest is
-    # the deploy churn of the last two days.
-    #
-    # The repair is this, not something new: a chunk fills gaps by row identity
-    # rather than appending, so re-running with a later cutoff copies only what
-    # the destination lacks and cannot duplicate what it already holds.
-    #
-    # The cutoff is deliberately ahead of now. The deploy that arms this
-    # restarts the server pods, and anything their mirror drops while warming
-    # up would otherwise land after the cutoff and survive the repair. Reaching
-    # past it costs nothing, because rows that arrive before the job runs are
-    # copied and rows after are covered by a mirror that has been clean since
-    # 08:00 today, with no error or retried series at all.
-    #
-    # One thing this will not fix: build_runs_new has identical row counts on
-    # both sides and sum_duration differing by 820. A value discrepancy, not a
-    # missing row, so a copy cannot repair it. Same family as the legacy_id
-    # default, and it needs its own look before the cutover.
+    # Step 6a, the full parity gate, is disarmed. Its last run found five copied
+    # tables differing from the system of record across the whole dataset:
+    # shard_plans, xcode_targets, command_events and cacheable_tasks short of
+    # rows, and test_runs with a differing duration. Reads stay where they are
+    # until those are explained and repaired.
     migration:
-      enabled: true
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-11T12:00:00Z"
+      enabled: false
+      name: parity
+      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -852,10 +798,7 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

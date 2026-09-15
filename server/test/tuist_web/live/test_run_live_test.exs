@@ -904,6 +904,32 @@ defmodule TuistWeb.TestRunLiveTest do
     end
   end
 
+  describe "handle_info catch-all" do
+    test "ignores unrelated PubSub broadcasts (e.g. :xcode_build_created) without crashing", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a rendered test run
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      # When - a sibling Xcode build broadcast lands on the same account/project topic
+      send(
+        lv.pid,
+        {:xcode_build_created, %Tuist.Builds.Build{id: Ecto.UUID.generate(), project_id: project.id}}
+      )
+
+      # And an arbitrary future broadcast
+      send(lv.pid, {:unrelated_topic_broadcast, %{ignored: true}})
+
+      # Then - the LiveView stays alive and re-renders normally
+      assert render(lv) =~ "test-cases-card"
+    end
+  end
+
   describe "refresh_test_run event" do
     test "re-renders without raising when refreshing a non-processing run", %{
       conn: conn,

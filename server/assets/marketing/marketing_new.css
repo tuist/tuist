@@ -21,6 +21,11 @@
    e.g. the blog posts' interactive labs — the same extract the legacy
    bundle links. */
 @import "phoenix-colocated/tuist/colocated.css";
+/* Dashboard components embedded in blog posts (e.g. the Bazel post's live
+   dashboard) render with the same styles as in the app. */
+@import "../app/css/components/widget.css";
+@import "../app/css/components/error_card_section.css";
+@import "../app/css/pages/build_timeline.css";
 @import "css/new/routes/home.css";
 @import "css/new/routes/about.css";
 @import "css/new/routes/home-hero.css";

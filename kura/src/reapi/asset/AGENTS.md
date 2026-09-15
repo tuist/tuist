@@ -4,7 +4,7 @@
 - `request.rs` validates qualifiers and computes namespace-scoped opaque lookup keys. Include canonical IDs, integrity and effective origin headers in the identity. Never persist or log raw origin credentials or signed URLs.
 - `http.rs` shares a pooled client with a validating DNS resolver and separately validates IP literals on every redirect. Keep proxy discovery disabled, reject private/reserved addresses and HTTPS downgrades, and strip origin headers across origins. The loopback allowance exists only under `cfg(test)`.
 - Cancel active fetches on the runtime drain notification so their gRPC guards cannot consume the shutdown budget.
-- Stream through ordinary memory and temporary-storage budgets; verify checksum and size before publishing CAS. Preserve cancellation cleanup and replication backpressure.
+- Stream through ordinary memory and temporary-storage budgets; verify checksum and size before publishing CAS. Preserve cancellation cleanup and publish through the store’s durable arrival feed for peer pull replication.
 - Store CAS blobs and lookup records through the existing Reapi artifact producer and replication machinery. A lookup is usable only while its CAS body remains available; there is no retention lease or permanent mirror guarantee.
-- Probe the cache before download admission; coalesce same-key misses per node and namespace, then probe again. Bound concurrency, request size, redirects, retries and total timeout.
+- Probe the cache before download admission; coalesce same-key misses per node and namespace, then probe again and acquire origin admission only for a caller that still needs to fetch. Same-key waiters must not consume download slots. Bound origin concurrency, request size, redirects, retries and total timeout.
 - Keep tests in `tests.rs` and real Bazel coverage in `spec/e2e/bazel_remote_asset_spec.sh`. Do not add production fault-injection controls.

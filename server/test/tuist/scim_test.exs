@@ -237,6 +237,33 @@ defmodule Tuist.SCIMTest do
       refute Accounts.belongs_to_organization?(user, org)
     end
 
+    test "patch_user/3 deactivates when Entra ID sends active as a string", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-leaver@example.com"})
+
+      ops = [%{"op" => "Replace", "path" => "active", "value" => "False"}]
+
+      assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
+      assert updated.active == false
+      refute Accounts.belongs_to_organization?(user, org)
+    end
+
+    test "patch_user/3 applies an app role Entra ID sends as a JSON-encoded assignment", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-admin@example.com"})
+
+      ops = [
+        %{
+          "op" => "Add",
+          "path" => "roles",
+          "value" => [
+            %{"value" => ~s({"id":"06b07648-ecfe-589f-9d2f-6325724a46ee","value":"Admin","displayName":"Admin"})}
+          ]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
     test "patch_user/3 returns a changeset when an email update conflicts", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@example.com"})
       _taken = user_fixture(email: "taken-rename@example.com")
@@ -335,9 +362,9 @@ defmodule Tuist.SCIMTest do
 
     test "list_groups/1 returns one synthetic group per role", %{organization: org} do
       assert [
-               %{id: "admins", members: admins},
-               %{id: "users", members: users},
-               %{id: "viewers", members: viewers}
+               %{id: "admins", display_name: "Tuist Admins", members: admins},
+               %{id: "users", display_name: "Tuist Users", members: users},
+               %{id: "viewers", display_name: "Tuist Viewers", members: viewers}
              ] = SCIM.list_groups(org)
 
       assert [_ | _] = admins
@@ -374,14 +401,92 @@ defmodule Tuist.SCIMTest do
       refute Accounts.belongs_to_organization?(outsider, org)
     end
 
-    test "patch_group/3 remove op via Okta-style path filter removes the member", %{
+    test "patch_group/3 remove op via Okta-style path filter demotes the member to the enrollment role", %{
       organization: org,
       admin: admin
     } do
       ops = [%{"op" => "remove", "path" => ~s(members[value eq "#{admin.id}"])}]
 
       {:ok, _} = SCIM.patch_group(org, "admins", ops)
-      refute Accounts.belongs_to_organization?(admin, org)
+
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(admin, org)
+      assert Accounts.belongs_to_organization?(admin, org)
+    end
+
+    test "patch_group/3 remove op demotes to a viewer enrollment role", %{organization: org, admin: admin} do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      ops = [%{"op" => "remove", "path" => ~s(members[value eq "#{admin.id}"])}]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(admin, org)
+    end
+
+    test "patch_group/3 moves a member when the remove arrives before the add", %{organization: org, admin: admin} do
+      remove_ops = [%{"op" => "remove", "path" => ~s(members[value eq "#{admin.id}"])}]
+      add_ops = [%{"op" => "add", "path" => "members", "value" => [%{"value" => to_string(admin.id)}]}]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", remove_ops)
+      {:ok, _} = SCIM.patch_group(org, "viewers", add_ops)
+
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(admin, org)
+    end
+
+    test "patch_group/3 moves a member when the add arrives before the remove", %{organization: org, admin: admin} do
+      add_ops = [%{"op" => "add", "path" => "members", "value" => [%{"value" => to_string(admin.id)}]}]
+      remove_ops = [%{"op" => "remove", "path" => ~s(members[value eq "#{admin.id}"])}]
+
+      {:ok, _} = SCIM.patch_group(org, "viewers", add_ops)
+      {:ok, _} = SCIM.patch_group(org, "admins", remove_ops)
+
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(admin, org)
+    end
+
+    test "patch_group/3 replace op demotes only the members left out", %{organization: org, admin: admin} do
+      {:ok, kept} = SCIM.provision_user(org, %{user_name: "g-kept@example.com", role: :admin})
+      ops = [%{"op" => "replace", "path" => "members", "value" => [%{"value" => to_string(kept.id)}]}]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(admin, org)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(kept, org)
+    end
+
+    test "patch_group/3 ignores an Okta group rename on the admins group", %{organization: org, admin: admin} do
+      ops = [%{"op" => "replace", "value" => %{"id" => "admins", "displayName" => "Engineering"}}]
+
+      {:ok, group} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(admin, org)
+      assert [_ | _] = group.members
+    end
+
+    test "patch_group/3 ignores an Okta group rename on the viewers group", %{organization: org} do
+      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@example.com", role: :viewer})
+      ops = [%{"op" => "replace", "value" => %{"id" => "viewers", "displayName" => "Contractors"}}]
+
+      {:ok, _} = SCIM.patch_group(org, "viewers", ops)
+
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(viewer, org)
+    end
+
+    test "patch_group/3 path-less replace with a members value keeps the listed members", %{
+      organization: org,
+      admin: admin
+    } do
+      {:ok, demoted} = SCIM.provision_user(org, %{user_name: "g-demoted@example.com", role: :admin})
+
+      ops = [
+        %{
+          "op" => "replace",
+          "value" => %{"displayName" => "Engineering", "members" => [%{"value" => to_string(admin.id)}]}
+        }
+      ]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", ops)
+
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(admin, org)
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(demoted, org)
     end
   end
 

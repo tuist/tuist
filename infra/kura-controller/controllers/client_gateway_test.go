@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,7 +52,7 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 			if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 				t.Fatal(err)
 			}
-			if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
+			if err := r.reconcileGRPCIngress(ctx, instance, nil, nil, ""); err != nil {
 				t.Fatal(err)
 			}
 			if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -134,6 +135,45 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 	}
 }
 
+func TestPrivateGatewayUsesSharedWildcardWhenItCoversTheHost(t *testing.T) {
+	ctx := context.Background()
+	instance := sharedWildcardTLSTestInstance()
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "acme-scw-fr-par-runners.kura.tuist.dev"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	scheme := meshTestScheme(t)
+	r := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, wildcard).Build(),
+		Scheme: scheme, GRPCClusterIssuer: "letsencrypt", PublicTLSSecretName: wildcard.Name,
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if ingress.Spec.TLS[0].SecretName != wildcard.Name || ingress.Spec.TLS[0].Hosts[0] != instance.Spec.PrivateHost {
+		t.Fatalf("a private host the wildcard spans must serve the shared secret: %v", ingress.Spec.TLS)
+	}
+	// Ordering one per instance is what spends the ACME per-registered-domain
+	// allowance that stranded this region for a day.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("a covered private host must not order a certificate of its own: %v", err)
+	}
+}
+
 func TestPrivateGatewayKeepsItsCertificateWithSharedPublicTLS(t *testing.T) {
 	ctx := context.Background()
 	instance := sharedWildcardTLSTestInstance()
@@ -171,6 +211,43 @@ func TestPrivateGatewayKeepsItsCertificateWithSharedPublicTLS(t *testing.T) {
 	hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
 	if len(hosts) != 1 || hosts[0] != instance.Spec.PrivateHost {
 		t.Fatalf("private certificate must cover privateHost: %v", hosts)
+	}
+}
+
+func TestPrivateGatewayPublicationReadinessWithSharedWildcard(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+	instance := meshInstance("kura-tuist-test", "tuist")
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "tuist-scw-fr-par-runners.kura.tuist.dev"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.IngressClassName = "kura-runners"
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	instance.Spec.Replicas = ptr(int32(2))
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: selectorLabels(instance), CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour))}, Spec: corev1.PodSpec{NodeName: "node"}, Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node", Labels: map[string]string{"tuist.dev/pn-ipv4": "172.16.0.2"}}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.2"}}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}}
+	gateway := pod.DeepCopy()
+	gateway.Name = "gateway"
+	gateway.Namespace = "platform"
+	gateway.Labels = map[string]string{gatewayClassLabel: "kura-runners"}
+	gateway.Spec.HostNetwork = true
+	// No Certificate object: a host the wildcard spans never orders one, so this
+	// is the state every covered private instance is in.
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	r := &KuraInstanceReconciler{
+		Client:              fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, pod, node, gateway, wildcard).Build(),
+		Scheme:              scheme,
+		PeerDNSResolver:     &fakePeerDNSResolver{addresses: []string{"172.16.0.2"}},
+		PublicTLSSecretName: wildcard.Name,
+	}
+	samples := map[string]runtimeStatus{pod.Name: {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}}
+
+	observation, err := r.privateGatewayStatus(ctx, instance, pod.Name, []corev1.Pod{*pod}, samples)
+	if err != nil || observation.URL != "https://"+instance.Spec.PrivateHost {
+		t.Fatalf("a private host the shared wildcard spans must publish without a certificate of its own: %+v, %v", observation, err)
 	}
 }
 

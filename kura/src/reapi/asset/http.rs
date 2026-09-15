@@ -17,7 +17,6 @@ use crate::{
     artifact::producer::ArtifactProducer,
     constants::MAX_MODULE_TOTAL_BYTES,
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, reserve_foreground_staging},
-    replication::replication_targets,
     store::StagedArtifactPath,
     utils::{TempFileCleanup, blob_key, drop_staging_cache_range, temp_file_path},
 };
@@ -327,24 +326,16 @@ impl AssetService {
         let key = blob_key(&format!("{}/{}", digest.hash, size));
         let persisted = state
             .store
-            .persist_artifact_from_path_and_enqueue(
+            .persist_artifact_from_path_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace,
                 &key,
                 "application/octet-stream",
                 StagedArtifactPath::new(&path, policy),
-                &replication_targets(state),
             )
             .await
-            .map_err(|error| {
-                if crate::store::is_outbox_full_error(&error) {
-                    Status::resource_exhausted("replication backlog is full")
-                } else {
-                    Status::internal("failed to store downloaded asset")
-                }
-            })?;
+            .map_err(|_| Status::internal("failed to store downloaded asset"))?;
         cleanup.remove_and_disarm(&state.io).await;
-        state.notify.notify_one();
         Ok((digest, !persisted.already_present))
     }
 }

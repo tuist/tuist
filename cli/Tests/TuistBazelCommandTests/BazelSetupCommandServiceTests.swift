@@ -82,6 +82,27 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func remote_downloader_requires_explicit_setup_flag() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let defaults = try BazelSetupCommand.parse([])
+        #expect(!defaults.remoteDownloader)
+        let optedIn = try BazelSetupCommand.parse(["--remote-downloader"])
+        #expect(optedIn.remoteDownloader)
+        try await subject.run(directory: temporaryDirectory.pathString, remoteDownloader: optedIn.remoteDownloader)
+        let path = temporaryDirectory.appending(component: ".bazelrc.tuist")
+        let enabled = try await fileSystem.readTextFile(at: path)
+        #expect(enabled.contains("build --experimental_remote_downloader=grpcs://cache.tuist.dev"))
+        #expect(enabled.contains("build --experimental_remote_downloader_local_fallback=true"))
+        try await subject.run(directory: temporaryDirectory.pathString)
+        let disabled = try await fileSystem.readTextFile(at: path)
+        #expect(!disabled.contains("remote_downloader"))
+        #expect(disabled.contains("build --remote_cache=grpcs://cache.tuist.dev"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_generates_bazelrc_and_credential_helper_script() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -98,6 +119,7 @@ struct BazelSetupCommandServiceTests {
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
+        #expect(!bazelrcContent.contains("remote_downloader"))
         let scriptPath = try credentialHelperPath(from: bazelrcContent)
         #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev"))
         #expect(bazelrcContent.contains("build --remote_header=x-tuist-account-handle=my-account"))

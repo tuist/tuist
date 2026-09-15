@@ -428,6 +428,47 @@ defmodule Tuist.Automations.BaselineTest do
     assert Repo.reload!(attempt).state == "committed"
   end
 
+  test "leaves publication to the next run when a competing worker still owns the enumeration" do
+    project = ProjectsFixtures.project_fixture()
+    alert = AutomationsFixtures.automation_alert_fixture(project: project, baseline_established_at: nil)
+    {:ok, attempt} = Automations.begin_alert_baseline(alert)
+    late_id = Ecto.UUID.generate()
+
+    # A second evaluation job advances the shared attempt's keyset cursor while
+    # this one is reading its page, so the page this worker sees is already
+    # empty. The competing worker has not yet written the results for that page.
+    expect(ClickHouseRepo, :all, fn _query, _opts ->
+      attempt
+      |> BaselineAttempt.changeset(%{
+        evaluation_cursor: %{"module_name" => "Tests", "suite_name" => "Baseline", "name" => "z", "id" => late_id}
+      })
+      |> Repo.update!()
+
+      []
+    end)
+
+    assert :ok = Automations.establish_alert_baseline(alert, & &1)
+
+    reloaded = Repo.reload!(attempt)
+    assert reloaded.state == "evaluating"
+    assert reloaded.last_published_test_case_id == nil
+    assert is_nil(Repo.reload!(alert).baseline_established_at)
+    assert Automations.list_active_alert_events(alert.id) == []
+  end
+
+  test "discards the superseded attempt's results when a save advances the generation" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    attempt = publishing_attempt(alert, [Ecto.UUID.generate(), Ecto.UUID.generate()])
+
+    assert Repo.aggregate(where(BaselineResult, attempt_id: ^attempt.id), :count) == 2
+
+    config = Map.put(alert.trigger_config, "apply_actions_to_existing_matches", true)
+    assert {:ok, requested} = Automations.update_alert(alert, %{trigger_config: config})
+
+    assert requested.baseline_generation > attempt.baseline_generation
+    assert Repo.aggregate(where(BaselineResult, attempt_id: ^attempt.id), :count) == 0
+  end
+
   defp publishing_attempt(alert, test_case_ids) do
     {:ok, attempt} = Automations.begin_alert_baseline(alert)
 

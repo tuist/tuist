@@ -148,10 +148,16 @@ defmodule Tuist.ClickHouse.Tables do
       )
 
     case rows do
-      [[engine]] -> if String.contains?(engine, @collapsing_families), do: " FINAL", else: ""
+      [[engine]] -> if collapsing?(engine), do: " FINAL", else: ""
       _ -> ""
     end
   end
+
+  @doc """
+  Whether an engine collapses rows on merge, so that its raw row count depends
+  on when it last merged as well as on what it holds.
+  """
+  def collapsing?(engine), do: String.contains?(engine, @collapsing_families)
 
   @doc """
   The table a materialized view writes into, or `nil` when its storage is

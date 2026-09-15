@@ -186,7 +186,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live/new/changelog_entry.html.heex:6
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:5
 #: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:4
-#: lib/tuist_web/marketing/structured_markup.ex:400
+#: lib/tuist_web/marketing/structured_markup.ex:416
 #, elixir-autogen, elixir-format
 msgid "Changelog"
 msgstr ""
@@ -851,7 +851,7 @@ msgid "Pull requests merged"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.ex:154
-#: lib/tuist_web/marketing/structured_markup.ex:367
+#: lib/tuist_web/marketing/structured_markup.ex:368
 #, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."
 msgstr ""
@@ -1008,7 +1008,7 @@ msgstr ""
 msgid "Stay in touch"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:401
+#: lib/tuist_web/marketing/structured_markup.ex:417
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist."
 msgstr ""
@@ -1212,14 +1212,14 @@ msgstr ""
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:159
+#: lib/tuist_web/marketing/structured_markup.ex:160
 #, elixir-autogen, elixir-format
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:3
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:4
-#: lib/tuist_web/marketing/structured_markup.ex:366
+#: lib/tuist_web/marketing/structured_markup.ex:367
 #, elixir-autogen, elixir-format
 msgid "Tuist's blog"
 msgstr ""
@@ -1618,7 +1618,7 @@ msgid "Founded"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:91
-#: lib/tuist_web/marketing/structured_markup.ex:486
+#: lib/tuist_web/marketing/structured_markup.ex:502
 #, elixir-autogen, elixir-format
 msgid "Learn how teams use Tuist to scale their iOS development."
 msgstr ""
@@ -1681,7 +1681,7 @@ msgstr ""
 msgid "Customers"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:485
+#: lib/tuist_web/marketing/structured_markup.ex:501
 #, elixir-autogen, elixir-format
 msgid "Tuist Customers"
 msgstr ""
@@ -2686,7 +2686,7 @@ msgstr ""
 msgid "The Tuist dashboard showing build times, cache hit rates, and test runs for a project"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:259
+#: lib/tuist_web/marketing/structured_markup.ex:260
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, and share app previews from a URL."
 msgstr ""

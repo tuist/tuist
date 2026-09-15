@@ -172,7 +172,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -725,9 +725,16 @@ k8s-monitoring:
         # pod/map/endpoint fan-out and are not queried by any dashboard or
         # alert in this repo. Re-add a specific name here if a Cilium
         # integration dashboard is ever installed.
+        #
+        # cilium_bpf_map_pressure is deliberately NOT excluded. A full policy
+        # map surfaces as `Policy denied` drops, indistinguishable from a real
+        # NetworkPolicy denial (see alerts.md, "Kura cache rejecting runner
+        # traffic"), so it has to be ruled out from metrics. Its fan-out is
+        # small: one series per agent per global map, and per-endpoint policy
+        # maps collapse into a single `cilium_policy_v2*` max that Cilium only
+        # emits above 10% fill.
         - cilium_event_ts
         - cilium_bpf_map_capacity
-        - cilium_bpf_map_pressure
         - cilium_bpf_map_ops_total
         - cilium_agent_bootstrap_seconds
         - cilium_api_limiter_.*

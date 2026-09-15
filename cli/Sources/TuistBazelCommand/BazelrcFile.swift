@@ -16,9 +16,7 @@ enum BazelrcFile {
     static let name = ".bazelrc.tuist"
 
     private static let remoteCacheFlag = "build --remote_cache="
-    private static let remoteDownloaderOption = "--experimental_remote_downloader"
     private static let remoteDownloaderFlag = "build --experimental_remote_downloader="
-    private static let remoteDownloaderFallbackOption = "--experimental_remote_downloader_local_fallback"
     private static let remoteDownloaderFallbackFlag = "build --experimental_remote_downloader_local_fallback=true"
     private static let remoteCacheCompressionFlag = "build --remote_cache_compression=true"
     private static let remoteCacheCompressionOption = "--remote_cache_compression"
@@ -49,6 +47,7 @@ enum BazelrcFile {
         projectHandle: String,
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
+        remoteDownloader: Bool = false,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
@@ -65,11 +64,12 @@ enum BazelrcFile {
 
         """ : ""
 
+        let downloaderConfiguration = remoteDownloader
+            ? "\(remoteDownloaderFlag)\(endpoint.url)\n\(remoteDownloaderFallbackFlag)\n" : ""
+
         return """
         \(remoteCacheFlag)\(endpoint.url)
-        \(remoteDownloaderFlag)\(endpoint.url)
-        \(remoteDownloaderFallbackFlag)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        \(downloaderConfiguration)build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
         \(remoteCacheCompressionFlag)
@@ -190,27 +190,7 @@ enum BazelrcFile {
         } else {
             updated = mid.trimmingCharacters(in: .newlines) + "\n" + remoteCacheCompressionFlag + "\n"
         }
-        let result = addingRemoteDownloader(in: updated, endpoint: endpoint)
-        return result == contents ? nil : result
-    }
-
-    private static func addingRemoteDownloader(in contents: String, endpoint: GRPCEndpoint) -> String {
-        let downloaderLines = contents.split(separator: "\n", omittingEmptySubsequences: false)
-        var missingDownloaderFlags: [String] = []
-        let hasDownloader = downloaderLines.contains { hasOption(remoteDownloaderOption, in: $0) }
-        if !hasDownloader {
-            missingDownloaderFlags.append(remoteDownloaderFlag + endpoint.url)
-        }
-        let usesManagedDownloader = !hasDownloader || downloaderLines.contains(Substring(remoteDownloaderFlag + endpoint.url))
-        if usesManagedDownloader, !downloaderLines.contains(where: {
-            hasOption(remoteDownloaderFallbackOption, in: $0)
-                || hasOption("--noexperimental_remote_downloader_local_fallback", in: $0)
-        }) {
-            missingDownloaderFlags.append(remoteDownloaderFallbackFlag)
-        }
-        return missingDownloaderFlags.isEmpty
-            ? contents
-            : contents.trimmingCharacters(in: .newlines) + "\n" + missingDownloaderFlags.joined(separator: "\n") + "\n"
+        return updated == contents ? nil : updated
     }
 
     private static func hasActionPublicationPreference(_ line: Substring) -> Bool {

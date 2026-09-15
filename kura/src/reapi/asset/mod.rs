@@ -21,10 +21,7 @@ use tokio::sync::{Mutex as AsyncMutex, Semaphore};
 use tonic::{Request, Response, Status};
 
 use super::service::{GrpcRequestSpec, ReapiService, namespace_from_instance, require_sha256};
-use crate::{
-    artifact::producer::ArtifactProducer, memory::MemoryPressure, replication::replication_targets,
-    utils::blob_key,
-};
+use crate::{artifact::producer::ArtifactProducer, memory::MemoryPressure, utils::blob_key};
 use request::{FetchSpec, MAX_REQUEST_BYTES};
 
 const MAX_CONCURRENT_FETCHES: usize = 32;
@@ -159,12 +156,8 @@ impl AssetService {
         if let Some((index, digest)) = self.cached(namespace, spec).await? {
             return Ok(success(request, index, digest));
         }
-        let _slot = self
-            .slots
-            .try_acquire()
-            .map_err(|_| Status::resource_exhausted("too many concurrent asset fetches"))?;
-        // Waiting requests recheck durable metadata after the leader completes. Keeping only
-        // weak locks bounds the flight table to the admitted calls and cancels work on disconnect.
+        // Waiters recheck durable metadata without occupying origin-download admission.
+        // Weak locks keep completed flights from retaining request state.
         let flight = self.flight(namespace, &spec.keys[0]);
         let _flight = flight.lock().await;
         if let Some((index, digest)) = self.cached(namespace, spec).await? {
@@ -180,13 +173,15 @@ impl AssetService {
             )
             .await?;
         let state = &self.reapi.state;
-        if state.memory.pressure() == MemoryPressure::Critical
-            || state.store.outbox_saturated(&state.replication_targets())
-        {
+        if state.memory.pressure() == MemoryPressure::Critical {
             return Err(Status::resource_exhausted(
                 "server is limiting asset downloads while storage recovers",
             ));
         }
+        let _slot = self
+            .slots
+            .try_acquire()
+            .map_err(|_| Status::resource_exhausted("too many concurrent asset fetches"))?;
         let mut failure = Status::not_found("asset was not found at any supplied URI");
         let mut failure_index = 0;
         for index in 0..spec.uris.len() {
@@ -213,23 +208,20 @@ impl AssetService {
                         };
                         let bytes =
                             serde_json::to_vec(&entry).expect("serializable asset metadata");
-                        let targets = replication_targets(state);
                         // Only associate the successful origin's effective headers with its content.
                         state
                             .store
-                            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                            .persist_inline_artifact_from_bytes_damped_and_replicate(
                                 ArtifactProducer::Reapi,
                                 namespace,
                                 &spec.keys[index],
                                 "application/json",
                                 &bytes,
-                                &targets,
                                 None,
                                 None,
                             )
                             .await
                             .map_err(|_| Status::internal("failed to store asset metadata"))?;
-                        state.notify.notify_one();
                         tracing::debug!(namespace, digest = %digest.hash, "remote asset fetched and cached");
                         return Ok(success(request, index, digest));
                     }

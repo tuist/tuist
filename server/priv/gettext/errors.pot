@@ -21,6 +21,8 @@ msgstr ""
 
 #: lib/tuist_web/controllers/build_controller.ex:25
 #: lib/tuist_web/controllers/build_controller.ex:66
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:21
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
 msgstr ""

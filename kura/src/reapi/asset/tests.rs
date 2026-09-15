@@ -204,6 +204,72 @@ async fn concurrent_calls_fetch_once_and_namespaces_are_isolated() {
 }
 
 #[tokio::test]
+async fn same_asset_waiters_do_not_exhaust_origin_admission() {
+    let context = test_context(|_| {}).await;
+    let service = service(&context);
+    let healthy = origin().await;
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let hits = Arc::new(AtomicUsize::new(0));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let request = message(format!("http://{}/file", listener.local_addr().unwrap()));
+    let router = Router::new().route(
+        "/file",
+        get({
+            let entered = entered.clone();
+            let release = release.clone();
+            let hits = hits.clone();
+            move || {
+                let entered = entered.clone();
+                let release = release.clone();
+                let hits = hits.clone();
+                async move {
+                    hits.fetch_add(1, Ordering::SeqCst);
+                    entered.notify_one();
+                    release.notified().await;
+                    PAYLOAD
+                }
+            }
+        }),
+    );
+    let origin_task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let spec = FetchSpec::parse(&request).unwrap();
+    let flight = service.flight("ios", &spec.keys[0]);
+    let guard = flight.lock().await;
+    let mut callers = tokio::task::JoinSet::new();
+    for _ in 0..MAX_CONCURRENT_FETCHES {
+        let service = service.clone();
+        let request = request.clone();
+        callers.spawn(async move { fetch(&service, request).await });
+    }
+    tokio::time::timeout(Duration::from_secs(10), async {
+        // Every caller owns its flight reference before the test releases the leader.
+        while Arc::strong_count(&flight) != MAX_CONCURRENT_FETCHES + 1 {
+            tokio::task::yield_now().await;
+        }
+        drop(guard);
+        entered.notified().await;
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            service.slots.available_permits(),
+            MAX_CONCURRENT_FETCHES - 1
+        );
+        let response = fetch(&service, message(format!("{}/file", healthy.url))).await;
+        assert_eq!(response.status.unwrap().code, 0);
+        assert_eq!(healthy.hits.load(Ordering::SeqCst), 1);
+        release.notify_one();
+        while let Some(response) = callers.join_next().await {
+            assert_eq!(response.unwrap().status.unwrap().code, 0);
+        }
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(service.slots.available_permits(), MAX_CONCURRENT_FETCHES);
+    })
+    .await
+    .expect("coalesced callers and the independent asset must complete");
+    origin_task.abort();
+}
+
+#[tokio::test]
 async fn retries_transient_errors_and_falls_back_to_mirrors() {
     let context = test_context(|_| {}).await;
     let origin = origin().await;

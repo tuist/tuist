@@ -5,6 +5,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
 
   alias Tuist.Accounts
   alias Tuist.IngestRepo
+  alias Tuist.Kura
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.EvictionEvent
@@ -12,10 +13,12 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
   alias Tuist.Kura.StorageRollups
+  alias Tuist.Kura.Telemetry
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup :set_mimic_from_context
 
@@ -99,6 +102,37 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     # from what the node actually reported.
     assert rollup.eviction_count == 1
     assert rollup.evicted_bytes == 536_870_912
+  end
+
+  test "reports a refused apply instead of dropping it", %{account: account} do
+    # A refusal leaves the proposal open and the next pass retries it forever.
+    # Dropped, it reads exactly like an account nothing has proposed for, which
+    # is how a region that refuses every claim goes a day without being noticed.
+    #
+    # The proposal is sized by us-east's demand, but a claim is account-wide and
+    # the refusal names the region that turned it down, which is the one tagged.
+    expect(Kura, :apply_claim_proposal, fn %ClaimProposal{region: "us-east"}, "automatic" ->
+      {:error, {"eu-west", :capacity_exhausted}}
+    end)
+
+    ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_claim_apply_refused()])
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    assert_receive {_event, ^ref, %{count: 1}, %{region: "eu-west", reason: "capacity_exhausted"}}
+    assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
+  end
+
+  test "counts only capacity refusals, which are the ones that name a region" do
+    # A stale proposal is superseded by the next sweep rather than refused, and
+    # names no region, so it must not read as a region that stopped moving.
+    expect(Kura, :apply_claim_proposal, fn _proposal, "automatic" -> {:error, :stale_proposal} end)
+
+    ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_claim_apply_refused()])
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    refute_receive {_event, ^ref, _measurements, _metadata}
   end
 
   test "applies open proposals", %{account: account} do

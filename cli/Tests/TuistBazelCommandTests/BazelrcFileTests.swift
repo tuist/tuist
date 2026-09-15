@@ -6,24 +6,33 @@ import TuistREAPI
 
 struct BazelrcFileTests {
     @Test func enables_remote_asset_downloads_with_local_fallback() {
-        let contents = rendered()
+        let contents = rendered(remoteDownloader: true)
         #expect(contents.contains("build --experimental_remote_downloader=grpcs://acme-eu-west-1.kura.tuist.dev"))
         #expect(contents.contains("build --experimental_remote_downloader_local_fallback=true"))
     }
 
-    @Test func upgrades_remote_downloader_and_follows_cache_moves() throws {
-        let legacy = rendered().split(separator: "\n").filter { !$0.contains("remote_downloader") }.joined(separator: "\n") + "\n"
-        let upgraded = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: moved))
-        #expect(upgraded.contains("build --experimental_remote_downloader=\(moved.url)"))
-        #expect(upgraded.contains("build --experimental_remote_downloader_local_fallback=true"))
-        #expect(BazelrcFile.replacingRemoteCache(in: upgraded, with: moved) == nil)
-        let movedContents = try #require(BazelrcFile.replacingRemoteCache(in: rendered(), with: moved))
+    @Test func refresh_never_enables_remote_downloader() throws {
+        let legacy = rendered()
+        #expect(!legacy.contains("remote_downloader"))
+        let unchanged = GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
+        #expect(BazelrcFile.replacingRemoteCache(in: legacy, with: unchanged) == nil)
+        let refreshed = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: moved))
+        #expect(!refreshed.contains("remote_downloader"))
+        let older = legacy.replacingOccurrences(of: "build --remote_cache_compression=true\n", with: "")
+        let upgraded = try #require(BazelrcFile.replacingRemoteCache(in: older, with: unchanged))
+        #expect(!upgraded.contains("remote_downloader"))
+    }
+
+    @Test func opted_in_remote_downloader_follows_cache_moves() throws {
+        let movedContents = try #require(BazelrcFile.replacingRemoteCache(in: rendered(remoteDownloader: true), with: moved))
         #expect(movedContents.contains("build --experimental_remote_downloader=\(moved.url)"))
+        #expect(movedContents.contains("build --experimental_remote_downloader_local_fallback=true"))
+        #expect(BazelrcFile.replacingRemoteCache(in: movedContents, with: moved) == nil)
     }
 
     @Test func preserves_custom_or_disabled_downloader_and_fallback_preferences() throws {
         for downloader in ["", "grpcs://custom.example.com"] {
-            let contents = rendered()
+            let contents = rendered(remoteDownloader: true)
                 .replacingOccurrences(
                     of: "build --experimental_remote_downloader=grpcs://acme-eu-west-1.kura.tuist.dev",
                     with: "common --experimental_remote_downloader=\(downloader)"
@@ -42,7 +51,7 @@ struct BazelrcFileTests {
 
     private let moved = GRPCEndpoint(host: "acme-ca-east-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
 
-    private func rendered(cpuCount: Int = 12) -> String {
+    private func rendered(cpuCount: Int = 12, remoteDownloader: Bool = false) -> String {
         BazelrcFile.render(
             endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
             accountHandle: "acme",
@@ -50,6 +59,7 @@ struct BazelrcFileTests {
             credentialHelperPath: try! AbsolutePath(
                 validating: "/Users/dev/.config/tuist/credentials/tuist-bazel-credential-helper"
             ),
+            remoteDownloader: remoteDownloader,
             cpuCount: cpuCount
         )
     }
