@@ -251,6 +251,9 @@ type runtimeStatus struct {
 type podRuntimeSample struct {
 	status    runtimeStatus
 	sampledAt time.Time
+	// podUID is the pod incarnation the status came from. A recreated pod
+	// keeps its name, so the UID is what tells a stale report from a current one.
+	podUID types.UID
 
 	fdTimeoutBase   uint64
 	peerFailureBase uint64
@@ -475,7 +478,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// The gRPC Ingress follows the pods' evidence for the gRPC-only port. It
 	// reconciles before the Service so a move back to the co-hosted port lands
 	// before the Service can select a pod without the gRPC-only listener.
-	if err := r.reconcileGRPCIngress(ctx, instance, pods, samples, primaryPod); err != nil {
+	if err := r.reconcileGRPCIngress(ctx, instance, pods, r.retainedRuntimeStatuses(instance, pods), primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
@@ -1790,7 +1793,7 @@ var grpcPublicPathPrefixes = []string{
 // of its own. Host equals PublicHost (not GRPCPublicHost) so existing CRs
 // that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
 // single host as soon as this controller rolls out.
-func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus, primaryPod string) error {
+func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, observed map[string]runtimeStatus, primaryPod string) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
 	// PrivateHost opts into the same gateway path. Without it, private
 	// instances have no ingress. For gateway instances, gRPC
@@ -1814,7 +1817,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Spec.TLS = nil
 		// This Ingress exists so ingress-nginx renders these paths with
 		// grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
-		servicePort := grpcIngressServicePort(pods, samples, primaryPod)
+		servicePort := grpcIngressServicePort(pods, observed, primaryPod)
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcPublicPathPrefixes))
 		for _, prefix := range grpcPublicPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
@@ -1837,20 +1840,29 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 const gatewayGRPCPortEnvVar = "KURA_GATEWAY_GRPC_PORT"
 
 // grpcIngressServicePort routes gRPC to the gRPC-only port only on evidence from
-// the pods: every ready pod sampled this pass reports serving it and declares
-// it, and the primary is among them. ingress-nginx reuses pooled upstream
-// connections by address alone, so gRPC and HTTP/1.1 sent to one pod port would
-// be handed each other's connections. Without that evidence gRPC stays on the
-// co-hosted port, which every Kura image serves.
-func grpcIngressServicePort(pods []corev1.Pod, samples map[string]runtimeStatus, primaryPod string) string {
+// the pods: every ready pod declares it, every ready pod with a status report
+// from its current incarnation reports serving it, and the primary has such a
+// report. ingress-nginx reuses pooled upstream connections by address alone, so
+// gRPC and HTTP/1.1 sent to one pod port would be handed each other's
+// connections. A pod's image and env are fixed for its lifetime, so a missed
+// probe keeps its last report instead of reading as "does not serve the port";
+// only a pod that contradicts it, or a primary never observed serving it, moves
+// gRPC back to the co-hosted port, which every Kura image serves.
+func grpcIngressServicePort(pods []corev1.Pod, observed map[string]runtimeStatus, primaryPod string) string {
 	primaryServes := false
 	for i := range pods {
 		pod := &pods[i]
-		status, fresh := samples[pod.Name]
-		if !fresh || !podReady(pod) {
+		if !podReady(pod) {
 			continue
 		}
-		if status.GatewayGRPCPort != gatewayGRPCPort || !podDeclaresContainerPort(pod, "grpc", gatewayGRPCPort) {
+		if !podDeclaresContainerPort(pod, "grpc", gatewayGRPCPort) {
+			return "http"
+		}
+		status, ok := observed[pod.Name]
+		if !ok {
+			continue
+		}
+		if status.GatewayGRPCPort != gatewayGRPCPort {
 			return "http"
 		}
 		if pod.Name == primaryPod {
@@ -2155,6 +2167,7 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 	}
 
 	fresh := map[string]runtimeStatus{}
+	uids := map[string]types.UID{}
 	for i := range pods {
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
@@ -2162,6 +2175,7 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 			continue
 		}
 		fresh[pods[i].Name] = status
+		uids[pods[i].Name] = pods[i].UID
 	}
 
 	now := time.Now()
@@ -2184,6 +2198,7 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 			samples[name] = sample
 		}
 		sample.observe(status, now)
+		sample.podUID = uids[name]
 	}
 	// A pod that no longer exists stops contributing: its counters leave the
 	// aggregate (the consumer clamps decreases to no-growth) and its stale
@@ -2199,6 +2214,21 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 	}
 
 	return fresh
+}
+
+// retainedRuntimeStatuses returns each pod's latest status report from its
+// current incarnation, whether or not the probe answered this pass.
+func (r *KuraInstanceReconciler) retainedRuntimeStatuses(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]runtimeStatus {
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	samples := r.podSamples[types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}]
+	retained := map[string]runtimeStatus{}
+	for i := range pods {
+		if sample := samples[pods[i].Name]; sample != nil && sample.podUID == pods[i].UID {
+			retained[pods[i].Name] = sample.status
+		}
+	}
+	return retained
 }
 
 func (r *KuraInstanceReconciler) forgetPodSamples(instance *kurav1alpha1.KuraInstance) {

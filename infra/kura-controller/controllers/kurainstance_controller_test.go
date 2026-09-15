@@ -4567,7 +4567,14 @@ func TestGRPCIngressServicePortRequiresEvidenceFromServingPods(t *testing.T) {
 			want:    "grpc",
 		},
 		{
-			name:    "the primary has no fresh sample",
+			name:    "a ready pod without the port and no report yet",
+			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, false)},
+			samples: map[string]runtimeStatus{"kura-0": serving},
+			primary: "kura-0",
+			want:    "http",
+		},
+		{
+			name:    "the primary was never observed in its current incarnation",
 			pods:    []corev1.Pod{gatewayGRPCTestPod("kura-0", true, true), gatewayGRPCTestPod("kura-1", true, true)},
 			samples: map[string]runtimeStatus{"kura-1": serving},
 			primary: "kura-0",
@@ -4587,6 +4594,41 @@ func TestGRPCIngressServicePortRequiresEvidenceFromServingPods(t *testing.T) {
 				t.Fatalf("grpcIngressServicePort() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestGRPCIngressServicePortSurvivesAMissedStatusProbe(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"}}
+	pods := []corev1.Pod{gatewayGRPCTestPod(name+"-0", true, true), gatewayGRPCTestPod(name+"-1", true, true)}
+	pods[0].UID = "uid-0"
+	pods[1].UID = "uid-1"
+	serving := runtimeStatus{Ready: true, State: "serving", GatewayGRPCPort: gatewayGRPCPort}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{name + "-0": serving, name + "-1": serving}},
+	}
+	ctx := context.Background()
+
+	reconciler.sampleRuntimeStatuses(ctx, instance, pods)
+	if got := grpcIngressServicePort(pods, reconciler.retainedRuntimeStatuses(instance, pods), name+"-0"); got != "grpc" {
+		t.Fatalf("expected grpc once every pod reports the gateway port, got %q", got)
+	}
+
+	// Every probe fails for a pass (a stalled box): nothing contradicts the
+	// earlier reports, so the Ingress must not move back to the co-hosted port.
+	reconciler.RuntimeStatusClient = fakeRuntimeStatusClient{err: fmt.Errorf("status endpoint timed out")}
+	if fresh := reconciler.sampleRuntimeStatuses(ctx, instance, pods); len(fresh) != 0 {
+		t.Fatalf("expected no fresh samples from a failing status client, got %v", fresh)
+	}
+	if got := grpcIngressServicePort(pods, reconciler.retainedRuntimeStatuses(instance, pods), name+"-0"); got != "grpc" {
+		t.Fatalf("expected a missed probe to keep grpc, got %q", got)
+	}
+
+	// The primary is recreated under the same name: its old report belongs to
+	// a previous incarnation, so it is no evidence for the new pod.
+	pods[0].UID = "uid-0-recreated"
+	if got := grpcIngressServicePort(pods, reconciler.retainedRuntimeStatuses(instance, pods), name+"-0"); got != "http" {
+		t.Fatalf("expected a recreated primary without a report to move gRPC back to http, got %q", got)
 	}
 }
 
