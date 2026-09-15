@@ -3,15 +3,15 @@ use std::{net::IpAddr, sync::Arc, time::Duration};
 use futures_util::StreamExt;
 use reqwest::{
     Url,
-    header::{ACCEPT_ENCODING, HeaderMap, LOCATION},
+    header::{ACCEPT_ENCODING, HeaderMap, HeaderValue, LOCATION},
 };
-use sha2::{Digest as _, Sha256, Sha384, Sha512};
+use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt;
 use tonic::Status;
 
 use super::{
     AssetService,
-    request::{FetchSpec, validate_url},
+    request::{FetchSpec, IntegrityHasher, validate_url},
 };
 use crate::{
     artifact::producer::ArtifactProducer,
@@ -123,11 +123,11 @@ impl OriginClient {
                     .validate(ip)
                     .map_err(|error| Status::permission_denied(error.to_string()))?;
             }
+            headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
             let response = self
                 .client
                 .get(url.clone())
                 .headers(headers.clone())
-                .header(ACCEPT_ENCODING, "identity")
                 .send()
                 .await
                 .map_err(transport_status)?;
@@ -201,6 +201,23 @@ fn transport_status(error: reqwest::Error) -> Status {
     }
 }
 
+fn body_status(error: reqwest::Error) -> Status {
+    let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(&error);
+    while let Some(inner) = cause {
+        if inner
+            .downcast_ref::<hyper::Error>()
+            .is_some_and(|error| error.is_incomplete_message())
+            || inner
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| error.kind() == std::io::ErrorKind::UnexpectedEof)
+        {
+            return Status::aborted("asset origin returned an incomplete HTTP body");
+        }
+        cause = inner.source();
+    }
+    Status::unavailable("asset body transfer failed")
+}
+
 impl AssetService {
     pub(super) async fn download(
         &self,
@@ -272,11 +289,12 @@ impl AssetService {
             .await
             .map_err(Status::internal)?;
         let mut stream = response.bytes_stream();
-        let (mut sha256, mut sha384, mut sha512) = (Sha256::new(), Sha384::new(), Sha512::new());
+        let mut sha256 = Sha256::new();
+        let mut integrity = IntegrityHasher::new(spec.checksum.as_ref());
         let mut size = 0_u64;
         let mut advised = 0_u64;
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|_| Status::unavailable("asset body transfer failed"))?;
+            let chunk = chunk.map_err(body_status)?;
             size = size.saturating_add(chunk.len() as u64);
             if size > MAX_MODULE_TOTAL_BYTES {
                 return Err(Status::resource_exhausted(
@@ -287,8 +305,7 @@ impl AssetService {
                 .grow_reservation_to(size)
                 .map_err(|_| Status::resource_exhausted("asset temporary storage is exhausted"))?;
             sha256.update(&chunk);
-            sha384.update(&chunk);
-            sha512.update(&chunk);
+            integrity.update(&chunk);
             file.write_all(&chunk)
                 .await
                 .map_err(|_| Status::internal("failed to stage asset bytes"))?;
@@ -304,14 +321,14 @@ impl AssetService {
             }
         }
         if declared.is_some_and(|declared| declared != size) {
-            return Err(Status::unavailable(
+            return Err(Status::aborted(
                 "asset body length did not match Content-Length",
             ));
         }
         if spec
             .checksum
             .as_ref()
-            .is_some_and(|checksum| !checksum.matches(&sha256, &sha384, &sha512))
+            .is_some_and(|checksum| !checksum.matches(&sha256, &integrity))
         {
             return Err(Status::aborted("asset bytes did not match checksum.sri"));
         }

@@ -6,7 +6,7 @@ mod tests;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, Weak},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use bazel_remote_apis::build::bazel::remote::{
@@ -25,13 +25,16 @@ use crate::{artifact::producer::ArtifactProducer, memory::MemoryPressure, utils:
 use request::{FetchSpec, MAX_REQUEST_BYTES};
 
 const MAX_CONCURRENT_FETCHES: usize = 32;
+const MAX_MIRROR_FETCH_TIME: Duration = Duration::from_secs(60);
+type Flight = Option<(String, CachedAsset)>;
 
 #[derive(Clone)]
 pub(super) struct AssetService {
     reapi: ReapiService,
     slots: Arc<Semaphore>,
-    flights: Arc<Mutex<HashMap<String, Weak<AsyncMutex<()>>>>>,
+    flights: Arc<Mutex<HashMap<String, Weak<AsyncMutex<Flight>>>>>,
     http: http::OriginClient,
+    mirror_timeout: Duration,
 }
 
 pub(super) fn server(reapi: ReapiService) -> FetchServer<AssetService> {
@@ -61,17 +64,18 @@ impl AssetService {
             slots: Arc::new(Semaphore::new(MAX_CONCURRENT_FETCHES)),
             flights: Arc::new(Mutex::new(HashMap::new())),
             http: http::OriginClient::default(),
+            mirror_timeout: MAX_MIRROR_FETCH_TIME,
         }
     }
 
-    fn flight(&self, namespace: &str, key: &str) -> Arc<AsyncMutex<()>> {
+    fn flight(&self, namespace: &str, key: &str) -> Arc<AsyncMutex<Flight>> {
         let mut flights = self.flights.lock().expect("asset flight lock");
         flights.retain(|_, value| value.strong_count() != 0);
         let key = format!("{namespace}\0{key}");
         if let Some(lock) = flights.get(&key).and_then(Weak::upgrade) {
             return lock;
         }
-        let lock = Arc::new(AsyncMutex::new(()));
+        let lock = Arc::new(AsyncMutex::new(None));
         flights.insert(key, Arc::downgrade(&lock));
         lock
     }
@@ -92,6 +96,12 @@ impl AssetService {
                 continue;
             };
             if manifest.size > 1024 {
+                tracing::warn!(
+                    namespace,
+                    key,
+                    reason = "oversized",
+                    "ignoring invalid remote asset lookup"
+                );
                 continue;
             }
             let Some(bytes) = state
@@ -103,14 +113,28 @@ impl AssetService {
                 continue;
             };
             let Ok(entry) = serde_json::from_slice::<CachedAsset>(&bytes) else {
+                tracing::warn!(
+                    namespace,
+                    key,
+                    reason = "invalid_json",
+                    "ignoring invalid remote asset lookup"
+                );
                 continue;
             };
-            if entry.fetched_at_nanos < spec.oldest
-                || entry.size < 0
+            if entry.fetched_at_nanos < spec.oldest {
+                continue;
+            }
+            if entry.size < 0
                 || entry.size as u64 > crate::constants::MAX_MODULE_TOTAL_BYTES
                 || entry.hash.len() != 64
                 || !entry.hash.bytes().all(|b| b.is_ascii_hexdigit())
             {
+                tracing::warn!(
+                    namespace,
+                    key,
+                    reason = "invalid_digest",
+                    "ignoring invalid remote asset lookup"
+                );
                 continue;
             }
             let key = blob_key(&format!("{}/{}", entry.hash, entry.size));
@@ -133,6 +157,7 @@ impl AssetService {
         request: &Request<asset::FetchBlobRequest>,
         spec: &FetchSpec,
     ) -> Result<asset::FetchBlobResponse, Status> {
+        let deadline = tokio::time::Instant::now() + spec.timeout;
         let namespace = namespace_from_instance(&request.get_ref().instance_name);
         self.reapi
             .authorize_request(
@@ -158,10 +183,28 @@ impl AssetService {
         }
         // Waiters recheck durable metadata without occupying origin-download admission.
         // Weak locks keep completed flights from retaining request state.
-        let flight = self.flight(namespace, &spec.keys[0]);
-        let _flight = flight.lock().await;
+        let flight = self.flight(namespace, spec.flight_key());
+        let mut flight = flight.lock().await;
         if let Some((index, digest)) = self.cached(namespace, spec).await? {
             return Ok(success(request, index, digest));
+        }
+        if let Some((key, entry)) = flight.as_ref()
+            && entry.fetched_at_nanos >= spec.oldest
+            && let Some(index) = spec.keys.iter().position(|candidate| candidate == key)
+            && self
+                .reapi
+                .state
+                .store
+                .fetch_artifact_for_serving(
+                    ArtifactProducer::Reapi,
+                    namespace,
+                    &blob_key(&format!("{}/{}", entry.hash, entry.size)),
+                )
+                .await
+                .map_err(Status::internal)?
+                .is_some()
+        {
+            return Ok(success(request, index, entry.digest()));
         }
         self.reapi
             .authorize_request(
@@ -185,55 +228,60 @@ impl AssetService {
         let mut failure = Status::not_found("asset was not found at any supplied URI");
         let mut failure_index = 0;
         for index in 0..spec.uris.len() {
-            // Retry upstream transients, then proceed to the next mirror. Permanent failures
-            // and checksum mismatches also allow a different mirror to satisfy the request.
-            for attempt in 0..3 {
-                let started = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_nanos();
-                match self.download(spec, index, namespace).await {
-                    Ok((digest, newly_stored)) => {
-                        if newly_stored {
-                            self.reapi.record_reapi_upload(
-                                request.metadata(),
-                                namespace,
-                                digest.size_bytes as u64,
-                            );
-                        }
-                        let entry = CachedAsset {
-                            hash: digest.hash.clone(),
-                            size: digest.size_bytes,
-                            fetched_at_nanos: started,
-                        };
-                        let bytes =
-                            serde_json::to_vec(&entry).expect("serializable asset metadata");
-                        // Only associate the successful origin's effective headers with its content.
-                        state
-                            .store
-                            .persist_inline_artifact_from_bytes_damped_and_replicate(
-                                ArtifactProducer::Reapi,
-                                namespace,
-                                &spec.keys[index],
-                                "application/json",
-                                &bytes,
-                                None,
-                                None,
-                            )
-                            .await
-                            .map_err(|_| Status::internal("failed to store asset metadata"))?;
-                        tracing::debug!(namespace, digest = %digest.hash, "remote asset fetched and cached");
-                        return Ok(success(request, index, digest));
+            let started = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            // Divide the overall deadline so even the final mirror gets a turn.
+            let budget = self.mirror_timeout.min(
+                deadline.saturating_duration_since(tokio::time::Instant::now())
+                    / (spec.uris.len() - index) as u32,
+            );
+            let download =
+                tokio::time::timeout(budget, self.fetch_mirror(spec, index, namespace)).await;
+            match download.unwrap_or_else(|_| {
+                Err(Status::deadline_exceeded("asset mirror deadline exceeded"))
+            }) {
+                Ok((digest, newly_stored)) => {
+                    if newly_stored {
+                        self.reapi.record_reapi_upload(
+                            request.metadata(),
+                            namespace,
+                            digest.size_bytes as u64,
+                        );
                     }
-                    Err(error) => {
-                        let retry = error.code() == tonic::Code::Unavailable;
-                        failure = error;
-                        failure_index = index;
-                        if !retry || attempt == 2 {
-                            break;
-                        }
-                        tokio::time::sleep(std::time::Duration::from_millis(250 << attempt)).await;
+                    let entry = CachedAsset {
+                        hash: digest.hash.clone(),
+                        size: digest.size_bytes,
+                        fetched_at_nanos: started,
+                    };
+                    let bytes = serde_json::to_vec(&entry).expect("serializable asset metadata");
+                    // Share verified CAS results with current waiters even if mapping publication fails.
+                    // The weak flight table does not retain these after the callers finish.
+                    *flight = Some((spec.keys[index].clone(), entry));
+                    if state
+                        .store
+                        .persist_inline_artifact_from_bytes_damped_and_replicate(
+                            ArtifactProducer::Reapi,
+                            namespace,
+                            &spec.keys[index],
+                            "application/json",
+                            &bytes,
+                            None,
+                            None,
+                        )
+                        .await
+                        .is_err()
+                    {
+                        tracing::warn!(namespace, key = %spec.keys[index], digest = %digest.hash,
+                            "remote asset lookup publication failed; returning verified CAS blob");
                     }
+                    tracing::debug!(namespace, digest = %digest.hash, "remote asset fetched and cached");
+                    return Ok(success(request, index, digest));
+                }
+                Err(error) => {
+                    failure = error;
+                    failure_index = index;
                 }
             }
         }
@@ -246,6 +294,24 @@ impl AssetService {
             uri: request.get_ref().uris[failure_index].clone(),
             ..Default::default()
         })
+    }
+
+    async fn fetch_mirror(
+        &self,
+        spec: &FetchSpec,
+        index: usize,
+        namespace: &str,
+    ) -> Result<(Digest, bool), Status> {
+        for attempt in 0..3 {
+            match self.download(spec, index, namespace).await {
+                Ok(result) => return Ok(result),
+                Err(error) if error.code() == tonic::Code::Unavailable && attempt < 2 => {
+                    tokio::time::sleep(Duration::from_millis(250 << attempt)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("last attempt returns")
     }
 }
 

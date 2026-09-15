@@ -10,7 +10,7 @@ use sha2::{Digest as _, Sha256, Sha384, Sha512};
 use tonic::Status;
 
 pub(super) const MAX_REQUEST_BYTES: usize = 64 * 1024;
-pub(super) const MAX_FETCH_TIME: Duration = Duration::from_secs(600);
+pub(super) const MAX_FETCH_TIME: Duration = Duration::from_secs(180);
 
 pub(super) struct FetchSpec {
     pub uris: Vec<Url>,
@@ -45,16 +45,55 @@ impl Checksum {
         }
     }
 
-    pub fn matches(&self, sha256: &Sha256, sha384: &Sha384, sha512: &Sha512) -> bool {
+    pub fn matches(&self, sha256: &Sha256, additional: &IntegrityHasher) -> bool {
+        match (self, additional) {
+            (Self::Sha256(expected), _) => sha256.clone().finalize().as_slice() == expected,
+            (Self::Sha384(expected), IntegrityHasher::Sha384(hasher)) => {
+                hasher.clone().finalize().as_slice() == expected
+            }
+            (Self::Sha512(expected), IntegrityHasher::Sha512(hasher)) => {
+                hasher.clone().finalize().as_slice() == expected
+            }
+            _ => false,
+        }
+    }
+}
+
+pub(super) enum IntegrityHasher {
+    None,
+    Sha384(Sha384),
+    Sha512(Sha512),
+}
+
+impl IntegrityHasher {
+    pub fn new(checksum: Option<&Checksum>) -> Self {
+        match checksum {
+            Some(Checksum::Sha384(_)) => Self::Sha384(Sha384::new()),
+            Some(Checksum::Sha512(_)) => Self::Sha512(Sha512::new()),
+            _ => Self::None,
+        }
+    }
+
+    pub fn update(&mut self, bytes: &[u8]) {
         match self {
-            Self::Sha256(expected) => sha256.clone().finalize().as_slice() == expected,
-            Self::Sha384(expected) => sha384.clone().finalize().as_slice() == expected,
-            Self::Sha512(expected) => sha512.clone().finalize().as_slice() == expected,
+            Self::None => {}
+            Self::Sha384(hasher) => hasher.update(bytes),
+            Self::Sha512(hasher) => hasher.update(bytes),
         }
     }
 }
 
 impl FetchSpec {
+    pub fn flight_key(&self) -> &str {
+        // The smallest opaque identity is stable across mirror permutations, including
+        // URI-specific headers. Cache checks still use the caller's own full identity set.
+        self.keys
+            .iter()
+            .min()
+            .expect("nonempty asset URIs")
+            .as_str()
+    }
+
     pub fn parse(request: &FetchBlobRequest) -> Result<Self, Status> {
         if request.uris.is_empty() || request.uris.len() > 16 || request.qualifiers.len() > 64 {
             return Err(Status::invalid_argument(
