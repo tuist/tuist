@@ -5,6 +5,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
   alias Tuist.Accounts
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.PlacerClaims
@@ -90,14 +91,14 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     server
   end
 
-  defp seed_churn_rollups(account, days, end_day) do
+  defp seed_churn_rollups(account, days, end_day, region \\ "us-east") do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
       for offset <- (days - 1)..0//-1 do
         %{
           account_id: account.id,
-          region: "us-east",
+          region: region,
           date: Date.add(end_day, -offset),
           eviction_count: 40,
           evicted_bytes: 10 * @gibibyte,
@@ -129,6 +130,50 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.current_claim_size == "8Gi"
       assert proposal.recommended_claim_size == "20Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
+    end
+
+    test "sizes a runner-only account from its runner telemetry and preserved claim", %{
+      account: account,
+      server: server
+    } do
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", storage_claim_size: "50Gi")
+      |> Repo.update!()
+
+      seed_churn_rollups(account, 14, @today, "scw-fr-par-runners")
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.region == "scw-fr-par-runners"
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.direction == :grow
+      assert proposal.recommended_claim_size == "64Gi"
+
+      assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(Server, server.id).storage_claim_size == "64Gi"
+    end
+
+    test "shrinks a runner claim only after the measured low-occupancy window", %{account: account, server: server} do
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", storage_claim_size: "50Gi")
+      |> Repo.update!()
+
+      assert {:ok, %{evaluated: 1, open: 0}} = ClaimProposals.sweep(@today)
+
+      seed_churn_rollups(account, 30, @today, "scw-fr-par-runners")
+
+      Repo.update_all(StorageRollup,
+        set: [eviction_count: 0, max_occupancy_percent: 5, max_live_segment_bytes: 2 * @gibibyte]
+      )
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.direction == :shrink
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.recommended_claim_size == "25Gi"
+
+      assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(Server, server.id).storage_claim_size == "25Gi"
     end
 
     test "measures against what the instance is pinned at, not the plan's default", %{
@@ -254,6 +299,33 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   end
 
   describe "Kura.apply_claim_proposal/2" do
+    test "names the region that refused, which need not be the one that proposed", %{account: account} do
+      # A claim is account-wide, so applying it grows every governed instance the
+      # account runs. The proposal names the region whose demand sized it; the
+      # refusal can come from any other.
+      insert_server!(account, "eu-west")
+      seed_churn_rollups(account, 14, @today)
+      {:ok, _summary} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.region == "us-east"
+
+      stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+
+      stub(Capacity, :pressure_line_gib, fn
+        "eu-west" -> 0
+        _region_id -> 10_000
+      end)
+
+      stub(Capacity, :resident_gib, fn
+        _region, %Server{storage_claim_size: "20Gi"} -> 40
+        _region, %Server{} -> 16
+      end)
+
+      assert {:error, {"eu-west", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
     test "writes the sized claim, re-pins the instance, and resolves the proposal", %{
       account: account,
       server: server

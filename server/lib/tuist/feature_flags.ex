@@ -55,35 +55,36 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's Kura nodes replicate by pulling from their peers
-  instead of pushing through the outbox (kura/docs/replication-design.md
-  §5.2). Per account so one mesh can be flipped and watched before the rest:
-  the provisioner renders it into every managed instance's spec and the mesh
-  view publishes it, so managed pods and enrolled self-hosted nodes flip
-  together. Off by default; enabled per actor via /ops/flags.
+  Whether anonymous entry to a public-project or public-account
+  dashboard has to solve a Cloudflare Turnstile challenge before the
+  LiveView mounts. Shape mirrors `turnstile_enabled?`: the env-var
+  toggle `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` decides where the gate
+  is armed at all, and `:public_page_challenge_kill_switch` is a
+  flag-flippable emergency off with no deploy required. Off by default
+  everywhere so a rollout is one env-var change per environment.
   """
-  def kura_replication_pull_enabled?(account) do
-    FunWithFlags.enabled?(:kura_replication_pull, for: account)
+  def public_page_challenge_enabled? do
+    Environment.public_page_challenge_required?() and
+      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
   end
 
   @doc """
-  Whether a marketing page should render the redesigned version instead of
-  the legacy one. The redesign ships page by page: each page gets its own
-  boolean flag (`:new_marketing_home`, `:new_marketing_pricing`, ...) that is
-  flipped for everyone at once — marketing traffic is mostly anonymous. A
-  page can be previewed before the flip by enabling its flag for a specific
-  user (actor gate), which is what the optional `user` serves. Callers
-  should go through `TuistWeb.Marketing.Design` rather than checking this
-  flag directly.
+  Whether the marketing site should render the redesigned version instead of
+  the legacy one. The whole redesign launches behind a single boolean flag
+  (`:new_marketing`) that is flipped for everyone at once — marketing traffic
+  is mostly anonymous. The redesign can be previewed before the flip by
+  enabling the flag for a specific user (actor gate), which is what the
+  optional `user` serves. Callers should go through
+  `TuistWeb.Marketing.Design` rather than checking this flag directly.
   """
-  def new_marketing_page_enabled?(page, user \\ nil)
+  def new_marketing_enabled?(user \\ nil)
 
-  def new_marketing_page_enabled?(page, nil) when is_atom(page) do
-    FunWithFlags.enabled?(:"new_marketing_#{page}")
+  def new_marketing_enabled?(nil) do
+    FunWithFlags.enabled?(:new_marketing)
   end
 
-  def new_marketing_page_enabled?(page, user) when is_atom(page) do
-    FunWithFlags.enabled?(:"new_marketing_#{page}", for: user)
+  def new_marketing_enabled?(user) do
+    FunWithFlags.enabled?(:new_marketing, for: user)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

@@ -429,7 +429,7 @@
                       <.badge
                         label={
                           dgettext("dashboard_cache", "%{duplicates_count} duplicates",
-                            duplicates_count: duplicate.artifacts_count
+                            duplicates_count: format_number(duplicate.artifacts_count)
                           )
                         }
                         color="destructive"
@@ -467,7 +467,7 @@
                     <div :if={duplicate.hidden_artifacts_count > 0} data-part="duplicate">
                       <span data-part="title">
                         {dgettext("dashboard_cache", "and %{count} more",
-                          count: duplicate.hidden_artifacts_count
+                          count: format_number(duplicate.hidden_artifacts_count)
                         )}
                       </span>
                     </div>

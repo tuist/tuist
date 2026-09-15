@@ -74,6 +74,7 @@ defmodule Tuist.Gradle do
       account_id: attrs.account_id,
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
+      started_at: to_naive_datetime(Map.get(attrs, :started_at)),
       gradle_version: value_or(attrs, :gradle_version, ""),
       java_version: value_or(attrs, :java_version, ""),
       is_ci: Map.get(attrs, :is_ci, false),
@@ -240,16 +241,24 @@ defmodule Tuist.Gradle do
   @doc """
   Gets a Gradle build by ID.
   """
-  def get_build(id) do
-    query =
-      from(b in Build,
-        where: b.id == ^id,
-        limit: 1
-      )
+  def get_build(id, opts \\ []) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} ->
+        query = from(b in Build, where: b.id == ^id, limit: 1)
 
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      build -> {:ok, build}
+        query =
+          case Keyword.get(opts, :project_id) do
+            nil -> query
+            project_id -> from(b in query, where: b.project_id == ^project_id)
+          end
+
+        case ClickHouseRepo.one(query) do
+          nil -> {:error, :not_found}
+          build -> {:ok, build}
+        end
+
+      :error ->
+        {:error, :not_found}
     end
   end
 

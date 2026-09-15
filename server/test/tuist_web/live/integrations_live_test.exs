@@ -6,6 +6,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.GitLab
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -392,6 +393,87 @@ defmodule TuistWeb.IntegrationsLiveTest do
       html = render_click(lv, "select-github-enterprise")
 
       refute html =~ "Server URL"
+    end
+  end
+
+  describe "GitLab CI" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "connects with only URL and token, rotates tokens without reflecting secrets, and disconnects", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert html =~ "connect-gitlab-form"
+
+      assert Floki.find(Floki.parse_document!(html), "#gitlab-profile") == []
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#gitlab-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "glrt-private-token"
+        })
+        |> render_submit()
+
+      [connection] = GitLab.list_connections(account.id)
+      assert connection.runner_token == "glrt-private-token"
+      refute html =~ "glrt-private-token"
+      refute has_element?(lv, "#connect-gitlab-form")
+
+      assert has_element?(
+               lv,
+               "[data-part=gitlab-card-section] > [data-part=header-row] button[phx-click=disconnect-gitlab]"
+             )
+
+      refute has_element?(lv, "#gitlab-connection-#{connection.id} [data-part=title]")
+      assert has_element?(lv, "#gitlab-connection-#{connection.id} input[name=_id]")
+      refute has_element?(lv, "#gitlab-connection-#{connection.id} input[name=id]")
+      lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: ""}) |> render_submit()
+      assert GitLab.get_connection(connection.id).runner_token == "glrt-private-token"
+      html = lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: "glrt-rotated"}) |> render_submit()
+      refute html =~ "glrt-rotated"
+      assert GitLab.get_connection(connection.id).runner_token == "glrt-rotated"
+      lv |> element("button[phx-click=disconnect-gitlab][phx-value-id='#{connection.id}']") |> render_click()
+      assert GitLab.list_connections(account.id) == []
+      assert has_element?(lv, "#connect-gitlab-form")
+      refute has_element?(lv, "button[phx-click=disconnect-gitlab]")
+    end
+
+    test "rejects invalid credentials without exposing the submitted token", %{conn: conn, account: account} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "personal-access-secret"
+        })
+        |> render_submit()
+
+      assert html =~ "Check the GitLab URL"
+      refute html =~ "personal-access-secret"
+      assert GitLab.list_connections(account.id) == []
+    end
+
+    test "does not connect runners when the feature is disabled", %{conn: conn, account: account} do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> false end)
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      refute html =~ "connect-gitlab-form"
+
+      render_hook(lv, "save-gitlab", %{
+        url: "https://gitlab.com",
+        runner_token: "glrt-secret"
+      })
+
+      assert GitLab.list_connections(account.id) == []
     end
   end
 

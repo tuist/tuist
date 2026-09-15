@@ -915,6 +915,18 @@ defmodule TuistWeb.TestRunLive do
   # what a busy scraper generates in a session — so two different
   # sort/filter combos would share one cache slot and return each
   # other's rows for the TTL.
+  #
+  # `locking: false` is deliberate: `KeyValueStore.get_or_update/3`
+  # defaults to `locking: true`, which runs the miss path inside
+  # `Cachex.transaction/3`. Cachex executes each transaction in the
+  # cache's single Locksmith GenServer, so every ClickHouse round-trip
+  # would occupy that one process for its full duration and queue
+  # every other caller of the `:tuist` cache behind it — including
+  # `authentication_plug`'s CLI-token lookup on the API hot path.
+  # Under the burst of unique keys this cache is designed for, that
+  # queue is where the pressure would land next. Skipping the lock
+  # gives up thundering-herd de-duplication, which the path did not
+  # have before caching was added anyway.
   defp cached_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :test_run_flop,
@@ -923,7 +935,11 @@ defmodule TuistWeb.TestRunLive do
       :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
     ]
 
-    Tuist.KeyValueStore.get_or_update(cache_key, [ttl: to_timeout(second: 30)], func)
+    Tuist.KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(second: 30), locking: false],
+      func
+    )
   end
 
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)

@@ -58,8 +58,17 @@ config :esbuild,
       "--loader:.woff=file",
       "--loader:.woff2=file",
       "--loader:.ttf=file",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",

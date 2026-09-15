@@ -176,6 +176,12 @@ defmodule Tuist.Kura.Server do
     # image observation regardless of endpoint readiness.
     field :last_ready_at, :utc_datetime
 
+    # When the reconciler first saw the region template render a public host
+    # different from `url`. Set only while such a change is outstanding, and the
+    # clock the endpoint probe is held on so it cannot resolve the new host
+    # ahead of its DNS record.
+    field :public_host_drift_observed_at, :utc_datetime
+
     belongs_to :account, Account
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
@@ -301,6 +307,11 @@ defmodule Tuist.Kura.Server do
     |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:observed_image_tag, max: 128)
     |> validate_status_and_image()
+  end
+
+  @doc "Reconciler-only changeset for the public-host drift clock."
+  def public_host_drift_changeset(server, attrs) do
+    cast(server, attrs, [:public_host_drift_observed_at])
   end
 
   @doc """

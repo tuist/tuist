@@ -107,6 +107,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
@@ -843,7 +844,7 @@ defmodule Tuist.Runners do
   end
 
   defp handle_serve_claim({:error, {mint_failure, exclusion_scope}}, context)
-       when mint_failure in [:github_mint_failed, :buildkite_mint_failed] and
+       when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] and
               exclusion_scope in [:account, :repository, :workflow_job] do
     retry_claim_and_serve(context, exclusion_scope)
   end
@@ -1081,7 +1082,7 @@ defmodule Tuist.Runners do
           # cache isn't account-portable and the guest can't publish), and the
           # host is told to skip materialize/promote via the untrusted label.
           trusted = job_trusted?(candidate, account)
-          buildkite? = provider(candidate) == "buildkite"
+          assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
 
           # Stamp the account label (the host's cache-materialize trigger) only
           # now that dispatch has fully committed — stamping it before the commit
@@ -1110,7 +1111,7 @@ defmodule Tuist.Runners do
             pod_name: pod_name,
             node_name: node_name,
             runner_name: runner_name,
-            executed_workflow_job_id: if(buildkite?, do: candidate.workflow_job_id),
+            executed_workflow_job_id: if(assigned_job?, do: candidate.workflow_job_id),
             repository: Map.get(candidate, :repository, ""),
             workflow_name: Map.get(candidate, :workflow_name, ""),
             started_at: claim.claimed_at
@@ -1122,7 +1123,7 @@ defmodule Tuist.Runners do
           # the binding is already certain and the claim can carry it now.
           # Machine metrics resolve through it, and without it a Buildkite
           # job would chart nothing.
-          if buildkite? do
+          if assigned_job? do
             Claims.record_execution(runner_name, candidate.workflow_job_id, candidate.account_id)
           end
 
@@ -1264,6 +1265,7 @@ defmodule Tuist.Runners do
   # warmth, never correctness.
   defp job_trusted?(candidate, account) do
     case provider(candidate) do
+      "gitlab" -> false
       "buildkite" -> Buildkite.job_trusted?(account.id, candidate.workflow_job_id)
       _github -> github_job_trusted?(candidate, account)
     end
@@ -1347,6 +1349,9 @@ defmodule Tuist.Runners do
   # claimed. Buildkite mints a token against one job UUID, so it cannot.
   defp mint_credential(account, candidate, sa_name, dispatch_label, runner_labels) do
     case provider(candidate) do
+      "gitlab" ->
+        mint_gitlab_acquisition(account, candidate, sa_name)
+
       "buildkite" ->
         mint_buildkite_acquisition(account, candidate, sa_name)
 
@@ -1359,6 +1364,13 @@ defmodule Tuist.Runners do
           dispatch_label,
           runner_labels
         )
+    end
+  end
+
+  defp mint_gitlab_acquisition(account, candidate, sa_name) do
+    case GitLab.mint_acquisition(account.id, candidate.workflow_job_id) do
+      {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :gitlab), runner_name(sa_name)}
+      {:error, reason} -> {:error, {:gitlab_mint_failed, mint_failure_scope(reason)}}
     end
   end
 

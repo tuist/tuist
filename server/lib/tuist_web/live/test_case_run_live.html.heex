@@ -337,7 +337,7 @@
                     </span>
                   </div>
                   <.badge
-                    label={length(@test_case_run.failures)}
+                    label={format_number(length(@test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
                     size="small"
@@ -789,11 +789,11 @@
                 </span>
                 <div data-part="passed-count">
                   <.circle_check />
-                  <span data-part="label">{@flaky_run_group.passed_count}</span>
+                  <span data-part="label">{format_number(@flaky_run_group.passed_count)}</span>
                 </div>
                 <div data-part="failed-count">
                   <.circle_x />
-                  <span data-part="label">{@flaky_run_group.failed_count}</span>
+                  <span data-part="label">{format_number(@flaky_run_group.failed_count)}</span>
                 </div>
               </div>
               <.neutral_button data-part="trigger" variant="secondary" size="medium">

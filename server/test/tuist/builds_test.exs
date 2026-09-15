@@ -1708,113 +1708,52 @@ defmodule Tuist.BuildsTest do
     end
   end
 
-  describe "get_cas_outputs_by_node_ids/3" do
-    test "returns CAS outputs matching the given node_ids" do
-      # Given
+  describe "list_cacheable_task_cas_outputs/3" do
+    test "resolves large task ID lists inside ClickHouse and paginates distinct outputs within the build" do
+      ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index), 64, "0")
+      task = %{key: "shared-key", type: :swift, status: :hit_remote, cas_output_node_ids: ids ++ ids}
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [task, task])
+      {:ok, other} = RunsFixtures.build_fixture(cacheable_tasks: [%{task | cas_output_node_ids: ["other-only"]}])
+
+      for id <- Enum.take(ids, 21) do
+        {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: id)
+      end
+
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: hd(ids), operation: :upload)
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: other.id, node_id: Enum.at(ids, 21))
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "other-only")
+
+      first = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 1)
+      second = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 2)
+      assert Enum.map(first.outputs, & &1.node_id) == Enum.take(ids, 20)
+      assert first.has_next?
+      assert Enum.map(second.outputs, & &1.node_id) == [Enum.at(ids, 20)]
+      refute second.has_next?
+      assert Builds.list_cacheable_task_cas_outputs(build.id, "missing", 1).outputs == []
+    end
+
+    test "task summaries omit output IDs while retaining expandability and pagination" do
       {:ok, build} =
         RunsFixtures.build_fixture(
-          cas_outputs: [
-            %{
-              node_id: "node1",
-              checksum: "abc123",
-              size: 1000,
-              duration: 100,
-              compressed_size: 800,
-              operation: :download,
-              type: :swift
-            },
-            %{
-              node_id: "node2",
-              checksum: "def456",
-              size: 2000,
-              duration: 200,
-              compressed_size: 1600,
-              operation: :upload,
-              type: :swift
-            },
-            %{
-              node_id: "node3",
-              checksum: "ghi789",
-              size: 3000,
-              duration: 300,
-              compressed_size: 2400,
-              operation: :download,
-              type: :swift
-            }
+          cacheable_tasks: [
+            %{key: "a", type: :swift, status: :hit_remote, cas_output_node_ids: ["node"]},
+            %{key: "b", type: :swift, status: :hit_local}
           ]
         )
 
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node3"])
+      options = %{
+        filters: [%{field: :build_run_id, op: :==, value: build.id}],
+        order_by: [:key],
+        order_directions: [:asc]
+      }
 
-      # Then
-      assert length(outputs) == 2
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert "node1" in node_ids
-      assert "node3" in node_ids
-      refute "node2" in node_ids
-      assert Enum.all?(outputs, &(&1.project_id == build.project_id))
-    end
+      assert {:ok, {[with_outputs, without_outputs], meta}} =
+               Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
 
-    test "returns empty list when node_ids is empty" do
-      # Given
-      {:ok, build} =
-        RunsFixtures.build_fixture(
-          cas_outputs: [
-            %{
-              node_id: "node1",
-              checksum: "abc123",
-              size: 1000,
-              duration: 100,
-              compressed_size: 800,
-              operation: :download,
-              type: :swift
-            }
-          ]
-        )
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, [])
-
-      # Then
-      assert outputs == []
-    end
-
-    test "returns all CAS outputs" do
-      # Given
-      {:ok, build} = RunsFixtures.build_fixture()
-
-      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
-      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
-      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"])
-
-      # Then
-      assert length(outputs) == 3
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert Enum.count(node_ids, &(&1 == "node1")) == 2
-      assert Enum.count(node_ids, &(&1 == "node2")) == 1
-    end
-
-    test "returns only distinct CAS outputs by node_id when distinct is true" do
-      # Given
-      {:ok, build} = RunsFixtures.build_fixture()
-
-      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
-      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
-      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
-      {:ok, _output4} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :upload)
-
-      # When
-      outputs = Builds.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"], distinct: true)
-
-      # Then
-      assert length(outputs) == 2
-      node_ids = Enum.map(outputs, & &1.node_id)
-      assert "node1" in node_ids
-      assert "node2" in node_ids
+      assert with_outputs.has_cas_outputs
+      refute without_outputs.has_cas_outputs
+      refute Map.has_key?(with_outputs, :cas_output_node_ids)
+      assert meta.total_count == 2
     end
   end
 end

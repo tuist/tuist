@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Blog.CoverArtwork
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Marketing.StructuredMarkup
 
   describe "GET /blog/:year/:month/:day/:slug" do
     test "renders a blog post without errors", %{conn: conn} do
@@ -24,7 +25,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -42,7 +43,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -54,7 +55,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "the new design renders the post's cover artwork inline and on the social card", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -77,7 +78,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "the new design closes with the three most recent other posts", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -97,6 +98,41 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       for title <- expected_titles do
         assert read_next =~ title |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
       end
+    end
+
+    test "the Bazel announcement renders its live dashboard", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog/2026/09/09/bazel")
+
+      assert html =~ ~s(data-part="bazel-dashboard-lab")
+      assert html =~ "Live from tuist/kura"
+      assert html =~ "No Bazel invocations in the last 30 days yet."
+      assert html =~ ~s(data-part="bazel-timeline-showcase")
+    end
+
+    test "the new Tuist post renders the anonymized rack model", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog/2026/09/12/the-new-tuist")
+
+      assert html =~ ~s(data-part="rack-scene")
+      assert html =~ ~s(data-logo-src="/marketing/images/brand/tuist-logo.svg")
+      refute html =~ ~s(data-part="brand")
+      refute html =~ "RACK MODEL"
+      refute html =~ "Panels removed"
+      refute html =~ "PILOT CONFIGURATION"
+      refute html =~ "RACK ELEVATION"
+    end
+
+    test "the new Tuist post exposes complete search metadata", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog/2026/09/12/the-new-tuist")
+
+      assert html =~ "The new Tuist, from build toolchains to bare metal"
+      assert html =~ "Tuist is becoming vertically integrated build infrastructure"
+
+      post = Enum.find(Blog.get_posts(), &(&1.slug == "/blog/2026/09/12/the-new-tuist"))
+      structured_data = StructuredMarkup.get_blog_post_structured_markup_data(post)
+
+      assert [image_url] = structured_data["image"]
+      assert image_url =~ "/marketing/images/blog/2026/09/12/og.png"
+      refute Map.has_key?(structured_data, "articleBody")
     end
   end
 end

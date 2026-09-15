@@ -8,7 +8,6 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
-  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
@@ -20,6 +19,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
+  alias Tuist.Gradle.Build
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
@@ -78,7 +78,6 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:run, run)
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
-      |> assign(:timeline_run_id, nil)
       |> assign(:machine_metrics, run.machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
@@ -239,8 +238,9 @@ defmodule TuistWeb.BuildRunLive do
        |> assign(:run, run)
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
+       |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
        |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
-       |> assign_timeline(socket.assigns.selected_tab, true)}
+       |> assign_timeline(true)}
     else
       {:noreply, socket}
     end
@@ -288,6 +288,9 @@ defmodule TuistWeb.BuildRunLive do
         do: "timeline",
         else: params["tab"] || "overview"
 
+    socket = TuistWeb.BuildTimelineLoader.select_tab(socket, selected_tab, socket.assigns.run)
+    selected_tab = socket.assigns.selected_tab
+
     available_filters =
       case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
         {"overview", "file", _} -> file_breakdown_available_filters
@@ -322,7 +325,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
       |> assign(:selected_cache_tab, selected_cache_tab)
       |> assign_selected_tab_data(params)
-      |> assign_timeline(selected_tab)
+      |> assign_timeline()
 
     {
       :noreply,
@@ -330,7 +333,60 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  def cacheable_task_row_id(key), do: "cacheable-task-" <> Base.url_encode64(key, padding: false)
+
+  defp reset_task_cas_outputs(socket) do
+    socket =
+      Enum.reduce(socket.assigns.task_cas_outputs_map, socket, fn {key, _}, acc ->
+        cancel_async(acc, {:task_cas_outputs, key})
+      end)
+
+    socket
+    |> assign(:expanded_task_keys, MapSet.new())
+    |> assign(:task_cas_outputs_map, %{})
+  end
+
+  defp load_task_cas_outputs(socket, key) do
+    run_id = socket.assigns.run.id
+    state = Map.get(socket.assigns.task_cas_outputs_map, key, %{page: 0, result: AsyncResult.loading()})
+    page = state.page + 1
+    state = %{state | result: AsyncResult.loading(state.result)}
+
+    socket
+    |> cancel_async({:task_cas_outputs, key})
+    |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+    |> start_async({:task_cas_outputs, key}, fn ->
+      Builds.list_cacheable_task_cas_outputs(run_id, key, page)
+    end)
+  end
+
   @impl true
+  def handle_async({:task_cas_outputs, key}, outcome, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => state} ->
+        state =
+          case outcome do
+            {:ok, page} ->
+              previous_outputs = if state.result.ok?, do: state.result.result.outputs, else: []
+              result = AsyncResult.ok(state.result, %{page | outputs: previous_outputs ++ page.outputs})
+              %{state | page: state.page + 1, result: result}
+
+            {:exit, reason} ->
+              %{state | result: AsyncResult.failed(state.result, {:exit, reason})}
+          end
+
+        socket =
+          socket
+          |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+          |> disable_empty_task_expansion(key, state.result)
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_async(:timeline_log, {:ok, log}, socket) do
     {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, log: log})}
   end
@@ -347,7 +403,21 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
   end
 
+  defp disable_empty_task_expansion(socket, key, %AsyncResult{ok?: true, result: %{outputs: []}}) do
+    socket
+    |> update(:expanded_task_keys, &MapSet.delete(&1, key))
+    |> update(:cacheable_tasks, fn tasks ->
+      Enum.map(tasks, fn task ->
+        if task.key == key, do: %{task | has_cas_outputs: false}, else: task
+      end)
+    end)
+  end
+
+  defp disable_empty_task_expansion(socket, _key, _result), do: socket
+
   defp assign_selected_tab_data(socket, params) do
+    socket = reset_task_cas_outputs(socket)
+
     case {socket.assigns.selected_tab, socket.assigns.selected_breakdown_tab, socket.assigns.selected_cache_tab} do
       {"overview", "file", _} ->
         assign_file_breakdown(socket, params)
@@ -378,48 +448,16 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp assign_timeline(socket, tab, force \\ false)
-
-  defp assign_timeline(socket, "timeline", force) do
-    run_id = socket.assigns.run.id
-    run_duration = socket.assigns.run.duration
-
-    metrics =
-      Enum.map(
-        socket.assigns.machine_metrics,
-        &Map.take(&1, [
-          :offset_ms,
-          :cpu_usage_percent,
-          :memory_used_bytes,
-          :memory_total_bytes,
-          :network_bytes_in,
-          :network_bytes_out,
-          :disk_bytes_read,
-          :disk_bytes_written
-        ])
-      )
-
-    if force or socket.assigns.timeline_run_id != run_id do
-      socket
-      |> assign(:timeline_run_id, run_id)
-      |> assign(:timeline_version, socket.assigns.timeline_version + 1)
-      |> assign(:timeline, AsyncResult.ok(%{duration: run_duration, machine_metrics: metrics}))
-    else
-      socket
-    end
+  defp assign_timeline(socket, force \\ false) do
+    TuistWeb.BuildTimelineLoader.assign_timeline(socket, socket.assigns.selected_tab, socket.assigns.run, force)
   end
 
-  defp assign_timeline(socket, _tab, _force), do: assign(socket, :timeline_run_id, nil)
-
   @impl true
-  def handle_event("load-timeline", %{"version" => version}, socket) do
-    case socket.assigns do
-      %{timeline_version: ^version, timeline: %{ok?: true, result: timeline}} ->
-        {:reply, %{timeline: timeline}, socket}
+  def handle_event(event, _params, %{assigns: %{build: %Build{}}} = socket)
+      when event in ["load-timeline-log", "load-timeline-step"], do: {:reply, %{error: true}, socket}
 
-      _ ->
-        {:reply, %{error: true}, socket}
-    end
+  def handle_event("load-timeline", params, socket) do
+    TuistWeb.BuildTimelineLoader.handle_event("load-timeline", params, socket)
   end
 
   def handle_event(
@@ -457,6 +495,35 @@ defmodule TuistWeb.BuildRunLive do
 
   def handle_event("load-timeline-log", _params, socket), do: {:reply, %{error: true}, socket}
 
+  def handle_event("toggle-task-cas-outputs", %{"key" => key}, socket) do
+    if socket.assigns.selected_tab == "xcode-cache" and socket.assigns.selected_cache_tab == "cacheable-tasks" and
+         Enum.any?(socket.assigns.cacheable_tasks, &(&1.key == key and &1.has_cas_outputs)) do
+      if MapSet.member?(socket.assigns.expanded_task_keys, key) do
+        {:noreply, update(socket, :expanded_task_keys, &MapSet.delete(&1, key))}
+      else
+        socket = update(socket, :expanded_task_keys, &MapSet.put(&1, key))
+
+        case socket.assigns.task_cas_outputs_map do
+          %{^key => %{result: %{ok?: true}}} -> {:noreply, socket}
+          %{^key => %{result: %{loading: loading}}} when not is_nil(loading) -> {:noreply, socket}
+          _ -> {:noreply, load_task_cas_outputs(socket, key)}
+        end
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("load-more-task-cas-outputs", %{"key" => key}, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => %{result: %{ok?: true, loading: nil, result: %{has_next?: true}}}} ->
+        {:noreply, load_task_cas_outputs(socket, key)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
     {:ok, refreshed_run} = Builds.get_build(run.id, project_id: run.project_id)
 
@@ -470,8 +537,9 @@ defmodule TuistWeb.BuildRunLive do
      |> assign(:run, refreshed_run)
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
+     |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
      |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
-     |> assign_timeline(socket.assigns.selected_tab, true)}
+     |> assign_timeline(true)}
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
@@ -833,7 +901,7 @@ defmodule TuistWeb.BuildRunLive do
               </span>
             </div>
             <.badge
-              label={Enum.count(@issues)}
+              label={format_number(Enum.count(@issues))}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
               size="large"
@@ -1196,27 +1264,8 @@ defmodule TuistWeb.BuildRunLive do
     }
 
     {:ok, {tasks, tasks_meta}} =
-      cached_build_run_query(run.id, :cacheable_tasks, options, fn ->
-        Builds.list_cacheable_tasks(options)
-      end)
-
-    # Fetch CAS outputs for all tasks on the current page
-    all_node_ids =
-      tasks
-      |> Enum.flat_map(& &1.cas_output_node_ids)
-      |> Enum.uniq()
-
-    cas_outputs = Builds.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
-
-    # Create a map from task key to its CAS outputs
-    task_cas_outputs_map =
-      Map.new(tasks, fn task ->
-        outputs =
-          Enum.filter(cas_outputs, fn output ->
-            output.node_id in task.cas_output_node_ids
-          end)
-
-        {task.key, outputs}
+      cached_build_run_query(run.id, :cacheable_task_summaries, options, fn ->
+        Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
       end)
 
     filters =
@@ -1230,7 +1279,17 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
-    |> assign(:task_cas_outputs_map, task_cas_outputs_map)
+    |> preload_task_cas_outputs()
+  end
+
+  defp preload_task_cas_outputs(socket) do
+    if connected?(socket) do
+      socket.assigns.cacheable_tasks
+      |> Enum.filter(& &1.has_cas_outputs)
+      |> Enum.reduce(socket, fn task, acc -> load_task_cas_outputs(acc, task.key) end)
+    else
+      socket
+    end
   end
 
   # Wraps ClickHouse-heavy Flop-driven queries the public build-run
@@ -1246,7 +1305,8 @@ defmodule TuistWeb.BuildRunLive do
   #
   # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
   # list with a SHA-256 flop_params fragment rather than a tuple with
-  # a phash2.
+  # a phash2, and for why `locking: false` is required to keep the
+  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
   defp cached_build_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :build_run_flop,
@@ -1255,7 +1315,11 @@ defmodule TuistWeb.BuildRunLive do
       :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
     ]
 
-    Tuist.KeyValueStore.get_or_update(cache_key, [ttl: to_timeout(second: 30)], func)
+    Tuist.KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(second: 30), locking: false],
+      func
+    )
   end
 
   defp cacheable_tasks_filters(run, params, available_filters, search) do

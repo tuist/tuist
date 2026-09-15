@@ -34,6 +34,7 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       body = %{
         duration_ms: 400,
+        started_at: "2026-09-09T10:00:00.123Z",
         status: "success",
         tasks: [
           %{
@@ -58,6 +59,9 @@ defmodule TuistWeb.API.GradleControllerTest do
         |> Map.fetch!("id")
 
       Buffer.flush()
+      {:ok, recorded_build} = Gradle.get_build(id)
+      assert recorded_build.started_at == ~N[2026-09-09 10:00:00.123000]
+
       Tuist.Gradle.Task.Buffer.flush()
       response = conn |> get(path <> "/" <> id) |> json_response(200)
       assert hd(response["tasks"])["execution"]["incremental"] == true

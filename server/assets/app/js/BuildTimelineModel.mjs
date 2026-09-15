@@ -1,15 +1,64 @@
 export const ROW_HEIGHT = 26;
 
-export function categoryFor(category) {
+export function timelineDuration(timeline, events, buildDuration) {
+  const fallback = timeline.time_origin === "profile_start" ? 1 : Number(buildDuration) || 1;
+  return events.reduce((end, event) => Math.max(end, event.end), Math.max(timeline.duration || 0, fallback));
+}
+
+export function categoryFor(category, source = "xcode") {
+  if (source === "bazel") {
+    if (
+      [
+        "FileWrite",
+        "Symlink",
+        "ExecutableSymlink",
+        "SymlinkTree",
+        "RunfilesTree",
+        "SourceSymlinkManifest",
+        "RepoMappingManifest",
+        "CppModuleMap",
+        "MaterializeIncludeDir",
+        "MaterializeLibDir",
+        "TemplateExpand",
+      ].includes(category)
+    )
+      return "resource";
+    if (["Fetching repository", "Remote execution download time"].includes(category)) return "fetch";
+    if (
+      [
+        "bazel module processing",
+        "package creation",
+        "skyframe evaluator",
+        "Conflict checking",
+        "action dependency checking",
+        "discover inputs",
+      ].includes(category) ||
+      /^Starlark /.test(category)
+    )
+      return "setup";
+  }
+  if (source === "gradle") {
+    const type = category
+      .split(".")
+      .at(-1)
+      .replace(/_Decorated$/, "");
+    if (category === "configuration") return "setup";
+    if (category === "transform") return "transform";
+    if (["Test", "KotlinJvmTest", "KotlinNativeTest", "KotlinJsTest", "AndroidUnitTest"].includes(type)) return "test";
+    if (["Jar", "Zip", "Tar", "War", "Ear"].includes(type)) return "package";
+    if (["Exec", "JavaExec"].includes(type)) return "script";
+    if (["Copy", "Sync", "ProcessResources"].includes(type)) return "resource";
+    if (/^Link/.test(type)) return "link";
+  }
   if (["compile", "link", "script", "resource", "other", "failure"].includes(category)) return category;
-  if (/compilation|swiftmodule|bridgingheader/i.test(category)) return "compile";
-  if (/linker|staticlibrary/i.test(category)) return "link";
-  if (/script/i.test(category)) return "script";
+  if (category === "Rustc" || /compil|swiftmodule|bridgingheader|javac/i.test(category)) return "compile";
+  if (["CppLink", "CppArchive"].includes(category) || /linker|staticlibrary/i.test(category)) return "link";
+  if (category === "Genrule" || /script/i.test(category)) return "script";
   if (/cop|resource|asset|storyboard|xib/i.test(category)) return "resource";
   return "other";
 }
 
-export function normalizeEvents(events) {
+export function normalizeEvents(events, source = "xcode") {
   return events
     .filter(
       (event) =>
@@ -21,9 +70,22 @@ export function normalizeEvents(events) {
     .map((event) => ({
       ...event,
       end: event.start_ms + event.duration_ms,
-      kind: categoryFor(event.category),
+      kind: categoryFor(event.category, source),
     }))
-    .sort((a, b) => a.start_ms - b.start_ms || a.event_id - b.event_id);
+    .sort(
+      (a, b) =>
+        a.start_ms - b.start_ms ||
+        (typeof a.event_id === "number" && typeof b.event_id === "number"
+          ? a.event_id - b.event_id
+          : String(a.event_id).localeCompare(String(b.event_id))),
+    );
+}
+
+export function matchesEvent(event, search, category, labels = {}, includeCategories = true) {
+  if (category && (category === "failure" ? event.status !== "failure" : event.kind !== category)) return false;
+  const fields = [event.title, event.target, event.project];
+  if (includeCategories) fields.push(event.category, event.kind, labels[event.kind]);
+  return fields.filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase().slice(0, 512));
 }
 
 // Minimum heaps release completed work and reuse the lowest free lane in O(log concurrency).
@@ -117,4 +179,11 @@ export function scrollGeometry(viewportWidth, range, duration) {
 
 export function scrollStart(left, overflow, range, duration) {
   return overflow > 0 ? Math.max(0, Math.min(1, left / overflow)) * Math.max(0, duration - range.span) : 0;
+}
+
+export function neighborEvent(events, selectedId, direction) {
+  if (direction === "last") return events.at(-1);
+  const index = events.findIndex((event) => event.event_id === selectedId);
+  if (index < 0) return direction === "previous" ? events.at(-1) : events[0];
+  return events[index + (direction === "previous" ? -1 : 1)];
 }

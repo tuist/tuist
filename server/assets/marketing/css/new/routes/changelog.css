@@ -305,7 +305,7 @@
 
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
         /* The site-wide balance on headings halves any two-line title at its
            midpoint; here the first line should fill the column instead. */
         text-wrap: pretty;

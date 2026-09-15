@@ -34,6 +34,7 @@ defmodule Tuist.Gradle.Build do
     belongs_to :built_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     field :tasks_cache_hit_count, Ch, type: "UInt32"
     field :duration_ms, Ch, type: "UInt64"
+    field :started_at, Ch, type: "Nullable(DateTime64(6))"
     field :gradle_version, Ch, type: "String"
     field :java_version, Ch, type: "String"
     field :is_ci, Ch, type: "Bool"

@@ -21,7 +21,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   def render(assigns), do: changelog_entry(assigns)
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :changelog_entry))}
+    {:ok, assign(socket, :new_design, Design.new?(socket.assigns[:current_user]))}
   end
 
   def handle_params(%{"id" => id}, _url, socket) do

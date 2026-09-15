@@ -136,6 +136,7 @@
       }
 
       &[data-ci="github"] > [data-part="variant"][data-ci="github"],
+      &[data-ci="gitlab"] > [data-part="variant"][data-ci="gitlab"],
       &[data-ci="buildkite"] > [data-part="variant"][data-ci="buildkite"] {
         display: contents;
       }
@@ -1160,7 +1161,7 @@
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
           }
 
           & > [data-part="description"] {
@@ -1467,7 +1468,7 @@
           & > [data-part="title"] {
             margin: 0;
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
           }
 
           & > [data-part="description"] {

@@ -26,7 +26,7 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
       end)
       |> TuistWeb.Authentication.mount_current_user(session)
 
-    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :previews))
+    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user]))
 
     {:ok, socket}
   end

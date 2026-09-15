@@ -9,6 +9,7 @@ defmodule TuistWeb.Endpoint do
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
   alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
+  alias TuistWeb.Webhooks.BazelActionsController
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
@@ -113,6 +114,27 @@ defmodule TuistWeb.Endpoint do
     handler: TuistWeb.Webhooks.BazelInvocationsController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions/batch",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 12_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-profiles",
+    handler: TuistWeb.Webhooks.BazelProfilesController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 45_000_000
 
   plug WebhookPlug,
     at: "/webhooks/bazel-test-artifacts",

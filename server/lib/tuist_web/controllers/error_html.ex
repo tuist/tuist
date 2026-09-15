@@ -60,7 +60,7 @@ defmodule TuistWeb.ErrorHTML do
   # missing, and it should read as the public not-found page). Other statuses
   # keep the dashboard error page.
   def render("404.html", %{conn: %Plug.Conn{} = conn} = assigns) do
-    if Design.new?(conn, :not_found) do
+    if Design.new?(conn) do
       render_marketing_not_found(assigns)
     else
       render_dashboard_not_found(assigns)

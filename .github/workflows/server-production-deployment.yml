@@ -466,7 +466,7 @@ jobs:
           # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
           # target, which can't cross-compile. compile-args adds the cross --config on the macOS
           # x86_64 leg and is empty for the native legs.
-          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
           STAGE_DIR="$(mktemp -d)"
           cp bazel-bin/kura "$STAGE_DIR/kura"

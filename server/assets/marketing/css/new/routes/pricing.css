@@ -103,6 +103,13 @@
     }
 
     & > [data-part="compare"] {
+      /* Sticky offset for the tab/mobile plan picker: the navbar's height,
+         measured by the PricingPlanSelect hook; this is the default until it
+         mounts. */
+      --pricing-sticky-top: var(--sticky-top);
+      /* Height of the table's closing CTA row, measured by the same hook:
+         the picker box stops sticking that far above the table's end. */
+      --pricing-last-row-height: 0px;
       border-top: 1px solid var(--marketing-stroke-default);
       padding-top: var(--noora-spacing-16);
       /* The big gap before the FAQ divider belongs to this frame. */
@@ -229,69 +236,89 @@
     }
   }
 
-  /* Feature comparison table: hairline rows, vertical hairlines between
-     the plan value columns, centered values. Scrolls sideways on narrow
-     viewports instead of squeezing the feature column. */
-  /* Plan picker: the tab/mobile stand-in for the hidden table columns —
-     same recipe as the blog/customers filter dropdowns. Hidden on
-     desktop. */
-  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="plan-select"] {
-    position: relative;
-    align-self: flex-start;
-    margin: 0 var(--noora-spacing-4);
+  /* Tab/mobile plan picker: a bordered box holding a centered Noora button
+     group, one item per plan, driving which column the collapsed
+     comparison table shows, with the table's header row (blank corner +
+     plan name) rendered beneath the buttons. It sticks under the navbar so
+     the plan can be switched from anywhere in the table, and it is the
+     only sticky element on tab/mobile: the table's own header row is
+     hidden there. Sticking the real header cells beneath the box (two
+     sticky elements pinned to measured offsets) had the cells lag behind
+     the box while scrolling, opening a seam of body rows between them; one
+     sticky box cannot come apart. Hidden on desktop, where every column is
+     visible and the real header row sticks. */
+  /* Picker box + table, stacked with no gap. The stack is the box's sticky
+     containing block: sticky elements can't leave their containing block,
+     so the box rides along until the stack's end pushes it away, instead
+     of staying pinned over the FAQ below. */
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] > [data-part="plan-picker"] {
+    display: flex;
+    position: sticky;
+    top: var(--pricing-sticky-top);
+    flex-direction: column;
+    align-items: stretch;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    /* The sticky constraint keeps the box's margin box inside the stack,
+       so a bottom margin the size of the CTA row makes the box let go one
+       row before the table ends and never cover that row. The table pulls
+       itself up by the same amount (below) so there's no gap in flow; the
+       box paints its own top and bottom hairlines (the first body row
+       carries no top hairline, see below). */
+    margin: 0 0 var(--pricing-last-row-height);
+    border-top: 1px solid var(--marketing-stroke-default);
+    border-bottom: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
 
     @media (min-width: 1024px) {
       display: none;
     }
 
-    /* Zag normally positions the open menu with inline styles; the
-       hand-rolled dropdown anchors it below the trigger instead, with the
-       dashboard's 8px trigger gap. */
-    & > [data-part="positioner"] {
-      position: absolute;
-      top: calc(100% + var(--noora-spacing-4));
-      left: 0;
-      z-index: var(--noora-z-index-9);
-      min-width: 240px;
+    & > [data-part="plan-picker-controls"] {
+      display: flex;
+      justify-content: center;
+      padding: var(--noora-spacing-7);
     }
 
-    /* On phones the menu is a tray pinned to the bottom of the viewport
-       behind a modal scrim, instead of a popover anchored to the trigger.
-       Zag positions the popover with inline styles, so overriding its
-       placement needs !important. */
-    @media (max-width: 767px) {
-      & > [data-part="positioner"] {
-        position: fixed !important;
-        transform: none !important;
-        z-index: var(--noora-z-index-12);
-        inset: auto 0 0 0 !important;
-        padding: 0;
+    /* Mirror of the table's header row, on the same 50/50 split as the
+       fixed-layout table below (both span the frame edge to edge), with
+       the same hairlines and cell padding so the two read as one grid. */
+    & > [data-part="plan-picker-head"] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid var(--marketing-stroke-default);
 
-        &::before {
-          position: fixed;
-          backdrop-filter: blur(2.5px);
-          inset: 0;
-          background: var(--noora-surface-overlay);
-          content: "";
+      & > [data-part="plan-picker-plan"] {
+        box-sizing: border-box;
+        border-left: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-9) 0;
+        min-width: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+        text-align: center;
+
+        &:not(.active) {
+          display: none;
         }
-      }
-
-      & .noora-dropdown-content {
-        position: relative;
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-4) var(--noora-radius-4) 0 0;
-        width: 100%;
-        max-height: 60vh;
       }
     }
   }
 
-  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-frame"] {
-    /* The sideways-scroll wrapper only exists on narrow viewports: an
-       overflow container would trap the sticky header row, so on desktop
-       the table overflows nothing and the header sticks to the page. */
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] > [data-part="table-frame"] {
+    /* No scroll container at any width: one would trap the desktop's
+       sticky header row inside itself. Narrow viewports show a single plan
+       column, so the table fits; clip (not auto) guards against any stray
+       overflow without becoming a scrollport. */
     @media (max-width: 1023px) {
-      overflow-x: auto;
+      /* Cancels the picker box's release margin, see above. */
+      margin-top: calc(-1 * var(--pricing-last-row-height));
+      overflow-x: clip;
     }
 
     & > [data-part="table"] {
@@ -306,11 +333,22 @@
         min-width: 720px;
       }
 
-      /* Tab/mobile: only the plan column picked in the dropdown renders,
+      /* Tab/mobile: only the plan column picked in the switcher renders,
          next to the feature column, and the two columns split the width
-         in exact halves (the widths live on the header cells below). */
+         in exact halves. The header row is hidden here (the sticky plan
+         picker box renders it instead), so the fixed layout takes the
+         widths from the first body row's cells. */
       @media (max-width: 1023px) {
         table-layout: fixed;
+
+        & > [data-part="head"] {
+          display: none;
+        }
+
+        & [data-part="cell-feature"],
+        & [data-part="cell-value"] {
+          width: 50%;
+        }
 
         & [data-part="cell-plan"]:not(.active),
         & [data-part="cell-value"]:not(.active),
@@ -330,7 +368,8 @@
 
       /* The stuck header paints its own bottom hairline (there's no row
          underneath it while floating), so the first body row drops its
-         top one to avoid doubling in normal flow. */
+         top one to avoid doubling in normal flow. On tab/mobile the plan
+         picker box's bottom hairline plays the same role. */
       & > [data-part="head"] th,
       & > [data-part="head"] td {
         border-bottom: 1px solid var(--marketing-stroke-default);
@@ -351,21 +390,14 @@
          padding, hairline above the whole header row. 3×270 + the 390
          feature column = the 1200 card. The header row sticks below the
          navbar while the table scrolls under it; the opaque background
-         keeps the rows from showing through. */
+         keeps the rows from showing through. (Desktop only: tab/mobile
+         hide this row and the plan picker box renders it.) */
       & [data-part="cell-blank"],
       & [data-part="cell-plan"] {
         position: sticky;
         top: var(--sticky-top);
         z-index: var(--noora-z-index-1);
         background: var(--noora-surface-background-primary);
-
-        /* Tab/mobile: the table sits in the overflow-x wrapper, whose
-           scrollport the sticky offset resolves against — the cells pin
-           48px into the table and cover the first body row. No sticky
-           header inside a scroll container. */
-        @media (max-width: 1023px) {
-          position: static;
-        }
       }
 
       & [data-part="cell-plan"] {
@@ -375,17 +407,6 @@
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
         text-align: center;
-
-        @media (max-width: 1023px) {
-          width: 50%;
-        }
-      }
-
-      /* The blank corner sizes the feature column in the fixed layout. */
-      & [data-part="cell-blank"] {
-        @media (max-width: 1023px) {
-          width: 50%;
-        }
       }
 
       /* Feature cell (Figma: 390 Fill × Hug): 24px vertical / 8px
@@ -521,6 +542,11 @@
     & > [data-part="questions"] {
       display: flex;
       flex-direction: column;
+      /* Opening a question grows the list under the finger; if the browser
+         picks a node inside it as the scroll anchor it corrects the scroll
+         offset every frame of the height transition, which reads as
+         jitter on phones. Keep the anchor out of the accordion. */
+      overflow-anchor: none;
 
       /* Question box: 20px padding all around, the chevron 16px to the
          right of the text column. The answer reuses the question's column
@@ -562,6 +588,9 @@
           display: flex;
           align-items: center;
           gap: var(--noora-spacing-6);
+          /* The bottom padding shrinks on open (below); ease it with the
+             answer instead of jumping 4px the instant the row is tapped. */
+          transition: padding-bottom 0.25s ease;
           cursor: pointer;
           padding: var(--noora-spacing-7);
           color: var(--noora-surface-label-primary);

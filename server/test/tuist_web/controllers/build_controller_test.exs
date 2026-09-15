@@ -2,15 +2,45 @@ defmodule TuistWeb.BuildControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.Bazel
+  alias Tuist.Bazel.Profile
   alias Tuist.Builds
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup :verify_on_exit!
 
   describe "timeline/2" do
+    test "Gradle and Bazel metadata downloads authorize and scope the parent before loading", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stranger = AccountsFixtures.user_fixture()
+
+      for source <- [:gradle, :bazel] do
+        project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: source)
+        other = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: source)
+        {id, route} = recorded_build(project, source)
+        path = "/#{user.account.name}/#{project.name}/builds/#{route}/#{id}/timeline.json"
+        response_conn = conn |> log_in_user(user) |> get(path)
+        response = json_response(response_conn, 200)
+        assert response["total_count"] == 1
+        assert [%{"title" => "Compile"}] = response["events"]
+        refute Map.has_key?(hd(response["events"]), "log")
+        refute Map.has_key?(response, "machine_metrics")
+        assert get_resp_header(response_conn, "cache-control") == ["private, no-store"]
+
+        assert_error_sent 404, fn ->
+          conn |> log_in_user(stranger) |> get(path)
+        end
+
+        assert_error_sent 404, fn ->
+          conn |> log_in_user(user) |> get("/#{user.account.name}/#{other.name}/builds/#{route}/#{id}/timeline.json")
+        end
+      end
+    end
+
     test "returns full metadata and distinct project/target counts without logs", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -200,5 +230,48 @@ defmodule TuistWeb.BuildControllerTest do
         )
       end
     end
+  end
+
+  defp recorded_build(project, :gradle) do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        started_at: ~U[2026-09-09 10:00:00Z],
+        tasks: [
+          %{task_path: "Compile", outcome: "executed", duration_ms: 100, started_at: ~U[2026-09-09 10:00:01Z]}
+        ]
+      )
+
+    {id, "build-runs"}
+  end
+
+  defp recorded_build(project, :bazel) do
+    id = Ecto.UUID.generate()
+
+    Bazel.create_invocations([
+      %{
+        invocation_id: id,
+        project_id: project.id,
+        account_handle: project.account.name,
+        project_handle: project.name,
+        command: "build",
+        cache_endpoint: "cache.tuist.dev",
+        status: "success",
+        exit_code: 0,
+        started_at: ~N[2026-09-09 10:00:00],
+        finished_at: ~N[2026-09-09 10:00:02],
+        duration_ms: 2000
+      }
+    ])
+
+    profile = %{
+      "otherData" => %{"build_id" => id},
+      "traceEvents" => [
+        %{"ph" => "X", "name" => "Compile", "ts" => 500, "dur" => 1500}
+      ]
+    }
+
+    assert :ok = Profile.ingest(project, id, :zlib.gzip(JSON.encode!(profile)))
+    {id, "invocations"}
   end
 end

@@ -39,7 +39,7 @@
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "Share build artifacts across your team and CI, so no one waits on code that's already compiled."
+          "Share build artifacts across your developers, CI, and agent environments, so no one waits on code that's already compiled."
         )}
       </p>
       <.button
@@ -96,6 +96,7 @@
                   data-part="dither"
                   id={"cache-minimal-overhead-dither-#{index}"}
                   phx-hook="DitherTexture"
+                  phx-update="ignore"
                   data-pitch="2"
                   data-dot="2"
                   data-top="0.1"
@@ -135,6 +136,7 @@
             <canvas
               id="cache-low-latency-globe"
               phx-hook="DitherGlobe"
+              phx-update="ignore"
               data-size="2.05"
               data-pitch="2"
               data-tilt-x="0.07"
@@ -329,6 +331,7 @@
         data-part="dither"
         id="cache-cta-divider-top-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"
@@ -345,7 +348,7 @@
 
     <section data-part="cta" aria-labelledby="cta-title">
       <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
-      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your development")}</h2>
       <div data-part="actions" role="group" aria-labelledby="cta-title">
         <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
         <.button
@@ -363,6 +366,7 @@
         data-part="dither"
         id="cache-cta-divider-bottom-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"

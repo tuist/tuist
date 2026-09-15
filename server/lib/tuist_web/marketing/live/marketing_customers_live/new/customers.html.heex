@@ -85,6 +85,7 @@
         data-part="dither"
         id="customers-cta-divider-top-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"
@@ -101,7 +102,7 @@
 
     <section data-part="cta" aria-labelledby="cta-title">
       <span data-part="eyebrow">
-        {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}
+        {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste! Ahoj!")}
       </span>
       <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
       <div data-part="actions" role="group" aria-labelledby="cta-title">
@@ -121,6 +122,7 @@
         data-part="dither"
         id="customers-cta-divider-bottom-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"

@@ -80,7 +80,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               dgettext(
                 "dashboard_builds",
                 "Total data downloaded from the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_metrics.download_count
+                count: format_number(@module_cache_metrics.download_count)
               )
             }
             value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.download_bytes)}
@@ -93,7 +93,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               dgettext(
                 "dashboard_builds",
                 "Total data uploaded to the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_metrics.upload_count
+                count: format_number(@module_cache_metrics.upload_count)
               )
             }
             value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.upload_bytes)}
@@ -133,9 +133,11 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
                 {dgettext("dashboard_builds", "Cacheable targets:")}
               </span>
               <span data-part="value">
-                {@binary_cache_analytics.binary_cache_local_hits_count +
-                  @binary_cache_analytics.binary_cache_remote_hits_count +
-                  @binary_cache_analytics.binary_cache_misses_count}
+                {format_number(
+                  @binary_cache_analytics.binary_cache_local_hits_count +
+                    @binary_cache_analytics.binary_cache_remote_hits_count +
+                    @binary_cache_analytics.binary_cache_misses_count
+                )}
               </span>
             </div>
             <.chart

@@ -24,10 +24,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       %{floor_mbps: region_floor, burst_mbps: Regions.egress_burst_mbps(region)}
     end)
 
-    # The account's replication-pull flag is read the same way; the tests that
-    # exercise the flip state their own answer.
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _account -> false end)
-
     :ok
   end
 
@@ -383,7 +379,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert non_entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
     end
 
-    test "renders the replication-pull flag into the spec only for an account whose flag is on" do
+    test "renders KURA_REPLICATION_PULL and the +pull revision marker for every mesh instance" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -395,7 +391,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       account = %Account{id: 1, name: "tuist"}
       region = eu_region(%{mesh: true})
 
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
       pulling = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
       pulling_env = Map.new(pulling["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert pulling_env["KURA_REPLICATION_PULL"] == "true"
@@ -404,29 +399,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # rollout bump until the CRD is upgraded.
       refute Enum.any?(pulling["spec"], fn {key, _} -> String.contains?(String.downcase(key), "pull") end)
 
-      # The env has to move the revision or the reconciler would never apply
-      # it; the marker is present only when on so the rest of the fleet stays
-      # byte-identical.
+      # The marker every flipped account already carried, held constant so
+      # the removal of the per-account flag rolls nothing.
       assert pulling["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
                KubernetesController.manifest_revision() <> "+pull+backfill"
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
-      pushing = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
-      pushing_env = Map.new(pushing["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      refute Map.has_key?(pushing_env, "KURA_REPLICATION_PULL")
-
-      assert pushing["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision() <> "+backfill"
     end
 
-    test "leaves an instance outside a mesh region alone when the account's pull flag is on" do
+    test "leaves an instance outside a mesh region without the pull env or marker" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _ -> true end)
 
       manifest =
         KubernetesController.manifest(
@@ -471,7 +455,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
-    test "renders the backfill walker flag for the private runner-cache (co-located) region" do
+    test "renders runner sizing without requesting an unadvertised memory ceiling resource" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -482,16 +467,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       {:ok, region} = Regions.fetch("scw-fr-par-runners")
 
+      account = %Account{id: 1, name: "tuist"}
+      server = %Server{account: account, storage_claim_size: "50Gi"}
+
       manifest =
         KubernetesController.manifest(
           "kura-tuist-scw-fr-par-runners",
           "0.5.2",
-          %Account{id: 1, name: "tuist"},
+          account,
           region,
-          %Server{}
+          server
         )
 
-      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      spec = manifest["spec"]
+      assert spec["storageSize"] == "50Gi"
+      assert spec["memoryFloorMib"] == 1024
+      assert spec["memoryCeilingMib"] == 4096
+      assert spec["cpuCeilingMilli"] == 4000
+      refute Map.has_key?(spec, "memoryCeilingBinPacked")
+      assert spec["replicas"] == 2
+      assert spec["exposeNodePort"]
+
+      legacy_region = %{region | provisioner_config: Map.put(region.provisioner_config, :memory_governed, false)}
+      revision = KubernetesController.manifest_revision(server, region)
+      refute revision == KubernetesController.manifest_revision(server, legacy_region)
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_BACKFILL_ENABLED"] == "true"
     end
 
@@ -1426,7 +1428,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
       assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region(%{mesh: true})) ==
-               KubernetesController.manifest_revision() <> "+backfill"
+               KubernetesController.manifest_revision() <> "+pull+backfill"
     end
 
     test "changes when a peer is enrolled, matching the rendered manifest annotation" do
@@ -1587,7 +1589,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # are not rolled, and the non-entitled ones shed their old `+nosync`
       # marker exactly once, crossing onto the view.
       assert non_entitled == entitled
-      assert entitled == KubernetesController.manifest_revision() <> "+backfill"
+      assert entitled == KubernetesController.manifest_revision() <> "+pull+backfill"
 
       # The rendered manifest stamps the same revision the reconciler computes,
       # so the two never disagree and loop.
@@ -1605,7 +1607,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
     end
 
-    test "crosses a revision boundary on the replication-pull flag so the flip re-applies" do
+    test "keeps the +pull revision marker on mesh regions and off the rest" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -1618,14 +1620,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       region = eu_region(%{mesh: true})
       account = %Account{id: 1, name: "tuist"}
 
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
-      pushing = KubernetesController.manifest_revision(%Server{account: account}, region)
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
+      outside = KubernetesController.manifest_revision(%Server{account: account}, eu_region())
       pulling = KubernetesController.manifest_revision(%Server{account: account}, region)
 
-      refute pushing == pulling
-      assert pushing == KubernetesController.manifest_revision() <> "+backfill"
+      refute outside == pulling
+      assert outside == KubernetesController.manifest_revision() <> "+backfill"
       assert pulling == KubernetesController.manifest_revision() <> "+pull+backfill"
 
       manifest =
@@ -1651,7 +1650,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true})
         )
 
-      assert revision == KubernetesController.manifest_revision() <> "+backfill"
+      assert revision == KubernetesController.manifest_revision() <> "+pull+backfill"
     end
   end
 
@@ -1963,7 +1962,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :env, fn -> :prod end)
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       region = Regions.get("scw-fr-par-runners")
-      manifest = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", account, region, %Server{})
       spec = manifest["spec"]
       assert spec["replicas"] == 2
       assert spec["private"]

@@ -308,6 +308,22 @@ clickhouse:
     # Rollback: turn it off. Nothing has read from that server.
     shadowWrites:
       enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
@@ -341,39 +357,46 @@ clickhouse:
     # the deploy that turns dual writes on above has finished rolling out: the
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
-    # Step 5, the initial replication: everything canary wrote before the
-    # cutoff still lives only on Cloud, and this copies it.
+    # A repair pass, and a step back from 6a.
     #
-    # A post-upgrade hook, by inheriting `background: false`, which is the mode
-    # staging used successfully. The previous attempt set `background: true` on
-    # the belief that helm does not wait on ordinary Jobs. Helm 3 does not;
-    # helm 4 does, so the Job blocked the release and a failing one rolled
-    # three canary deploys back. Background mode stays unusable until there is
-    # a mechanism helm does not wait on, and that is a production problem:
-    # canary's dataset is small enough to wait for.
+    # The full parity gate ran and failed, which is the gate working: 13 of 69
+    # copied tables differ over the whole dataset, and the deploy rolled back
+    # with it. The shape is consistent. Both servers report the same min_time
+    # and max_time, and the destination simply holds fewer rows: shard_plans
+    # short by 299, xcode_targets by 232, command_events by 215, and the test
+    # family by 24 to 55 each. Rows missing from the middle of the range, not a
+    # truncated range.
     #
-    # Two bugs that stopped every previous run are fixed and deployed here:
-    # the advisory lock's connection is no longer capped at fifteen seconds,
-    # and the destination is waited for rather than raced.
+    # That is writes the mirror lost, and the hourly worker could never have
+    # seen it: it compares a two-hour window, so this history slid past it
+    # every hour while reporting agreement. The full check is the first thing
+    # to look at all of it.
     #
-    # `cutoff` is later than the last mirror error rather than the moment dual
-    # writes rolled out. Terminal shadow-write errors are rows that reached
-    # Cloud and not the destination, so a cutoff before them leaves those rows
-    # covered by neither side. The counter last moved at about 11:30Z and has
-    # been flat since, so this is comfortably after it.
+    # Most of it is explained. The xcresult-processor mirrored nothing at all
+    # until it had a tailnet route, so every test row written between the last
+    # backfill's cutoff and that landing reached Cloud alone, and the rest is
+    # the deploy churn of the last two days.
     #
-    # It will not reach clean parity in one run, by construction: this deploy
-    # restarts the server pods, and the writes lost while their mirror warms up
-    # land after the cutoff. The repair is another run with a later cutoff,
-    # which is what the runbook prescribes and what production will do anyway.
+    # The repair is this, not something new: a chunk fills gaps by row identity
+    # rather than appending, so re-running with a later cutoff copies only what
+    # the destination lacks and cannot duplicate what it already holds.
     #
-    # Gate: every chunk recorded done in the ledger with no failures, read from
-    # the Job afterwards.
+    # The cutoff is deliberately ahead of now. The deploy that arms this
+    # restarts the server pods, and anything their mirror drops while warming
+    # up would otherwise land after the cutoff and survive the repair. Reaching
+    # past it costs nothing, because rows that arrive before the job runs are
+    # copied and rows after are covered by a mirror that has been clean since
+    # 08:00 today, with no error or retried series at all.
+    #
+    # One thing this will not fix: build_runs_new has identical row counts on
+    # both sides and sum_duration differing by 820. A value discrepancy, not a
+    # missing row, so a copy cannot repair it. Same family as the legacy_id
+    # default, and it needs its own look before the cutover.
     migration:
       enabled: true
       name: backfill
       task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-10T12:20:00Z"
+      cutoff: "2026-09-11T12:00:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"

@@ -28,7 +28,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :customers))
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user]))
       |> assign(:search_query, "")
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)

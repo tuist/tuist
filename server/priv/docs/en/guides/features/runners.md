@@ -48,26 +48,28 @@ The **Concurrency** section of the Runners dashboard shows the peak admitted vCP
 
 Your current limits are shown alongside each chart. If your workflows regularly reach them and spend time queued, [contact us](mailto:contact@tuist.dev) with your account handle, platform, and expected parallel workload. We'll review the required capacity and help raise the limits.
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="GitHub Actions"
-        details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
-        linkText="Get started"
-        link="/guides/features/runners/github-actions"/>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Buildkite"
-        details="Connect your cluster, name a queue after a Tuist profile, and target it from a step."
-        linkText="Get started"
-        link="/guides/features/runners/buildkite"/>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Profiles"
-        details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
-        linkText="Manage profiles"
-        link="/guides/features/runners/profiles"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="GitHub Actions"
+    details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
+    link="/guides/features/runners/github-actions"
+/>
+  <.home_card
+    title="Buildkite"
+    details="Connect your cluster, name a queue after a Tuist profile, and target it from a step."
+    link="/guides/features/runners/buildkite"
+/>
+  <.home_card
+    title="GitLab CI"
+    details="Connect GitLab once and choose each job’s machine with pipeline tags."
+    link="/guides/features/runners/gitlab-ci"
+/>
+  <.home_card
+    title="Profiles"
+    details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
+    link="/guides/features/runners/profiles"
+/>
+</.home_cards>
 
 ## Why Tuist Runners {#why-tuist-runners}
 

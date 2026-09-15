@@ -197,11 +197,8 @@ kura-sa-west-ingress-nginx:
 # EU East (Warsaw, OVHcloud). Same host-network shape as the other bare-metal
 # regions: the region's gateway binds the box's public IP, and OVH has no cloud
 # LoadBalancer to put in front of it.
-#
-# Disabled until the box is prepped and adopted. Enabling a region whose pool has
-# no node leaves its Ingresses unclaimed.
 kura-eu-east-ingress-nginx:
-  enabled: false
+  enabled: true
   controller:
     kind: DaemonSet
     hostNetwork: true
@@ -224,11 +221,8 @@ kura-eu-east-ingress-nginx:
 
 # US Central (Chicago, Vultr). Same host-network shape as sa-west, which runs on
 # the same provider and plan.
-#
-# Disabled until the box is prepped and adopted. Enabling a region whose pool has
-# no node leaves its Ingresses unclaimed.
 kura-us-central-ingress-nginx:
-  enabled: false
+  enabled: true
   controller:
     kind: DaemonSet
     hostNetwork: true

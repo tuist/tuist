@@ -12,11 +12,21 @@ import (
 // this field" (e.g. plan tier without the feature) from "server
 // returned a zero value". The reconciler needs that distinction to
 // compute drift correctly against a CR that only sets a subset.
+//
+// Read-only fields Cloudflare returns on GET but rejects on PUT are
+// still decoded here (so callers can inspect them) but stripped from
+// the wire body by UpdateBotManagement — see readOnlyOnPUT below.
 type BotManagement struct {
 	// Bot Fight Mode / JS-detection tier.
 	EnableJS             *bool `json:"enable_js,omitempty"`
 	SuppressSessionScore *bool `json:"suppress_session_score,omitempty"`
-	UsingLatestModel     *bool `json:"using_latest_model,omitempty"`
+
+	// UsingLatestModel is populated on GET but is read-only on PUT.
+	// Cloudflare responds with `cannot write to read-only value
+	// 'using_latest_model'` (HTTP 400) if it appears in the body, so
+	// UpdateBotManagement clears it before marshaling. Toggling the
+	// active model is a dashboard-only operation today.
+	UsingLatestModel *bool `json:"using_latest_model,omitempty"`
 
 	// Super Bot Fight Mode tier (Business+).
 	SBFMDefinitelyAutomated      *string `json:"sbfm_definitely_automated,omitempty"`
@@ -69,12 +79,19 @@ func (c *Client) GetBotManagement(ctx context.Context, zoneID string) (*BotManag
 // omitempty, and the wire behavior of a PUT-with-missing-fields on
 // this endpoint is not documented as merge, so a sparse call could
 // silently wipe those fields.
+//
+// Read-only fields Cloudflare returns on GET but rejects on PUT are
+// stripped here rather than at every caller. Today that means
+// using_latest_model; if Cloudflare adds another the strip belongs in
+// this one place so the fix does not have to chase every merge site.
 func (c *Client) UpdateBotManagement(ctx context.Context, zoneID string, patch BotManagement) (*BotManagement, error) {
 	path := fmt.Sprintf("/zones/%s/bot_management", zoneID)
+	body := patch
+	body.UsingLatestModel = nil
 	var wrapper struct {
 		Result BotManagement `json:"result"`
 	}
-	if _, err := c.do(ctx, http.MethodPut, path, patch, &wrapper); err != nil {
+	if _, err := c.do(ctx, http.MethodPut, path, body, &wrapper); err != nil {
 		return nil, err
 	}
 	return &wrapper.Result, nil

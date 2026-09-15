@@ -3,6 +3,7 @@ defmodule Tuist.Kura.CapacityTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
@@ -58,9 +59,18 @@ defmodule Tuist.Kura.CapacityTest do
       # us-east declares no claim of its own, so an instance carrying none is
       # sized from its account's plan rather than read at the controller's
       # 200Gi fallback, which would overstate it by an order of magnitude.
-      air = %Server{account: %Tuist.Accounts.Account{id: 1, name: "air", subscriptions: []}}
+      air = %Server{account: %Account{id: 1, name: "air", subscriptions: []}}
 
       assert Capacity.resident_gib(region(), air) == 8 * 2
+    end
+
+    test "runner fallback stays at the legacy reservation when account and pin are absent" do
+      runner = Regions.get("scw-fr-par-runners")
+      assert Capacity.resident_gib(runner, %Server{}) == 50 * 2
+      assert Capacity.resident_gib(runner, %Server{storage_claim_size: "invalid"}) == 50 * 2
+      assert Capacity.resident_gib(runner, %Server{storage_claim_size: "24Gi"}) == 24 * 2
+      air = %Server{account: %Account{id: 1, name: "air", subscriptions: []}}
+      assert Capacity.resident_gib(runner, air) == 8 * 2
     end
 
     test "reads every unit a claim may be persisted in" do

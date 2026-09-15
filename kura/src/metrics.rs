@@ -41,7 +41,6 @@ pub struct MetricsInner {
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
     backfill_bodies_peer_label_set: Arc<Mutex<HashSet<String>>>,
-    outbox_target_label_set: Arc<Mutex<HashSet<String>>>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -111,11 +110,6 @@ pub struct MetricsInner {
     manifest_cache_evictions: Family<ManifestCacheEvictionLabels, Counter>,
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
-    outbox_messages: Gauge,
-    outbox_capacity: Gauge,
-    outbox_peer_capacity: Gauge,
-    outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
-    outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     sync_forward_index_entries: Gauge,
     sync_forward_index_dropped: Counter,
     sync_forward_cursor_lag_entries: Family<SyncPeerLabels, Gauge>,
@@ -148,11 +142,7 @@ pub struct MetricsInner {
     backfill_pass_listed_tuples: Family<BackfillPassPeerLabels, Gauge>,
     backfill_pass_resolved_tuples: Family<BackfillPassPeerLabels, Gauge>,
     backfill_pass_events: Family<BackfillPassEventLabels, Counter>,
-    backfill_backfilling_peers: Gauge,
-    backfill_budget_exhausted_peers: Gauge,
-    backfill_initial_cycle_mode: Gauge,
     backfill_ring_fullness_percent: Gauge,
-    backfill_watermark_age_ms: Family<BackfillPassPeerLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
@@ -254,7 +244,6 @@ impl std::ops::Deref for Metrics {
 
 #[derive(Default)]
 struct RolloutSnapshot {
-    outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
     peer_connection_failure_count: AtomicU64,
 }
@@ -313,6 +302,7 @@ struct HotReadMetrics {
 struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
+    reapi_damped_writes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
 }
@@ -539,7 +529,6 @@ impl InflightMetrics {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
-    pub outbox_messages: u64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
 }
@@ -560,7 +549,6 @@ pub mod shed_kind {
     pub const UPLOAD_MEMORY: &str = "upload_memory";
     pub const TMP_STAGING: &str = "tmp_staging";
     pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
-    pub const OUTBOX: &str = "outbox";
     // The remote-execution surface sheds against the same transient budget the
     // HTTP kinds above do, so it belongs in the counter that names which limit
     // refused a request. It carries no HTTP status of its own -- gRPC answers
@@ -570,14 +558,13 @@ pub mod shed_kind {
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
 
-    pub const ALL: [&str; 9] = [
+    pub const ALL: [&str; 8] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
         UPLOAD_MEMORY,
         TMP_STAGING,
         MEMORY_PRESSURE_WRITE,
-        OUTBOX,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
     ];
@@ -695,11 +682,6 @@ impl Metrics {
         let manifest_cache_evictions = Family::<ManifestCacheEvictionLabels, Counter>::default();
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
-        let outbox_messages = Gauge::default();
-        let outbox_capacity = Gauge::default();
-        let outbox_peer_capacity = Gauge::default();
-        let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
-        let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let sync_forward_index_entries = Gauge::default();
         let sync_forward_index_dropped = Counter::default();
         let sync_forward_cursor_lag_entries = Family::<SyncPeerLabels, Gauge>::default();
@@ -733,11 +715,7 @@ impl Metrics {
         let backfill_pass_listed_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let backfill_pass_resolved_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let backfill_pass_events = Family::<BackfillPassEventLabels, Counter>::default();
-        let backfill_backfilling_peers = Gauge::default();
-        let backfill_budget_exhausted_peers = Gauge::default();
-        let backfill_initial_cycle_mode = Gauge::default();
         let backfill_ring_fullness_percent = Gauge::default();
-        let backfill_watermark_age_ms = Family::<BackfillPassPeerLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -890,6 +868,10 @@ impl Metrics {
         let hot_write = Arc::new(HotWriteMetrics {
             reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_write_bytes: artifact_write_bytes.get_or_create_owned(&reapi_ok_labels),
+            reapi_damped_writes: artifact_writes.get_or_create_owned(&ArtifactOpLabels {
+                producer: "reapi".to_owned(),
+                result: "damped".to_owned(),
+            }),
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
@@ -1256,31 +1238,6 @@ impl Metrics {
             manifest_index_rebuild_duration.clone(),
         );
         registry.register(
-            "kura_outbox_messages",
-            "Replication outbox messages waiting to be processed",
-            outbox_messages.clone(),
-        );
-        registry.register(
-            "kura_outbox_capacity",
-            "Replication outbox messages the node may hold across all target peers",
-            outbox_capacity.clone(),
-        );
-        registry.register(
-            "kura_outbox_lane_messages",
-            "Replication outbox messages waiting to be processed, split by drain lane",
-            outbox_lane_messages.clone(),
-        );
-        registry.register(
-            "kura_outbox_target_messages",
-            "Replication outbox messages waiting to be processed, split by target peer",
-            outbox_target_messages.clone(),
-        );
-        registry.register(
-            "kura_outbox_peer_capacity",
-            "Replication outbox messages one target peer may hold",
-            outbox_peer_capacity.clone(),
-        );
-        registry.register(
             "kura_sync_forward_index_entries",
             "Arrival-feed rows retained between the trim floor and the head",
             sync_forward_index_entries.clone(),
@@ -1441,29 +1398,9 @@ impl Metrics {
             backfill_pass_events.clone(),
         );
         registry.register(
-            "kura_backfill_backfilling_peers",
-            "Initial-cycle peers with backfill passes outstanding",
-            backfill_backfilling_peers.clone(),
-        );
-        registry.register(
-            "kura_backfill_budget_exhausted_peers",
-            "Initial-cycle peers whose backfill failure budget is exhausted",
-            backfill_budget_exhausted_peers.clone(),
-        );
-        registry.register(
-            "kura_backfill_initial_cycle_mode",
-            "Initial backfill cycle mode (0=pending, 1=complete, 2=degraded)",
-            backfill_initial_cycle_mode.clone(),
-        );
-        registry.register(
             "kura_backfill_ring_fullness_percent",
             "Segment count as a percentage of the segment ring's desired total",
             backfill_ring_fullness_percent.clone(),
-        );
-        registry.register(
-            "kura_backfill_watermark_age_ms",
-            "Milliseconds between the current wall clock and the peer's persisted backfill watermark",
-            backfill_watermark_age_ms.clone(),
         );
         registry.register(
             "kura_analytics_events_total",
@@ -1927,7 +1864,6 @@ impl Metrics {
                 internal_backfill_request_duration,
                 backfill_bodies_peer_requests,
                 backfill_bodies_peer_label_set: Arc::new(Mutex::new(HashSet::new())),
-                outbox_target_label_set: Arc::new(Mutex::new(HashSet::new())),
                 public_request_latency,
                 http_exceptions,
                 artifact_reads,
@@ -1987,11 +1923,6 @@ impl Metrics {
                 manifest_cache_evictions,
                 manifest_index_rebuilds,
                 manifest_index_rebuild_duration,
-                outbox_messages,
-                outbox_capacity,
-                outbox_peer_capacity,
-                outbox_lane_messages,
-                outbox_target_messages,
                 sync_forward_index_entries,
                 sync_forward_index_dropped,
                 sync_forward_cursor_lag_entries,
@@ -2024,11 +1955,7 @@ impl Metrics {
                 backfill_pass_listed_tuples,
                 backfill_pass_resolved_tuples,
                 backfill_pass_events,
-                backfill_backfilling_peers,
-                backfill_budget_exhausted_peers,
-                backfill_initial_cycle_mode,
                 backfill_ring_fullness_percent,
-                backfill_watermark_age_ms,
                 analytics_events,
                 analytics_batches,
                 analytics_batch_duration,
@@ -2254,13 +2181,26 @@ impl Metrics {
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
-        if producer == ArtifactProducer::Reapi && result == "ok" {
-            self.hot_write.reapi_ok_writes.inc();
-            if bytes > 0 {
-                self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
-                self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+        if producer == ArtifactProducer::Reapi {
+            match result {
+                "ok" => {
+                    self.hot_write.reapi_ok_writes.inc();
+                    if bytes > 0 {
+                        self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
+                        self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+                    }
+                    return;
+                }
+                // A damped action-cache refresh shares the hot path of the
+                // write it declines to perform, so it gets the same pre-created
+                // counter rather than the label-allocating Family lookup. It
+                // stores nothing, so it carries no bytes and observes no size.
+                "damped" => {
+                    self.hot_write.reapi_damped_writes.inc();
+                    return;
+                }
+                _ => {}
             }
-            return;
         }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
@@ -2698,28 +2638,6 @@ impl Metrics {
             .observe(duration.as_secs_f64());
     }
 
-    pub fn update_outbox_messages(&self, count: usize, bulk: usize) {
-        self.outbox_messages.set(count as i64);
-        // The bulk lane drains one delivery at a time and the metadata lane is
-        // batched, so which lane a backlog sits in is what decides whether the
-        // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`. The total
-        // alone cannot separate them.
-        let bulk = bulk.min(count);
-        self.outbox_lane_messages
-            .get_or_create(&OutboxLaneLabels {
-                lane: "bulk".to_owned(),
-            })
-            .set(bulk as i64);
-        self.outbox_lane_messages
-            .get_or_create(&OutboxLaneLabels {
-                lane: "metadata".to_owned(),
-            })
-            .set(count.saturating_sub(bulk) as i64);
-        self.rollout_snapshot
-            .outbox_messages
-            .store(count as u64, Ordering::Relaxed);
-    }
-
     // ---- Pull-based replication (design §6.2) ----
 
     pub fn update_sync_feed_depth(&self, rows: u64) {
@@ -2850,41 +2768,6 @@ impl Metrics {
         self.gateway_role_changes.inc();
     }
 
-    pub fn update_outbox_capacity(&self, max_depth: usize) {
-        self.outbox_capacity.set(max_depth as i64);
-    }
-
-    pub fn update_outbox_peer_capacity(&self, per_peer: usize) {
-        self.outbox_peer_capacity.set(per_peer as i64);
-    }
-
-    /// A target whose queue drained (or that left) is zeroed rather than
-    /// removed, the `clear_backfill_pass_progress` convention: the series
-    /// never gaps under a scrape, so a ratio alert always has a sample.
-    pub fn update_outbox_target_messages(&self, depths: &[(String, usize)]) {
-        let mut known = self
-            .outbox_target_label_set
-            .lock()
-            .expect("outbox target label set lock");
-        for (target, depth) in depths {
-            known.insert(target.clone());
-            self.outbox_target_messages
-                .get_or_create(&OutboxTargetLabels {
-                    target: target.clone(),
-                })
-                .set(*depth as i64);
-        }
-        for target in known.iter() {
-            if !depths.iter().any(|(present, _)| present == target) {
-                self.outbox_target_messages
-                    .get_or_create(&OutboxTargetLabels {
-                        target: target.clone(),
-                    })
-                    .set(0);
-            }
-        }
-    }
-
     pub fn update_segment_fsyncs(&self, total: u64) {
         // The store tracks the cumulative fsync count as a process-local atomic
         // that resets to 0 on restart, exactly like this Counter. Advance the
@@ -3000,33 +2883,9 @@ impl Metrics {
         }
     }
 
-    pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
-        self.backfill_backfilling_peers.set(backfilling as i64);
-        self.backfill_budget_exhausted_peers
-            .set(budget_exhausted as i64);
-    }
-
-    pub fn set_backfill_initial_cycle_mode(&self, mode: i64) {
-        self.backfill_initial_cycle_mode.set(mode);
-    }
-
     pub fn set_backfill_ring_fullness_percent(&self, percent: u64) {
         self.backfill_ring_fullness_percent
             .set(i64::try_from(percent).unwrap_or(i64::MAX));
-    }
-
-    pub fn set_backfill_watermark_age_ms(&self, peer: &str, age_ms: u64) {
-        self.backfill_watermark_age_ms
-            .get_or_create(&BackfillPassPeerLabels {
-                peer: peer.to_owned(),
-            })
-            .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
-    }
-
-    // Zeroed rather than removed when the peer leaves the membership view, the
-    // clear_backfill_pass_progress convention.
-    pub fn clear_backfill_watermark_age(&self, peer: &str) {
-        self.set_backfill_watermark_age_ms(peer, 0);
     }
 
     pub fn record_analytics_event(&self, pipeline: &str, result: &str, count: u64) {
@@ -3497,10 +3356,6 @@ impl Metrics {
 
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
         RolloutMetricsSnapshot {
-            outbox_messages: self
-                .rollout_snapshot
-                .outbox_messages
-                .load(Ordering::Relaxed),
             fd_timeout_count: self
                 .rollout_snapshot
                 .fd_timeout_count
@@ -3550,16 +3405,6 @@ fn records_public_http_metrics(route: &str) -> bool {
         route,
         "/up" | "/ready" | "/status/rollout" | "/metrics" | "/_unmatched"
     ) && !route.starts_with("/_internal/")
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct OutboxLaneLabels {
-    lane: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct OutboxTargetLabels {
-    target: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -3905,6 +3750,38 @@ mod tests {
         assert_eq!(
             std::mem::size_of::<Metrics>(),
             std::mem::size_of::<Arc<MetricsInner>>()
+        );
+    }
+
+    // A damped REAPI action-cache refresh shares the write path's cardinality
+    // and its request rate, so it gets a pre-created counter like the applied
+    // write rather than the label-allocating Family lookup, and it never
+    // reaches write_bytes or the size histogram.
+    #[test]
+    fn damped_reapi_writes_use_a_registered_counter_without_bytes() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"damped\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_bytes_total") && line.contains("damped")
+            }),
+            "a damped refresh stored nothing, so it books no throughput"
+        );
+        assert!(
+            rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_size_bytes_count")
+                    && line.contains("producer=\"reapi\"")
+                    && line.ends_with(" 0")
+            }),
+            "a damped refresh must not land in the stored-size distribution"
         );
     }
 
@@ -4683,7 +4560,6 @@ mod tests {
         metrics.record_manifest_cache_admission("admitted");
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
-        metrics.update_outbox_messages(4, 3);
         metrics.update_multipart_uploads(2, 256);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
@@ -4726,7 +4602,7 @@ mod tests {
         metrics.add_response_stream_waiter("bytestream");
         metrics.record_response_stream_admission("http", "immediate", Duration::from_millis(1));
         metrics.record_memory_pressure_transition("normal", "constrained");
-        metrics.update_background_work_paused("outbox", true);
+        metrics.update_background_work_paused("segment_refresh", true);
         metrics.record_memory_action("manifest_cache_trim");
         metrics.record_memory_action_bytes("manifest_cache_trim", 512);
         metrics.update_snapshot_cache(1_024, 2_048, 1, 2, 3, 256);
@@ -4807,18 +4683,6 @@ mod tests {
         assert!(rendered.contains("kura_manifest_cache_admissions_total"));
         assert!(rendered.contains("kura_manifest_cache_evictions_total"));
         assert!(rendered.contains("kura_manifest_index_rebuilds_total"));
-        assert!(rendered.contains("kura_outbox_messages"));
-        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"bulk\"} 3"));
-        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"metadata\"} 1"));
-
-        // F5: a target that drained (or left) is zeroed rather than removed,
-        // the `clear_backfill_pass_progress` convention, so the series never
-        // gaps under a scrape and ratio alerts keep a sample to evaluate.
-        metrics.update_outbox_target_messages(&[("http://a".to_string(), 5)]);
-        metrics.update_outbox_target_messages(&[("http://b".to_string(), 2)]);
-        let rendered = metrics.render();
-        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://a\"} 0"));
-        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://b\"} 2"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_multipart_upload_capacity 256"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));

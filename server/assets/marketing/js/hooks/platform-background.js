@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Animates the blueprint "platform" decoration around the home hero.
  * The markup is server-rendered;
@@ -130,7 +131,7 @@ export const PlatformBackground = {
 
     let offset = 0;
     let last = performance.now();
-    let raf;
+    let raf = null;
     const tick = (now) => {
       offset += ((now - last) / 1000) * METER_SPEED;
       last = now;
@@ -143,8 +144,16 @@ export const PlatformBackground = {
       draw(offset);
       raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    this.cleanups.push(() => cancelAnimationFrame(raf));
+    const start = () => {
+      if (raf !== null) return;
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      raf = null;
+    };
+    this.cleanups.push(whenInView(widget, { enter: start, leave: stop }));
   },
 
   startKuraNodes() {
@@ -153,13 +162,20 @@ export const PlatformBackground = {
     const nodes = widget.querySelectorAll('[data-part="row"] > span');
     if (nodes.length === 0) return;
 
-    this.timers.push(
-      setInterval(() => {
+    let timer = null;
+    const start = () => {
+      if (timer !== null) return;
+      timer = setInterval(() => {
         for (let k = 0; k < 2; k++) {
           const i = (Math.random() * nodes.length) | 0;
           nodes[i].dataset.lit = String(Math.random() < KURA_LIT_CHANCE);
         }
-      }, 1300),
-    );
+      }, 1300);
+    };
+    const stop = () => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    };
+    this.cleanups.push(whenInView(widget, { enter: start, leave: stop }));
   },
 };

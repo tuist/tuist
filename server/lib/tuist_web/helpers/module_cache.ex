@@ -2,6 +2,35 @@ defmodule TuistWeb.Helpers.ModuleCache do
   @moduledoc false
   use Gettext, backend: TuistWeb.Gettext
 
+  alias TuistWeb.Helpers.DatePicker
+
+  # Relative presets reuse the period already displayed by the picker. Passing
+  # empty assigns explicitly refreshes it, including reapplying the same preset.
+  def analytics_period_assigns(params, assigns) do
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
+
+    period =
+      if preset != "custom" and assigns[:analytics_preset] == preset do
+        assigns.analytics_period
+      else
+        period
+      end
+
+    %{analytics_preset: preset, analytics_period: period}
+  end
+
+  def with_hit_rates(timeseries) do
+    hit_rates =
+      Enum.zip_with(timeseries.invalidations, timeseries.reuses, fn misses, hits ->
+        case misses + hits do
+          0 -> 0.0
+          total -> Float.round(hits / total * 100, 1)
+        end
+      end)
+
+    Map.put(timeseries, :hit_rates, hit_rates)
+  end
+
   def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold evicted), do: reason
   def normalize_miss_reason(_), do: "all"
 

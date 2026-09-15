@@ -595,6 +595,29 @@
                     style="light-fill"
                     size="large"
                   />
+                  <.tooltip
+                    :if={bazel_target_collapse?(test_case)}
+                    id={"test-case-bazel-collapse-#{test_case.id}"}
+                    size="large"
+                    title={dgettext("dashboard_tests", "Bazel target, no JUnit report")}
+                    description={
+                      dgettext(
+                        "dashboard_tests",
+                        "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
+                      )
+                    }
+                  >
+                    <:trigger :let={attrs}>
+                      <span {attrs}>
+                        <.badge
+                          label={dgettext("dashboard_tests", "Bazel target")}
+                          color="primary"
+                          style="light-fill"
+                          size="large"
+                        />
+                      </span>
+                    </:trigger>
+                  </.tooltip>
                 </span>
                 <span data-part="description">
                   {case {test_case.module_name, test_case.suite_name} do
@@ -640,7 +663,7 @@
                   "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
                   count: Tests.min_duration_samples(),
                   days: Tests.active_window_days(),
-                  runs: test_case.duration_sample_count || 0
+                  runs: format_number(test_case.duration_sample_count || 0)
                 )
               }
             >

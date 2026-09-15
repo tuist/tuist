@@ -177,7 +177,7 @@ defmodule TuistWeb.BundleLive do
     file_breakdown_filter = params["file-breakdown-filter"] || ""
     file_breakdown_sort_by = params["file-breakdown-sort-by"] || "size"
     file_breakdown_sort_order = params["file-breakdown-sort-order"] || "desc"
-    file_breakdown_page = Query.bounded_page(params["file-breakdown-page"])
+    file_breakdown_page = Query.positive_integer(params["file-breakdown-page"])
 
     active_filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
@@ -262,7 +262,7 @@ defmodule TuistWeb.BundleLive do
     module_breakdown_filter = params["module-breakdown-filter"] || ""
     module_breakdown_sort_by = params["module-breakdown-sort-by"] || "size"
     module_breakdown_sort_order = params["module-breakdown-sort-order"] || "desc"
-    module_breakdown_page = Query.bounded_page(params["module-breakdown-page"])
+    module_breakdown_page = Query.positive_integer(params["module-breakdown-page"])
 
     module_breakdown_filtered_artifacts =
       all_artifacts

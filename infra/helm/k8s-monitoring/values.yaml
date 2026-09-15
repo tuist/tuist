@@ -172,7 +172,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"

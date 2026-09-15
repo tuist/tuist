@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BazelController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Bazel
+  alias Tuist.Bazel.Invocation
   alias Tuist.ReapiCache
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -507,18 +508,7 @@ defmodule TuistWeb.API.BazelController do
   end
 
   defp build_timeline_json(invocation) do
-    spans =
-      [
-        invocation.build_timeline_span_lanes,
-        invocation.build_timeline_span_start_ms,
-        invocation.build_timeline_span_durations_ms,
-        invocation.build_timeline_span_categories,
-        invocation.build_timeline_span_descriptions
-      ]
-      |> Enum.zip()
-      |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
-        %{lane: lane, start_ms: start_ms, duration_ms: duration_ms, category: category, description: description}
-      end)
+    spans = Invocation.timeline_spans(invocation)
 
     if spans == [] do
       nil

@@ -44,12 +44,25 @@ spec:
                   enum: [read_only, active]
                   default: read_only
                 paused: {type: boolean, default: false}
+                # dependsOn defers reconciliation until the referenced
+                # resource reports Ready=True. Used to gate the SBFM
+                # flip on the skip-SBFM-on-API-paths CustomRule so
+                # bot management never becomes stricter than the CLI
+                # exemption that guards CI traffic.
+                dependsOn:
+                  type: object
+                  required: [kind, name]
+                  properties:
+                    kind:
+                      type: string
+                      enum: [CloudflareCustomRule, CloudflareRateLimit, CloudflareBotManagement]
+                    name:
+                      type: string
                 botFightMode:
                   type: object
                   properties:
                     enableJs: {type: boolean}
                     suppressSessionScore: {type: boolean}
-                    usingLatestModel: {type: boolean}
                 superBotFightMode:
                   type: object
                   properties:

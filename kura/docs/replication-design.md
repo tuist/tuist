@@ -1,6 +1,6 @@
 # Kura Replication Design
 
-Status: implemented on branch; see [`replication-implementation.md`](replication-implementation.md).
+Status: implemented and flipped for every account; the push path (§0) has been removed from the runtime, so §5's "Remove" step is done except for the push receivers, which stay until the oldest supported self-hosted release pulls. See [`replication-implementation.md`](replication-implementation.md).
 
 This document is the design only. The analysis behind it — why the current
 mechanism does not scale, what else was considered, the options deliberately
@@ -320,7 +320,14 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   during migration — never does: its only consumer already has it, and without
   this rule the two replicas would echo every record back and forth forever.
   Nor does an apply that changed nothing (last-writer-wins kept the local
-  record). A push received on the legacy routes *does* earn a row: it names
+  record), nor a *client* write that changed nothing: a REAPI action-cache
+  refresh re-publishing bytes the entry already holds, inside the damping
+  window, is skipped whole — no store write, no version bump, no row. It is
+  counted apart, as
+  `kura_artifact_writes_total{producer="reapi", result="damped"}`, so that the
+  write counter stays comparable with the §6 counters that also see only
+  applied changes; folded into `result="ok"` it reads as replication losing
+  entries. A push received on the legacy routes *does* earn a row: it names
   no region and may have crossed a boundary, so it is treated as
   cross-region. That cannot loop — an apply that arrived over the feed writes
   no row on the receiving side, and a same-region old-binary pusher never
@@ -902,9 +909,23 @@ Three steps, of which only the middle one changes behaviour.
   keeps them off the push targets until they come back saying otherwise; a
   rolled-back peer that returns with `pulling: false` is pushed to again from
   its next tick (D-20).
-- **Remove.** Delete the outbox code once no account has a non-pulling peer.
-  `ROCKSDB_CF_OUTBOX` stays, empty, for the same reason no CF is ever added —
-  a binary that expects it must still open the store.
+- **Remove.** Done: the outbox, its drain, the per-target depth cap, the
+  legacy per-peer pass scheduler and the flip itself are gone; every present
+  peer is pulled from, whatever it advertises. `ROCKSDB_CF_OUTBOX` stays,
+  empty, for the same reason no CF is ever added — a binary that expects it
+  must still open the store — and whatever rows a node upgraded straight from
+  a pushing release carries are swept at open. Two things outlive the push
+  path for the sake of self-hosted peers that have not upgraded: the
+  `/_internal/replicate/*` receivers, so such a peer's outbox still drains
+  into upgraded nodes instead of filling and refusing its own clients'
+  writes; and `pulling: true` plus `peers` in `/_internal/status`, which that
+  peer's per-pair rule reads. A peer that answers 404 to the feed or the
+  ascending listing settles its link as `unsupported` — cold, counted as a
+  capability gap on `/status/rollout` rather than as a degraded catch-up —
+  and receives nothing live from upgraded nodes: only its own backward
+  passes, which its legacy scheduler runs on membership changes and
+  restarts, bring it their writes until it is upgraded. Delete the
+  receivers once the oldest supported self-hosted release pulls.
 
 The region watermarks live under a new prefix, `sync/wm/{region}`, seeded on
 first use from the highest of the old per-peer `backfill/wm/` rows for that

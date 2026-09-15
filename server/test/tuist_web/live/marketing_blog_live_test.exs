@@ -18,7 +18,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -35,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -49,7 +49,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
       {:ok, _lv, legacy_html} = live(conn, ~p"/blog")
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -66,7 +66,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
   describe "GET /blog (cover artwork)" do
     setup do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -96,7 +96,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
   describe "GET /blog (new design view switcher)" do
     setup do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -169,7 +169,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
   describe "GET /blog (compact filters)" do
     setup do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
+        :new_marketing -> true
         _ -> false
       end)
 
