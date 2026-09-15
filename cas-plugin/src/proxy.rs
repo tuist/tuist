@@ -43,6 +43,47 @@ use crate::PublishRecord;
 /// outlive several such moves.
 pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 
+/// How soon a resolution that prefers another endpoint over a healthy current
+/// one is asked again. The move happens only if the second answer agrees.
+pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
+
+#[derive(Debug, PartialEq, Eq)]
+enum EndpointVerdict {
+    Keep,
+    Confirm,
+    Move,
+}
+
+/// What to do with a resolution given the endpoint in force.
+///
+/// The CLI picks by one latency probe per endpoint, so a single bad probe of a
+/// healthy endpoint makes it pick a far one. The current endpoint is therefore
+/// left at once only when the account is no longer served from it, or when it
+/// does not answer; any other disagreement has to be repeated by the next
+/// resolution first.
+fn endpoint_verdict(
+    current: &str,
+    resolved: &crate::endpoint::ResolvedEndpoint,
+    candidate: Option<&str>,
+    current_reachable: impl FnOnce() -> bool,
+) -> EndpointVerdict {
+    use crate::endpoint::same_endpoint;
+
+    if same_endpoint(current, &resolved.url) {
+        return EndpointVerdict::Keep;
+    }
+    if resolved.lists(current) == Some(false) {
+        return EndpointVerdict::Move;
+    }
+    if candidate.is_some_and(|candidate| same_endpoint(candidate, &resolved.url)) {
+        return EndpointVerdict::Move;
+    }
+    if !current_reachable() {
+        return EndpointVerdict::Move;
+    }
+    EndpointVerdict::Confirm
+}
+
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
@@ -1422,6 +1463,9 @@ pub struct Proxy {
     endpoint_resolved_at_ms: AtomicU64,
     // Bumped on every adoption. Only ever compared for equality.
     endpoint_generation: AtomicU64,
+    // An endpoint the last resolution preferred over a healthy current one,
+    // awaiting a second resolution that agrees. See `endpoint_verdict`.
+    endpoint_candidate: Mutex<Option<String>>,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
@@ -1527,6 +1571,7 @@ impl Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
             endpoint_generation: AtomicU64::new(0),
+            endpoint_candidate: Mutex::new(None),
             tokens,
             upstream_plugin,
             epoch: Instant::now(),
@@ -3352,14 +3397,67 @@ impl Proxy {
         let Some(fetch) = self.tokens.cli_fetch() else {
             return;
         };
-        if !self.claim_endpoint_resolution(crate::reapi::now_ms(), ENDPOINT_REFRESH_INTERVAL) {
+        if !self
+            .claim_endpoint_resolution(crate::reapi::now_ms(), self.endpoint_resolution_interval())
+        {
             return;
         }
         if let Some(resolved) =
             crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance)
         {
-            self.adopt_endpoint(resolved);
+            self.consider_endpoint(&resolved, || self.current_endpoint_reachable(instance));
         }
+    }
+
+    fn endpoint_resolution_interval(&self) -> Duration {
+        if self.endpoint_candidate.lock().unwrap().is_some() {
+            ENDPOINT_CONFIRM_INTERVAL
+        } else {
+            ENDPOINT_REFRESH_INTERVAL
+        }
+    }
+
+    /// Applies a resolution through `endpoint_verdict`, returning whether the
+    /// endpoint moved. No lock is held while `current_reachable` runs.
+    fn consider_endpoint(
+        &self,
+        resolved: &crate::endpoint::ResolvedEndpoint,
+        current_reachable: impl FnOnce() -> bool,
+    ) -> bool {
+        let current = self.grpc_url.read().unwrap().clone();
+        let candidate = self.endpoint_candidate.lock().unwrap().clone();
+        match endpoint_verdict(&current, resolved, candidate.as_deref(), current_reachable) {
+            EndpointVerdict::Keep => {
+                *self.endpoint_candidate.lock().unwrap() = None;
+                false
+            }
+            EndpointVerdict::Confirm => {
+                crate::log_line(&format!(
+                    "proxy cache endpoint {current} kept while it serves; resolution preferred {}, confirming in {}s",
+                    resolved.url,
+                    ENDPOINT_CONFIRM_INTERVAL.as_secs()
+                ));
+                *self.endpoint_candidate.lock().unwrap() = Some(resolved.url.clone());
+                false
+            }
+            EndpointVerdict::Move => {
+                *self.endpoint_candidate.lock().unwrap() = None;
+                self.adopt_endpoint(resolved.url.clone())
+            }
+        }
+    }
+
+    fn current_endpoint_reachable(&self, instance: &str) -> bool {
+        let remote = self.current_remote(instance).unwrap_or_else(|| {
+            Remote::new(
+                RemoteConfig {
+                    grpc_url: self.grpc_url.read().unwrap().clone(),
+                    instance: reapi::reapi_instance(instance).to_string(),
+                },
+                self.tokens.clone(),
+            )
+        });
+        remote.reachable()
     }
 
     /// Whether this caller should do the resolution, stamping the attempt when
@@ -6069,6 +6167,110 @@ mod tests {
             Arc::ptr_eq(&before, &after),
             "an unchanged endpoint must not rebuild the client"
         );
+    }
+
+    fn resolution(url: &str, endpoints: Option<&[&str]>) -> crate::endpoint::ResolvedEndpoint {
+        crate::endpoint::ResolvedEndpoint {
+            url: url.to_string(),
+            endpoints: endpoints.map(|endpoints| {
+                endpoints
+                    .iter()
+                    .map(|endpoint| endpoint.to_string())
+                    .collect()
+            }),
+        }
+    }
+
+    #[test]
+    fn a_single_disagreeing_resolution_does_not_move_off_a_serving_endpoint() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let before = proxy.remote_for("acme/app");
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+        assert!(Arc::ptr_eq(&before, &proxy.remote_for("acme/app")));
+        assert_eq!(
+            proxy.endpoint_resolution_interval(),
+            ENDPOINT_CONFIRM_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_disagreement_repeated_by_the_next_resolution_moves() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+        assert!(proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), far);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_resolution_back_to_the_current_endpoint_discards_the_candidate() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+        let listed: &[&str] = &[&current, far];
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(listed)), || true));
+        assert!(!proxy.consider_endpoint(&resolution(&current, Some(listed)), || true));
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(listed)), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+    }
+
+    #[test]
+    fn a_relocated_account_moves_on_the_first_resolution() {
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        let relocated = "http://127.0.0.1:2";
+
+        assert!(
+            proxy.consider_endpoint(&resolution(relocated, Some(&[relocated])), || {
+                panic!("a relocation does not depend on the old endpoint still answering")
+            })
+        );
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), relocated);
+        assert!(proxy.remotes.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_unreachable_current_endpoint_is_left_on_the_first_resolution() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || false));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), far);
+    }
+
+    #[test]
+    fn without_an_endpoint_list_a_disagreement_still_needs_confirming() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, None), || true));
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+        assert!(proxy.consider_endpoint(&resolution(far, None), || true));
+    }
+
+    #[test]
+    fn an_endpoint_refusing_connections_is_unreachable() {
+        let proxy = test_proxy();
+
+        assert!(!proxy.current_endpoint_reachable("acme/app"));
     }
 
     fn test_proxy() -> &'static Proxy {

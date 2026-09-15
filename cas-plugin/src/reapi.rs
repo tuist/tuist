@@ -1536,6 +1536,42 @@ impl Remote {
         )
     }
 
+    /// Whether the endpoint answers gRPC. A status the server sends back, a
+    /// refusal included, counts as reachable; only transport failures that
+    /// survive the retry policy do not.
+    pub fn reachable(&self) -> bool {
+        let Ok(channel) = self.channel() else {
+            return false;
+        };
+        let result = retry_call(|| {
+            let mut client = CapabilitiesClient::new(channel.clone());
+            let request = self.authed(reapi::GetCapabilitiesRequest {
+                instance_name: self.config.instance.clone(),
+            });
+            runtime()
+                .block_on(async {
+                    tokio::time::timeout(Duration::from_secs(5), client.get_capabilities(request))
+                        .await
+                })
+                .unwrap_or_else(|_| {
+                    Err(tonic::Status::deadline_exceeded(
+                        "capabilities probe timed out",
+                    ))
+                })
+        });
+        match result {
+            Ok(_) => true,
+            Err(status) => !matches!(
+                status.code(),
+                tonic::Code::Unavailable
+                    | tonic::Code::Unknown
+                    | tonic::Code::DeadlineExceeded
+                    | tonic::Code::Cancelled
+                    | tonic::Code::Internal
+            ),
+        }
+    }
+
     // Only enable the algorithm/parameters this implementation understands. A
     // failed handshake is an optional optimization failure, so old endpoints
     // continue to use the original transport. Each Remote is endpoint-scoped.
