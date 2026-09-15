@@ -9,6 +9,7 @@ import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistHTTP
+import TuistNooraTesting
 import TuistOIDC
 import TuistServer
 import TuistTesting
@@ -19,6 +20,7 @@ import TuistTesting
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
+    private let farCacheURL = URL(string: "https://far-cache.tuist.dev")!
     private func makeSubject() -> (
         subject: CacheConfigCommandService,
         serverEnvironmentService: MockServerEnvironmentServicing,
@@ -52,6 +54,10 @@ struct CacheConfigCommandServiceTests {
         given(cacheURLStore)
             .getCacheURL(for: .any, accountHandle: .any)
             .willReturn(cacheURL)
+
+        given(cacheURLStore)
+            .getCacheEndpoints(for: .any, accountHandle: .any)
+            .willReturn([cacheURL, farCacheURL])
 
         let subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
@@ -147,6 +153,38 @@ struct CacheConfigCommandServiceTests {
         verify(ciOIDCAuthenticator)
             .fetchOIDCToken()
             .called(0)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func run_reports_every_endpoint_the_account_is_served_from() async throws {
+        // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            _,
+            _,
+            _
+        ) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("account-token-123"))
+
+        // When
+        try await subject.run(
+            fullHandle: "my-account/my-project",
+            json: true,
+            forceRefresh: false,
+            directory: nil,
+            url: nil
+        )
+
+        // Then
+        let output = ui()
+        #expect(output.contains("\"endpoints\""))
+        #expect(output.contains("far-cache.tuist.dev"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies())
