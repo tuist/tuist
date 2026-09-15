@@ -116,7 +116,7 @@ defmodule Tuist.Kura.ClaimProposals do
   defp sweep_inputs(accounts, today, policy) do
     account_ids = Enum.map(accounts, & &1.id)
     governed = governed_region_ids()
-    since = Date.add(today, -(policy.shrink_window_days + 1))
+    since = Date.add(today, -(ClaimSizing.lookback_days(policy) + 1))
 
     rollups =
       StorageRollup

@@ -69,7 +69,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   # stored, which is the tier that must not wait.
   defp severe_churn(count, end_day), do: churn_at(count, end_day, 1_800, 3_600)
 
-  defp idle_days(count, end_day, attrs \\ []) do
+  defp fitting_days(count, end_day, attrs \\ []) do
     for offset <- (count - 1)..0//-1 do
       rollup(
         Date.add(end_day, -offset),
@@ -102,6 +102,45 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
   defp context(base, attrs), do: Map.merge(base, Map.new(attrs))
 
+  # A full ring the account wrote nothing to.
+  defp idle_days(count, end_day) do
+    for offset <- (count - 1)..0//-1 do
+      rollup(Date.add(end_day, -offset),
+        snapshot_count: 96,
+        max_occupancy_percent: 98,
+        last_ring_budget_bytes: 13 * @gibibyte
+      )
+    end
+  end
+
+  # Five UTC days of an enterprise instance on a 26.5 GiB ring, ending at
+  # `end_day`: an ordinary busy day, a day the account barely built, a day it
+  # did not build at all, the first busy day after them, and a busy day still
+  # in progress. The last four are readings production recorded.
+  defp weekend_days(end_day) do
+    ring_bytes = round(26.5 * @gibibyte)
+
+    [
+      {98, 1.65, 73_800, 82_800, 98},
+      {13, 0.23, 128_160, 136_800, 98},
+      {0, 0, nil, nil, 98},
+      {111, 2.05, 253_440, 259_200, 98},
+      {52, 0.95, 75_600, 90_000, 97}
+    ]
+    |> Enum.with_index(-4)
+    |> Enum.map(fn {{evictions, rings, shed_seconds, span_seconds, occupancy}, offset} ->
+      rollup(Date.add(end_day, offset),
+        eviction_count: evictions,
+        evicted_bytes: round(rings * ring_bytes),
+        median_shed_age_seconds: shed_seconds,
+        median_ring_span_seconds: span_seconds,
+        snapshot_count: 96,
+        max_occupancy_percent: occupancy,
+        last_ring_budget_bytes: ring_bytes
+      )
+    end)
+  end
+
   describe "evaluate/2 growth" do
     test "proposes growth after a sustained streak of churn under the retention floor" do
       # Pro floor is 3 days and the shedding sits just under it, so only the
@@ -124,13 +163,113 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert {:grow, "20Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
-    test "one day without evictions inside the window withholds the proposal" do
-      rollups =
-        14
-        |> marginal_churn(@today)
-        |> List.replace_at(7, rollup(Date.add(@today, -6), snapshot_count: 96, max_occupancy_percent: 95))
+    test "a day without evictions breaks growth on a roomy ring and is passed over on a full one" do
+      # Nothing evicted from a ring under the shrink line is the claim fitting:
+      # evidence against growing and toward shrinking. Nothing evicted from a
+      # full ring is an account that did not build, which is evidence of
+      # neither.
+      slot = Date.add(@today, -6)
+      streak = marginal_churn(15, @today)
+      [fitting] = fitting_days(1, slot)
+      [idle] = idle_days(1, slot)
 
-      assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+      assert {:grow, "20Gi", %{"window_days" => 14}} =
+               ClaimSizing.evaluate(context(rollups: List.replace_at(streak, 8, idle)))
+
+      assert ClaimSizing.evaluate(context(rollups: List.replace_at(streak, 8, fitting))) == :none
+      assert {:shrink, "10Gi", _evidence} = ClaimSizing.evaluate(context(rollups: fitting_days(30, @today)))
+    end
+
+    test "a weekend the account did not build through neither confirms nor breaks growth" do
+      # The ring holds about 21 hours on a busy day. Saturday cycled under a
+      # quarter of a ring, a rate at which the ring would hold four days, so
+      # its evictions are the tail of Friday's builds rather than a reading of
+      # the claim. Sunday evicted nothing from a full ring. Monday's 70 hours
+      # is Friday's builds aged by the weekend. Friday and Tuesday are the
+      # readings, and together they cycled more than two rings.
+      rollups = weekend_days(~D[2026-09-15])
+
+      context =
+        context(plan: :enterprise, current_claim_size: "32Gi", today: ~D[2026-09-15], rollups: rollups)
+
+      assert {:grow, "120Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 2
+      assert evidence["median_shed_age_seconds"] == 74_700
+      assert evidence["ring_turnover"] == 2.6
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
+
+      # Monday cannot stand in for Friday: drop Friday and Tuesday has nothing
+      # to confirm it.
+      assert ClaimSizing.evaluate(context(context, rollups: tl(rollups))) == :none
+    end
+
+    test "a Friday and Saturday weekend is passed over the same as a Saturday and Sunday one" do
+      # Nothing reads a weekday: the same week a day earlier puts the idle days
+      # on Friday and Saturday and the first busy day on Sunday.
+      assert Enum.map([~D[2026-09-12], ~D[2026-09-13]], &Date.day_of_week/1) == [6, 7]
+      assert Enum.map([~D[2026-09-11], ~D[2026-09-12]], &Date.day_of_week/1) == [5, 6]
+
+      saturday_sunday =
+        context(
+          plan: :enterprise,
+          current_claim_size: "32Gi",
+          today: ~D[2026-09-15],
+          rollups: weekend_days(~D[2026-09-15])
+        )
+
+      friday_saturday = context(saturday_sunday, today: ~D[2026-09-14], rollups: weekend_days(~D[2026-09-14]))
+
+      assert {:grow, "120Gi", _evidence} = ClaimSizing.evaluate(friday_saturday)
+      assert ClaimSizing.evaluate(friday_saturday) == ClaimSizing.evaluate(saturday_sunday)
+    end
+
+    test "the first busy day after idle days still counts when its reading clears the bar" do
+      # An idle gap can only lengthen a shed age, so a day that sheds in half
+      # an hour despite the gap is as honest as any other and pairs with the
+      # busy day before it.
+      rollups =
+        severe_churn(1, Date.add(@today, -3)) ++ idle_days(2, Date.add(@today, -1)) ++ severe_churn(1, @today)
+
+      assert {:grow, "64Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert evidence["window_days"] == 2
+      assert evidence["qualifying_threshold_seconds"] == 28_800
+    end
+
+    test "a qualifying reading counts however little the day evicted" do
+      # Seven-hour shedding on a full ring confirms on two days. Today's row is
+      # live and has only evicted a fifth of a ring so far, which is under the
+      # idle line, but an idle gap can only lengthen a shed age: a short one on
+      # a quiet day is still the ring running short.
+      [earlier, later] =
+        2
+        |> churn_at(@today, 7 * 3_600, 12 * 3_600)
+        |> Enum.map(&Map.merge(&1, %{snapshot_count: 96, max_occupancy_percent: 98}))
+
+      ring_bytes = 13 * @gibibyte
+      busy = fn rollup -> Map.put(rollup, :evicted_bytes, round(0.8 * ring_bytes)) end
+      quiet = fn rollup -> Map.put(rollup, :evicted_bytes, round(0.2 * ring_bytes)) end
+
+      assert {:grow, "64Gi", %{"window_days" => 2}} =
+               ClaimSizing.evaluate(context(rollups: [busy.(earlier), quiet.(later)]))
+
+      assert {:grow, "64Gi", %{"window_days" => 2}} =
+               ClaimSizing.evaluate(context(rollups: [quiet.(earlier), busy.(later)]))
+    end
+
+    test "an account that stops building keeps its streak only as long as the longest window" do
+      # Idle days are passed over, but no more of them than the longest window
+      # is long, so an account that stopped building does not keep growing
+      # off its last busy days.
+      busy =
+        2
+        |> churn_at(Date.add(@today, -15), 20 * 3_600, 30 * 3_600)
+        |> Enum.map(&Map.put(&1, :evicted_bytes, 15 * @gibibyte))
+
+      assert {:grow, "48Gi", _evidence} = ClaimSizing.evaluate(context(rollups: busy ++ idle_days(15, @today)))
+
+      earlier = Enum.map(busy, &Map.update!(&1, :date, fn date -> Date.add(date, -1) end))
+
+      assert ClaimSizing.evaluate(context(rollups: earlier ++ idle_days(16, @today))) == :none
     end
 
     test "a marginal streak shorter than the longest window withholds the proposal" do
@@ -503,6 +642,26 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
     end
 
+    test "idle days after a qualifying day of the resized ring do not end the fast track" do
+      # Days the account did not build are passed over here as in any window,
+      # so the resized ring's one qualifying day still confirms two days later.
+      idle =
+        for offset <- [-1, 0] do
+          rollup(Date.add(@today, offset),
+            snapshot_count: 96,
+            max_occupancy_percent: 98,
+            last_ring_budget_bytes: 26 * @gibibyte,
+            min_ring_budget_bytes: 26 * @gibibyte
+          )
+        end
+
+      context = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -3), ~T[14:00:00], "Etc/UTC"))
+      rollups = resized_churn(1, Date.add(@today, -2)) ++ idle
+
+      assert {:grow, "64Gi", %{"window_days" => 1, "after_capped_resize" => true}} =
+               ClaimSizing.evaluate(context(context, rollups: rollups))
+    end
+
     test "a day still reporting the ring the capped resize replaced does not qualify" do
       for ring_budget_bytes <- [13 * @gibibyte, nil] do
         rollups =
@@ -608,7 +767,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 shrinking" do
     test "proposes shrinking after a long window of low occupancy" do
       # 6Gi peak at the 60% occupancy target asks for 10Gi.
-      context = context(current_claim_size: "16Gi", rollups: idle_days(30, @today))
+      context = context(current_claim_size: "16Gi", rollups: fitting_days(30, @today))
 
       assert {:shrink, "10Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["region"] == "us-east"
@@ -617,14 +776,14 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "one step never less than halves the claim" do
-      rollups = idle_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
+      rollups = fitting_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
 
       assert {:shrink, "8Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
     test "never shrinks under the validated minimum claim" do
       rollups =
-        idle_days(30, @today,
+        fitting_days(30, @today,
           max_live_segment_bytes: div(@gibibyte, 2),
           last_ring_budget_bytes: 6 * @gibibyte
         )
@@ -637,7 +796,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "a day without snapshots breaks the idle streak" do
       rollups =
         30
-        |> idle_days(@today)
+        |> fitting_days(@today)
         |> List.replace_at(15, rollup(Date.add(@today, -14), eviction_count: 0))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
@@ -646,7 +805,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "an eviction inside the window breaks the idle streak" do
       rollups =
         30
-        |> idle_days(@today)
+        |> fitting_days(@today)
         |> List.replace_at(
           15,
           rollup(Date.add(@today, -14), snapshot_count: 96, max_occupancy_percent: 25, eviction_count: 1)
@@ -656,11 +815,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "a window shorter than the shrink window withholds the proposal" do
-      assert ClaimSizing.evaluate(context(rollups: idle_days(29, @today))) == :none
+      assert ClaimSizing.evaluate(context(rollups: fitting_days(29, @today))) == :none
     end
 
     test "a shrink needs its whole window after the last resize" do
-      rollups = idle_days(30, @today)
+      rollups = fitting_days(30, @today)
 
       recent = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC"))
       assert ClaimSizing.evaluate(recent) == :none
@@ -673,7 +832,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 across regions" do
     test "a growing region wins over a shrinking one" do
       rollups =
-        moderate_churn(14, @today) ++ Enum.map(idle_days(30, @today), &Map.put(&1, :region, "eu-west"))
+        moderate_churn(14, @today) ++ Enum.map(fitting_days(30, @today), &Map.put(&1, :region, "eu-west"))
 
       assert {:grow, "40Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["region"] == "us-east"
@@ -681,7 +840,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "shrinking needs every region with data to agree" do
       rollups =
-        idle_days(30, @today) ++
+        fitting_days(30, @today) ++
           Enum.map(churn_days(5, @today, median_shed_age_seconds: 5 * @day_seconds), &Map.put(&1, :region, "eu-west"))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none

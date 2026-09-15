@@ -15,6 +15,11 @@ defmodule Tuist.Kura.ClaimSizing do
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
   are the mechanism; give any reader a duration.
+
+  A day that misses a growth threshold because the account was idle does not
+  break the streak: a day the account barely wrote to a full ring, or one
+  with such a day inside its shed age, is passed over. A day that meets the
+  threshold always counts. Shrinking still needs every day in its window.
   """
 
   alias Tuist.Kura.Regions
@@ -48,6 +53,14 @@ defmodule Tuist.Kura.ClaimSizing do
   }
 
   def default_policy, do: @default_policy
+
+  @doc """
+  How many days before today a verdict can read: a growth window collects its
+  days and may pass over as many again, and a shrink window reads its own.
+  """
+  def lookback_days(policy \\ @default_policy) do
+    max(2 * passable_days(policy), policy.shrink_window_days)
+  end
 
   @doc """
   Evaluates one account's rollups against the policy.
@@ -125,7 +138,7 @@ defmodule Tuist.Kura.ClaimSizing do
         {target_bytes, evidence} = grow
         {:grow, region, target_bytes, evidence}
 
-      window = qualifying_window(by_date, context.today, policy.shrink_window_days, &shrink_day?(&1, policy)) ->
+      window = qualifying_window(by_date, context.today, policy.shrink_window_days, 0, &shrink_standing(&1, policy)) ->
         {:shrink, region, shrink_target_bytes(window, policy), shrink_evidence(window, policy)}
 
       true ->
@@ -134,16 +147,19 @@ defmodule Tuist.Kura.ClaimSizing do
   end
 
   defp grow_verdict(by_date, floor_seconds, current_bytes, context, policy) do
-    rung_verdict(policy.grow_windows, by_date, floor_seconds, current_bytes, context, policy) ||
-      capped_resize_verdict(by_date, floor_seconds, current_bytes, context, policy)
+    idle_dates = idle_dates(by_date, policy)
+
+    rung_verdict(policy.grow_windows, by_date, idle_dates, floor_seconds, current_bytes, context, policy) ||
+      capped_resize_verdict(by_date, idle_dates, floor_seconds, current_bytes, context, policy)
   end
 
-  defp rung_verdict(rungs, by_date, floor_seconds, current_bytes, context, policy) do
+  defp rung_verdict(rungs, by_date, idle_dates, floor_seconds, current_bytes, context, policy) do
     Enum.find_value(rungs, fn rung ->
       threshold_seconds = shed_age_threshold(rung.shed_age_under, floor_seconds)
+      standing = &grow_standing(&1, idle_dates, threshold_seconds)
 
       with window when not is_nil(window) <-
-             qualifying_window(by_date, context.today, rung.window_days, &grow_day?(&1, threshold_seconds)),
+             qualifying_window(by_date, context.today, rung.window_days, passable_days(policy), standing),
            true <- turnover_cleared?(window, rung) do
         {grow_target_bytes(window, current_bytes, floor_seconds, rung, policy),
          grow_evidence(window, floor_seconds, threshold_seconds)}
@@ -156,9 +172,10 @@ defmodule Tuist.Kura.ClaimSizing do
   # The capped step's evidence already proved the ring short, so a rung
   # confirms on one day of the resized ring, at the one-day bound, until its
   # own window could have run since the resize.
-  defp capped_resize_verdict(_by_date, _floor_seconds, _current_bytes, %{capped_resize_from: nil}, _policy), do: nil
+  defp capped_resize_verdict(_by_date, _idle_dates, _floor_seconds, _current_bytes, %{capped_resize_from: nil}, _policy),
+    do: nil
 
-  defp capped_resize_verdict(by_date, floor_seconds, current_bytes, context, policy) do
+  defp capped_resize_verdict(by_date, idle_dates, floor_seconds, current_bytes, context, policy) do
     previous_bytes = quantity_bytes(context.capped_resize_from)
     resize_date = DateTime.to_date(context.last_resized_at)
     resized = Map.filter(by_date, fn {_date, rollup} -> resized_ring?(rollup, previous_bytes) end)
@@ -167,7 +184,7 @@ defmodule Tuist.Kura.ClaimSizing do
       horizon = Date.add(resize_date, rung.window_days)
       days = Map.filter(resized, fn {date, _rollup} -> Date.compare(date, horizon) != :gt end)
 
-      case rung_verdict([%{rung | window_days: 1}], days, floor_seconds, current_bytes, context, policy) do
+      case rung_verdict([%{rung | window_days: 1}], days, idle_dates, floor_seconds, current_bytes, context, policy) do
         nil -> nil
         {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
       end
@@ -228,16 +245,96 @@ defmodule Tuist.Kura.ClaimSizing do
       rollup.max_occupancy_percent < policy.shrink_occupancy_percent
   end
 
-  # Ends today or yesterday, so the hour the sweep runs never breaks a streak.
-  defp qualifying_window(by_date, today, window_days, qualifies?) do
-    Enum.find_value([today, Date.add(today, -1)], fn end_day ->
-      window =
-        for offset <- (window_days - 1)..0//-1 do
-          Map.get(by_date, Date.add(end_day, -offset))
-        end
+  defp shrink_standing(rollup, policy) do
+    if rollup != nil and shrink_day?(rollup, policy), do: :qualifies, else: :breaks
+  end
 
-      if Enum.all?(window, &(&1 != nil and qualifies?.(&1))), do: window
-    end)
+  # Idle time can only lengthen a shed age, so a day under the threshold
+  # qualifies however little it evicted, today's live row included. A day over
+  # it is passed over when it was idle itself or an idle day sits inside its
+  # shed age: the gap may be all it measured.
+  defp grow_standing(nil, _idle_dates, _threshold_seconds), do: :breaks
+
+  defp grow_standing(rollup, idle_dates, threshold_seconds) do
+    cond do
+      grow_day?(rollup, threshold_seconds) -> :qualifies
+      MapSet.member?(idle_dates, rollup.date) -> :passed_over
+      idle_within_shed_age?(rollup, idle_dates) -> :passed_over
+      true -> :breaks
+    end
+  end
+
+  # The whole days the median shed content outlived, and always the day
+  # before, which it outlived at least in part.
+  defp idle_within_shed_age?(%{median_shed_age_seconds: nil}, _idle_dates), do: false
+
+  defp idle_within_shed_age?(rollup, idle_dates) do
+    days = max(div(rollup.median_shed_age_seconds, @seconds_per_day), 1)
+    Enum.any?(1..days, &MapSet.member?(idle_dates, Date.add(rollup.date, -&1)))
+  end
+
+  # Idle is read from the account's own telemetry, never a calendar: weekends
+  # and holidays differ by country, one account can build from several, and a
+  # local weekend straddles UTC dates. A full ring that cycled at most one ring
+  # per retention floor wrote so little that, at that rate, the ring would
+  # hold the floor, so a long shed age that day is older builds leaving rather
+  # than a reading of the claim. A ring under the shrink line that evicted
+  # nothing is the claim fitting.
+  defp idle_dates(by_date, policy) do
+    for {date, rollup} <- by_date, idle_day?(rollup, policy), into: MapSet.new(), do: date
+  end
+
+  defp idle_day?(rollup, policy) do
+    rollup.snapshot_count > 0 and rollup.max_occupancy_percent != nil and
+      rollup.max_occupancy_percent >= policy.shrink_occupancy_percent and
+      negligible_evictions?(rollup, policy)
+  end
+
+  defp negligible_evictions?(%{eviction_count: 0}, _policy), do: true
+
+  defp negligible_evictions?(%{last_ring_budget_bytes: budget_bytes} = rollup, policy)
+       when is_integer(budget_bytes) and budget_bytes > 0,
+       do: rollup.evicted_bytes * policy.retention_floor_days <= budget_bytes
+
+  defp negligible_evictions?(_rollup, _policy), do: false
+
+  # As many as the longest window is long: the longest any reading is asked to
+  # hold. Past that, the days either side of the gap are no longer one reading.
+  defp passable_days(policy) do
+    policy.grow_windows
+    |> Enum.map(& &1.window_days)
+    |> Enum.max()
+  end
+
+  # Walks back from today. Today's row is live, so it counts when it qualifies
+  # and is passed over when it does not: the hour the sweep runs never breaks
+  # a streak. Every earlier day passed over spends one of `passable_days`.
+  defp qualifying_window(by_date, today, window_days, passable_days, standing) do
+    rollup = Map.get(by_date, today)
+    yesterday = Date.add(today, -1)
+
+    case standing.(rollup) do
+      :qualifies -> collect_window(by_date, yesterday, window_days - 1, passable_days, standing, [rollup])
+      _standing -> collect_window(by_date, yesterday, window_days, passable_days, standing, [])
+    end
+  end
+
+  defp collect_window(_by_date, _day, 0, _passable_days, _standing, window), do: window
+
+  defp collect_window(by_date, day, remaining_days, passable_days, standing, window) do
+    rollup = Map.get(by_date, day)
+    previous_day = Date.add(day, -1)
+
+    case standing.(rollup) do
+      :qualifies ->
+        collect_window(by_date, previous_day, remaining_days - 1, passable_days, standing, [rollup | window])
+
+      :passed_over when passable_days > 0 ->
+        collect_window(by_date, previous_day, remaining_days, passable_days - 1, standing, window)
+
+      _standing ->
+        nil
+    end
   end
 
   defp grow_target_bytes(window, current_bytes, floor_seconds, rung, policy) do
