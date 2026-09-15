@@ -41,9 +41,13 @@ struct XcodeBuildTestCommandServiceTests {
     private let shardService = MockShardServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let uploadBuildRunService = MockUploadBuildRunServicing()
+    private let casProxyFailureService = MockCASProxyFailureServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
+        given(casProxyFailureService)
+            .failure(since: .any)
+            .willReturn(nil)
         given(testCaseListService)
             .listAllTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
@@ -85,7 +89,48 @@ struct XcodeBuildTestCommandServiceTests {
             testCaseListService: testCaseListService,
             shardService: shardService,
             serverEnvironmentService: serverEnvironmentService,
-            uploadBuildRunService: uploadBuildRunService
+            uploadBuildRunService: uploadBuildRunService,
+            casProxyFailureService: casProxyFailureService
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func warnsWhenTheCASProxyFailedDuringTheTests() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+        casProxyFailureService.reset()
+        given(casProxyFailureService)
+            .failure(since: .any)
+            .willReturn(
+                CASProxyFailure(
+                    socket: "/Users/tuist/.local/state/tuist/cas-proxy.sock",
+                    error: "proxy connect: No such file or directory (os error 2)"
+                )
+            )
+
+        try await subject.run(passthroughXcodebuildArguments: ["test", "-scheme", "MyAppTests"])
+
+        #expect(
+            AlertController.current.warnings().map { $0.message.plain() }.contains(
+                "The Xcode cache proxy at /Users/tuist/.local/state/tuist/cas-proxy.sock failed during this build: proxy connect: No such file or directory (os error 2)"
+            )
         )
     }
 

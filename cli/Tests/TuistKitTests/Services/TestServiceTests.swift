@@ -61,6 +61,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardService: MockShardServicing!
     private var xcActivityLogController: MockXCActivityLogControlling!
     private var uploadBuildRunService: MockUploadBuildRunServicing!
+    private var casProxyFailureService: MockCASProxyFailureServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -89,6 +90,11 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
+        casProxyFailureService = .init()
+
+        given(casProxyFailureService)
+            .failure(since: .any)
+            .willReturn(nil)
 
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
@@ -217,7 +223,8 @@ final class TestServiceTests: TuistUnitTestCase {
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
             xcActivityLogController: xcActivityLogController,
-            uploadBuildRunService: uploadBuildRunService
+            uploadBuildRunService: uploadBuildRunService,
+            casProxyFailureService: casProxyFailureService
         )
 
         given(simulatorController)
@@ -4018,6 +4025,48 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(existing, [testPlan])
         } catch {
             throw error
+        }
+    }
+
+    func test_run_warnsWhenTheCASProxyFailedDuringTheTests() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn(
+                    [
+                        Scheme.test(name: "ProjectScheme"),
+                    ]
+                )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            casProxyFailureService.reset()
+            given(casProxyFailureService)
+                .failure(since: .any)
+                .willReturn(
+                    CASProxyFailure(
+                        socket: "/Users/tuist/.local/state/tuist/cas-proxy.sock",
+                        error: "proxy connect: No such file or directory (os error 2)"
+                    )
+                )
+
+            // When
+            try await testRun(path: try temporaryPath())
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            XCTAssertTrue(
+                AlertController.current.warnings().map { $0.message.plain() }.contains(
+                    "The Xcode cache proxy at /Users/tuist/.local/state/tuist/cas-proxy.sock failed during this build: proxy connect: No such file or directory (os error 2)"
+                )
+            )
         }
     }
 

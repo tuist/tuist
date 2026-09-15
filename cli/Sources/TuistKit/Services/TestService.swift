@@ -133,6 +133,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
+    private let casProxyFailureService: CASProxyFailureServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -175,7 +176,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardService: ShardServicing = ShardService(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
+        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -205,6 +207,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.xcActivityLogController = xcActivityLogController
         self.uploadBuildRunService = uploadBuildRunService
         self.stressNewTestsService = stressNewTestsService
+        self.casProxyFailureService = casProxyFailureService
     }
 
     public static func validateParameters(
@@ -775,11 +778,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var testError: Error?
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
             testError = error
         }
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
 
         let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -945,11 +950,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var testError: Error?
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
             testError = error
         }
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
 
         let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -2105,6 +2112,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -2123,6 +2131,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
+            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             await uploadBuildRunIfNeeded(
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 projectPath: graphTraverser.workspace.xcWorkspacePath,
@@ -2163,6 +2172,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         await uploadBuildRunIfNeeded(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             projectPath: graphTraverser.workspace.xcWorkspacePath,
