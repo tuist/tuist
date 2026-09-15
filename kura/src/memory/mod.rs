@@ -428,6 +428,14 @@ impl MemoryController {
         self.inner.pools.elastic_transient_reserved_bytes() as u64
     }
 
+    /// Transient bytes held across both pools. File-cache policies compare a
+    /// reservation against this to detect overlapping work, and a borrowed
+    /// reservation is as much an overlap as a floor-derived one.
+    pub fn foreground_transient_reserved_bytes(&self) -> u64 {
+        self.transient_reserved_bytes()
+            .saturating_add(self.elastic_transient_reserved_bytes())
+    }
+
     /// Everything a borrowing foreground caller may hold: the floor-derived
     /// pool plus the ceiling headroom above it. Callers that size a window
     /// against the budget have to use this, or they clamp themselves to the

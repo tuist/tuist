@@ -3016,7 +3016,7 @@ impl Store {
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
         let drop_cached_pages = file_cache_policy.should_drop(
             self.memory.should_reclaim_file_cache(),
-            self.memory.transient_reserved_bytes(),
+            self.memory.foreground_transient_reserved_bytes(),
         );
         if self.positioned_segment_writes_enabled()
             && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
@@ -3355,7 +3355,7 @@ impl Store {
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                     && file_cache_policy.should_drop(
                         self.memory.should_reclaim_file_cache(),
-                        self.memory.transient_reserved_bytes(),
+                        self.memory.foreground_transient_reserved_bytes(),
                     )
                 {
                     let destination = writer
@@ -3422,7 +3422,7 @@ impl Store {
             let drop_final_range = copied > advised_through
                 && file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 );
             if drop_final_range {
                 let destination = writer
@@ -6154,7 +6154,7 @@ impl Store {
                 assembled_bytes = assembled_bytes.saturating_add(read as u64);
                 if file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 ) && assembled_bytes.saturating_sub(advised_through)
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                 {

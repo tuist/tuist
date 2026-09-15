@@ -519,7 +519,7 @@ pub async fn read_request_to_temp(
         }
         if file_cache_policy.should_drop(
             staging.memory.should_reclaim_file_cache(),
-            staging.memory.transient_reserved_bytes(),
+            staging.memory.foreground_transient_reserved_bytes(),
         ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
         {
             file = match drop_staging_cache_range(

@@ -247,6 +247,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_borrowed_upload_still_counts_as_an_overlap() {
+        let memory = floor_governed_memory();
+        let first = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
+            .await
+            .expect("first reservation should fit");
+        let rest_of_floor = memory
+            .try_reserve_foreground_memory(
+                memory.transient_capacity_bytes() - memory.transient_reserved_bytes(),
+            )
+            .expect("the rest of the floor pool should admit");
+        let borrowed = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
+            .await
+            .expect("second reservation should borrow");
+        assert!(memory.elastic_transient_reserved_bytes() > 0);
+        drop(rest_of_floor);
+
+        assert!(
+            first
+                .file_cache_policy()
+                .should_drop(false, memory.foreground_transient_reserved_bytes())
+        );
+        drop(borrowed);
+        assert!(
+            !first
+                .file_cache_policy()
+                .should_drop(false, memory.foreground_transient_reserved_bytes())
+        );
+    }
+
+    #[tokio::test]
     async fn staging_queues_on_the_floor_above_normal_pressure() {
         let memory = floor_governed_memory();
         memory.observe(512 * MIB + 1);
