@@ -116,7 +116,7 @@ impl Drop for ResponseStreamMemoryPermit {
         drop(self.elastic_concurrency.take());
         if let Some(transient) = transient.as_mut() {
             drop(transient.permit.take());
-            drop(transient.elastic_permit.take());
+            transient.release_elastic_permit();
             let has_waiters = transient
                 .controller
                 .inner
@@ -278,7 +278,20 @@ impl Drop for ForegroundWaiter {
     }
 }
 
+impl Drop for TransientMemoryReservation {
+    fn drop(&mut self) {
+        self.release_elastic_permit();
+    }
+}
+
 impl TransientMemoryReservation {
+    pub(super) fn release_elastic_permit(&mut self) {
+        if let Some(permit) = self.elastic_permit.take() {
+            drop(permit);
+            self.controller.notify_elastic_transient_released();
+        }
+    }
+
     fn try_resize_foreground(&mut self, requested_bytes: u64) -> Result<(), ()> {
         if requested_bytes > self.bytes {
             if !self
@@ -345,6 +358,9 @@ impl TransientMemoryReservation {
             self.elastic_permit = None;
         } else if released > 0 {
             drop(permit.split(released).ok_or(())?);
+        }
+        if released > 0 {
+            self.controller.notify_elastic_transient_released();
         }
         Ok(released_bytes - released)
     }

@@ -95,6 +95,7 @@ struct MemoryControllerInner {
     response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
+    elastic_transient_released: Notify,
     pressure_tier_changed: Notify,
     /// Mapped regions currently lent out, each holding its pool permit once.
     mmap_regions: StdMutex<HashMap<MmapRegion, MmapRegionEntry>>,
@@ -222,6 +223,7 @@ impl MemoryController {
                 response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
+                elastic_transient_released: Notify::new(),
                 pressure_tier_changed: Notify::new(),
                 mmap_regions: StdMutex::new(HashMap::new()),
                 pools,
@@ -754,7 +756,8 @@ impl MemoryController {
     /// behind a full floor used to shed uploads while the headroom sat idle.
     /// Unlike a materialized response, the reservation covers the staging
     /// file's page cache, which writeback makes reclaimable even while a slow
-    /// client holds the permit.
+    /// client holds the permit. An upload that has to queue keeps taking
+    /// headroom as borrowers return it.
     pub(crate) async fn reserve_foreground_memory(
         &self,
         requested_bytes: u64,
@@ -768,11 +771,16 @@ impl MemoryController {
                 let _waiter = ForegroundWaiter::new(self.inner.clone());
                 match timeout(
                     FOREGROUND_ADMISSION_TIMEOUT,
-                    self.reserve_transient(requested_bytes, AdmissionClass::Foreground),
+                    self.reserve_waiting_foreground_transient(requested_bytes),
                 )
                 .await
                 {
                     Ok(Ok(reservation)) => {
+                        if reservation.elastic_permit.is_some() {
+                            self.inner
+                                .metrics
+                                .record_memory_action("foreground_upload_admission_wait_borrowed");
+                        }
                         Ok((ForegroundMemoryReservation::new(reservation), true))
                     }
                     Ok(Err(())) | Err(_) => {
@@ -783,6 +791,44 @@ impl MemoryController {
                     }
                 }
             }
+        }
+    }
+
+    /// Keeps a queued upload's place in the floor-derived pool while taking
+    /// ceiling headroom as soon as a borrower returns some. The elastic pool is
+    /// only ever tried, never queued on: a semaphore queue would hand every
+    /// returned byte to the waiting upload first and starve write decoding,
+    /// whose only alternative to borrowing is `RESOURCE_EXHAUSTED`.
+    async fn reserve_waiting_foreground_transient(
+        &self,
+        requested_bytes: u64,
+    ) -> Result<TransientMemoryReservation, ()> {
+        let floor = self.reserve_transient(requested_bytes, AdmissionClass::Foreground);
+        tokio::pin!(floor);
+        loop {
+            let elastic_released = self.inner.elastic_transient_released.notified();
+            let tier_changed = self.pressure_tier_changed();
+            tokio::pin!(elastic_released, tier_changed);
+            elastic_released.as_mut().enable();
+            tier_changed.as_mut().enable();
+            if let Ok(reservation) = self.try_reserve_transient_with(
+                requested_bytes,
+                AdmissionClass::Foreground,
+                TransientElasticity::MayBorrowCeilingHeadroom,
+            ) {
+                return Ok(reservation);
+            }
+            tokio::select! {
+                reservation = &mut floor => return reservation,
+                () = &mut elastic_released => {}
+                () = &mut tier_changed => {}
+            }
+        }
+    }
+
+    fn notify_elastic_transient_released(&self) {
+        if self.inner.foreground_waiters.load(Ordering::Acquire) > 0 {
+            self.inner.elastic_transient_released.notify_waiters();
         }
     }
 
@@ -2751,5 +2797,120 @@ mod tests {
             .expect("the older reservation should still be held");
         older.await.expect("the older task should finish");
         younger.await.expect("the younger task should finish");
+    }
+
+    async fn wait_for_foreground_waiter(controller: &MemoryController) {
+        while controller.inner.foreground_waiters.load(Ordering::Acquire) == 0 {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn a_queued_upload_takes_headroom_a_borrower_returns() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let floor = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut borrower = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        assert!(
+            borrower
+                .try_resize(controller.elastic_transient_capacity_bytes())
+                .is_ok()
+        );
+
+        let upload = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_foreground_memory(32 * 1024 * 1024).await }
+        });
+        wait_for_foreground_waiter(&controller).await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(!upload.is_finished());
+
+        // The floor stays full: only the returned headroom can admit the upload.
+        drop(borrower);
+        let (reservation, waited) = tokio::time::timeout(std::time::Duration::from_secs(1), upload)
+            .await
+            .expect("returned headroom should admit the queued upload")
+            .expect("join")
+            .expect("reservation");
+        assert!(waited);
+        assert_eq!(
+            controller.elastic_transient_reserved_bytes(),
+            32 * 1024 * 1024
+        );
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        drop(reservation);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        drop(floor);
+    }
+
+    #[tokio::test]
+    async fn a_queued_upload_leaves_returned_headroom_it_cannot_use_to_write_decoding() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let elastic_capacity = controller.elastic_transient_capacity_bytes();
+        let floor = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut borrower = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        assert!(borrower.try_resize(elastic_capacity).is_ok());
+
+        let upload = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_foreground_memory(32 * 1024 * 1024).await }
+        });
+        wait_for_foreground_waiter(&controller).await;
+
+        // Less than the upload needs comes back. Queueing on the elastic
+        // semaphore would park those bytes on the upload; trying leaves them to
+        // the next write-decode borrow.
+        assert!(
+            borrower
+                .try_resize(elastic_capacity - 16 * 1024 * 1024)
+                .is_ok()
+        );
+        tokio::task::yield_now().await;
+        let mut decode = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        assert!(
+            decode.try_resize(8 * 1024 * 1024).is_ok(),
+            "a waiting upload must not hold back a write-decode borrow"
+        );
+        assert!(!upload.is_finished());
+
+        drop(decode);
+        drop(borrower);
+        let (reservation, _) = tokio::time::timeout(std::time::Duration::from_secs(1), upload)
+            .await
+            .expect("the upload should be admitted once enough headroom returns")
+            .expect("join")
+            .expect("reservation");
+        drop(reservation);
+        drop(floor);
+    }
+
+    #[tokio::test]
+    async fn a_queued_upload_does_not_borrow_above_normal_pressure() {
+        let (controller, anon_budget, _) = elastic_controller(Some(MemoryPressure::Constrained));
+        let floor = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        let upload = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_foreground_memory(32 * 1024 * 1024).await }
+        });
+        wait_for_foreground_waiter(&controller).await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(!upload.is_finished());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+
+        drop(floor);
+        let (reservation, waited) = tokio::time::timeout(std::time::Duration::from_secs(1), upload)
+            .await
+            .expect("the floor should admit the upload once it frees")
+            .expect("join")
+            .expect("reservation");
+        assert!(waited);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        drop(reservation);
     }
 }
