@@ -742,6 +742,154 @@ struct LaunchAgentServiceTests {
         #expect(await subject.runningProcessIdentifier(label: "tuist.test") == nil)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func isLaunchAgentCurrent_isTrueForTheAgentSetupWouldInstallAgain() async throws {
+        // Given: the agent as `setupLaunchAgent` installs it, with the plist then
+        // rewritten in another key order and layout. The environment is rendered
+        // from a dictionary, so two setups never agree on the text.
+        let installed = try await installAgent()
+        let plist = try await fileSystem.readTextFile(at: installed.plistPath)
+        let propertyList = try PropertyListSerialization.propertyList(from: Data(plist.utf8), format: nil)
+        let reordered = try PropertyListSerialization.data(fromPropertyList: propertyList, format: .xml, options: 0)
+        try await fileSystem.writeText(String(decoding: reordered, as: UTF8.self), at: installed.plistPath, options: [.overwrite])
+        #expect(try await fileSystem.readTextFile(at: installed.plistPath) != plist)
+
+        // When
+        let current = await service(launchedAt: Date().addingTimeInterval(1)).isLaunchAgentCurrent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments,
+            environmentVariables: Self.environmentVariables,
+            launchInputs: [installed.launchInput]
+        )
+
+        // Then
+        #expect(current)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func isLaunchAgentCurrent_isFalseWhenTheConfigurationDiffers() async throws {
+        let installed = try await installAgent()
+        let subject = service(launchedAt: Date().addingTimeInterval(1))
+
+        var environmentVariables = Self.environmentVariables
+        environmentVariables["TUIST_CAS_PROXY_DEVELOPER_DIR"] = "/Applications/Xcode-27.0.app/Contents/Developer"
+        #expect(await !subject.isLaunchAgentCurrent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments,
+            environmentVariables: environmentVariables,
+            launchInputs: [installed.launchInput]
+        ))
+        #expect(await !subject.isLaunchAgentCurrent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments + ["--account", "other"],
+            environmentVariables: Self.environmentVariables,
+            launchInputs: [installed.launchInput]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [nil, LaunchAgentJob(processIdentifier: nil)])
+    func isLaunchAgentCurrent_isFalseWithoutAProcess(job: LaunchAgentJob?) async throws {
+        let installed = try await installAgent()
+        resetLaunchctlController()
+        given(launchctlController).job(label: .value("tuist.test")).willReturn(job)
+
+        #expect(await !service(launchedAt: Date().addingTimeInterval(1)).isLaunchAgentCurrent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments,
+            environmentVariables: Self.environmentVariables,
+            launchInputs: [installed.launchInput]
+        ))
+    }
+
+    /// A process reads its binary and its inputs when it starts, so one that
+    /// started before either was replaced is running the old one, with a plist
+    /// that is no different.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func isLaunchAgentCurrent_isFalseWhenAFileTheProcessStartedFromChangedSince() async throws {
+        let installed = try await installAgent()
+        let launchedAt = Date()
+        let subject = service(launchedAt: launchedAt)
+        let current = {
+            await subject.isLaunchAgentCurrent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: Self.programArguments,
+                environmentVariables: Self.environmentVariables,
+                launchInputs: [installed.launchInput]
+            )
+        }
+        #expect(await current())
+
+        try await fileSystem.writeText("the next release", at: installed.launchInput, options: [.overwrite])
+        #expect(await !current(), "a replaced launch input")
+
+        #expect(await !service(launchedAt: Date().addingTimeInterval(1)).isLaunchAgentCurrent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments,
+            environmentVariables: Self.environmentVariables,
+            launchInputs: [installed.launchInput.parentDirectory.appending(component: "missing")]
+        ), "a launch input that cannot be inspected")
+    }
+
+    @Test func launchDate_isWhenTheProcessStarted() throws {
+        let launchedAt = try #require(LaunchAgentService.launchDate(ofProcess: getpid()))
+        #expect(launchedAt <= Date())
+        #expect(LaunchAgentService.launchDate(ofProcess: -1) == nil)
+    }
+
+    private static let programArguments = ["cache-proxy", "--url", "https://tuist.dev"]
+    private static let environmentVariables = [
+        "TUIST_FEATURE_FLAG_KURA": "1",
+        "TUIST_CAS_LOG": "/tmp/cas.log",
+        "TUIST_CAS_PREFETCH": "keys",
+        "TUIST_TOKEN": "token",
+    ]
+
+    /// Installs `tuist.test` through `setupLaunchAgent` from a binary and a launch
+    /// input written beforehand, and leaves launchd reporting a process for it.
+    private func installAgent() async throws -> (plistPath: AbsolutePath, launchInput: AbsolutePath) {
+        let environment = try #require(Environment.mocked)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let binary = temporaryDirectory.appending(component: "tuist")
+        try await fileSystem.writeText("tuist", at: binary)
+        let launchInput = temporaryDirectory.appending(component: "tuist-cas-proxy")
+        try await fileSystem.writeText("tuist-cas-proxy", at: launchInput)
+        environment.currentExecutablePathStub = binary
+        given(launchctlController)
+            .bootstrap(plistPath: .any, domain: .any)
+            .willReturn()
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: Self.programArguments,
+            environmentVariables: Self.environmentVariables
+        )
+
+        resetLaunchctlController()
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
+        return (
+            environment.homeDirectory.appending(components: "Library", "LaunchAgents", "tuist.test.plist"),
+            launchInput
+        )
+    }
+
+    private func service(launchedAt: Date) -> LaunchAgentService {
+        LaunchAgentService(
+            fileSystem: fileSystem,
+            launchctlController: launchctlController,
+            bootoutTimeout: .milliseconds(500),
+            processLaunchDate: { _ in launchedAt }
+        )
+    }
+
     private func resetLaunchctlController(domain: LaunchAgentDomain = .gui) {
         launchctlController.reset()
         given(launchctlController).preferredDomain().willReturn(domain)
