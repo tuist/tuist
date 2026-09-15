@@ -711,7 +711,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           status: "success",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           test_modules: []
         }
       )
@@ -772,7 +772,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           scheme: "TuistAcceptanceTests",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           shard_index: 1,
           test_modules: []
         }
