@@ -19,7 +19,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > [!TIP]
 > **On developer machines, keep `CompilationCache.noindex` when you clean**
 >
-> By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything. To delete the store itself, follow [Resetting a compilation cache store](#resetting-a-compilation-cache-store). On CI, give each build a fresh store instead, as described in [Compilation cache store on CI](#compilation-cache-store-on-ci).
+> By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything. To delete the store itself, follow [Resetting a compilation cache store](#resetting-a-compilation-cache-store).
 
 
 ## Setup {#setup}
@@ -222,29 +222,7 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 
 ### Compilation cache store on CI {#compilation-cache-store-on-ci}
 
-The compilation cache store is the local directory where Xcode keeps compilation outputs. The `COMPILATION_CACHE_CAS_PATH` build setting sets its location, which defaults to `CompilationCache.noindex` inside `DerivedData`. On CI, the recommended setup is an ephemeral store, a fresh directory for every build. A stateful store that persists between builds is also supported.
-
-#### Ephemeral store {#ephemeral-store}
-
-Give each build a fresh store with `COMPILATION_CACHE_CAS_PATH`, and use the same derived data path in every build:
-
-```bash
-CAS_PATH="$(mktemp -d)/CompilationCache"
-
-xcodebuild build -workspace App.xcworkspace -scheme App \
-    -derivedDataPath /tmp/DerivedData \
-    COMPILATION_CACHE_CAS_PATH="$CAS_PATH"
-```
-
-- The store path isn't part of compilation cache keys. A build with a fresh store looks up the same keys, starts with an empty local store, and replays hits from the remote cache.
-- The derived data path is part of compilation cache keys, because the keys include the absolute paths of a compilation's outputs. Builds that use different derived data paths don't hit each other's outputs. On Xcode 27 and later, the prefix mapping settings make the keys independent of the derived data path.
-
-For `tuist cache`, set `TUIST_COMPILATION_CACHE_CAS_PATH`. It takes precedence over the store inside the <.localized_link href="/guides/features/cache/module-cache#cache-warm-scratch-directory">cache warm scratch directory</.localized_link> and over the default location:
-
-```bash
-export TUIST_COMPILATION_CACHE_CAS_PATH="$(mktemp -d)/CompilationCache"
-tuist cache
-```
+The compilation cache store is the local directory where Xcode keeps compilation outputs. The `COMPILATION_CACHE_CAS_PATH` build setting sets its location, which defaults to `CompilationCache.noindex` inside `DerivedData`.
 
 #### Stateful store {#stateful-store}
 
