@@ -19,7 +19,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > [!TIP]
 > **On developer machines, keep `CompilationCache.noindex` when you clean**
 >
-> By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything. To delete the store itself, follow [Resetting a compilation cache store](#resetting-a-compilation-cache-store).
+> By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything.
 
 
 ## Setup {#setup}
@@ -228,16 +228,6 @@ The compilation cache store is the local directory where Xcode keeps compilation
 
 To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path, and bound its size with a [store size limit](#store-size-limit).
 
-### Resetting a compilation cache store {#resetting-a-compilation-cache-store}
-
-You can delete a store directory while the Xcode cache is set up, including by deleting `DerivedData` when the store is in its default location. When a build creates the store again at the same path, Tuist reopens it in the background, and cache lookups for that path miss until the store is reopened. To reset a store without that window, tear down the cache first:
-
-```bash
-tuist teardown cache
-rm -rf "$CAS_PATH"
-tuist setup cache
-```
-
 ## Troubleshooting {#troubleshooting}
 
 ### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
@@ -298,12 +288,3 @@ A build log that mixes successful `uploaded CAS output` notes with `deadlineExce
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
 When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
-
-### Finding the Xcode cache's diagnostics {#xcode-cache-diagnostics}
-
-The Xcode cache writes its diagnostics, such as hit and miss counts, lookup latency, and errors, only to the file named by `TUIST_CAS_LOG`. They never appear in the build output.
-
-- On CI, the file defaults to `~/.local/state/tuist/cas.log`, or `$XDG_STATE_HOME/tuist/cas.log` when `XDG_STATE_HOME` is an absolute path. Upload it as a job artifact to inspect it after the job. Set `TUIST_CAS_LOG` to an empty value to turn it off.
-- On developer machines, there's no default. Set `TUIST_CAS_LOG` both in the environment that runs `tuist setup cache` and in the environment that runs the build.
-
-When the file grows past 32 MiB, it's truncated in place and logging continues, so the file holds the most recent output.
