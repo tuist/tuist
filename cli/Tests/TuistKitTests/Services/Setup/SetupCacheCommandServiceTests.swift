@@ -1039,7 +1039,10 @@ struct SetupCacheCommandServiceTests {
                     "--account",
                     "tuist",
                 ]),
-                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"]),
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_PROXY_REGISTRY": registry.pathString,
+                ]),
                 launchInputs: .value([proxyBinary])
             )
             .called(1)
