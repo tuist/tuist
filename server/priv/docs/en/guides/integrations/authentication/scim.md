@@ -129,11 +129,18 @@ Entra ID provisions on its own schedule, which is typically every 40 minutes, so
 
 To test deprovisioning, unassign or disable a user in Entra ID and verify that they disappear from the Tuist organization's **Members** tab.
 
+If you later change the provisioning scope, for example from **Sync all users and groups** to **Sync only assigned users and groups**, click **Restart provisioning** afterwards. Entra ID applies the new scope, including deprovisioning users who are no longer in it, only after a restart.
+
 ### Assigning roles {#entra-assigning-administrators}
 
-Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. Define them as app roles on the Entra application, then map the role to the SCIM `roles` attribute so that assignment in Entra ID sets the member's Tuist role.
+Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. To set them from Entra ID:
 
-A user provisioned without a role gets the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**.
+1. In **App registrations**, open the Tuist application and add an app role for each Tuist role you want to assign. Set **Allowed member types** to **Users/Groups** and **Value** to `admin`, `user`, or `viewer`.
+2. On the enterprise application's **Users and groups** tab, assign each user or group one of those app roles. Give each user a single app role; if a user has more than one, Entra ID does not guarantee which one it sends.
+3. Under **Provisioning > Mappings > Provision Microsoft Entra ID Users**, click **Add New Mapping**. Set **Mapping type** to **Expression**, **Expression** to `SingleAppRoleAssignment([appRoleAssignments])`, and **Target attribute** to `roles[primary eq "True"].value`.
+4. Keep the provisioning scope set to **Sync only assigned users and groups**. `SingleAppRoleAssignment` isn't compatible with **Sync all users and groups**.
+
+Changing a user's app role in Entra ID updates their Tuist role on the next provisioning cycle. A user provisioned without an app role, or with a value other than `admin`, `user`, or `viewer`, gets the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**.
 
 ## Lifecycle behavior {#lifecycle-behavior}
 
