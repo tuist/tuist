@@ -416,16 +416,19 @@ defmodule Tuist.Billing do
   # usually unchanged by the plan change, deleting and re-adding them would
   # silently discard the runner usage already accrued this cycle.
   #
-  # So: keep every existing item whose Price is a configured runner Price,
-  # delete the rest, and add only the runner Prices that aren't on the
-  # subscription yet. Runner items keep their Stripe item IDs and their
-  # accrued usage across the change.
+  # The standing prepaid minutes item belongs to the account rather than the
+  # plan too, and deleting it would end a recurring prepaid arrangement.
+  #
+  # So: keep every existing item whose Price is a configured runner Price or
+  # the prepaid Price, delete the rest, and add only the runner Prices that
+  # aren't on the subscription yet. Kept items keep their Stripe item IDs,
+  # their accrued usage, and their quantity across the change.
   defp reconcile_subscription_items(stripe_subscription, subscription_items) do
-    runner_price_ids = configured_runner_price_ids()
+    kept_price_ids = plan_independent_price_ids()
 
     {retained, replaced} =
       Enum.split_with(stripe_subscription.items.data, fn item ->
-        MapSet.member?(runner_price_ids, subscription_item_price_id(item))
+        MapSet.member?(kept_price_ids, subscription_item_price_id(item))
       end)
 
     retained_price_ids = MapSet.new(retained, &subscription_item_price_id/1)
@@ -438,6 +441,13 @@ defmodule Tuist.Billing do
       end)
 
     deletions ++ additions
+  end
+
+  defp plan_independent_price_ids do
+    case runner_prepaid_price_id() do
+      nil -> configured_runner_price_ids()
+      price_id -> MapSet.put(configured_runner_price_ids(), price_id)
+    end
   end
 
   defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id

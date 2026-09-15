@@ -112,7 +112,7 @@ defmodule Tuist.Runners.Prepaid do
   not go through costs the customer nothing rather than billing them
   for minutes they never got.
 
-  `grant_for_paid_invoice/1` remains the backstop for a prepaid line
+  `grant_for_invoice/1` remains the backstop for a prepaid line
   that reaches an invoice without a grant — a charge whose withdrawal
   also failed, or a line raised in Stripe directly. It skips lines
   already granted, matching the invoice item id the up-front grant
@@ -125,10 +125,14 @@ defmodule Tuist.Runners.Prepaid do
   minutes die with their period, so the arrangement is a licensed item on
   the account's own subscription: the prepaid Price, with the quantity in
   minutes. Stripe bills it on every renewal invoice, and
-  `grant_for_paid_invoice/1` grants the credit when that invoice is paid.
-  It recognises the line by its price, because a subscription line carries
-  the subscription's metadata rather than the item's, and dates the grant
-  from the period the line was billed for.
+  `grant_for_invoice/1` grants the credit when that invoice is finalized,
+  about an hour after the period opens, rather than when it is paid. A grant
+  is effective only from when it is created, so one made on a late payment
+  could miss the invoice closing its period and expire before the next one.
+  A renewal line whose period has already ended is refused for the same
+  reason. It recognises the line by its price, because a subscription line
+  carries the subscription's metadata rather than the item's, and dates the
+  grant from the period the line was billed for.
 
   Keeping the arrangement on the subscription leaves recurrence, retries
   and deduplication to Stripe. There is one renewal invoice per period and
@@ -205,7 +209,8 @@ defmodule Tuist.Runners.Prepaid do
   @expiry_grace_days 4
 
   @doc """
-  Creates a credit grant for every prepaid line on a paid invoice.
+  Creates a credit grant for every prepaid line on a finalized or paid
+  invoice.
 
   Returns `{:ok, grants}` with the grants it created, `{:ok,
   :not_prepaid}` for an invoice carrying no marked line (the
@@ -216,11 +221,15 @@ defmodule Tuist.Runners.Prepaid do
 
   `{:error, :no_runner_prices_configured}` is the state every
   environment is in until the runner Prices are created. It is a
-  retryable condition, not a dead end: the money is collected and the
+  retryable condition, not a dead end: the charge is billed and the
   grant is still owed, so the caller must keep the job alive rather
   than drop it.
+
+  `{:error, {:standing_period_ended, line_id}}` is a standing renewal
+  line whose period ended before it was granted. A grant made now could
+  pay for no invoice, so none is made.
   """
-  def grant_for_paid_invoice(invoice) do
+  def grant_for_invoice(invoice) do
     with {:ok, customer_id} <- customer_id(invoice),
          {:ok, invoice_id} <- invoice_id(invoice),
          {:ok, lines} <- Invoices.list_lines(invoice_id) do
@@ -256,7 +265,8 @@ defmodule Tuist.Runners.Prepaid do
   defp grant_line(customer_id, invoice_id, line, currency, expires_at) do
     metadata = line_metadata(line)
 
-    with {:ok, platforms} <- line_platforms(line, metadata),
+    with :ok <- ensure_period_open(line),
+         {:ok, platforms} <- line_platforms(line, metadata),
          {:ok, amount} <- line_amount(line),
          {:ok, ratio_bp} <- funding_ratio_bp(metadata),
          {:ok, price_ids} <- price_ids(platforms) do
@@ -319,13 +329,36 @@ defmodule Tuist.Runners.Prepaid do
 
   # A standing renewal is dated from the period its own line was billed for.
   # The account's recorded period can still be the one that just closed when
-  # the renewal is paid, which would expire the new minutes almost at once.
+  # the renewal is granted, which would expire the new minutes almost at once.
   defp line_expires_at(line, account_expires_at) do
+    case standing_period_end(line) do
+      %DateTime{} = period_end -> past_period_end(period_end)
+      nil -> account_expires_at
+    end
+  end
+
+  # Stripe applies a grant only to an invoice whose period ends at or after
+  # the grant becomes effective, and a grant becomes effective when it is
+  # created. Granted after its period ends, a standing renewal misses the
+  # invoice closing that period and expires before the next one.
+  defp ensure_period_open(line) do
+    case standing_period_end(line) do
+      %DateTime{} = period_end ->
+        if DateTime.after?(Tuist.Time.utc_now(), period_end),
+          do: {:error, {:standing_period_ended, line_id(line)}},
+          else: :ok
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp standing_period_end(line) do
     with true <- standing_line?(line),
          %{end: period_end} when is_integer(period_end) <- Map.get(line, :period) do
-      period_end |> DateTime.from_unix!() |> past_period_end()
+      DateTime.from_unix!(period_end)
     else
-      _ -> account_expires_at
+      _ -> nil
     end
   end
 
@@ -420,9 +453,9 @@ defmodule Tuist.Runners.Prepaid do
   items onto the next invoice it generates; nothing here has to know
   when the period closes.
 
-  The credit is not granted now. It is granted when that invoice is
-  paid, by `grant_for_paid_invoice/1`, so credit never exists ahead of
-  the money behind it.
+  The credit is granted as the charge is created, so the account can run
+  on it immediately. `grant_for_invoice/1` grants a line that reaches an
+  invoice without one.
 
   An account with no subscription never has an invoice generated, so a
   pending item on one would sit unbilled indefinitely. Callers should
@@ -528,8 +561,8 @@ defmodule Tuist.Runners.Prepaid do
 
   Changes the subscription without proration, which is what leaves the
   running cycle alone: the item is first billed on the next renewal invoice,
-  and `grant_for_paid_invoice/1` grants the minutes once that invoice is
-  paid. Refuses an account on a runner trial, whose usage is never invoiced,
+  and `grant_for_invoice/1` grants the minutes once that invoice is
+  finalized. Refuses an account on a runner trial, whose usage is never invoiced,
   so the credit would have nothing to pay for. Clearing is always allowed.
   """
   def set_standing_minutes(%Account{} = account, minutes) when is_integer(minutes) and minutes >= 0 do
@@ -659,9 +692,9 @@ defmodule Tuist.Runners.Prepaid do
 
   defp grant_id(grant), do: Map.get(grant, :id) || Map.get(grant, "id")
 
-  # The minutes are granted here rather than on `invoice.paid`, so the
-  # account can spend them the moment they are sold. The charge still
-  # rides the next monthly bill.
+  # The minutes are granted here rather than when the invoice carrying the
+  # charge is finalized, so the account can spend them the moment they are
+  # sold. The charge still rides the next monthly bill.
   #
   # A failure here withdraws the charge it was granted against, so a
   # sale that does not go through costs the customer nothing.

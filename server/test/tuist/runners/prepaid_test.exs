@@ -125,12 +125,12 @@ defmodule Tuist.Runners.PrepaidTest do
 
   defp standing_account(attrs \\ %{}), do: struct(%Account{id: 7, customer_id: "cus_standing"}, attrs)
 
-  describe "grant_for_paid_invoice/1" do
+  describe "grant_for_invoice/1" do
     test "does nothing for an invoice with no prepaid line" do
       stub_lines([line(%{metadata: %{}}), line(%{metadata: nil})])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, :not_prepaid} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, :not_prepaid} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "funds the grant from the marked line, not the whole bill" do
@@ -157,7 +157,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_invoice(invoice)
     end
 
     test "gives each prepaid line its own grant on its own terms" do
@@ -189,7 +189,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_#{attrs.metadata["tuist_prepaid_invoice_line_id"]}"}}
       end)
 
-      assert {:ok, grants} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, grants} = Prepaid.grant_for_invoice(invoice())
       assert length(grants) == 2
     end
 
@@ -201,7 +201,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "rejects a funding ratio outside the sane band instead of guessing" do
@@ -218,7 +218,7 @@ defmodule Tuist.Runners.PrepaidTest do
         ])
 
         assert {:error, {:invalid_metadata, :funding_ratio_bp, _value}} =
-                 Prepaid.grant_for_paid_invoice(invoice()),
+                 Prepaid.grant_for_invoice(invoice()),
                "expected #{inspect(value)} to be rejected"
       end
     end
@@ -238,7 +238,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "does not grant again for an item already granted when it was billed" do
@@ -254,7 +254,7 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([line(%{id: "il_9", invoice_item: "ii_1"})])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "expires the grant just after the billing period it was bought in ends" do
@@ -276,7 +276,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "stays monthly on a yearly enterprise term" do
@@ -295,7 +295,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "falls back to a month out when the account has no billing period" do
@@ -314,7 +314,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "ignores a legacy per-deal expiry carried in line metadata" do
@@ -339,14 +339,14 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "rejects an unknown platform" do
       stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "windows"}})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:unknown_platform, "windows"}} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, {:unknown_platform, "windows"}} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "does not grant twice for the same line" do
@@ -359,7 +359,7 @@ defmodule Tuist.Runners.PrepaidTest do
 
       reject(&CreditGrants.create/1)
 
-      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "grants only the lines a partial failure left behind" do
@@ -376,7 +376,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_2"}}
       end)
 
-      assert {:ok, [%{id: "credgr_2"}]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [%{id: "credgr_2"}]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "keeps the grant owed when no runner price exists yet" do
@@ -384,27 +384,28 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([line()])
       reject(&CreditGrants.create/1)
 
-      assert {:error, :no_runner_prices_configured} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, :no_runner_prices_configured} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "refuses to fund a grant from a line that charged nothing" do
       stub_lines([line(%{amount: 0})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:invalid_line_amount, 0}} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, {:invalid_line_amount, 0}} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "propagates a failure to read the invoice's lines" do
       stub(Invoices, :list_lines, fn _invoice_id -> {:error, :timeout} end)
       reject(&CreditGrants.create/1)
 
-      assert {:error, :timeout} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, :timeout} = Prepaid.grant_for_invoice(invoice())
     end
   end
 
-  describe "grant_for_paid_invoice/1 on a renewal carrying standing minutes" do
+  describe "grant_for_invoice/1 on a renewal carrying standing minutes" do
     setup do
       stub_prices_with_prepaid()
+      stub(Tuist.Time, :utc_now, fn -> ~U[2026-09-21 02:30:00Z] end)
       :ok
     end
 
@@ -429,14 +430,28 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_invoice(invoice)
+    end
+
+    test "refuses a renewal whose period has already ended" do
+      # A grant is effective from when it is created. Created after its line's
+      # period, it misses the invoice closing that period and expires before
+      # the next one, so it would never pay for anything.
+      stub(Tuist.Time, :utc_now, fn -> ~U[2026-10-23 09:00:00Z] end)
+      renewal = renewal_line()
+
+      stub_lines([renewal])
+      reject(&CreditGrants.create/1)
+
+      assert {:error, {:standing_period_ended, line_id}} = Prepaid.grant_for_invoice(invoice())
+      assert line_id == renewal.id
     end
 
     test "does not treat a line on another price as prepaid" do
       stub_lines([%{id: "il_usage", amount: 12_000, metadata: %{}, price: %{id: @macos_price}}])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, :not_prepaid} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, :not_prepaid} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "does not grant a renewal a second time when the invoice is redelivered" do
@@ -449,7 +464,7 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([renewal])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
     end
   end
 

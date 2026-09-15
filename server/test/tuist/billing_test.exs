@@ -789,6 +789,67 @@ defmodule Tuist.BillingTest do
              ]
     end
 
+    test "keeps the standing prepaid item and its quantity across a plan change", %{account: account} do
+      # The prepaid item is independent of the plan, like the runner items.
+      # Deleting it would silently end a recurring prepaid arrangement.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos"
+          },
+          "runner_prepaid_minutes" => "runner.prepaid"
+        }
+      end)
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_prepaid" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_air_usage", price: %{id: "air.usage"}},
+               %{id: "si_air_flat", price: %{id: "air.flat.monthly"}},
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}},
+               %{id: "si_runner_macos", price: %{id: "runner.macos"}},
+               %{id: "si_prepaid", price: %{id: "runner.prepaid"}, quantity: 6_000}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_prepaid", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      Billing.on_subscription_change(%{
+        id: "sub_prepaid",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]}
+      })
+
+      # When
+      assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then the prepaid item is absent from the payload, so it keeps its id
+      # and its quantity.
+      assert_received {:items, items}
+
+      assert items == [
+               %{id: "si_air_usage", deleted: true},
+               %{id: "si_air_flat", deleted: true},
+               %{price: "pro.usage"},
+               %{price: "pro.flat.monthly", quantity: 1}
+             ]
+    end
+
     test "attaches the runner price to a subscription that predates the rollout", %{account: account} do
       # Given
       stub(Stripe.Subscription, :retrieve, fn "sub_no_runner" ->
