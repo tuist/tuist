@@ -305,6 +305,8 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
+config :phoenix, :filter_parameters, ["password", "secret", "token", "credential"]
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 

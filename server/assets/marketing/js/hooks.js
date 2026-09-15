@@ -1,4 +1,5 @@
 import { NavbarDropdown } from "./hooks/navbar-dropdown.js";
+import { GoogleOneTap } from "../../shared/js/hooks/google-one-tap.js";
 import { NavbarMegaMenu } from "./hooks/navbar-mega-menu.js";
 import { MobileMenu } from "./hooks/mobile-menu.js";
 import { MobileMenuDropdown } from "./hooks/mobile-menu-dropdown.js";
@@ -48,6 +49,7 @@ import { NewsletterForm } from "./hooks/newsletter-form.js";
 import { NewsletterIssuesSort } from "./hooks/newsletter-issues-sort.js";
 
 const Hooks = {
+  GoogleOneTap,
   PlatformBackground,
   DitherTexture,
   DitherBlocks,

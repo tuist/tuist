@@ -7,10 +7,12 @@ defmodule TuistWeb.AuthController do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
+  alias Tuist.OAuth.Google
   alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
+  alias TuistWeb.GoogleOneTap
   alias Ueberauth.Auth
   alias Ueberauth.Auth.Credentials
   alias Ueberauth.Auth.Extra
@@ -18,6 +20,9 @@ defmodule TuistWeb.AuthController do
   alias Ueberauth.Failure.Error
 
   require Logger
+
+  @google_one_tap_max_age 3600
+  @google_one_tap_max_challenges 10
 
   defp log(level, message) do
     if not Tuist.Environment.test?() do
@@ -29,6 +34,72 @@ defmodule TuistWeb.AuthController do
     raise NotFoundError,
           dgettext("dashboard", "The authentication URL is not supported")
   end
+
+  def google_one_tap_start(conn, _params) do
+    if GoogleOneTap.enabled?(conn.assigns[:current_user]) do
+      nonce = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+      challenge = %{nonce: nonce, issued_at: DateTime.to_unix(DateTime.utc_now())}
+      challenges = Enum.take([challenge | google_one_tap_challenges(conn)], @google_one_tap_max_challenges)
+
+      conn
+      |> put_resp_header("cache-control", "private, no-store")
+      |> put_session(:google_one_tap, challenges)
+      |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce})
+    else
+      send_resp(conn, :no_content, "")
+    end
+  end
+
+  def google_one_tap(conn, params) do
+    {matching, remaining} = Enum.split_with(google_one_tap_challenges(conn), &(&1.nonce == params["nonce"]))
+
+    conn =
+      conn
+      |> put_google_one_tap_challenges(remaining)
+      |> put_resp_header("cache-control", "private, no-store")
+
+    with true <- GoogleOneTap.enabled?(conn.assigns[:current_user]),
+         [%{nonce: nonce}] <- matching,
+         {:ok, claims} <- Google.verify_identity_token(params["credential"], nonce) do
+      if Google.authoritative_email?(claims) or match?({:ok, _}, Accounts.get_oauth2_identity(:google, claims["sub"])) do
+        complete_oauth_callback(conn, %Auth{
+          provider: :google,
+          uid: claims["sub"],
+          info: %Info{email: claims["email"], name: claims["name"], image: claims["picture"]},
+          extra: %Extra{raw_info: %{user: claims}}
+        })
+      else
+        redirect(conn, to: ~p"/users/auth/google")
+      end
+    else
+      _ ->
+        conn
+        |> put_flash(
+          :error,
+          dgettext("dashboard_auth", "Google sign-in could not be completed. Please try logging in again.")
+        )
+        |> redirect(to: ~p"/users/log_in")
+    end
+  end
+
+  defp google_one_tap_challenges(conn) do
+    now = DateTime.to_unix(DateTime.utc_now())
+
+    conn
+    |> get_session(:google_one_tap)
+    |> List.wrap()
+    |> Enum.filter(fn
+      %{nonce: nonce, issued_at: issued_at} when is_binary(nonce) and is_integer(issued_at) ->
+        age = now - issued_at
+        age >= 0 and age < @google_one_tap_max_age
+
+      _ ->
+        false
+    end)
+  end
+
+  defp put_google_one_tap_challenges(conn, []), do: delete_session(conn, :google_one_tap)
+  defp put_google_one_tap_challenges(conn, challenges), do: put_session(conn, :google_one_tap, challenges)
 
   def okta_request(conn, params), do: sso_request(conn, params, :okta)
   def oauth2_request(conn, params), do: sso_request(conn, params, :oauth2)

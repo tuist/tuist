@@ -213,6 +213,7 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
+    <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />
     <div data-part="content">
       {@inner_content}
     </div>

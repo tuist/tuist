@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
+  alias TuistWeb.GoogleOneTap
   alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
@@ -94,6 +95,26 @@ defmodule TuistWeb.Router do
     put_content_security_policy(conn, Keyword.put(csp_opts(conn), :frame_ancestors, "*"))
   end
 
+  def google_one_tap_content_security_policy(conn, _opts) do
+    if GoogleOneTap.enabled?(conn.assigns[:current_user]) do
+      sources = [
+        script_src_elem: "https://accounts.google.com/gsi/client",
+        style_src_elem: "https://accounts.google.com/gsi/style",
+        frame_src: "https://accounts.google.com/gsi/",
+        connect_src: "https://accounts.google.com/gsi/"
+      ]
+
+      policy =
+        Enum.reduce(sources, csp_opts(conn), fn {directive, source}, opts ->
+          Keyword.update!(opts, directive, &(&1 <> " " <> source))
+        end)
+
+      put_content_security_policy(conn, policy)
+    else
+      conn
+    end
+  end
+
   pipeline :browser_app do
     plug :put_request_kind, "page_load"
     plug :accepts, ["html"]
@@ -115,6 +136,10 @@ defmodule TuistWeb.Router do
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
+  end
+
+  pipeline :google_one_tap do
+    plug :google_one_tap_content_security_policy
   end
 
   pipeline :browser_app_image do
@@ -197,6 +222,7 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
     plug :assign_current_path
     plug :content_security_policy
+    plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
@@ -1021,7 +1047,7 @@ defmodule TuistWeb.Router do
   ## Authentication routes
 
   scope "/", TuistWeb do
-    pipe_through [:browser_app, :redirect_if_user_is_authenticated]
+    pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
@@ -1065,6 +1091,8 @@ defmodule TuistWeb.Router do
 
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
+    post "/google/one-tap/start", AuthController, :google_one_tap_start
+    post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
   end
