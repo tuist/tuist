@@ -29,26 +29,29 @@
 #      flux-system GitRepository, which is authenticated with the same
 #      GitHub App ESO already provisions for source-controller.
 #
-# Rollout ordering: `spec.suspend` is defaulted true here so the merge
-# that turns on image automation cannot immediately open a bump commit
-# on values that have not yet been reconciled through the new operator
-# image. Once the mgmt cluster shows `CloudflareBotManagement/tuist-dev`
-# reconciled and the operator pod is running the intended digest,
-# resume it once by hand:
+# Rollout: the automation is enabled on first reconcile. It is safe to
+# leave un-gated because until the first build under the updated
+# `.github/workflows/cloudflare-operator-image.yml` publishes a tag
+# matching the `ImagePolicy`'s `sha-<epoch>-<sha>` pattern, the policy
+# has nothing to select and `.status.latestImage` stays empty, so no
+# bump commit is written. Gating via `spec.suspend: true` in git was
+# tried and rejected: a suspended `ImageUpdateAutomation` never
+# publishes a Ready status, so kstatus reports it as `InProgress` and
+# the parent `Kustomization` (which has `wait: true`) fails its
+# health-check timeout, taking `cloudflare-config` down with it as a
+# `DependencyNotReady`. And even if that were tolerable, kustomize-
+# controller owns `spec.suspend` through server-side apply, so a
+# `kubectl patch ... suspend:false` gets reverted on the next
+# reconcile.
 #
-#   kubectl -n flux-system patch imageupdateautomation cloudflare-operator \
-#     --type=merge -p '{"spec":{"suspend":false}}'
+# Kill-switch: commit `spec.suspend: true` here (or delete the resource
+# outright). A live `kubectl patch` does not stick.
 #
-# After that, every merge to main that touches
-# `infra/cloudflare-operator/**` produces a new image, and within
-# `spec.interval` a `tuistit`-style commit lands moving the pin.
-#
-# Kill-switch: setting `spec.suspend: true` again stops future writes
-# without touching the existing pin. Because the automation only writes
-# one specific field in one specific file, there is nothing to roll
-# back on the git side beyond reverting the offending bump commit.
+# Because the automation only writes one specific field in one
+# specific file, there is nothing to roll back on the git side beyond
+# reverting the offending bump commit.
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: cloudflare-operator
@@ -57,7 +60,7 @@ spec:
   image: ghcr.io/tuist/cloudflare-operator
   interval: 1m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: cloudflare-operator
@@ -75,16 +78,12 @@ spec:
     numerical:
       order: asc
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta1
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageUpdateAutomation
 metadata:
   name: cloudflare-operator
   namespace: flux-system
 spec:
-  # Bump: enable this once the operator pod is running the intended
-  # image and CloudflareBotManagement/tuist-dev is Ready. See the file
-  # header for the exact patch to run.
-  suspend: true
   interval: 5m
   sourceRef:
     kind: GitRepository
@@ -99,8 +98,12 @@ spec:
         # any human's GitHub account.
         name: fluxcdbot
         email: fluxcdbot@users.noreply.github.com
+      # `.Updated` was removed from the image-automation-controller
+      # template API (a template using it stalls with
+      # `RemovedTemplateField`); `.Changed.Changes` is the current
+      # equivalent.
       messageTemplate: |
-        chore(infra): bump cloudflare-operator image to {{range .Updated.Images}}{{println .Identifier}}{{end}}
+        chore(infra): bump cloudflare-operator image{{ range .Changed.Changes }} to {{ .NewValue }}{{ end }}
     push:
       branch: main
   update:
