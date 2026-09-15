@@ -3390,6 +3390,13 @@ limit in the summary, which is what the on-call needs to pick the lever:
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
+  - `upload_memory` borrows the elastic ceiling headroom before it queues, so
+    on current versions it means an upload waited 30 seconds with the floor
+    and that headroom both spent, or with pressure above normal closing the
+    borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
+    below. Older versions queued on the floor alone, so a shed there can come
+    with pressure normal and the headroom unused.
 - `reapi_write_decode`, `reapi_materialization`: the same budget on the
   remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
   Bazel retries, so this counter is the only place they show, and a

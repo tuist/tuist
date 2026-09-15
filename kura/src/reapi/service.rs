@@ -640,7 +640,7 @@ impl ReapiService {
                             stored_written = stored_written.saturating_add(data.len() as u64);
                             if file_cache_policy.should_drop(
                                 self.state.memory.should_reclaim_file_cache(),
-                                self.state.memory.transient_reserved_bytes(),
+                                self.state.memory.foreground_transient_reserved_bytes(),
                             ) && stored_written.saturating_sub(advised_through)
                                 >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                             {
