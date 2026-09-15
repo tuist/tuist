@@ -259,7 +259,9 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 
 ## Translation Management (Gettext)
 
-**Important:** Translations are managed through Weblate. Do not manually edit translation files.
+**Important:** The translation workflow uses `translate.exs` and the `tuistit` bot. Do not manually edit translation files. Catalog translation is incremental by source-message key. Each successful batch is written before the next request. Markdown translations are reused when their source and context hashes match.
+
+The workflow restores the unmerged `l10n/update-translations` branch with a three-way merge before spending tokens, then saves validated progress even if translation fails. Conflicts stop the run before model requests. Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation step's timeout below the job timeout so saving partial progress has time to complete. Run `elixir translate_test.exs` when changing this behavior; it covers translation logic and branch recovery in temporary local repositories.
 
 **Translation File Types:**
 - `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
@@ -270,7 +272,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 1. Add translatable strings using `dgettext/2` in your code
 2. Run `mix gettext.extract` to update the `.pot` template files
 3. Commit only the `.pot` files (and your code changes)
-4. Weblate will automatically sync the `.pot` changes and create translation PRs via the `tuistit` bot
+4. The translation workflow sends missing entries to the model and updates the translation pull request through the `tuistit` bot
 5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
 
 **Key Principles:**
