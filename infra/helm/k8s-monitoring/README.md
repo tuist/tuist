@@ -132,6 +132,16 @@ Plus the telemetry services themselves:
 
 ## Metrics aggregated downstream of this chart
 
+The Processor Service dashboard (`tuist-processor-service`) compares database
+pool pressure and query timings across `web`, `processor`, and
+`xcresult_processor`. Both the Linux pod scrape and the macOS guest scrape
+export the same `tuist_repo_*` metric families. Keep their `cluster`,
+`workload`, `repo`, and `result` labels, plus `le` for histogram buckets, in
+downstream aggregation rules. Repository counters and duration sums survive
+the non-production filter; histogram percentiles remain production-only.
+Workload aggregates can hide a saturated replica beside an idle one, so use
+the pool starvation samples as well as available-connection totals.
+
 What this chart keeps is not what Grafana Cloud stores. **Adaptive Metrics** sits
 in front of the tenant and rewrites series on ingest, so a metric can be
 allow-listed here, present in the collector's deployed config, and still be

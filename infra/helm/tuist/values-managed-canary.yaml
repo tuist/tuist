@@ -65,6 +65,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
@@ -205,7 +211,7 @@ server:
       # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
-      value: eu-central,scw-fr-par-runners,ca-east
+      value: eu-west,scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -242,7 +248,7 @@ server:
     # move it on. It exercises the parse, the per-kind budget and the sweep
     # under a non-empty value, not a real transition.
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
-      value: expand=2,correct=2,relocate=1,retire=1
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -308,62 +314,44 @@ clickhouse:
     # Rollback: turn it off. Nothing has read from that server.
     shadowWrites:
       enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
       enabled: true
-    # One step of the migration, run as a Job by the chart. The sequence is
-    # advanced by changing `task` and deploying, so each step is a reviewed
-    # change in the release history rather than a command typed at a database.
+    # A second repair pass, before the parity gate goes back on.
     #
-    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
-    # deploy that first introduced the workload, this one has somewhere to
-    # clone to. The Job is a post-upgrade hook, so it runs once the release is
-    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
-    # the destination from already exists.
+    # The gate's last run found five copied tables differing from the system of
+    # record: rows the first repair's gap fill could not see, because it skipped
+    # every row with a NULL column and every newer version of a row the
+    # destination already held. With that fixed, this runs the repair again. The
+    # ledger has September recorded as done up to the first repair's cutoff, so
+    # a later cutoff is what makes September a new chunk to gap-fill. Rows after
+    # it were delivered by the mirror, which has recorded no error, retried or
+    # dropped write since that first cutoff.
     #
-    # Gate: table, view and migration-version counts match the source. Engines
-    # need no assertion, because `database_replicated_allow_only_replicated_engine`
-    # makes the destination reject a non-replicated table, so creation
-    # succeeding is the proof.
-    #
-    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
-    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
-    # one enabled re-runs it on every deploy. That was harmless for the clone,
-    # which creates what is missing and leaves the rest alone, and it is not
-    # harmless for what comes next.
-    #
-    # `name` and `task` are the step this would run if it were enabled, which
-    # is why they name the *next* one rather than the last that ran.
-    #
-    # `cutoff` is deliberately absent, and arming the backfill without it fails
-    # loudly rather than copying to a stale timestamp. Set it to a moment after
-    # the deploy that turns dual writes on above has finished rolling out: the
-    # backfill covers everything before it, the mirror covers everything after,
-    # and naming the boundary is what stops the two from leaving a gap.
-    # Off. Arming this failed three canary releases in a row and rolled each
-    # one back, because helm 4 waits on ordinary Jobs:
-    #
-    #   Error: UPGRADE FAILED: release tuist failed, and has been rolled back
-    #   due to rollback-on-failure being set: resource
-    #   Job/tuist-canary/tuist-tuist-clickhouse-backfill-r894 not ready.
-    #   status: Failed, message: Job Failed. failed: 1/1
-    #
-    # `background: true` was written for helm 3, where `--wait` covered pods
-    # and workloads but not Jobs, so an ordinary Job really did run beside the
-    # release. Under helm 4 it does not: the release waits for the Job, and a
-    # Job that fails fails the release. That inverts the whole reason the
-    # setting exists, and on a production-sized copy it would hold the release
-    # for hours and then roll it back on the deadline, which is exactly the
-    # outcome it was meant to prevent.
-    #
-    # So the backfill needs a way to run that helm does not wait on before it
-    # can be armed again, here or anywhere. Until then this stays off, and
-    # `name` and `task` keep naming the step it would run.
+    # A chunk that would copy rows the destination already holds is recorded as
+    # failed and copies nothing, without failing the deploy.
     migration:
-      enabled: false
+      enabled: true
       name: backfill
       task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-15T12:00:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -411,6 +399,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"
@@ -605,10 +595,10 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
 # DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
 # in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
@@ -620,7 +610,7 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:
@@ -817,10 +807,7 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

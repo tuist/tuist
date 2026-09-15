@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -229,6 +230,15 @@ func mergeCustomRule(base, desired cloudflare.Rule) cloudflare.Rule {
 	out.Expression = desired.Expression
 	out.Description = desired.Description
 	out.Enabled = desired.Enabled
+	// ActionParameters is CR-managed too: if the CR declares one, it
+	// overrides whatever the adopted rule carried; if the CR does not,
+	// the adopted value is preserved so an on-Cloudflare shape the
+	// operator does not model round-trips verbatim. `skip` rules on
+	// non-adopted paths always render with a non-nil ActionParameters,
+	// so nil-desired only reaches here on non-skip actions.
+	if desired.ActionParameters != nil {
+		out.ActionParameters = desired.ActionParameters
+	}
 	return out
 }
 
@@ -237,13 +247,24 @@ func customRuleRef(cr *cfv1alpha1.CloudflareCustomRule) string {
 }
 
 func renderCustomRule(cr *cfv1alpha1.CloudflareCustomRule, ref string) cloudflare.Rule {
-	return cloudflare.Rule{
+	rule := cloudflare.Rule{
 		Action:      cr.Spec.Action,
 		Expression:  cr.Spec.Expression,
 		Description: cr.Spec.Description,
 		Enabled:     cr.Spec.IsEnabled(),
 		Ref:         ref,
 	}
+	// CEL validation on the CRD guarantees ActionParameters is set iff
+	// Action == "skip". Marshaling errors on a Go slice-of-string
+	// literal are unreachable in practice, but we surface anything
+	// unexpected as an empty payload rather than crashing the
+	// reconciler.
+	if cr.Spec.ActionParameters != nil {
+		if raw, err := json.Marshal(cr.Spec.ActionParameters); err == nil {
+			rule.ActionParameters = raw
+		}
+	}
+	return rule
 }
 
 func (r *CloudflareCustomRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {

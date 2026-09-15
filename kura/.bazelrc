@@ -1,6 +1,12 @@
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist
 
+# Report branch and revision to the build event stream so invocations are
+# attributable to a revision in Tuist. The script emits volatile status keys,
+# so a new commit never invalidates a cached action, and it degrades to
+# omitting keys rather than failing when git is unavailable.
+build --workspace_status_command=./bazel/workspace_status.sh
+
 # Build opt globally: the runtime and e2e images are assembled from this binary, so it must match
 # the optimized binary that ships, and one compilation mode keeps every job on a single warm cache
 # keyspace. Side effect: `bazel test` then runs with debug_assertions off (like `cargo test --release`).

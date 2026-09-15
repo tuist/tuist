@@ -99,7 +99,7 @@ Managed Kura region mapping is:
 
 | Product region | Cluster ID | CAPI Cluster | Hetzner location |
 |---|---|---|---|
-| `eu-central` | `eu-central-1` | `tuist` node pool `kura` | `fsn1` |
+| `eu-west` | `eu-west-1` | `tuist` node pool `kura-dedibox` | Scaleway Dedibox, Paris |
 | `us-east` | `us-east-1` | `tuist` node pool `kura-us-east` | `ash` |
 | `us-west` | `us-west-1` | `tuist` node pool `kura-us-west` | `hil` |
 

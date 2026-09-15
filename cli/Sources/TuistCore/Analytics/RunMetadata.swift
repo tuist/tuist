@@ -7,10 +7,9 @@ import XcodeGraph
 /// when the two run as separate processes, typically across CI machines via a
 /// shared `.xctestproducts` bundle.
 ///
-/// Persisting this lets the test phase upload the same module-cache,
-/// selective-testing, and build-run analytics that the build phase produced,
-/// so the resulting test run page links back to the build run and surfaces
-/// the cache tabs even when the actual `xcodebuild` invocation runs no tests.
+/// Persisting this lets the test phase restore the graph and selective-testing
+/// state, and link back to the original build run. Binary cache results remain in
+/// the snapshot for compatibility, but are not restored as new cache lookups.
 public struct RunMetadata: Codable {
     public let graph: Graph?
     public let binaryCacheItems: [AbsolutePath: [String: CacheItem]]

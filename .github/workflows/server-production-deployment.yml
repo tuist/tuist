@@ -466,7 +466,7 @@ jobs:
           # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
           # target, which can't cross-compile. compile-args adds the cross --config on the macOS
           # x86_64 leg and is empty for the native legs.
-          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
           STAGE_DIR="$(mktemp -d)"
           cp bazel-bin/kura "$STAGE_DIR/kura"
@@ -1083,7 +1083,7 @@ jobs:
         # when you bump the first entry in
         # infra/runner-image/profiles.json, bump this too.
         env:
-          XCODE_VERSION: "26.6"
+          XCODE_VERSION: "27.0"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
@@ -2172,10 +2172,23 @@ jobs:
           mise run build
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
+      # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
+      # (see Project.swift): the EE suite this job has always run, which covers
+      # caching, module cache and selective testing against canary, plus
+      # TuistServerAcceptanceTests, which covers build ingestion. Ingestion had
+      # no coverage here at all, which is how a change that killed 100% of it
+      # promoted to production green on 2026-09-09.
+      #
+      # The worker cap matches cli.yml. It is not load-bearing while the plan
+      # holds two targets, since xcodebuild hands out one worker per target, but
+      # it keeps the ceiling where it is if a third target is ever added here.
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
+            -maximum-parallel-testing-workers 2 \
+            -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Backward-compatibility acceptance - runs an OLD CLI against the freshly-

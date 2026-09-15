@@ -7,43 +7,65 @@ defmodule TuistWeb.Components.BuildTimeline do
   import TuistWeb.Components.Skeleton
 
   attr :timeline, :map, required: true
+  attr :version, :integer, required: true
+  attr :duration, :integer, required: true
+  attr :source, :string, required: true
+
+  attr :url, :string, required: true
+
+  def build_timeline_section(assigns) do
+    ~H"""
+    <.async_result assign={@timeline}>
+      <:loading>
+        <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
+          <.card_section data-part="timeline-skeleton" aria-busy="true">
+            <.skeleton_chart height="652px" />
+          </.card_section>
+        </.card>
+      </:loading>
+      <:failed>
+        <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
+          <.error_card_section data-part="timeline-error" />
+        </.card>
+      </:failed>
+      <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
+    </.async_result>
+    """
+  end
+
+  attr :url, :string, required: true
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
+  attr :source, :string, default: "xcode"
 
   def build_timeline(assigns) do
-    assigns =
-      assign(assigns, :has_metrics, Map.get(assigns.timeline, :has_metrics, false))
+    assigns = assign(assigns, :groups, timeline_groups(assigns.source))
 
     ~H"""
-    <.card
-      :if={@timeline.total_count == 0 and not @has_metrics}
-      title={dgettext("dashboard_builds", "Build Timeline")}
-      icon="timeline_event"
-    >
-      <.card_section>
-        <.table_empty_state
-          icon="timeline_event"
-          title={dgettext("dashboard_builds", "No timeline available")}
-          subtitle={
-            dgettext(
-              "dashboard_builds",
-              "This build has no recorded step timings. Recorded steps are retained for 90 days."
-            )
-          }
-        />
-      </.card_section>
-    </.card>
     <div
-      :if={@timeline.total_count > 0 or @has_metrics}
       id="build-timeline"
       class="tuist-build-timeline"
+      data-source={@source}
       phx-hook="BuildTimeline"
       phx-update="ignore"
+      data-metric-cores={dgettext("dashboard_builds", "cores")}
       data-metric-in={dgettext("dashboard_builds", "In")}
       data-metric-out={dgettext("dashboard_builds", "Out")}
       data-metric-read={dgettext("dashboard_builds", "Read")}
       data-metric-write={dgettext("dashboard_builds", "Write")}
+      data-outcome-labels={
+        JSON.encode!(%{
+          "local_hit" => dgettext("dashboard_builds", "Local cache hit"),
+          "remote_hit" => dgettext("dashboard_builds", "Remote cache hit"),
+          "cache_hit" => dgettext("dashboard_builds", "Cache hit"),
+          "up_to_date" => dgettext("dashboard_builds", "Up-to-date"),
+          "skipped" => dgettext("dashboard_builds", "Skipped"),
+          "no_source" => dgettext("dashboard_builds", "No source"),
+          "unknown" => dgettext("dashboard_builds", "Unknown")
+        })
+      }
       data-version={@version}
+      data-url={@url}
       data-duration={@duration}
       data-log-loading={dgettext("dashboard_builds", "Loading log…")}
       data-log-empty={dgettext("dashboard_builds", "No log recorded for this step.")}
@@ -56,15 +78,18 @@ defmodule TuistWeb.Components.BuildTimeline do
         <:actions>
           <span data-part="summary" hidden>
             <span><span data-stat="duration"></span> {dgettext("dashboard_builds", "elapsed")}</span>
-            <span><span data-stat="tasks"></span> {dgettext("dashboard_builds", "steps")}</span>
-            <span><span data-stat="targets"></span> {dgettext("dashboard_builds", "targets")}</span>
+            <span data-part="step-count" hidden><span data-stat="tasks"></span> {dgettext(
+              "dashboard_builds",
+              "steps"
+            )}</span>
+            <span data-part="target-count" hidden><span data-stat="targets"></span> {dgettext(
+              "dashboard_builds",
+              "targets"
+            )}</span>
           </span>
         </:actions>
-        <.card_section data-part="payload-loading">
-          <.skeleton_chart height="652px" />
-        </.card_section>
         <.error_card_section data-part="payload-error" hidden />
-        <.card_section data-part="timeline-content" hidden>
+        <.card_section data-part="timeline-content">
           <div data-part="machine-metrics" hidden>
             <div
               :for={
@@ -103,7 +128,22 @@ defmodule TuistWeb.Components.BuildTimeline do
               </div>
             </div>
           </div>
-          <div data-part="workspace">
+          <div data-part="payload-loading" aria-busy="true">
+            <.skeleton_chart height="652px" />
+          </div>
+          <div data-part="empty" hidden>
+            <.table_empty_state
+              icon="timeline_event"
+              title={dgettext("dashboard_builds", "No timeline available")}
+              subtitle={
+                dgettext(
+                  "dashboard_builds",
+                  "This build has no recorded step timings. Recorded steps are retained for 90 days."
+                )
+              }
+            />
+          </div>
+          <div data-part="workspace" hidden>
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">
                 <div data-part="build-controls">
@@ -113,18 +153,29 @@ defmodule TuistWeb.Components.BuildTimeline do
                       id="timeline-search"
                       name="timeline_search"
                       data-control="search"
-                      aria-label={dgettext("dashboard_builds", "Search steps or targets")}
-                      placeholder={dgettext("dashboard_builds", "Search steps or targets…")}
+                      aria-label={
+                        if @source == "xcode",
+                          do: dgettext("dashboard_builds", "Search steps or targets"),
+                          else: dgettext("dashboard_builds", "Search steps, targets, or categories")
+                      }
+                      placeholder={
+                        if @source == "xcode",
+                          do: dgettext("dashboard_builds", "Search steps or targets…"),
+                          else: dgettext("dashboard_builds", "Search steps, targets, or categories…")
+                      }
                       show_suffix={false}
                     />
                   </div>
                   <div data-part="legend">
-                    <span data-kind="compile">{dgettext("dashboard_builds", "Compilation")}</span>
-                    <span data-kind="link">{dgettext("dashboard_builds", "Linking")}</span>
-                    <span data-kind="script">{dgettext("dashboard_builds", "Scripts")}</span>
-                    <span data-kind="resource">{dgettext("dashboard_builds", "Resources")}</span>
-                    <span data-kind="other">{dgettext("dashboard_builds", "Other")}</span>
-                    <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
+                    <%= for {kind, label} <- @groups do %>
+                      <span :if={@source == "xcode"} data-kind={kind}>{label}</span>
+                      <button
+                        :if={@source != "xcode"}
+                        type="button"
+                        data-kind={kind}
+                        aria-pressed="false"
+                      >{label}</button>
+                    <% end %>
                     <output data-part="range"></output>
                   </div>
                 </div>
@@ -191,6 +242,7 @@ defmodule TuistWeb.Components.BuildTimeline do
                   <div>
                     <dt>{dgettext("dashboard_builds", "Outcome")}</dt>
                     <dd>
+                      <.badge label="" style="light-fill" data-part="outcome-other" hidden />
                       <.status_badge
                         status="success"
                         label={dgettext("dashboard_builds", "Succeeded")}
@@ -218,9 +270,6 @@ defmodule TuistWeb.Components.BuildTimeline do
             </aside>
           </div>
           <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
-          <p data-part="no-recorded-steps" hidden>
-            {dgettext("dashboard_builds", "No steps were recorded for this build.")}
-          </p>
           <p data-part="no-matches" hidden>
             {dgettext("dashboard_builds", "No steps in this time range match your filters.")}
           </p>
@@ -228,5 +277,42 @@ defmodule TuistWeb.Components.BuildTimeline do
       </.card>
     </div>
     """
+  end
+
+  defp timeline_groups(source) do
+    groups = [
+      {"compile", dgettext("dashboard_builds", "Compilation")},
+      {"link", dgettext("dashboard_builds", "Linking")},
+      {"script", dgettext("dashboard_builds", "Scripts")}
+    ]
+
+    specific =
+      case source do
+        "bazel" ->
+          [
+            {"resource", dgettext("dashboard_builds", "File preparation")},
+            {"fetch", dgettext("dashboard_builds", "Fetching")},
+            {"setup", dgettext("dashboard_builds", "Analysis/setup")}
+          ]
+
+        "gradle" ->
+          [
+            {"resource", dgettext("dashboard_builds", "Resources")},
+            {"test", dgettext("dashboard_builds", "Testing")},
+            {"package", dgettext("dashboard_builds", "Packaging")},
+            {"setup", dgettext("dashboard_builds", "Configuration")},
+            {"transform", dgettext("dashboard_builds", "Artifact transforms")}
+          ]
+
+        _ ->
+          [{"resource", dgettext("dashboard_builds", "Resources")}]
+      end
+
+    groups ++
+      specific ++
+      [
+        {"other", dgettext("dashboard_builds", "Other")},
+        {"failure", dgettext("dashboard_builds", "Failed")}
+      ]
   end
 end

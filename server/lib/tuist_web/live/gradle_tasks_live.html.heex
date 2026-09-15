@@ -297,7 +297,7 @@
               patch={sort_patch(assigns, "executions")}
               sort_order={@sort_by == "executions" && @sort_order}
             >
-              <.text_cell label={to_string(row.executions)} />
+              <.text_cell label={format_number(row.executions)} />
             </:col>
             <:col
               :let={row}
@@ -305,7 +305,7 @@
               patch={sort_patch(assigns, "misses")}
               sort_order={@sort_by == "misses" && @sort_order}
             >
-              <.text_cell label={to_string(row.misses)} />
+              <.text_cell label={format_number(row.misses)} />
             </:col>
             <:col
               :let={row}

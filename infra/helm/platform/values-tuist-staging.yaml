@@ -38,10 +38,10 @@ ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
-kura-eu-central-ingress-nginx:
+kura-eu-west-ingress-nginx:
   enabled: true
   controller:
-    # eu-central is cut over to the Dedibox bare-metal box: the regional gateway
+    # eu-west is cut over to the Dedibox bare-metal box: the regional gateway
     # runs on the box's host network so serving traffic hits the box NIC directly
     # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
     # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
@@ -74,7 +74,7 @@ kura-ca-east-ingress-nginx:
   controller:
     # ca-east runs on the OVH bare-metal box: the regional gateway runs on the
     # box's host network so serving traffic hits the box NIC directly (OVH has no
-    # Hetzner LB) — the same shape as eu-central on Dedibox. The DaemonSet binds
+    # Hetzner LB) — the same shape as eu-west on Dedibox. The DaemonSet binds
     # one nginx per cache node; reportNodeInternalIp publishes the box's public
     # IP (its node InternalIP) into each Ingress status so external-dns resolves
     # the per-account hosts to the box.
@@ -99,6 +99,9 @@ kura-ca-east-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-runners-ingress-nginx:
+  enabled: true
 
 # The gateways above are host-network, so a region with more than one box needs
 # this to let a gateway reach Kura pods on the other boxes. Without it those

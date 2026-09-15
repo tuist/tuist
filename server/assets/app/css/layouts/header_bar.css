@@ -73,17 +73,8 @@
 }
 
 .headerbar__logo {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  width: 40px;
-  height: auto;
-  height: 40px;
-  object-fit: contain;
-  @media (max-width: 768px) {
-    & {
-      width: 36px;
-      height: 36px;
-    }
-  }
+  display: block;
+  width: 26px;
+  height: 26px;
+  color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }

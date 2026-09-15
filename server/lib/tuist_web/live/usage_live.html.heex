@@ -49,7 +49,7 @@
           title={dgettext("dashboard_usage", "Runner minutes")}
           description={
             dgettext("dashboard_usage", "%{count} free each month",
-              count: @runner_breakdown.free_minutes
+              count: CldrHelpers.format_number(@runner_breakdown.free_minutes)
             )
           }
           value={CldrHelpers.format_number(@runner_breakdown.minutes)}
@@ -112,7 +112,7 @@
             <div :if={row.included_minutes} data-part="line" data-kind="credit">
               <dt>
                 {dgettext("dashboard_usage", "%{count} minutes included",
-                  count: row.included_minutes
+                  count: CldrHelpers.format_number(row.included_minutes)
                 )}
               </dt>
               <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>

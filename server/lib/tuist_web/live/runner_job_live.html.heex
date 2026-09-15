@@ -14,7 +14,8 @@
   <%!-- `repository` holds a pipeline slug on the Buildkite lane, so the
         GitHub deep link it builds would point at a repository that does
         not exist. --%>
-  <% github_url = if @buildkite_job, do: nil, else: TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% github_url =
+    if @buildkite_job || @gitlab_job, do: nil, else: TuistWeb.RunnerJobLive.github_job_url(@job) %>
   <% buildkite_url = TuistWeb.RunnerJobLive.buildkite_build_url(@buildkite_job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
 
@@ -47,6 +48,17 @@
         label={dgettext("dashboard_runners", "GitHub")}
       >
         <:icon_left><.brand_github /></:icon_left>
+      </.button>
+      <.button
+        :if={@gitlab_job}
+        href={Tuist.Runners.GitLab.Job.job_url(@gitlab_job)}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "GitLab")}
+      >
+        <:icon_left><.brand_gitlab /></:icon_left>
       </.button>
       <.button
         :if={buildkite_url}
@@ -189,6 +201,7 @@
     </.card>
 
     <.card
+      :if={@linked_build_runs != [] or @linked_test_runs != []}
       title={dgettext("dashboard_runners", "Insights")}
       icon="chart_arcs"
       data-part="insights-card"
@@ -201,12 +214,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_build_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",
@@ -302,12 +309,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_test_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",
@@ -394,7 +395,7 @@
     </.card>
 
     <.card
-      :if={is_nil(@buildkite_job)}
+      :if={is_nil(@buildkite_job) and is_nil(@gitlab_job)}
       title={dgettext("dashboard_runners", "Steps")}
       icon="apps"
       data-part="steps-card"

@@ -5189,84 +5189,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
-        // Given
-        let path = try temporaryPath()
-        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try await fileSystem.makeDirectory(at: testProductsPath)
-
-        let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["MyTests": "abc123"]
-        )
-        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
-        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
-
-        let projectPath = try AbsolutePath(validating: "/tmp/Project")
-        let project = Project.test(
-            path: projectPath,
-            name: "Project",
-            targets: [.test(name: "MyTests")]
-        )
-        let graph = Graph.test(
-            name: "MyApp",
-            path: projectPath,
-            workspace: .test(),
-            projects: [projectPath: project]
-        )
-        let binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [
-            projectPath: [
-                "MyTests": CacheItem.test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
-            ],
-        ]
-        let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [
-            projectPath: [
-                "MyTests": CacheItem.test(
-                    name: "MyTests",
-                    hash: "selective-hash",
-                    source: .remote,
-                    cacheCategory: .selectiveTests
-                ),
-            ],
-        ]
-        let runMetadata = RunMetadata(
-            graph: graph,
-            binaryCacheItems: binaryCacheItems,
-            selectiveTestingCacheItems: selectiveTestingCacheItems,
-            targetContentHashSubhashes: [:],
-            buildRunId: "BUILD-RUN-ID"
-        )
-        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
-        try JSONEncoder().encode(runMetadata).write(to: runMetadataPath.url)
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
-
-        given(xcodebuildController)
-            .run(arguments: .any)
-            .willReturn(())
-
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
-            )
-        }
-
-        // Then — RunMetadataStorage should be populated from the snapshot
-        let restoredBuildRunId = await runMetadataStorage.buildRunId
-        XCTAssertEqual(restoredBuildRunId, "BUILD-RUN-ID")
-        let restoredBinaryCacheItems = await runMetadataStorage.binaryCacheItems
-        XCTAssertEqual(restoredBinaryCacheItems, binaryCacheItems)
-        let restoredSelectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
-        XCTAssertEqual(restoredSelectiveTestingCacheItems, selectiveTestingCacheItems)
-        let restoredGraph = await runMetadataStorage.graph
-        XCTAssertEqual(restoredGraph?.name, "MyApp")
-        XCTAssertEqual(restoredGraph?.projects[projectPath]?.name, "Project")
-    }
-
     func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenMissing() async throws {
         // Given
         let path = try temporaryPath()
@@ -5360,7 +5282,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // skips xcodebuild entirely and uploads a synthesized "skipped" test summary. Before
         // this fix, uploadSkippedTestSummary hardcoded buildRunId: nil, which dropped the link
         // back to the originating build run. The restore from a real snapshot file is covered
-        // by test_run_testWithoutBuilding_restoresRunMetadata_fromBundle; here we pre-populate
+        // by the Swift Testing restoration cases below; here we pre-populate
         // RunMetadataStorage directly to keep the test focused on the skip path's buildRunId
         // forwarding.
         let path = try temporaryPath()
@@ -6577,6 +6499,70 @@ final class TestServiceTests: TuistUnitTestCase {
 
 @Suite
 struct TestServiceShardingTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [false, true])
+    func without_building_restores_context_without_replaying_binary_cache_lookups(sharded: Bool) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: path)
+        let fileSystem = FileSystem()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(testTargetHashes: ["MyTests": "selective-hash"]),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+        let selectiveItems: [AbsolutePath: [String: CacheItem]] = [path: [
+            "MyTests": .test(name: "MyTests", hash: "selective-hash", source: .remote, cacheCategory: .selectiveTests),
+        ]]
+        let subhashes: [String: TargetContentHashSubhashes] = ["selective-hash": .test(sources: "sources")]
+        let metadata = RunMetadata(
+            graph: .test(
+                name: "MyApp",
+                path: path,
+                projects: [path: .test(path: path, name: "Project", targets: [.test(name: "MyTests")])]
+            ),
+            binaryCacheItems: [path: [
+                "MyTests": .test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
+            ]],
+            selectiveTestingCacheItems: selectiveItems,
+            targetContentHashSubhashes: subhashes,
+            buildRunId: "BUILD-RUN-ID"
+        )
+        try await fileSystem.writeAsJSON(metadata, at: testProductsPath.appending(component: RunMetadata.fileName))
+
+        if sharded {
+            given(fixture.shardService)
+                .shard(
+                    shardIndex: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    reference: .any,
+                    shardPlanId: .any,
+                    testProductsPath: .any,
+                    testProductsArchivePath: .any
+                )
+                .willReturn(Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: testProductsPath,
+                    testIdentifiers: ["MyTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["MyTests"],
+                    selectiveTestingGraph: nil
+                ))
+        }
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: path, shardIndex: sharded ? 0 : nil, testProductsPath: testProductsPath)
+        }
+
+        #expect(await fixture.runMetadataStorage.buildRunId == "BUILD-RUN-ID")
+        #expect(await fixture.runMetadataStorage.binaryCacheItems.isEmpty)
+        #expect(await fixture.runMetadataStorage.selectiveTestingCacheItems == selectiveItems)
+        #expect(await fixture.runMetadataStorage.targetContentHashSubhashes == subhashes)
+        #expect(await fixture.runMetadataStorage.graph?.name == "MyApp")
+        #expect(await fixture.runMetadataStorage.graph?.projects[path]?.name == "Project")
+    }
+
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -6633,7 +6619,7 @@ struct TestServiceShardingTests {
 private struct TestServiceShardingFixture {
     let shardService = MockShardServicing()
 
-    private let runMetadataStorage = RunMetadataStorage()
+    let runMetadataStorage = RunMetadataStorage()
     private let subject: TestService
 
     init(rootDirectory: AbsolutePath) {
@@ -6678,9 +6664,10 @@ private struct TestServiceShardingFixture {
 
     func run(
         path: AbsolutePath,
-        shardPlanId: String,
-        shardIndex: Int,
-        shardArchivePath: AbsolutePath
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil,
+        shardArchivePath: AbsolutePath? = nil,
+        testProductsPath: AbsolutePath? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -6706,7 +6693,7 @@ private struct TestServiceShardingFixture {
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 generateOnly: false,
-                passthroughXcodeBuildArguments: [],
+                passthroughXcodeBuildArguments: testProductsPath.map { ["-testProductsPath", $0.pathString] } ?? [],
                 skipQuarantine: true,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,

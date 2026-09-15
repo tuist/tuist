@@ -84,6 +84,7 @@ defmodule Tuist.Kura.Origins do
   @doc """
   Upserts counts directly, adding to whatever the day already holds. The
   backfill and the tests write through here; the request path buffers.
+  Counts for accounts deleted before persistence are discarded.
   """
   def upsert_many(rows) when is_list(rows), do: upsert_all(rows)
 
@@ -192,6 +193,29 @@ defmodule Tuist.Kura.Origins do
   defp upsert_all([]), do: {:ok, 0}
 
   defp upsert_all(rows) do
+    Repo.transaction(fn ->
+      account_ids = rows |> Enum.map(& &1.account_id) |> Enum.uniq()
+
+      # A deletion can race the flush after this lookup. Hold the account keys
+      # until the rollups land so it cannot invalidate the filtered batch.
+      existing_account_ids =
+        Account
+        |> where([account], account.id in ^account_ids)
+        |> order_by([account], asc: account.id)
+        |> lock("FOR KEY SHARE")
+        |> select([account], account.id)
+        |> Repo.all()
+        |> MapSet.new()
+
+      rows
+      |> Enum.filter(&MapSet.member?(existing_account_ids, &1.account_id))
+      |> insert_rollups()
+    end)
+  end
+
+  defp insert_rollups([]), do: 0
+
+  defp insert_rollups(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
@@ -216,6 +240,6 @@ defmodule Tuist.Kura.Origins do
           )
       )
 
-    {:ok, count}
+    count
   end
 end

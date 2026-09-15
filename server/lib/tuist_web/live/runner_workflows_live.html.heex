@@ -119,9 +119,7 @@
         description={
           dgettext("dashboard_runners", "Distinct workflow runs invoked in the last 30 days.")
         }
-        value={
-          if @workflow_runs_count.ok?, do: Integer.to_string(@workflow_runs_count.result.count)
-        }
+        value={if @workflow_runs_count.ok?, do: format_number(@workflow_runs_count.result.count)}
         loading={!@workflow_runs_count.ok?}
         selected={@analytics_selected_widget == "workflow_runs"}
         phx_click="select_widget"
@@ -142,7 +140,7 @@
         }
         value={
           if @failed_workflow_runs_count.ok?,
-            do: Integer.to_string(@failed_workflow_runs_count.result.count)
+            do: format_number(@failed_workflow_runs_count.result.count)
         }
         loading={!@failed_workflow_runs_count.ok?}
         selected={@analytics_selected_widget == "failed_workflow_runs"}
@@ -376,7 +374,7 @@
             patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "jobs")}
             sort_order={@sort_by == "jobs" && @sort_order}
           >
-            <.text_cell label={Integer.to_string(w.total_jobs)} />
+            <.text_cell label={format_number(w.total_jobs)} />
           </:col>
           <:col
             :let={w}

@@ -50,8 +50,8 @@ spec:
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: cache-secret-key-base
+                  name: {{ include "tuist.cacheSecretName" . }}
+                  key: {{ include "tuist.cacheSecretKey" (dict "root" . "field" "secretKeyBase" "default" "cache-secret-key-base") }}
             - name: SERVER_URL
               value: {{ .Values.cache.serverUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Values.server.service.port) | quote }}
             - name: STORAGE_DIR
@@ -84,13 +84,21 @@ spec:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-secret-key
             {{- end }}
+            {{- if eq (.Values.cache.existingSecret | default "") "" }}
             - name: TUIST_CACHE_API_KEY
               value: {{ .Values.cache.apiKey | quote }}
+            {{- else }}
+            - name: TUIST_CACHE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cacheSecretName" . }}
+                  key: {{ include "tuist.cacheSecretKey" (dict "root" . "field" "apiKey" "default" "cache-api-key") }}
+            {{- end }}
             - name: GUARDIAN_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: cache-guardian-secret-key
+                  name: {{ include "tuist.cacheSecretName" . }}
+                  key: {{ include "tuist.cacheSecretKey" (dict "root" . "field" "guardianSecretKey" "default" "cache-guardian-secret-key") }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}

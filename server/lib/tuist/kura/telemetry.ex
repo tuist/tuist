@@ -18,6 +18,10 @@ defmodule Tuist.Kura.Telemetry do
       region nearest the traffic because it had no room for the instance.
     * `resolution_refused` counts the accounts that never reach any of the
       above, because their plan or storage region resolved to no pool.
+    * `claim_apply_refused` counts the storage-claim applies capacity admission
+      turned down, tagged with the region that refused. The proposal stays open
+      and every later pass retries it, so without this the only trace of a
+      region refusing every claim is a resize that never happens.
 
   That last one is the only signal a refusal produces. A refused account keeps
   being served by whatever lane it is already on, raises nothing, and appears
@@ -41,6 +45,17 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_placement_preference_unmet, do: @prefix ++ [:placement_preference_unmet]
   def event_name_placement_capacity_spill, do: @prefix ++ [:placement_capacity_spill]
   def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
+  def event_name_claim_apply_refused, do: @prefix ++ [:claim_apply_refused]
+
+  # Every capacity refusal carries an atom reason (`:capacity_exhausted`,
+  # `:capacity_unknown`). Anything else is bucketed rather than tagged, so a
+  # surprise cannot unbound the label.
+  def claim_apply_refused(region, reason) do
+    :telemetry.execute(event_name_claim_apply_refused(), %{count: 1}, %{
+      region: region,
+      reason: if(is_atom(reason), do: to_string(reason), else: "unknown")
+    })
+  end
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
@@ -73,11 +88,11 @@ defmodule Tuist.Kura.Telemetry do
     })
   end
 
-  def archived(plan, region, reclaimed_bytes, drain_duration_ms) do
+  def archived(plan, region, reason, reclaimed_bytes, drain_duration_ms) do
     :telemetry.execute(
       event_name_archived(),
       %{count: 1, reclaimed_bytes: reclaimed_bytes, drain_duration_ms: drain_duration_ms},
-      %{plan: to_string(plan), region: region}
+      %{plan: to_string(plan), region: region, reason: to_string(reason)}
     )
   end
 
@@ -91,7 +106,9 @@ defmodule Tuist.Kura.Telemetry do
 
   @doc """
   Counts an account whose cache instance was not seeded ahead of its first
-  cache request, because the region it resolves to is over its pressure line.
+  cache request: `capacity_pressure` when the region it resolves to is over its
+  pressure line, `unused` when the account's instance was reclaimed for never
+  storing anything and has not been asked for since.
 
   Distinct from `resolution_refused`, which is about an account that has no
   region at all. This one has a region and will still be provisioned the

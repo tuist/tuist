@@ -49,7 +49,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
         "tenant_id" => "acme",
         "namespace_id" => "ios",
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "traffic_plane" => "public",
         "direction" => "egress",
         "operation" => "download",
@@ -66,7 +66,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   defp post_events(conn, events, opts \\ []) do
     payload =
-      %{"schema_version" => 1, "node_id" => "kura-0", "region" => "eu-central", "events" => events}
+      %{"schema_version" => 1, "node_id" => "kura-0", "region" => "eu-west", "events" => events}
 
     conn =
       case Keyword.get(opts, :authorization) do
@@ -141,7 +141,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
         "event_id" => "evict-ctrl-#{System.unique_integer([:positive])}",
         "tenant_id" => "acme",
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "segment_id" => "segment-1",
         "reason" => "capacity",
         "evicted_at_unix_ms" => 1_774_438_400_000,
@@ -160,7 +160,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
         "event_id" => "snapshot-ctrl-#{System.unique_integer([:positive])}",
         "tenant_id" => "acme",
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "captured_at_unix_ms" => 1_774_438_400_000,
         "ring_budget_bytes" => 26_843_545_600,
         "desired_segment_count" => 50,
@@ -184,7 +184,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       |> post("/_internal/kura/usage", %{
         "schema_version" => 1,
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "events" => [],
         "evictions" => [eviction],
         "storage_snapshots" => [snapshot]
@@ -217,7 +217,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       |> post("/_internal/kura/usage", %{
         "schema_version" => 1,
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "events" => [build_event(%{"tenant_id" => account.name, "event_id" => "self-hosted-usage-#{account.id}"})],
         "evictions" => [eviction],
         "storage_snapshots" => [snapshot]
@@ -233,6 +233,26 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"])) == nil
   end
 
+  test "a self-hosted node's usage lands on its credential's account whatever the casing of its tenant", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
+    event_id = "self-hosted-mixed-case-#{account.id}"
+
+    conn =
+      post_events(
+        conn,
+        [build_event(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})],
+        authorization: authorization_header("self-hosted-client", "self-hosted-secret")
+      )
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+
+    assert [%UsageEvent{account_id: account_id}] =
+             ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+    assert account_id == account.id
+  end
+
   test "a self-hosted credential cannot attribute storage telemetry to another tenant", %{conn: conn} do
     account = AccountsFixtures.organization_fixture().account
     stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
@@ -243,7 +263,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       |> post("/_internal/kura/usage", %{
         "schema_version" => 1,
         "node_id" => "kura-0",
-        "region" => "eu-central",
+        "region" => "eu-west",
         "events" => [],
         "evictions" => [build_eviction(%{"tenant_id" => "someone-else"})]
       })

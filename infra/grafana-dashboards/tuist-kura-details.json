@@ -2774,98 +2774,6 @@
           }
         }
       },
-      "panel-125": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_outbox_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Replication outbox messages waiting to be processed\n\nPrometheus name: `kura_outbox_messages`",
-          "id": 125,
-          "links": [],
-          "title": "outbox_messages",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
       "panel-126": {
         "kind": "Panel",
         "spec": {
@@ -3757,98 +3665,6 @@
           }
         }
       },
-      "panel-134": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_backfill_backfilling_peers{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Initial-cycle peers with backfill passes outstanding\n\nPrometheus name: `kura_backfill_backfilling_peers`",
-          "id": 134,
-          "links": [],
-          "title": "backfill_backfilling_peers",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
       "panel-135": {
         "kind": "Panel",
         "spec": {
@@ -4033,98 +3849,6 @@
           }
         }
       },
-      "panel-137": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_backfill_budget_exhausted_peers{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Initial-cycle peers whose backfill failure budget is exhausted\n\nPrometheus name: `kura_backfill_budget_exhausted_peers`",
-          "id": 137,
-          "links": [],
-          "title": "backfill_budget_exhausted_peers",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
       "panel-138": {
         "kind": "Panel",
         "spec": {
@@ -4195,127 +3919,6 @@
                     ]
                   },
                   "unit": "ms"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
-      "panel-139": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_backfill_initial_cycle_mode{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Initial backfill cycle mode (0=pending, 1=complete, 2=degraded)\n\nPrometheus name: `kura_backfill_initial_cycle_mode`",
-          "id": 139,
-          "links": [],
-          "title": "backfill_initial_cycle_mode",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "mappings": [
-                    {
-                      "options": {
-                        "0": {
-                          "index": 0,
-                          "text": "pending"
-                        }
-                      },
-                      "type": "value"
-                    },
-                    {
-                      "options": {
-                        "1": {
-                          "index": 1,
-                          "text": "complete"
-                        }
-                      },
-                      "type": "value"
-                    },
-                    {
-                      "options": {
-                        "2": {
-                          "index": 2,
-                          "text": "degraded"
-                        }
-                      },
-                      "type": "value"
-                    }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
                 },
                 "overrides": []
               },
@@ -5073,98 +4676,6 @@
                     ]
                   },
                   "unit": "percent"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
-      "panel-147": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod, peer) (kura_backfill_watermark_age_ms{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} · {{peer}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Milliseconds between the current wall clock and the peer's persisted backfill watermark\n\nPrometheus name: `kura_backfill_watermark_age_ms` · labels: peer",
-          "id": 147,
-          "links": [],
-          "title": "backfill_watermark_age_ms",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "ms"
                 },
                 "overrides": []
               },
@@ -11906,7 +11417,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact write throughput by producer and result\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
+          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"` and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
           "id": 29,
           "links": [],
           "title": "artifact_write_bytes_total (rate)",
@@ -12116,7 +11627,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact writes by producer and result\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
+          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
           "id": 30,
           "links": [],
           "title": "artifact_writes_total (rate)",
@@ -15181,124 +14692,6 @@
               }
             },
             "version": "12.0.0"
-          }
-        }
-      },
-      "panel-6": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_backfill_initial_cycle_mode{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Initial backfill cycle mode (0=pending, 1=complete, 2=degraded)",
-          "id": 6,
-          "links": [],
-          "title": "backfill initial cycle mode",
-          "vizConfig": {
-            "group": "stat",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "thresholds"
-                  },
-                  "mappings": [
-                    {
-                      "options": {
-                        "0": {
-                          "index": 0,
-                          "text": "pending"
-                        }
-                      },
-                      "type": "value"
-                    },
-                    {
-                      "options": {
-                        "1": {
-                          "index": 1,
-                          "text": "complete"
-                        }
-                      },
-                      "type": "value"
-                    },
-                    {
-                      "options": {
-                        "2": {
-                          "index": 2,
-                          "text": "degraded"
-                        }
-                      },
-                      "type": "value"
-                    }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "orange",
-                        "value": 0
-                      },
-                      {
-                        "color": "green",
-                        "value": 1
-                      },
-                      {
-                        "color": "red",
-                        "value": 2
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "colorMode": "background",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "value_and_name",
-                "wideLayout": true
-              }
-            },
-            "version": "13.3.0-32457798232"
           }
         }
       },
@@ -20158,7 +19551,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
+                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -20200,7 +19593,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT region, country, subdivision,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
+                        "expression": "SELECT region, country, subdivision,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -20797,416 +20190,6 @@
               }
             },
             "version": "13.3.0-32457798232"
-          }
-        }
-      },
-      "panel-208": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod, lane) (kura_outbox_lane_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} · {{lane}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Replication outbox messages waiting to be processed, split by drain lane\n\nThe bulk lane (non-inline upserts, i.e. segment-backed artifacts) drains one delivery at a time, bounded by OUTBOX_MAX_INFLIGHT. The metadata lane (inline upserts and namespace deletes) is amortized by drain_metadata_batches, which carries many messages per request. A backlog sitting in the bulk lane points at the in-flight ceiling; one sitting in the metadata lane points at batching. The total in outbox_messages cannot separate them. Since the per-peer share, the write gate sheds on the deepest single target (outbox_target_messages against outbox_peer_capacity) or on the total against outbox_capacity, whichever trips first.\n\nPrometheus name: `kura_outbox_lane_messages` · labels: lane",
-          "id": 208,
-          "links": [],
-          "title": "outbox_lane_messages",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
-      "panel-209": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_outbox_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} capacity",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_outbox_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} queued",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "B"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Replication outbox node-wide total: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000) times the pod's replication target count, capped at 1000000, re-derived on every membership pass; KURA_OUTBOX_MAX_DEPTH replaces it with a fixed total. A write is shed when outbox_messages reaches this, or earlier when one target reaches its share (outbox_target_messages against outbox_peer_capacity).\n\nPrometheus name: `kura_outbox_capacity`",
-          "id": 209,
-          "links": [],
-          "title": "outbox_capacity",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
-      "panel-210": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod, target) (kura_outbox_target_messages{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} → {{target}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}} share",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "B"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Replication outbox messages queued per target peer. The per-peer share (KURA_OUTBOX_MAX_DEPTH_PER_PEER, exported as kura_outbox_peer_capacity) is enforced against these: a cache write is shed once any one of its targets is at the share, whatever the node-wide total. The deepest series here against the capacity line is what decides whether the pod is shedding, and which peer's drain is behind.\n\nPrometheus name: `kura_outbox_target_messages` · labels: target",
-          "id": 210,
-          "links": [],
-          "title": "outbox_target_messages",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
-          }
-        }
-      },
-      "panel-211": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "max by (pod) (kura_outbox_peer_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
-                        "instant": false,
-                        "legendFormat": "{{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Replication outbox messages one target peer may hold: KURA_OUTBOX_MAX_DEPTH_PER_PEER (100000), or the fixed KURA_OUTBOX_MAX_DEPTH when that replaces the share. A cache write is shed once any of its targets reaches this. Read outbox_target_messages against it.\n\nPrometheus name: `kura_outbox_peer_capacity`",
-          "id": 211,
-          "links": [],
-          "title": "outbox_peer_capacity",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "lineWidth": 1,
-                    "showPoints": "never",
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "12.0.0"
           }
         }
       },
@@ -23401,6 +22384,374 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-234": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "0 preparing; 1 opening RocksDB (15-minute opaque-phase allowance); 2 cleaning orphan segments; 3 configuring; 4 complete; 5 failed. Before phase 4, cache traffic is withheld. Phase 4 still observes the ordinary discovery and backfill readiness gates. Absent on older binaries.",
+          "id": 234,
+          "links": [],
+          "title": "Startup recovery phase",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-235": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "(time() - kura_startup_recovery_last_progress_timestamp_seconds{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) and on (cluster, pod) (kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"} < 4)",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time since a phase transition, completed index page or committed deletion batch. Five minutes without progress fails bootstrap liveness, except opening RocksDB, which has a 15-minute bound. A scheduler heartbeat never advances this timestamp. The panel hides completed recovery.",
+          "id": 235,
+          "links": [],
+          "title": "Startup recovery progress age",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-236": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kura_startup_recovery_completed_pages{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Completed bounded index pages during exclusive startup cleanup. A page reads at most 256 keys, then drops its RocksDB iterator. Advancing pages allow a long recovery to survive beyond the old five-minute startup budget. Resets with the process.",
+          "id": 236,
+          "links": [],
+          "title": "Recovery scan pages completed",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-237": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "kura_startup_recovery_committed_batches{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Deletion batches committed during startup cleanup. Restart resumes from remaining metadata, preserving entries-before-blobs ordering. A flat value with advancing pages can be a scan; both flat during cleanup indicate no recorded progress. Resets with the process.",
+          "id": 237,
+          "links": [],
+          "title": "Recovery deletion batches committed",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -23477,19 +22828,6 @@
                         "height": 4,
                         "width": 4,
                         "x": 16,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-6"
-                        },
-                        "height": 4,
-                        "width": 4,
-                        "x": 20,
                         "y": 0
                       }
                     },
@@ -23575,6 +22913,72 @@
                 }
               },
               "title": "State"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "title": "Startup recovery (4)",
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-234"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-235"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 12,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-236"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-237"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 12,
+                        "y": 8
+                      }
+                    }
+                  ]
+                }
+              }
             }
           },
           {
@@ -25355,19 +24759,6 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-125"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 0,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
                           "name": "panel-126"
                         },
                         "height": 7,
@@ -25453,58 +24844,6 @@
                         "x": 8,
                         "y": 14
                       }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-208"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 16,
-                        "y": 14
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-209"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 0,
-                        "y": 21
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-210"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 8,
-                        "y": 21
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-211"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 16,
-                        "y": 21
-                      }
                     }
                   ]
                 }
@@ -25530,19 +24869,6 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-134"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 8,
                         "y": 0
                       }
                     },
@@ -25577,38 +24903,12 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-137"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 8,
-                        "y": 7
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
                           "name": "panel-138"
                         },
                         "height": 7,
                         "width": 8,
                         "x": 16,
                         "y": 7
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-139"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 0,
-                        "y": 14
                       }
                     },
                     {
@@ -25699,19 +24999,6 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 28
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-147"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 16,
                         "y": 28
                       }
                     }

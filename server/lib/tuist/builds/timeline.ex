@@ -23,17 +23,13 @@ defmodule Tuist.Builds.Timeline do
         max(duration, event.start_ms + event.duration_ms)
       end)
 
-    %{events: events, total_count: length(events), duration: duration}
-  end
+    target_count =
+      events
+      |> Enum.reject(&(&1.target == ""))
+      |> MapSet.new(&{&1.project, &1.target})
+      |> MapSet.size()
 
-  def target_count(build_id) do
-    ClickHouseRepo.one(
-      from(e in Step,
-        hints: ["FINAL"],
-        where: e.build_run_id == ^build_id and e.target != "",
-        select: fragment("uniqExact((?, ?))", e.project, e.target)
-      )
-    )
+    %{events: events, total_count: length(events), duration: duration, target_count: target_count}
   end
 
   defp search_query(query, ""), do: query

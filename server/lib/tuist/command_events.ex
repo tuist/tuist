@@ -358,7 +358,7 @@ defmodule Tuist.CommandEvents do
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    counted_from = usage_counted_from(account_id, date)
+    counted_from = Account |> Repo.get!(account_id) |> usage_counted_from(date)
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
 
@@ -372,14 +372,12 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  # An account's free tier can be reset mid-month, which moves the start of the
-  # counting window forward. A reset older than the current month is inert, so
-  # the window returns to the month boundary once the month rolls over.
-  defp usage_counted_from(account_id, date) do
+  @doc """
+  The cache counting window shared by monthly usage and Air notifications.
+  A mid-month free-tier reset moves its start forward until the next month.
+  """
+  def usage_counted_from(%Account{free_tier_reset_at: reset_at}, date) do
     beginning_of_month = Timex.beginning_of_month(date)
-
-    reset_at =
-      Repo.one(from(a in Account, where: a.id == ^account_id, select: a.free_tier_reset_at))
 
     if is_nil(reset_at) or DateTime.before?(reset_at, beginning_of_month) do
       beginning_of_month

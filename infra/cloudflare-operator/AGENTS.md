@@ -5,10 +5,26 @@ against the Cloudflare API. It exists so zone-level Cloudflare
 configuration lives in git and reaches production through a reviewed
 PR, not through the Cloudflare dashboard.
 
-**Scope today: `CloudflareRateLimit` and `CloudflareCustomRule`.**
-Additional custom resources, such as cache rules, zone settings, and
-Artificial Intelligence Crawl Control, should remain separate kinds
-rather than overloading either ruleset shape.
+**Scope today: `CloudflareRateLimit`, `CloudflareCustomRule`, and
+`CloudflareBotManagement`.** Additional custom resources, such as
+cache rules, other zone settings, and Artificial Intelligence Crawl
+Control, should remain separate kinds rather than overloading any
+existing shape.
+
+`CloudflareBotManagement` is settings-shaped rather than
+ruleset-shaped: a singleton per zone (identity is `spec.zoneId`, no
+`ref`), reconciled against `/zones/{zoneId}/bot_management` with GET +
+overlay + PUT. Fields are optional so a CR only manages what it sets;
+Cloudflare-side fields the CR does not model (AI Crawl Control today)
+round-trip verbatim.
+
+The kind deliberately does not expose `spec.retainOnDelete`. Deleting
+a `CloudflareBotManagement` CR drops the finalizer and leaves zone
+state untouched, always. Cloudflare has no reset-to-defaults endpoint
+and the notional "defaults" are plan-tier-specific, so a delete
+handler that tried to reset would be both underspecified and a big
+blast radius; if the intent is to walk a value back, edit the CR
+rather than delete it.
 
 ## Why an operator, not Terraform
 
@@ -91,7 +107,9 @@ them to `active`.
 
 The Cloudflare [application programming interface](https://developers.cloudflare.com/fundamentals/api/)
 token lives in a Kubernetes Secret referenced by the chart. The token
-needs `Zone:Read` and `Zone WAF:Edit`, where WAF means
+needs `Zone:Read`, `Zone WAF:Edit`, and `Zone Settings:Edit` (the last
+covers the `bot_management` endpoint the `CloudflareBotManagement`
+reconciler PUTs to), where WAF means
 [Web Application Firewall](https://www.cloudflare.com/learning/ddos/glossary/web-application-firewall-waf/),
 scoped to the account and zone under management.
 

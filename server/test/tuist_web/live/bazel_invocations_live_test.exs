@@ -42,6 +42,117 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  test "empty invocations hide Timeline and direct links open Overview until a profile is published", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    attributes =
+      project
+      |> invocation_attributes("no-timeline", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+      |> Map.reject(fn {key, _} -> String.starts_with?(Atom.to_string(key), "build_timeline_") end)
+
+    Bazel.create_invocations([attributes])
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/no-timeline"
+
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    assert has_element?(lv, "[data-part=tabs] a[data-selected]", "Overview")
+
+    assert :ok = Bazel.ProfileUpload.stage(project, "no-timeline", "bad gzip")
+    render_patch(lv, path <> "?tab=timeline")
+    refute has_element?(lv, "#build-timeline")
+
+    assert {:discard, :invalid_profile} =
+             Bazel.Workers.ProcessProfileWorker.perform(%Oban.Job{
+               args: %{"project_id" => project.id, "invocation_id" => "no-timeline"}
+             })
+
+    render_patch(lv, path <> "?tab=timeline")
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+
+    assert :ok =
+             Bazel.Profile.ingest(
+               project,
+               "no-timeline",
+               :zlib.gzip(
+                 JSON.encode!(%{
+                   otherData: %{build_id: "no-timeline"},
+                   traceEvents: [%{ph: "X", name: "Compile", ts: 0, dur: 1000}]
+                 })
+               )
+             )
+
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+  end
+
+  test "retained summary spans alone do not expose Timeline or a fallback notice", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    Bazel.create_invocations([
+      invocation_attributes(project, "summary-only", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/summary-only"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    assert has_element?(lv, "[data-part=tabs] a[data-selected]", "Overview")
+  end
+
+  test "profile timeline downloads metadata separately from the shared hook", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    Bazel.create_invocations([
+      invocation_attributes(project, "timeline", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    assert :ok =
+             Bazel.Profile.ingest(
+               project,
+               "timeline",
+               :zlib.gzip(
+                 JSON.encode!(%{
+                   otherData: %{build_id: "timeline"},
+                   traceEvents: [%{ph: "X", name: "Compile", ts: 0, dur: 1000}]
+                 })
+               )
+             )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/timeline"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[data-source=bazel]")
+    assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=resource][aria-pressed=false]", "File preparation")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=fetch]", "Fetching")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Analysis/setup")
+    refute has_element?(lv, "[data-part=legend] button[data-kind=transform]")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=tabs] a") |> Enum.map(&Floki.text/1)
+    assert tabs == ["Overview", "Timeline", "Bazel Cache"]
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+  end
+
   test "aligns the Bazel overview analytics, builds, and tests with the other build systems", %{
     conn: conn,
     organization: organization,
@@ -398,7 +509,10 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-invocation-cache-action-hits", "1")
     assert has_element?(live_view, "#bazel-invocation-cache-action-misses", "0")
     assert has_element?(live_view, "#bazel-invocation-cache-hit-rate", "100.0%")
-    assert has_element?(live_view, "#bazel-invocation-cache-downloads", "6.1 KB")
+    # The fixture records a 2048-byte action-cache hit and a 4096-byte CAS hit.
+    # Only the latter is a build output, so the tile reports 4.1 KB rather than
+    # the 6.1 KB blended total, which counted ActionResult metadata as content.
+    assert has_element?(live_view, "#bazel-invocation-cache-downloads", "4.1 KB")
     assert has_element?(live_view, "#bazel-invocation-cache-uploads", "0 B")
     assert has_element?(live_view, "[data-part='cache-views']", "Cacheable Actions")
     assert has_element?(live_view, "[data-part='cache-views']", "Content Objects")
@@ -734,6 +848,9 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     bucket_index = Enum.find_index(analytics.observation_values, &(&1 > 0))
 
     assert_in_delta Enum.at(analytics.throughput_values, bucket_index), 162_909.09, 0.01
+    assert_in_delta Enum.at(analytics.read_latency_values, bucket_index), 29 / 3, 0.001
+    assert Enum.at(analytics.write_latency_values, bucket_index) == 20.0
+    assert Enum.at(analytics.latency_values, bucket_index) == 12.25
     assert ReapiCache.observations_present?(project.id)
   end
 

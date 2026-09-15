@@ -1,7 +1,7 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
+load("//bazel:rust_junit_test.bzl", "rust_junit_test")
 
 _KURA_VERSION = "0.8.0"
 
@@ -46,7 +46,7 @@ rust_binary(
     deps = all_crate_deps(normal = True) + [":kura_lib"],
 )
 
-rust_test(
+rust_junit_test(
     name = "kura_bin_test",
     srcs = ["src/main.rs"],
     aliases = aliases(),
@@ -58,7 +58,7 @@ rust_test(
 
 # Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the test_support
 # module) run under `bazel test`.
-rust_test(
+rust_junit_test(
     name = "kura_lib_test",
     aliases = aliases(),
     crate = ":kura_lib",

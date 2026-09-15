@@ -252,14 +252,12 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     secret: secret
   } do
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [
         %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
         %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
       ]
     )
-
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
 
     conn
     |> basic_auth(client.client_id, secret)
@@ -282,7 +280,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     refute Map.has_key?(body, "peer_roles")
   end
 
-  test "mesh heartbeat answers a false pull flag for an account without managed servers", %{
+  test "mesh heartbeat answers a true pull flag for an account without managed servers", %{
     conn: conn,
     client: client,
     secret: secret
@@ -299,7 +297,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> basic_auth(client.client_id, secret)
       |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
 
-    assert %{"mesh_member" => true, "replication_pull" => false} = json_response(conn, 200)
+    assert %{"mesh_member" => true, "replication_pull" => true} = json_response(conn, 200)
   end
 
   test "mesh heartbeat reports non-membership for a node that never enrolled", %{
@@ -340,7 +338,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     secret: secret
   } do
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [%{"url" => "https://internal-pod.kura.svc:7443", "gateway" => true}]
     )
 
@@ -401,14 +399,12 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     gateway_url = "https://kura-eu-0.peer:7443"
 
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [%{"url" => gateway_url, "gateway" => true}]
     )
 
     # Every field in this response is a Postgres read: no apiserver on the path.
     reject(&Client.get_kura_instance/3)
-
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
 
     conn =
       conn
@@ -417,7 +413,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert %{
              "peers" => [],
-             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-central", "gateway" => true}],
+             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-west", "gateway" => true}],
              "replication_pull" => true,
              "refresh_interval_seconds" => interval
            } = json_response(conn, 200)
@@ -433,7 +429,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
     stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
 
-    KuraFixtures.active_server_fixture(account, region: "eu-central")
+    KuraFixtures.active_server_fixture(account, region: "eu-west")
     reject(&Client.get_kura_instance/3)
 
     conn =
@@ -441,7 +437,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> basic_auth("static-kura-client", "static-kura-secret")
       |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
 
-    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => false} = json_response(conn, 200)
+    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => true} = json_response(conn, 200)
   end
 
   test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do

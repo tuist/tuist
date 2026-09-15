@@ -15,6 +15,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -750,11 +751,11 @@ defmodule Tuist.Kura.LifecycleTest do
 
       Repo.insert!(%Server{
         account_id: account.id,
-        region: "eu-central",
+        region: "eu-west",
         status: :active,
         url: "https://peer.example.com",
         current_image_tag: @image_tag,
-        provisioner_node_ref: "kura-#{account.id}-eu-central"
+        provisioner_node_ref: "kura-#{account.id}-eu-west"
       })
 
       assert Kura.replication_source?(reload(server))
@@ -1009,6 +1010,222 @@ defmodule Tuist.Kura.LifecycleTest do
     }
   end
 
+  describe "never-used instances" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    test "drains an instance that has stored nothing since it was created, once the unused window has passed" do
+      account = account()
+      server = unused_instance(account)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :drain_pending]])
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert_received {[:tuist, :kura, :lifecycle, :drain_pending], ^ref, %{count: 1}, %{reason: "unused"}}
+    end
+
+    test "leaves a never-used instance alone inside the unused window" do
+      account = account()
+      server = active_instance(account, age_days: 5)
+      with_demand(account, 1)
+      storage_rollups(account, 0..5)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone once it has stored bytes" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 1)
+      storage_rollups(account, Enum.reject(0..30, &(&1 == 12)))
+      storage_rollups(account, [12], max_live_segment_bytes: @gib, max_occupancy_percent: 20)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when it has no storage telemetry" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when its telemetry starts after it was created" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 1)
+      storage_rollups(account, 0..10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when its telemetry has stopped arriving" do
+      account = account()
+      server = active_instance(account, age_days: 10)
+      with_demand(account, 1)
+      storage_rollups(account, 4..10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when its telemetry has a gap" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, [0, 1, 2, 6, 7, 8])
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone once it has evicted content" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, Enum.reject(0..8, &(&1 == 3)))
+      storage_rollups(account, [3], eviction_count: 2, evicted_bytes: @gib, evicted_artifact_count: 10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "measures the window from the instance's return from archive" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+
+      account
+      |> with_demand(1)
+      |> Ecto.Changeset.change(%{last_returned_at: ago(3)})
+      |> Repo.update!()
+
+      storage_rollups(account, 0..30)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "never drains a keep-warm or Enterprise instance for going unused" do
+      keep_warm = account()
+      keep_warm_server = unused_instance(keep_warm)
+      {:ok, _} = Demand.set_keep_warm(keep_warm.id, @region, true)
+
+      enterprise = account(plan: :enterprise, region: :usa)
+      enterprise_server = unused_instance(enterprise)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(keep_warm_server).status == :active
+      assert reload(enterprise_server).status == :active
+    end
+
+    test "never considers an instance with no lifecycle row" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      storage_rollups(account, 0..8)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "archives a draining never-used instance even when the account asks for its cache mid-drain" do
+      account = account()
+      server = unused_instance(account)
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+
+      elapse_drain(account)
+      Demand.record(account.id)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :archived]])
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+      assert_received {[:tuist, :kura, :lifecycle, :archived], ^ref, %{count: 1}, %{reason: "unused"}}
+    end
+
+    test "does not return an archived never-used instance on the demand it already had" do
+      account = account()
+      server = archive_unused(account)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "returns an archived never-used instance when the account asks for its cache" do
+      account = account()
+      server = archive_unused(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    defp unused_instance(account) do
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, 0..8)
+      server
+    end
+
+    defp archive_unused(account) do
+      server = unused_instance(account)
+      assert :ok = Lifecycle.sweep()
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+      |> Repo.update!()
+
+      server
+    end
+
+    defp storage_rollups(account, days_ago, attrs \\ []) do
+      for days <- days_ago do
+        StorageRollup
+        |> struct!(
+          Keyword.merge(
+            [
+              account_id: account.id,
+              region: @region,
+              date: Date.add(Date.utc_today(), -days),
+              snapshot_count: 96,
+              max_occupancy_percent: 0,
+              max_live_segment_bytes: 0
+            ],
+            attrs
+          )
+        )
+        |> Repo.insert!()
+      end
+    end
+  end
+
   describe "placement retirements" do
     setup do
       stub(Provisioner, :destroy, fn _server -> :ok end)
@@ -1020,10 +1237,10 @@ defmodule Tuist.Kura.LifecycleTest do
       # waits for is the destination coming up, which happens on that cadence.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile()
@@ -1034,15 +1251,33 @@ defmodule Tuist.Kura.LifecycleTest do
     test "drains a region placement is leaving once somewhere else is serving" do
       account = account(plan: :enterprise)
       source = active_instance(account)
-      destination = active_instance_in(account, "eu-central")
+      destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
 
       assert reload(source).status == :drain_pending
+      assert reload(destination).status == :active
+    end
+
+    test "skips a retiring region the catalog does not name" do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. The instance there is still serving, and
+      # a drain scheduled now would outlive the window that made it look wrong.
+      account = account(plan: :enterprise)
+      source = active_instance_in(account, "atlantis")
+      destination = active_instance_in(account, "eu-west")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, "atlantis")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, "atlantis")
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
       assert reload(destination).status == :active
     end
 
@@ -1055,7 +1290,7 @@ defmodule Tuist.Kura.LifecycleTest do
       _runner_cache = active_instance_in(account, "scw-fr-par-runners")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1069,9 +1304,9 @@ defmodule Tuist.Kura.LifecycleTest do
       # again — holding its volume and its slot forever.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       refute reload_lifecycle(account)
@@ -1094,7 +1329,7 @@ defmodule Tuist.Kura.LifecycleTest do
       source = active_instance(account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1105,11 +1340,11 @@ defmodule Tuist.Kura.LifecycleTest do
     test "waits while the destination is still coming up" do
       account = account(plan: :enterprise)
       source = active_instance(account)
-      destination = active_instance_in(account, "eu-central")
+      destination = active_instance_in(account, "eu-west")
       {:ok, _provisioning} = Kura.record_observation(destination, %{status: :replicating, current_image_tag: @image_tag})
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1124,10 +1359,10 @@ defmodule Tuist.Kura.LifecycleTest do
       # here, which the inactivity rules get no say in.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1146,10 +1381,10 @@ defmodule Tuist.Kura.LifecycleTest do
       # margin would tear the instance down under live builds.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1165,10 +1400,10 @@ defmodule Tuist.Kura.LifecycleTest do
     test "tears the retired instance down once its drain window has elapsed" do
       account = account(plan: :enterprise)
       _source = active_instance(account)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
@@ -1181,31 +1416,31 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "drops the placement row once the instance is gone, freeing the region" do
       account = account(plan: :enterprise)
-      _destination = active_instance_in(account, "eu-central")
+      _destination = active_instance_in(account, "eu-west")
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
 
-      assert PlacerRegions.claimed_regions(account) == ["eu-central"]
+      assert PlacerRegions.claimed_regions(account) == ["eu-west"]
     end
   end
 
   describe "provisioning across the regions placement chose" do
     test "provisions every region the account is served from, not just the primary" do
-      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-central"] end)
-      stub_region_nodes([{@region, [@node_allocatable_bytes]}, {"eu-central", [@node_allocatable_bytes]}])
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      stub_region_nodes([{@region, [@node_allocatable_bytes]}, {"eu-west", [@node_allocatable_bytes]}])
 
       account = account(plan: :enterprise)
       {:ok, _primary} = PlacerRegions.put_primary(account, @region)
-      {:ok, _secondary} = PlacerRegions.put_secondary(account, "eu-central")
+      {:ok, _secondary} = PlacerRegions.put_secondary(account, "eu-west")
       with_demand(account, 0)
-      {:ok, _} = Demand.upsert(account.id, "eu-central", ago(0))
+      {:ok, _} = Demand.upsert(account.id, "eu-west", ago(0))
 
       Lifecycle.reconcile()
 
-      assert account |> servers_for() |> Enum.map(& &1.region) |> Enum.sort() == ["eu-central", @region]
+      assert account |> servers_for() |> Enum.map(& &1.region) |> Enum.sort() == ["eu-west", @region]
     end
 
     test "does not provision a region placement has left" do
@@ -1213,7 +1448,7 @@ defmodule Tuist.Kura.LifecycleTest do
       # provisioning from it would rebuild exactly what the retirement removes.
       account = account(plan: :enterprise)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
       with_demand(account, 0)
 

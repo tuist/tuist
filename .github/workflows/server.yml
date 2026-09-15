@@ -243,7 +243,7 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -302,7 +302,7 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -399,9 +399,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install image inspection tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends imagemagick
+        uses: ./.github/actions/mise
+        with:
+          working_directory: mise/tasks/marketing
+          install_args: --locked conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
       - name: Test image budget guard
         working-directory: ${{ github.workspace }}
         run: bash mise/tasks/marketing/image-budget-test.sh
@@ -597,7 +600,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

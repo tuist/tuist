@@ -194,9 +194,9 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   test "renders an open placement proposal of every kind", %{conn: conn, user: user} do
     for {kind, summary} <- [
-          {:relocate, "Placement proposes moving this account from us-east to eu-central."},
-          {:correct, "Placement proposes moving this account off its first region, us-east, to eu-central."},
-          {:expand, "Placement proposes also serving this account from eu-central."},
+          {:relocate, "Placement proposes moving this account from us-east to eu-west."},
+          {:correct, "Placement proposes moving this account off its first region, us-east, to eu-west."},
+          {:expand, "Placement proposes also serving this account from eu-west."},
           {:retire, "Placement proposes giving up us-east for this account."}
         ] do
       Repo.delete_all(PlacementProposal)
@@ -205,7 +205,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
         account_id: user.account.id,
         kind: kind,
         from_region: "us-east",
-        to_region: "eu-central",
+        to_region: "eu-west",
         evidence: %{"share" => 0.82, "window_days" => 7, "runs_per_day" => 20},
         status: :open
       })
@@ -260,7 +260,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -273,7 +273,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
              %{floor_mbps: 100, burst_mbps: 400}
 
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) == nil
   end
 
   # Each region is written in its own transaction, against a reading that can
@@ -285,14 +285,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     us_east = Kura.region("us-east")
 
     stub(Kura, :update_egress_limits_override, fn account, region, attrs ->
-      if region.id == "eu-central" do
+      if region.id == "eu-west" do
         {:error, Kura.change_egress_limits_override(account, region, attrs)}
       else
         call_original(Kura, :update_egress_limits_override, [account, region, attrs])
@@ -304,17 +304,17 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> form("#kura-egress-limits-form", %{
         "account" => %{
           "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
-          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+          "eu-west" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
         }
       })
       |> render_submit()
 
     assert html =~ "Egress limits updated in US East"
-    assert html =~ "EU Central was rejected and not saved"
+    assert html =~ "EU West was rejected and not saved"
     refute html =~ "Nothing was saved"
 
     assert Kura.egress_limits_override(user.account, us_east) == %{floor_mbps: 60, burst_mbps: 400}
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) == nil
   end
 
   # The reading behind the headroom check can move under a table an operator is
@@ -326,7 +326,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -337,7 +337,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     |> render_submit()
 
     # us-east's stored floor no longer fits the box, but the operator is editing
-    # eu-central.
+    # eu-west.
     stub(Capacity, :egress_headroom, fn _region, _handle ->
       %{node: "box-1", allocatable_mbps: 1000, available_mbps: 200, replicas: 2}
     end)
@@ -347,14 +347,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> form("#kura-egress-limits-form", %{
         "account" => %{
           "us-east" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => "1200"},
-          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+          "eu-west" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
         }
       })
       |> render_submit()
 
-    assert html =~ "Egress limits updated in EU Central"
+    assert html =~ "Egress limits updated in EU West"
 
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) ==
              %{floor_mbps: nil, burst_mbps: 200}
 
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
@@ -369,7 +369,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -385,7 +385,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     |> form("#kura-egress-limits-form", %{
       "account" => %{
         "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
-        "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        "eu-west" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
       }
     })
     |> render_submit()
@@ -393,7 +393,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
              %{floor_mbps: 60, burst_mbps: 400}
 
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) ==
              %{floor_mbps: nil, burst_mbps: 200}
   end
 
@@ -405,7 +405,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -414,13 +414,13 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> form("#kura-egress-limits-form", %{
         "account" => %{
           "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
-          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+          "eu-west" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
         }
       })
       |> render_submit()
 
     assert html =~ "kura-egress-limits-result"
-    assert html =~ "EU Central, US East"
+    assert html =~ "EU West, US East"
     assert html =~ "2 instances are recreated to pick them up"
   end
 
@@ -477,11 +477,11 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     stub(Capacity, :egress_budget_mbps, fn
       "us-east" -> 3000
-      "eu-central" -> 500
+      "eu-west" -> 500
     end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -490,14 +490,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
       |> form("#kura-egress-limits-form", %{
         "account" => %{
           "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
-          "eu-central" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => ""}
+          "eu-west" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => ""}
         }
       })
       |> render_submit()
 
     assert html =~ "must not exceed the box&#39;s 500 Mbps"
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) == nil
   end
 
   test "saves several regions in one submit", %{conn: conn, user: user} do
@@ -505,7 +505,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
 
     kura_server(user, "us-east")
-    kura_server(user, "eu-central")
+    kura_server(user, "eu-west")
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -513,7 +513,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     |> form("#kura-egress-limits-form", %{
       "account" => %{
         "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
-        "eu-central" => %{"kura_egress_floor_mbps" => "50", "kura_egress_burst_mbps" => "200"}
+        "eu-west" => %{"kura_egress_floor_mbps" => "50", "kura_egress_burst_mbps" => "200"}
       }
     })
     |> render_submit()
@@ -521,7 +521,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
              %{floor_mbps: 100, burst_mbps: 400}
 
-    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-west")) ==
              %{floor_mbps: 50, burst_mbps: 200}
   end
 
@@ -833,14 +833,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#prepaid-balance-table", "10,000")
+      assert has_element?(lv, "#prepaid-balance-table", "10K")
 
       html =
         lv
         |> form("#prepaid-minutes-form", %{"minutes" => "100"})
         |> render_submit()
 
-      assert html =~ "10,100"
+      assert html =~ "10.1K"
     end
 
     test "sets the balance to the figure typed rather than adding to it", %{conn: conn, user: user} do
@@ -963,9 +963,99 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#prepaid-balance-table", "10,000")
+      assert has_element?(lv, "#prepaid-balance-table", "10K")
       assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
       refute render(lv) =~ "750.00$"
+    end
+  end
+
+  describe "standing prepaid runner minutes" do
+    test "opens on the minutes the subscription carries", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#standing-prepaid-minutes-input[value=\"6000\"]")
+    end
+
+    test "sets the standing minutes without touching what the account holds now", %{conn: conn, user: user} do
+      # The two fields do different jobs. What every future cycle opens at
+      # must not silently replace minutes the customer is part-way through
+      # spending.
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      reject(&Prepaid.set_minutes/2)
+      reject(&Prepaid.set_minutes/3)
+
+      expect(Prepaid, :set_standing_minutes, fn account, minutes ->
+        assert account.id == user.account.id
+        assert minutes == 6_000
+        {:ok, 6_000}
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-info") |> render()
+
+      assert flash =~ "each renewal"
+      assert flash =~ "360.00"
+      assert flash =~ "cycle now running is unchanged"
+    end
+
+    test "quotes the cycle's money as minutes are typed", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+        |> render_change()
+
+      assert html =~ "360.00"
+      assert html =~ "450.00"
+    end
+
+    test "stops the arrangement when set to zero", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
+      expect(Prepaid, :set_standing_minutes, fn _account, 0 -> {:ok, 0} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "0"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-info") |> render()
+      assert flash =~ "no longer be billed or granted minutes at each renewal"
+    end
+
+    test "explains why a subscription that does not renew monthly cannot carry standing minutes",
+         %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:error, :not_monthly} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#standing-prepaid-unavailable-alert")
+      assert render(lv) =~ "renews monthly"
+      refute has_element?(lv, "#standing-prepaid-minutes-form")
+    end
+
+    test "says why the standing minutes could not be set", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      stub(Prepaid, :set_standing_minutes, fn _account, _minutes -> {:error, :on_runner_trial} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-error") |> render()
+      assert flash =~ "runner trial"
     end
   end
 

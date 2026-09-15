@@ -10,6 +10,8 @@ import (
 //
 // +kubebuilder:validation:XValidation:rule="self.zoneId == oldSelf.zoneId",message="zoneId is immutable"
 // +kubebuilder:validation:XValidation:rule="has(self.adopt) || self.createNewRule == true",message="either adopt.ruleId or createNewRule=true must be set"
+// +kubebuilder:validation:XValidation:rule="self.action != 'skip' || (has(self.actionParameters) && has(self.actionParameters.phases) && size(self.actionParameters.phases) > 0)",message="actionParameters.phases is required when action is 'skip'"
+// +kubebuilder:validation:XValidation:rule="self.action == 'skip' || !has(self.actionParameters)",message="actionParameters is only allowed when action is 'skip'"
 type CloudflareCustomRuleSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="zoneId is immutable"
 	ZoneID string `json:"zoneId"`
@@ -17,8 +19,20 @@ type CloudflareCustomRuleSpec struct {
 	Description string `json:"description"`
 	Expression  string `json:"expression"`
 
-	// +kubebuilder:validation:Enum=block;managed_challenge;js_challenge;log
+	// Action is what Cloudflare does with a matched request. `skip`
+	// short-circuits one or more downstream phases (declared in
+	// ActionParameters.Phases) — this is how we exempt CLI/API paths
+	// from Super Bot Fight Mode while keeping SBFM on for the browser
+	// dashboard. See
+	// https://developers.cloudflare.com/waf/custom-rules/skip/.
+	// +kubebuilder:validation:Enum=block;managed_challenge;js_challenge;log;skip
 	Action string `json:"action"`
+
+	// ActionParameters carries the sub-options a specific action
+	// takes. Today only `skip` uses it and the shape it needs is a
+	// list of Cloudflare phases to bypass; grow this struct as more
+	// action-specific parameters land.
+	ActionParameters *ActionParameters `json:"actionParameters,omitempty"`
 
 	// +kubebuilder:default=read_only
 	Mode ReconcileMode `json:"mode,omitempty"`
@@ -37,6 +51,19 @@ type CloudflareCustomRuleSpec struct {
 
 	// +kubebuilder:default=true
 	RetainOnDelete bool `json:"retainOnDelete,omitempty"`
+}
+
+// ActionParameters carries the sub-options Cloudflare accepts for
+// specific rule actions. Only the fields the operator supports are
+// modeled; unmodeled fields on adopted rules round-trip through the
+// reconciler's overlay pattern without being clobbered.
+type ActionParameters struct {
+	// Phases is the ordered list of Cloudflare phases the `skip`
+	// action should bypass for a matched request. The most common
+	// value is `["http_request_sbfm"]` to exempt paths from Super
+	// Bot Fight Mode; other valid entries are documented at
+	// https://developers.cloudflare.com/ruleset-engine/reference/phases-list/.
+	Phases []string `json:"phases,omitempty"`
 }
 
 func (s *CloudflareCustomRuleSpec) IsEnabled() bool {
@@ -102,6 +129,26 @@ func (in *CloudflareCustomRuleSpec) DeepCopyInto(out *CloudflareCustomRuleSpec) 
 		*out = new(AdoptRule)
 		**out = **in
 	}
+	if in.ActionParameters != nil {
+		out.ActionParameters = in.ActionParameters.DeepCopy()
+	}
+}
+
+func (in *ActionParameters) DeepCopyInto(out *ActionParameters) {
+	*out = *in
+	if in.Phases != nil {
+		out.Phases = make([]string, len(in.Phases))
+		copy(out.Phases, in.Phases)
+	}
+}
+
+func (in *ActionParameters) DeepCopy() *ActionParameters {
+	if in == nil {
+		return nil
+	}
+	o := new(ActionParameters)
+	in.DeepCopyInto(o)
+	return o
 }
 
 func (in *CloudflareCustomRule) DeepCopyInto(out *CloudflareCustomRule) {

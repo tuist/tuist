@@ -13,8 +13,13 @@ This module contains core domain abstractions and shared models used across the 
 ## Invariants
 - Analytics types are Codable and designed for transport to the server.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
+- Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - XCFramework index metadata belongs to the bounded `binaryCacheIndex` support-cache category; payloads remain in the binary-cache budget.
+
+- Subhash diagnostics carry optional effective destinations, foreign-build hashes, and UI-test device/runtime inputs. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.
+- External destination traversal exposes additional roots through GraphTraversing; local package test roots must have effective destinations inferred from production consumers before propagating them to test-only dependencies.
+- Test automation retains the graph before test focus in MapperEnvironment so narrowing can infer local package test platforms from production consumers that focus removes.

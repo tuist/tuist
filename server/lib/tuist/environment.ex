@@ -284,6 +284,46 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
   end
 
+  @doc """
+  Whether the public-page Turnstile challenge is armed on this
+  deployment. Read straight off the env at request time so an ops
+  flip via `helm upgrade --set env.TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED`
+  is picked up without a full restart on the next pod rotation.
+  """
+  def public_page_challenge_enabled? do
+    truthy?(System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED", "0"))
+  end
+
+  @doc """
+  True when the public-page challenge should be enforced on this
+  deployment. Same shape as `turnstile_required?/0`: only the
+  tuist-hosted plane is gated so on-premise installs are not
+  interfering with their own dashboards.
+  """
+  def public_page_challenge_required? do
+    tuist_hosted?() and public_page_challenge_enabled?()
+  end
+
+  @doc """
+  How long a solved Turnstile challenge counts as fresh in the
+  session, in seconds. Default is four hours so a legitimate anon
+  visitor browsing across multiple public projects during a work
+  session only sees the interstitial once, while a stale session
+  from a shared device still expires within one workday.
+  """
+  def public_page_challenge_freshness do
+    case System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_FRESHNESS_SECONDS") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {seconds, _} when seconds > 0 -> seconds
+          _ -> 4 * 60 * 60
+        end
+
+      _ ->
+        4 * 60 * 60
+    end
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
@@ -419,7 +459,7 @@ defmodule Tuist.Environment do
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from
   `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
-  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
+  `eu-west=1.2.3.4,ca-east=5.6.7.8`).
   """
   def kura_peer_failover_ip(region_id) when is_binary(region_id) do
     "TUIST_KURA_PEER_FAILOVER_IPS"
@@ -446,15 +486,23 @@ defmodule Tuist.Environment do
   otherwise. A placement transition costs a region's worth of cache refill,
   which is why this starts stopped where claim sizing does not.
 
-  Per kind because the kinds do not cost the same thing. An `expand` opens a
-  region and leaves every cache the account already has where it is; the
-  others give a region up, and what they spend is the refill of whatever was
-  warm in it. One budget over both would make the number chosen for how fast
-  the fleet may abandon caches also decide how fast it may grow, and would
-  leave no way to run the additive kind while a kind whose evidence is not yet
-  trustworthy stays supervised.
+  Per kind because only one kind needs a fleet-wide ceiling at all. Every rung
+  already limits how often a single account may move: expansion stops at the
+  plan's region count, relocation runs once a quarter, correction fires once in
+  an account's life. Those bound the thing worth bounding and they scale with
+  the fleet by construction. A count here bounds something different, which is
+  how much of the *whole fleet* may move in a day, and the only reason to want
+  that is a rung deciding wrongly for everyone at once. Retirement is where
+  that matters, because it deletes volumes an hour later with no cancel; the
+  others cost a cold cache and re-derive their own decision.
 
-  The format is `kind=count` pairs, such as `expand=2,correct=2,relocate=1`.
+  The format is `kind=count` pairs, such as `expand=all,relocate=all,retire=25`.
+  A count of `all` lifts the fleet-wide ceiling on that kind entirely, which is
+  the right setting for every kind whose mistake is recoverable: the rungs
+  already limit how often any one account may move, and a fleet-wide constant
+  in front of a queue that grows with the account count is a ceiling that stops
+  tracking the fleet the moment it grows.
+
   Which names are real kinds is
   `Tuist.Kura.PlacementProposals.automatic_apply_budgets/0`'s to decide. What
   is settled here is only that an unreadable pair is dropped rather than
@@ -471,11 +519,19 @@ defmodule Tuist.Environment do
 
   defp put_placement_budget(pair, budgets) do
     with [name, count] <- String.split(pair, "=", parts: 2),
-         {count, ""} <- count |> String.trim() |> Integer.parse(),
-         true <- count >= 0 do
+         {:ok, count} <- parse_placement_budget(String.trim(count)) do
       Map.put(budgets, String.trim(name), count)
     else
       _ -> budgets
+    end
+  end
+
+  defp parse_placement_budget("all"), do: {:ok, :unlimited}
+
+  defp parse_placement_budget(count) do
+    case Integer.parse(count) do
+      {count, ""} when count >= 0 -> {:ok, count}
+      _ -> :error
     end
   end
 
@@ -495,6 +551,14 @@ defmodule Tuist.Environment do
   def kura_inactive_days, do: positive_env_integer("TUIST_KURA_INACTIVE_DAYS", 90)
 
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
+
+  @doc """
+  Days a Kura instance may stay in service without storing anything before it
+  is drained and reclaimed, measured from when it entered service.
+
+  Read from `TUIST_KURA_UNUSED_DAYS`.
+  """
+  def kura_unused_days, do: positive_env_integer("TUIST_KURA_UNUSED_DAYS", 7)
 
   @doc """
   Days an account-region's demand must have been tracked before it can be
@@ -1567,6 +1631,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns the bucket size for the anonymous per-scope dashboard rate limiter.
+
+  Applied on top of the per-subject dashboard limit and keyed by
+  `(method, account_handle[, project_handle])` for unauthenticated requests,
+  so a scraper distributed across many IPs is caught in aggregate.
+
+  The default values are:
+  - 600 requests per minute per scope for canary environments
+  - 120 requests per minute per scope for other environments
+  """
+  def public_project_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:public_project_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 600, else: 120
+    end
+  end
+
+  @doc """
   Returns the bucket size for the MCP rate limiter.
 
   The default values are:
@@ -1800,6 +1882,16 @@ defmodule Tuist.Environment do
   """
   def runners_macos_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
+  parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
+  `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`
+  normalizes and orders them.
+  """
+  def runner_macos_xcode_versions do
+    Application.get_env(:tuist, :runner_macos_xcode_versions, [])
   end
 
   @doc """

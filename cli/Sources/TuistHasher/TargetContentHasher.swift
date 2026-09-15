@@ -158,7 +158,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         )
 
         if let projectHash {
-            let hash = try contentHasher.hash(
+            let stringsToHash =
                 [
                     projectHash,
                     graphTarget.target.name,
@@ -168,7 +168,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                     dependenciesHash.hash,
                     embeddedProductReferencesHash,
                 ].compactMap { $0 } + destinations + additionalStrings
-            )
+            let hash = try contentHasher.hash(stringsToHash)
 
             Logger.current.debug("""
             Target content hash for \(graphTarget.target.name) (external project): \(hash)
@@ -190,7 +190,8 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 targetSettings: settingsHash,
                 additionalStrings: additionalStrings,
                 external: projectHash,
-                embeddedProductReferences: embeddedProductReferencesHash
+                embeddedProductReferences: embeddedProductReferencesHash,
+                destinations: destinations
             )
 
             return TargetContentHash(
@@ -376,15 +377,20 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             stringsToHash.append(settingsHash)
         }
 
+        let foreignBuildHash: String?
         if let foreignBuild = graphTarget.target.foreignBuild {
             let inputsResult = try await foreignBuildHasher.hash(
                 inputs: foreignBuild.inputs,
                 hashedPaths: hashedPaths
             )
             hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
-            let foreignBuildHash = try contentHasher.hash(
+            foreignBuildHash = try contentHasher.hash(
                 "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
             )
+        } else {
+            foreignBuildHash = nil
+        }
+        if let foreignBuildHash {
             stringsToHash.append(foreignBuildHash)
         }
 
@@ -439,7 +445,11 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             buildableFolders: buildableFoldersHash,
             additionalHashingInputs: additionalHashingInputsResult.hash,
             additionalStrings: additionalStrings,
-            embeddedProductReferences: embeddedProductReferencesHash
+            embeddedProductReferences: embeddedProductReferencesHash,
+            destinations: destinations,
+            foreignBuild: foreignBuildHash,
+            testDevice: destinationHashes.first,
+            testRuntime: destinationHashes.last
         )
 
         return TargetContentHash(

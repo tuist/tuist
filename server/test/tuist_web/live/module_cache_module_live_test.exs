@@ -10,6 +10,145 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
+  test "history filters reuse analytics and branch choices after the clock advances", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :cache_branches, fn _opts -> [] end)
+    reject(&Analytics.module_invalidation_timeseries/1)
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, 2000)
+
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+
+    expect(Analytics, :module_build_history, fn opts ->
+      assert opts[:git_branch] == "main"
+      assert opts[:end_datetime] == ~U[2024-04-30 11:00:00Z]
+
+      %{
+        rows: [],
+        has_previous_page: false,
+        has_next_page: false,
+        start_cursor: nil,
+        end_cursor: nil
+      }
+    end)
+
+    render_patch(lv, path <> "?builds-branch=main")
+    render_async(lv, 2000)
+    render_patch(lv, path <> "?builds-branch=main&miss-reason=cold")
+    render_async(lv, 2000)
+
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 12:00:00Z] end)
+
+    expect(Analytics, :module_build_history, fn opts ->
+      assert opts[:end_datetime] == ~U[2024-04-30 11:00:00Z]
+      assert opts[:after] == "next-page"
+      empty_history()
+    end)
+
+    render_patch(lv, path <> "?builds-branch=main&after=next-page")
+    render_async(lv, 2000)
+  end
+
+  @tag :capture_log
+  test "a matching patch retries failed history, branches and analytics", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    for function <- [:module_build_history, :module_invalidation_breakdown, :cache_branches] do
+      expect(Analytics, function, fn _opts -> raise Ch.Error, code: 159, message: "Timeout exceeded" end)
+    end
+
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, 2000)
+    assert has_element?(lv, "[data-part=analytics-error]")
+    assert has_element?(lv, "[data-part=error]")
+
+    expect(Analytics, :module_build_history, fn _opts -> empty_history() end)
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :cache_branches, fn _opts -> [] end)
+    render_patch(lv, path <> "?miss-reason=cold")
+    render_async(lv, 2000)
+    refute has_element?(lv, "[data-part=analytics-error]")
+    refute has_element?(lv, "[data-part=error]")
+    assert has_element?(lv, "#module-cache-activity-chart")
+  end
+
+  test "presentation patches reuse in-flight history", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    owner = self()
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :cache_branches, fn _opts -> [] end)
+
+    expect(Analytics, :module_build_history, fn _opts ->
+      send(owner, {:history_started, self()})
+
+      receive do
+        :release -> empty_history()
+      end
+    end)
+
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+    {:ok, lv, _html} = live(conn, path)
+    assert_receive {:history_started, task}
+    render_patch(lv, path <> "?miss-reason=cold")
+    send(task, :release)
+    render_async(lv, 2000)
+    refute has_element?(lv, "[data-part=error]")
+  end
+
+  test "detail totals include misses and hits from every product", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    for {product, hit, count} <- [{"framework", :miss, 2}, {"staticLibrary", :miss, 1}, {"staticLibrary", :remote, 3}] do
+      for _ <- 1..count do
+        event = CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: ~N[2024-01-31 09:00:00])
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: product,
+          binary_cache_hash: "core",
+          binary_cache_hit: hit
+        )
+      end
+    end
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core")
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-hit-rate", "50.0%")
+    assert has_element?(lv, "#widget-cache-activity", "3")
+    assert has_element?(lv, "#widget-why-it-misses", "3")
+    assert has_element?(lv, "[data-part=badges]", "framework, staticLibrary")
+  end
+
+  defp empty_history do
+    %{rows: [], has_previous_page: false, has_next_page: false, start_cursor: nil, end_cursor: nil}
+  end
+
+  test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core?miss-reason=unknown")
+
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-why-it-misses", "Misses")
+    assert has_element?(lv, "#widget-why-it-misses", "Cold: insufficient evidence")
+  end
+
   test "renders the module detail page with chart and downstream impact", %{
     conn: conn,
     organization: organization,
@@ -117,10 +256,20 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       document
       |> Floki.find("#module-build-history-table tbody tr")
       |> Enum.map(fn row ->
-        row |> Floki.find("td") |> Enum.at(2) |> Floki.text() |> String.trim()
+        row |> Floki.find("td") |> Enum.at(2) |> Floki.find("[data-type=badge]") |> Floki.text() |> String.trim()
       end)
 
     assert reasons == ["Changed", "Cached", "Cold"]
+
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "The module's reported inputs changed")
+
+    assert has_element?(
+             lv,
+             "[id^=module-miss-reason-] [data-part=description]",
+             "No earlier comparison is available"
+           )
+
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=trigger][tabindex=\"0\"]")
 
     results =
       document
@@ -227,7 +376,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     organization: organization,
     project: project
   } do
-    stub(Analytics, :module_invalidations, fn _opts ->
+    stub(Analytics, :module_invalidation_breakdown, fn _opts ->
       raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
     end)
 
@@ -247,6 +396,45 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     assert has_element?(lv, "#module-cache-module [data-part=\"error\"]")
     refute has_element?(lv, "#module-cache-module [data-part=\"skeleton\"]")
     refute has_element?(lv, "#module-build-history-table")
+  end
+
+  test "evicted misses show their reason and explanation", %{conn: conn, organization: organization, project: project} do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    observe = fn at, hit ->
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: at,
+          cache_endpoint: "https://cache.example.com"
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "same-artifact",
+        binary_cache_hit: hit,
+        sources_hash: "unchanged"
+      )
+
+      event
+    end
+
+    observe.(~N[2024-01-29 10:00:00], :remote)
+    observe.(~N[2024-01-30 10:00:00], :miss)
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+
+    {:ok, lv, _html} = live(conn, base <> "?miss-reason=evicted&builds-reason=evicted")
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-why-it-misses", "Evicted misses")
+    assert has_element?(lv, "#widget-why-it-misses", "1")
+    assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Evicted")
+
+    assert has_element?(lv, "#module-build-history-table", "The cached artifact was most likely evicted")
+    refute has_element?(lv, "#module-build-history-table [data-type=badge]", "Cached")
+    assert render(lv) =~ "builds-reason=evicted"
   end
 
   test "the analytics widgets read the same way as the modules page", %{
@@ -297,7 +485,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     # Every reason, including the total, is wired to the event.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold) do
+    for reason <- ~w(all changed upstream cold evicted) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
@@ -306,6 +494,11 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
     assert has_element?(lv, "#widget-why-it-misses", "Changed misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
+    assert has_element?(lv, "#widget-why-it-misses", "configuration, or compiler version")
+
+    render_click(lv, "select_miss_reason", %{"type" => "evicted"})
+    assert_push_event(lv, "replace-url", %{url: "?miss-reason=evicted"})
+    assert has_element?(lv, "#widget-why-it-misses", "Evicted misses")
 
     # The other two widgets are the ones the modules page keeps in its table.
     assert has_element?(lv, "#widget-hit-rate")

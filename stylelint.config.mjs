@@ -53,6 +53,10 @@ const runtimeProperties = {
     // Set inline by the Gradle build timeline on each configuration operation.
     "--configuration-operation-start": "",
     "--configuration-operation-duration": "",
+    // Set inline per platform-hero panel by
+    // server/lib/tuist_web/marketing/components/marketing_home_components.ex.
+    "--panel-x": "",
+    "--panel-w": "",
   },
 };
 

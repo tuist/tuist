@@ -1400,6 +1400,35 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
+    test "does not fail when the project is deleted before broadcasting test creation" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      parent = self()
+
+      stub(Tuist.Tasks, :run_async, fn fun ->
+        send(parent, {:task, fun})
+        {:ok, self()}
+      end)
+
+      # When
+      assert {:ok, _test} =
+               Tests.create_test(%{
+                 id: UUIDv7.generate(),
+                 project_id: project.id,
+                 account_id: project.account_id,
+                 duration: 1500,
+                 status: "success",
+                 ran_at: NaiveDateTime.utc_now(),
+                 is_ci: false
+               })
+
+      assert_receive {:task, task}
+      assert {:ok, _} = Tuist.Projects.delete_project(project)
+
+      # Then
+      task.()
+    end
+
     test "looks up existing test cases by binding the IDs as a single array parameter" do
       # Given
       project = ProjectsFixtures.project_fixture()

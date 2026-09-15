@@ -248,7 +248,7 @@
       >
         <:col :let={usage_item} label={dgettext("dashboard_account", "Remote cache hits")}>
           <.text_and_description_cell
-            label={usage_item.remote_cache_hits_count}
+            label={format_number(usage_item.remote_cache_hits_count)}
             description={dgettext("dashboard_account", "above free tier")}
           />
         </:col>

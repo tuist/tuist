@@ -180,6 +180,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJobs
@@ -352,6 +353,15 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # unknown there, and the 404 would read as "pruned" and complete a job
   # that may still be running. Buildkite's own answer arrives folded into
   # the vocabulary the GitHub branch acts on.
+  defp recover_one(%{provider: "gitlab", account_id: account_id} = orphan, evidence) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         {:ok, {status, conclusion}} <- GitLab.orphan_status(orphan, evidence) do
+      handle_gh_status(status, conclusion, orphan, account, evidence)
+    else
+      _ -> false
+    end
+  end
+
   defp recover_one(%{provider: "buildkite", workflow_job_id: workflow_job_id, account_id: account_id} = orphan, evidence) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, {status, conclusion}} <- Buildkite.orphan_status(orphan) do

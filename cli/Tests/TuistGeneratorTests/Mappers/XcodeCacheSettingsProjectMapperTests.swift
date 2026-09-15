@@ -425,6 +425,199 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
     }
 
+    /// A target that overrides `OTHER_SWIFT_FLAGS` without `$(inherited)` shadows the
+    /// project-level flags entirely, so `-cas-plugin-option tuist-instance=<handle>` is
+    /// never handed to the compiler frontend for that target. With `-cache-compile-job`
+    /// + `-cas-path` + `-cas-plugin-path` on the command line but no plugin option,
+    /// swift-frontend rejects the invocation with `Cannot setup CAS due to conflicting
+    /// '-cas-*' options`. The mapper needs to patch each shadowing target too, mirroring
+    /// what `ModuleMapMapper` and `FrameworkSearchPathsGraphMapper` already do.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenTargetShadowsOtherSwiftFlags_appendsCASPluginOptionsToTarget() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let fullHandle = "test-org/test-project"
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: fullHandle,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        // A Notification Service Extension–style target: `OTHER_SWIFT_FLAGS` set at the
+        // target level with no `$(inherited)`, so it shadows the project base entirely.
+        let shadowingTarget = Target.test(
+            name: "MigrosNotificationServiceExtension",
+            product: .appExtension,
+            settings: Settings(
+                base: [
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "-D", "DEBUG",
+                        "-Xfrontend", "-warn-long-function-bodies=100",
+                    ]),
+                ],
+                configurations: [.debug: nil, .release: nil]
+            )
+        )
+        let project = Project.test(
+            name: "TestProject",
+            settings: .test(
+                base: [:],
+                configurations: [.debug: nil, .release: nil]
+            ),
+            targets: [shadowingTarget]
+        )
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: the project base still carries the CAS plugin options for targets that
+        // don't shadow.
+        #expect(
+            mappedProject.settings.base["OTHER_SWIFT_FLAGS"]
+                == .array(["$(inherited)", "-cas-plugin-option", "tuist-instance=test-org/test-project"])
+        )
+
+        // Then: the shadowing target's `OTHER_SWIFT_FLAGS` now also carries the CAS
+        // plugin options — its original flags first, `-cas-plugin-option` pairs
+        // appended — so `-cas-plugin-option tuist-instance=...` still reaches the
+        // compiler frontend and Swift accepts the CAS setup.
+        let mappedTarget = try #require(mappedProject.targets["MigrosNotificationServiceExtension"])
+        #expect(
+            mappedTarget.settings?.base["OTHER_SWIFT_FLAGS"]
+                == .array([
+                    "-D", "DEBUG",
+                    "-Xfrontend", "-warn-long-function-bodies=100",
+                    "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                ])
+        )
+    }
+
+    /// A target whose `OTHER_SWIFT_FLAGS` already contains `$(inherited)` picks up the
+    /// project-base CAS options for free, so the mapper must NOT add another copy —
+    /// duplicated `-cas-plugin-option` pairs would land twice in the swiftc argv.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenTargetInheritsOtherSwiftFlags_leavesTargetUntouched() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let inheritingTarget = Target.test(
+            name: "InheritingTarget",
+            settings: Settings(
+                base: [
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "$(inherited)",
+                        "-Xfrontend", "-warn-long-function-bodies=100",
+                    ]),
+                ],
+                configurations: [.debug: nil, .release: nil]
+            )
+        )
+        let project = Project.test(
+            name: "TestProject",
+            settings: .test(base: [:], configurations: [.debug: nil, .release: nil]),
+            targets: [inheritingTarget]
+        )
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: the target's `OTHER_SWIFT_FLAGS` are unchanged — `$(inherited)` already
+        // pulls in the project-base `-cas-plugin-option tuist-instance=...`.
+        let mappedTarget = try #require(mappedProject.targets["InheritingTarget"])
+        #expect(
+            mappedTarget.settings?.base["OTHER_SWIFT_FLAGS"]
+                == .array([
+                    "$(inherited)",
+                    "-Xfrontend", "-warn-long-function-bodies=100",
+                ])
+        )
+    }
+
+    /// Xcode resolves configuration-level keys independently of the target base, so a
+    /// per-configuration override of `OTHER_SWIFT_FLAGS` without `$(inherited)` shadows
+    /// the base for that configuration too and drops the CAS plugin options for it.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenConfigurationShadowsOtherSwiftFlags_appendsCASPluginOptionsToConfiguration() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let debugConfiguration = Configuration.test(
+            settings: ["OTHER_SWIFT_FLAGS": .array(["-D", "DEBUG"])]
+        )
+        let target = Target.test(
+            name: "ConfigOverridingTarget",
+            settings: Settings(
+                base: [:],
+                configurations: [.debug: debugConfiguration, .release: nil]
+            )
+        )
+        let project = Project.test(
+            name: "TestProject",
+            settings: .test(base: [:], configurations: [.debug: nil, .release: nil]),
+            targets: [target]
+        )
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: the shadowing configuration picks up the CAS plugin options.
+        let mappedTarget = try #require(mappedProject.targets["ConfigOverridingTarget"])
+        let mappedDebug = try #require(mappedTarget.settings?.configurations[.debug] ?? nil)
+        #expect(
+            mappedDebug.settings["OTHER_SWIFT_FLAGS"]
+                == .array([
+                    "-D", "DEBUG",
+                    "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                ])
+        )
+    }
+
     /// The plugin path is baked into the generated pbxproj and feeds the target
     /// content hash through the project's base settings, so a raw install path
     /// (Homebrew locally, mise on CI) would give the same code different module

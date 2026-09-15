@@ -1,0 +1,34 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-page">
+    <article data-part="article">
+      <header data-part="header">
+        <%!-- The security page's SOC 2 mark uses the footer's theme-aware badge
+        illustration instead of its light-only webp logo. --%>
+        <span
+          :if={@page.slug == "/security"}
+          data-part="soc-badge"
+          title="SOC 2 Type II Certified"
+        >
+          <.illustration name="transparency-soc-badge" />
+        </span>
+        <img
+          :if={@page.logo && @page.slug != "/security"}
+          src={@page.logo}
+          alt=""
+          data-part="logo"
+          decoding="async"
+        />
+        <h1 data-part="title">{@page.title}</h1>
+        <p :if={@page.last_updated} data-part="last-updated">
+          {dgettext("marketing", "Last updated %{date}",
+            date: Timex.format!(@page.last_updated, "{Mfull} {D}, {YYYY}")
+          )}
+        </p>
+      </header>
+
+      <section data-part="content" data-prose>
+        {raw(content_html(@page.body))}
+      </section>
+    </article>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

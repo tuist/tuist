@@ -25,415 +25,963 @@
     "fiscalYearStartMonth": 0,
     "graphTooltip": 1,
     "id": null,
-    "links": [],
+    "links": [
+      {
+        "title": "Test-result processing",
+        "type": "link",
+        "url": "/d/tuist-xcresult-processor",
+        "keepTime": true
+      },
+      {
+        "title": "PostgreSQL server and pooler",
+        "type": "link",
+        "url": "/d/tuist-postgresql-cnpg",
+        "keepTime": true
+      }
+    ],
     "panels": [
       {
-        "collapsed": false,
-        "gridPos": {
-          "h": 1,
-          "w": 24,
-          "x": 0,
-          "y": 0
-        },
         "id": 1,
-        "panels": [],
-        "title": "Service Health",
-        "type": "row"
-      },
-      {
-        "datasource": "$datasource",
+        "title": "Waiting for a database connection",
+        "description": "Operations waiting inside application pools, summed by workload. Gauge snapshots can miss short bursts; compare with the starvation percentage.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
         "fieldConfig": {
           "defaults": {
+            "unit": "short",
+            "min": 0,
             "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
-            "unit": "reqps",
-            "decimals": 1
+              "mode": "palette-classic"
+            }
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 12,
-          "x": 0,
-          "y": 1
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
         },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (tuist_repo_pool_checkout_queue_length{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"})",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
         "id": 2,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "none",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.0.0",
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(rate(processor_prom_ex_phoenix_http_requests_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
-            "instant": true,
-            "range": false,
-            "refId": "A"
-          }
-        ],
-        "title": "Req/s",
-        "type": "stat",
-        "description": "Aggregate Phoenix request rate."
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "yellow",
-                  "value": 200
-                },
-                {
-                  "color": "red",
-                  "value": 1000
-                }
-              ]
-            },
-            "unit": "ms",
-            "decimals": 0
-          },
-          "overrides": []
+        "title": "Available and configured connections",
+        "description": "Available connections versus total configured connections across the selected workload. A healthy replica can hide a saturated peer in this aggregate.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
         },
         "gridPos": {
-          "h": 4,
+          "x": 12,
+          "y": 0,
           "w": 12,
-          "x": 12,
-          "y": 1
+          "h": 8
         },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (tuist_repo_pool_ready_conn_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"})",
+            "legendFormat": "{{workload}} / {{repo}} available",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "B",
+            "expr": "sum by (workload, repo) (tuist_repo_pool_size{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"})",
+            "legendFormat": "{{workload}} / {{repo}} configured",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
         "id": 3,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "none",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto",
-          "wideLayout": true
+        "title": "Pool starvation",
+        "description": "Percentage of 100-millisecond pool polls with queued work and no available connection. Preserves brief pressure between scrapes.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
         },
-        "pluginVersion": "11.0.0",
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_prom_ex_phoenix_http_request_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "instant": true,
-            "range": false,
-            "refId": "A"
-          }
-        ],
-        "title": "HTTP p95",
-        "type": "stat",
-        "description": "95th percentile request latency."
-      },
-      {
-        "collapsed": false,
         "gridPos": {
-          "h": 1,
-          "w": 24,
           "x": 0,
-          "y": 5
+          "y": 8,
+          "w": 12,
+          "h": 8
         },
-        "id": 10,
-        "panels": [],
-        "title": "Build Processing",
-        "type": "row"
-      },
-      {
-        "datasource": "$datasource",
         "fieldConfig": {
           "defaults": {
+            "unit": "percent",
+            "min": 0,
             "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
-            "unit": "short",
-            "decimals": 0
+              "mode": "palette-classic"
+            }
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 0,
-          "y": 6
-        },
-        "id": 11,
         "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
           },
-          "textMode": "auto",
-          "wideLayout": true
+          "tooltip": {
+            "mode": "multi"
+          }
         },
-        "pluginVersion": "11.0.0",
         "targets": [
           {
-            "datasource": "$datasource",
+            "refId": "A",
+            "expr": "100 * sum by (workload, repo) (rate(tuist_repo_pool_checkout_queue_starved_samples{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_pool_checkout_queue_total_samples{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
             "editorMode": "code",
-            "expr": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\", status=\"ok\"}[$__rate_interval]))",
-            "instant": true,
-            "range": false,
-            "refId": "A"
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
           }
-        ],
-        "title": "Builds (ok)",
-        "type": "stat",
-        "description": "Successful builds processed in the current interval."
+        ]
       },
       {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 1
-                }
-              ]
-            },
-            "unit": "short",
-            "decimals": 0
-          },
-          "overrides": []
+        "id": 4,
+        "title": "Average queued operations",
+        "description": "Mean queue depth across all pool polls, including short bursts that the instantaneous queue chart can miss.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
         },
         "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 6,
-          "y": 6
-        },
-        "id": 12,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.0.0",
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\", status!=\"ok\"}[$__rate_interval])) or vector(0)",
-            "instant": true,
-            "range": false,
-            "refId": "A"
-          }
-        ],
-        "title": "Builds (error)",
-        "type": "stat",
-        "description": "Failed builds in the current interval."
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "yellow",
-                  "value": 30000
-                },
-                {
-                  "color": "red",
-                  "value": 120000
-                }
-              ]
-            },
-            "unit": "ms",
-            "decimals": 0
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
           "x": 12,
-          "y": 6
+          "y": 8,
+          "w": 12,
+          "h": 8
         },
-        "id": 13,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "none",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.0.0",
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "instant": true,
-            "range": false,
-            "refId": "A"
-          }
-        ],
-        "title": "Build p95",
-        "type": "stat",
-        "description": "95th percentile build processing duration."
-      },
-      {
-        "datasource": "$datasource",
         "fieldConfig": {
           "defaults": {
+            "unit": "short",
+            "min": 0,
             "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "yellow",
-                  "value": 5000
-                },
-                {
-                  "color": "red",
-                  "value": 30000
-                }
-              ]
-            },
-            "unit": "ms",
-            "decimals": 0
+              "mode": "palette-classic"
+            }
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 18,
-          "y": 6
-        },
-        "id": 14,
         "options": {
-          "colorMode": "value",
-          "graphMode": "none",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (rate(tuist_repo_pool_checkout_queue_observed{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_pool_checkout_queue_total_samples{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Query attempts per second",
+        "description": "All attempts by outcome, including rejected checkouts that never reached the database. No statement text or customer identifiers are attached.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 16,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo, result) (rate(tuist_repo_query_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}} / {{result}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Query failures per second",
+        "description": "Queue timeouts, connection failures, and other database errors. No data means no matching error series; it is not proof of telemetry health.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 16,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo, result) (rate(tuist_repo_query_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result!=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}} / {{result}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Connection wait average",
+        "description": "Time waiting for an application connection, before execution. Successful queries only; missing phases are omitted, not recorded as zero.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 24,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (rate(tuist_repo_query_queue_time_milliseconds_sum{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_query_queue_time_milliseconds_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Connection wait percentiles",
+        "description": "Time waiting for an application connection, before execution. Successful queries only. Histogram buckets are retained only in production.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 24,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.5, sum by (workload, repo, le) (rate(tuist_repo_query_queue_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 50th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "B",
+            "expr": "histogram_quantile(0.95, sum by (workload, repo, le) (rate(tuist_repo_query_queue_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 95th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "C",
+            "expr": "histogram_quantile(0.99, sum by (workload, repo, le) (rate(tuist_repo_query_queue_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 99th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Query execution average",
+        "description": "Time executing the query, including the network round trip. This is not isolated database-engine execution time. Successful queries only; missing phases are omitted, not recorded as zero.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 32,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (rate(tuist_repo_query_query_time_milliseconds_sum{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_query_query_time_milliseconds_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Query execution percentiles",
+        "description": "Time executing the query, including the network round trip. This is not isolated database-engine execution time. Successful queries only. Histogram buckets are retained only in production.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 32,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.5, sum by (workload, repo, le) (rate(tuist_repo_query_query_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 50th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "B",
+            "expr": "histogram_quantile(0.95, sum by (workload, repo, le) (rate(tuist_repo_query_query_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 95th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "C",
+            "expr": "histogram_quantile(0.99, sum by (workload, repo, le) (rate(tuist_repo_query_query_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 99th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Result decoding average",
+        "description": "Time spent decoding returned data. Successful queries only; missing phases are omitted, not recorded as zero.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 40,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (rate(tuist_repo_query_decode_time_milliseconds_sum{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_query_decode_time_milliseconds_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Result decoding percentiles",
+        "description": "Time spent decoding returned data. Successful queries only. Histogram buckets are retained only in production.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 40,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.5, sum by (workload, repo, le) (rate(tuist_repo_query_decode_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 50th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "B",
+            "expr": "histogram_quantile(0.95, sum by (workload, repo, le) (rate(tuist_repo_query_decode_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 95th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "C",
+            "expr": "histogram_quantile(0.99, sum by (workload, repo, le) (rate(tuist_repo_query_decode_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 99th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Total query time average",
+        "description": "Total adapter-reported time, including connection wait, execution, and decoding. Successful queries only; missing phases are omitted, not recorded as zero.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 48,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (workload, repo) (rate(tuist_repo_query_total_time_milliseconds_sum{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_query_total_time_milliseconds_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Total query time percentiles",
+        "description": "Total adapter-reported time, including connection wait, execution, and decoding. Successful queries only. Histogram buckets are retained only in production.",
+        "type": "timeseries",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 48,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.5, sum by (workload, repo, le) (rate(tuist_repo_query_total_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 50th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "B",
+            "expr": "histogram_quantile(0.95, sum by (workload, repo, le) (rate(tuist_repo_query_total_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 95th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          },
+          {
+            "refId": "C",
+            "expr": "histogram_quantile(0.99, sum by (workload, repo, le) (rate(tuist_repo_query_total_time_milliseconds_bucket{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])))",
+            "legendFormat": "{{workload}} / {{repo}} / 99th percentile",
+            "range": true,
+            "editorMode": "code",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "$datasource"
+            }
+          }
+        ]
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Queue contents over time, broken down by Oban state. Polled every 5s from oban_jobs by every PromEx-enabled pod; we max() by state to dedupe across replicas. Watch for `available` spikes that don't drain \u2014 that's where backlogs show. Uses the Background job queue selector independently of the database Workload selector.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "stacking": {
+                "mode": "normal"
+              }
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 56,
+          "w": 12,
+          "h": 8
+        },
+        "id": 15,
+        "options": {
+          "legend": {
             "calcs": [
               "lastNotNull"
             ],
-            "fields": "",
-            "values": false
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
           },
-          "textMode": "auto",
-          "wideLayout": true
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
         },
-        "pluginVersion": "11.0.0",
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "instant": true,
-            "range": false,
+            "expr": "max by (queue, state) (tuist_oban_queue_length_count{cluster=\"$cluster\",queue=~\"$queue\",state=~\"available|scheduled|executing|retryable\"})",
+            "legendFormat": "{{queue}} / {{state}}",
             "refId": "A"
           }
         ],
-        "title": "S3 Download p95",
-        "type": "stat",
-        "description": "95th percentile S3 download duration."
+        "title": "Background jobs: Queue Depth by State",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Job duration by queue, using the Background job queue selector independently of the database Workload selector. Percentiles are available in production.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "ms"
+          }
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 56,
+          "w": 12,
+          "h": 8
+        },
+        "id": 16,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.5, sum by (queue, le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 50th percentile",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (queue, le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 95th percentile",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (queue, le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 99th percentile",
+            "refId": "C"
+          }
+        ],
+        "title": "Background jobs: Processing Duration",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Job duration by queue, using the Background job queue selector independently of the database Workload selector. Percentiles are available in production.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "ms"
+          }
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 64,
+          "w": 12,
+          "h": 8
+        },
+        "id": 17,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.5, sum by (queue, le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 50th percentile",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (queue, le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 95th percentile",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (queue, le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{cluster=\"$cluster\",queue=~\"$queue\"}[$__rate_interval])))",
+            "legendFormat": "{{queue}} / 99th percentile",
+            "refId": "C"
+          }
+        ],
+        "title": "Background jobs: Queue Wait Time",
+        "type": "timeseries"
       },
       {
         "datasource": "$datasource",
@@ -443,359 +991,20 @@
               "mode": "palette-classic"
             },
             "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "tooltip": false,
-                "viz": false,
-                "legend": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
+              "axisCenteredZero": true,
+              "drawStyle": "bars",
               "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
+              "showPoints": "never"
             },
             "unit": "short"
           },
           "overrides": []
         },
         "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 10
-        },
-        "id": 15,
-        "options": {
-          "legend": {
-            "calcs": [
-              "lastNotNull",
-              "sum"
-            ],
-            "displayMode": "table",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (status) (increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
-            "legendFormat": "{{status}}",
-            "range": true,
-            "refId": "A"
-          }
-        ],
-        "title": "Build Count by Status",
-        "type": "timeseries",
-        "description": "Builds processed over time, split by success/error."
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "tooltip": false,
-                "viz": false,
-                "legend": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
-            "unit": "ms"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
           "x": 12,
-          "y": 10
-        },
-        "id": 16,
-        "options": {
-          "legend": {
-            "calcs": [
-              "lastNotNull",
-              "max"
-            ],
-            "displayMode": "table",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Build p50",
-            "range": true,
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Build p95",
-            "range": true,
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Build p99",
-            "range": true,
-            "refId": "C"
-          }
-        ],
-        "title": "Build Duration",
-        "type": "timeseries",
-        "description": "End-to-end build processing duration percentiles."
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "tooltip": false,
-                "viz": false,
-                "legend": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
-            "unit": "ms"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 8,
+          "y": 64,
           "w": 12,
-          "x": 0,
-          "y": 18
-        },
-        "id": 17,
-        "options": {
-          "legend": {
-            "calcs": [
-              "lastNotNull",
-              "max"
-            ],
-            "displayMode": "table",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "S3 p50",
-            "range": true,
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "S3 p95",
-            "range": true,
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "S3 p99",
-            "range": true,
-            "refId": "C"
-          }
-        ],
-        "title": "S3 Download Duration",
-        "type": "timeseries",
-        "description": "S3 file download duration percentiles."
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "tooltip": false,
-                "viz": false,
-                "legend": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
-            "unit": "ms"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 18
+          "h": 8
         },
         "id": 18,
         "options": {
@@ -817,89 +1026,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Parse p50",
-            "range": true,
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Parse p95",
-            "range": true,
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
-            "legendFormat": "Parse p99",
-            "range": true,
-            "refId": "C"
-          }
-        ],
-        "title": "Build Parse Duration",
-        "type": "timeseries",
-        "description": "XCActivityLog NIF parse duration percentiles."
-      },
-      {
-        "collapsed": false,
-        "gridPos": {
-          "h": 1,
-          "w": 24,
-          "x": 0,
-          "y": 26
-        },
-        "id": 19,
-        "panels": [],
-        "title": "Container Lifecycle",
-        "type": "row"
-      },
-      {
-        "datasource": "$datasource",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": true,
-              "drawStyle": "bars",
-              "lineWidth": 1,
-              "showPoints": "never"
-            },
-            "unit": "short"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 7,
-          "w": 12,
-          "x": 0,
-          "y": 27
-        },
-        "id": 20,
-        "options": {
-          "legend": {
-            "calcs": [
-              "lastNotNull",
-              "max"
-            ],
-            "displayMode": "table",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (pod, container) (increase(kube_pod_container_status_restarts_total{namespace=\"tuist\", container=\"processor\"}[$__rate_interval]))",
+            "expr": "sum by (pod, container) (increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", container=\"processor\"}[$__rate_interval]))",
             "legendFormat": "{{pod}}",
             "range": true,
             "refId": "A"
@@ -907,7 +1034,7 @@
         ],
         "title": "Restarts by Processor Pod",
         "type": "timeseries",
-        "description": "Restart count per evaluation interval. Use this with the termination table to distinguish a crash from a deliberate rollout."
+        "description": "Linux build processor container lifecycle in the selected cluster, independent of the database workload selector."
       },
       {
         "datasource": "$datasource",
@@ -934,12 +1061,12 @@
           "overrides": []
         },
         "gridPos": {
-          "h": 7,
+          "x": 0,
+          "y": 72,
           "w": 12,
-          "x": 12,
-          "y": 27
+          "h": 8
         },
-        "id": 21,
+        "id": 19,
         "options": {
           "cellHeight": "sm",
           "showHeader": true
@@ -948,7 +1075,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (pod, container, reason, node) ((kube_pod_container_status_last_terminated_reason{namespace=\"tuist\", container=\"processor\"} == 1) * on (namespace, pod) group_left (node) kube_pod_info{namespace=\"tuist\"})",
+            "expr": "max by (pod, container, reason, node) ((kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", container=\"processor\"} == 1) * on (namespace, pod) group_left (node) kube_pod_info{cluster=\"$cluster\"})",
             "format": "table",
             "instant": true,
             "range": false,
@@ -979,13 +1106,14 @@
           }
         ],
         "type": "table",
-        "description": "The most recent Kubernetes termination reason, enriched with the node. For non-zero exits, inspect the container runtime journal on that node for the exact exit status."
+        "description": "Linux build processor container lifecycle in the selected cluster, independent of the database workload selector."
       }
     ],
     "schemaVersion": 39,
     "tags": [
+      "tuist",
       "processor",
-      "tuist"
+      "database"
     ],
     "templating": {
       "list": [
@@ -1008,62 +1136,67 @@
           "type": "datasource"
         },
         {
-          "current": {
-            "selected": true,
-            "text": [
-              "All"
-            ],
-            "value": [
-              "$__all"
-            ]
+          "name": "cluster",
+          "label": "Cluster",
+          "type": "query",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
           },
-          "datasource": "$datasource",
-          "definition": "label_values({job=\"processor\"}, hostname)",
-          "hide": 0,
-          "includeAll": true,
-          "label": "Hostname",
-          "multi": true,
-          "name": "hostname",
-          "options": [],
           "query": {
-            "qryType": 1,
-            "query": "label_values({job=\"processor\"}, hostname)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+            "query": "label_values(tuist_repo_pool_size{workload!=\"\"}, cluster)",
+            "refId": "cluster"
           },
+          "definition": "label_values(tuist_repo_pool_size{workload!=\"\"}, cluster)",
           "refresh": 1,
-          "regex": "",
-          "skipUrlSync": false,
-          "sort": 1,
-          "type": "query"
+          "current": {
+            "text": "tuist-production",
+            "value": "tuist-production"
+          },
+          "multi": false,
+          "includeAll": false
         },
         {
+          "name": "workload",
+          "label": "Workload",
+          "type": "custom",
+          "query": "web,processor,xcresult_processor,swift_registry_sync",
           "current": {
-            "selected": true,
-            "text": [
-              "All"
-            ],
-            "value": [
-              "$__all"
-            ]
+            "text": "All",
+            "value": "$__all"
           },
-          "datasource": "$datasource",
-          "definition": "label_values({job=\"processor\", hostname=~\"$hostname\"}, instance)",
-          "hide": 0,
           "includeAll": true,
-          "label": "Instance",
+          "allValue": ".+",
           "multi": true,
-          "name": "instance",
-          "options": [],
-          "query": {
-            "qryType": 1,
-            "query": "label_values({job=\"processor\", hostname=~\"$hostname\"}, instance)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "options": []
+        },
+        {
+          "name": "repo",
+          "label": "Database repository",
+          "type": "custom",
+          "query": "postgres,clickhouse_read,clickhouse_write",
+          "current": {
+            "text": "postgres",
+            "value": "postgres"
           },
-          "refresh": 1,
-          "regex": "",
-          "skipUrlSync": false,
-          "sort": 1,
-          "type": "query"
+          "includeAll": true,
+          "allValue": ".+",
+          "multi": true,
+          "options": []
+        },
+        {
+          "name": "queue",
+          "label": "Background job queue",
+          "type": "custom",
+          "query": "process_build,process_bazel_tests,process_xcresult",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "includeAll": true,
+          "allValue": ".+",
+          "multi": true,
+          "options": []
         }
       ]
     },
@@ -1076,6 +1209,8 @@
     "title": "Tuist Processor Service",
     "uid": "tuist-processor-service",
     "version": 1,
-    "weekStart": ""
+    "weekStart": "",
+    "description": "Compare database connection pressure and query phases across the web server, build processors, and test-result processors. Query execution includes the network round trip; pool checkout and decoding are measured separately. Background job queues have their own selector.",
+    "refresh": "1m"
   }
 }

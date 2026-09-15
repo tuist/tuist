@@ -104,7 +104,7 @@
     <nav id="docs-nav" aria-label={dgettext("docs", "Main navigation")}>
       <div data-part="header">
         <.link navigate={docs_path("/#{@locale}")} data-part="logo-link">
-          <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+          <.tuist_mark data-part="logo" aria-label="Tuist" />
           <span data-part="logo-divider"></span>
           <span data-part="logo-text">Docs</span>
         </.link>
@@ -268,7 +268,7 @@
           data-part="logo-link"
           phx-click={close_mobile_nav()}
         >
-          <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+          <.tuist_mark data-part="logo" aria-label="Tuist" />
           <span data-part="logo-divider"></span>
           <span data-part="logo-text">Docs</span>
         </.link>

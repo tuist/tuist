@@ -138,13 +138,21 @@
       gap: var(--noora-spacing-9);
 
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
+        /* A fixed four-column track rather than flex: with `flex: 1` each row
+           divided its own width, so a three-field row sat on thirds while its
+           neighbours sat on quarters and no column lined up down the card. */
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--noora-spacing-7);
+
+        /* The command is a single field on its own row and reads as a line of
+           code, so it takes the full width instead of a quarter of it. */
+        & > [data-field="command"] {
+          grid-column: 1 / -1;
+        }
 
         & > [data-part="metadata"] {
           display: flex;
-          flex: 1;
           flex-direction: column;
           align-items: flex-start;
           gap: var(--noora-spacing-4);
@@ -275,7 +283,7 @@
     }
 
     & [data-part="metadata-row"] {
-      flex-direction: column;
+      grid-template-columns: minmax(0, 1fr);
     }
 
     & [data-part="cache-summary-section"].noora-card__section {

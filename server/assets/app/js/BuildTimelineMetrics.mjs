@@ -15,24 +15,32 @@ function lowerBound(samples, time) {
 export class TimelineMetrics {
   constructor(samples, labels = { in: "In", out: "Out", read: "Read", write: "Write" }) {
     this.samples = [
-      ...new Map(
-        samples.filter((s) => Number.isFinite(s.offset_ms) && s.offset_ms >= 0).map((s) => [s.offset_ms, s]),
-      ).values(),
+      ...new Map(samples.filter((s) => Number.isFinite(s.offset_ms)).map((s) => [s.offset_ms, s])).values(),
     ].sort((a, b) => a.offset_ms - b.offset_ms);
     const intervals = this.samples
       .slice(1)
       .map((s, i) => s.offset_ms - this.samples[i].offset_ms)
       .sort((a, b) => a - b);
     this.maxGap = Math.max(2500, (intervals[Math.floor(intervals.length / 2)] || 1000) * 3);
+    const cpuCores =
+      !this.samples.some((s) => Number.isFinite(s.cpu_usage_percent)) &&
+      this.samples.some((s) => Number.isFinite(s.cpu_usage_cores));
     this.tracks = [
-      { key: "cpu", fields: ["cpu_usage_percent"], names: [], unit: "%", divisor: 1, max: 100 },
+      {
+        key: "cpu",
+        fields: [cpuCores ? "cpu_usage_cores" : "cpu_usage_percent"],
+        names: [],
+        unit: cpuCores ? labels.cores || "cores" : "%",
+        divisor: 1,
+        max: cpuCores ? this.maximum(["cpu_usage_cores"]) : 100,
+      },
       {
         key: "memory",
         fields: ["memory_used_bytes"],
         names: [],
         unit: "GB",
         divisor: GB,
-        max: this.maximum(["memory_total_bytes"]),
+        max: this.maximum(["memory_total_bytes", "memory_used_bytes"]),
       },
       {
         key: "network",
@@ -70,6 +78,10 @@ export class TimelineMetrics {
     const index = lowerBound(this.samples, time);
     const a = this.samples[index - 1],
       b = this.samples[index];
+    if (b?.offset_ms === time) return b;
+    if (Number.isFinite(a?.duration_ms)) {
+      return time <= a.offset_ms + a.duration_ms ? a : null;
+    }
     // Never extend readings beyond collection, or imply measurements in a missing interval.
     if (
       (!a && b?.offset_ms !== time) ||
@@ -124,6 +136,19 @@ export class TimelineMetrics {
         }
         const px = x(sample.offset_ms),
           py = y(sample[field]);
+        if (Number.isFinite(sample.duration_ms) && sample.duration_ms > 0) {
+          ctx.beginPath();
+          if (Math.abs(previous?.offset_ms + previous?.duration_ms - sample.offset_ms) < 0.001) {
+            ctx.moveTo(px, y(previous[field]));
+            ctx.lineTo(px, py);
+          }
+          ctx.moveTo(px, py);
+          ctx.lineTo(x(sample.offset_ms + sample.duration_ms), py);
+          ctx.stroke();
+          // Counter buckets are interval aggregates, not interpolated point readings.
+          previous = sample;
+          continue;
+        }
         if (previous && sample.offset_ms - previous.offset_ms <= this.maxGap) {
           const prevX = x(previous.offset_ms),
             prevY = y(previous[field]);

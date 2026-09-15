@@ -10,7 +10,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, Uri, Version},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -48,7 +48,6 @@ use crate::{
     metrics::{Metrics, shed_kind},
     multipart::error::MultipartError,
     peer_tls::InternalPeerIdentity,
-    replication::replication_targets,
     request_observability::{
         REQUEST_ID_HEADER, RequestCompletion, RequestContext, RequestLogPolicy, current_request,
         log_request_completion, request_id, scope_request,
@@ -58,16 +57,19 @@ use crate::{
     store::{
         ApplyProvenance, ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage,
         StagedArtifactPath, backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
-        is_outbox_full_error, manifest_version_ms,
+        manifest_version_ms,
     },
     sync::feed::{SyncFeedRow, SyncPosition},
     telemetry::{attach_parent_context, record_trace_context, trace_export_active},
     utils::{
-        BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyStaging,
-        TempFileCleanup, TmpReservation, action_cache_key, blob_key, module_key, now_ms,
-        read_request_to_temp, temp_file_path,
+        BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyError,
+        RequestBodyErrorKind, RequestBodyStaging, TempFileCleanup, TmpReservation,
+        action_cache_key, blob_key, module_key, now_ms, read_request_to_temp, temp_file_path,
     },
 };
+
+#[cfg(test)]
+mod upload_tests;
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
 const FILE_RESPONSE_LIVE_BUFFER_COUNT: usize = 3;
@@ -745,6 +747,7 @@ pub struct ReplicateBatchOutcomes {
 /// `MAX_INLINE_REPLICATION_BODY_BYTES`, so a u32 length is sufficient.
 pub const REPLICATE_BATCH_FRAME_HEADER_BYTES: usize = 4 + 4;
 
+#[cfg(test)]
 pub fn encode_replicate_batch_frame(meta: &[u8], body: &[u8]) -> Result<Vec<u8>, String> {
     let meta_len = u32::try_from(meta.len()).map_err(|_| {
         format!(
@@ -1123,6 +1126,7 @@ async fn track_http_metrics(
     };
     let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
+    let is_head_request = req.method() == Method::HEAD;
     let request_id = request_id(
         req.headers()
             .get(REQUEST_ID_HEADER)
@@ -1188,13 +1192,23 @@ async fn track_http_metrics(
         .get::<ObservedStreamingResponse>()
         .is_none()
     {
-        let response_bytes = response
-            .headers()
-            .get(axum::http::header::CONTENT_LENGTH)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(0);
-        let result = if response.status().is_server_error() {
+        // A HEAD advertises the length it would have sent and sends none of
+        // it, so reading `Content-Length` here would log bytes that never
+        // reached the client.
+        let response_bytes = if is_head_request {
+            0
+        } else {
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(0)
+        };
+        let observed_error = response.extensions().get::<ObservedHandlerError>();
+        let result = if let Some(error) = observed_error {
+            error.result
+        } else if response.status().is_server_error() {
             "server_error"
         } else {
             "ok"
@@ -1208,7 +1222,7 @@ async fn track_http_metrics(
                 total_duration: elapsed,
                 serving_path: "handler",
                 result,
-                error: None,
+                error: observed_error.map(|error| error.message.as_str()),
             },
         );
     }
@@ -1248,14 +1262,8 @@ async fn reject_draining_public_requests(
 /// Turns away public writes at the door when the node is already known to be
 /// out of room, so a saturated pod spends nothing on a body it will not keep.
 ///
-/// This is a fast path, **not** an admission guarantee. The outbox arm compares
-/// the current depth against the cap as a single slot, while each store write
-/// then reserves one slot per replication target atomically
-/// (`Store::reserve_outbox_slots`). A write admitted here still loses when the
-/// remaining room is smaller than the target count, or when another write wins
-/// the race. Every persistence path therefore has to map `is_outbox_full_error`
-/// to a shed of its own; leaving one on 503 puts a healthy saturated node back
-/// on the 5xx alert.
+/// This is a fast path, **not** an admission guarantee: pressure can rise after
+/// a write is admitted here, so the persistence paths keep their own sheds.
 async fn reject_overloaded_public_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1264,39 +1272,32 @@ async fn reject_overloaded_public_writes(
     let method = req.method().clone();
     let route = request_route(&req);
 
-    if is_write_method(&method) && !is_probe_route(&route) {
-        if state.memory.pressure() == MemoryPressure::Critical {
-            state
-                .metrics
-                .record_memory_action("write_rejected_critical");
-            return capacity_shed_response(
-                &state.metrics,
-                "memory_pressure_write",
-                "server is shedding writes due to memory pressure",
-            );
-        }
-        if state.store.outbox_saturated(&state.replication_targets()) {
-            state.metrics.record_memory_action("write_rejected_outbox");
-            return capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            );
-        }
+    if is_write_method(&method)
+        && !is_probe_route(&route)
+        && state.memory.pressure() == MemoryPressure::Critical
+    {
+        state
+            .metrics
+            .record_memory_action("write_rejected_critical");
+        return capacity_shed_response(
+            &state.metrics,
+            "memory_pressure_write",
+            "server is shedding writes due to memory pressure",
+        );
     }
 
     next.run(req).await
 }
 
-/// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
-/// DELETE /_internal/replicate/namespace) when the pod is under Critical
-/// memory pressure. Without this guard the pod accepts the TCP connection but
-/// stalls while processing the body, so the source peer sees no progress and
-/// abandons the attempt only when its upload stall watchdog expires
-/// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
-/// receiver holding up a drain loop that is serial and node-wide. Returning
-/// 503 lets the source retry immediately with its normal 2-second backoff.
-/// Reads (backfill, status) are unaffected.
+/// Fast-fails the push receivers (PUT /_internal/replicate/artifact,
+/// DELETE /_internal/replicate/namespace), still served for peers on a
+/// release that predates pull, when the pod is under Critical memory
+/// pressure. Without this guard the pod accepts the TCP connection but
+/// stalls while processing the body, so the pushing peer sees no progress
+/// and abandons the attempt only when its upload stall watchdog expires
+/// (60 s on those releases). Returning 503 lets it retry immediately with
+/// its normal 2-second backoff. Reads (backfill, sync, status) are
+/// unaffected.
 async fn reject_overloaded_internal_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1693,6 +1694,7 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
                 "lag_entries": link.lag_entries,
                 "frontier": link.frontier.as_str(),
                 "frontier_ms": link.frontier.reported_ms(),
+                "unsupported": link.unsupported,
             })
         })
         .collect();
@@ -1709,7 +1711,6 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
-        "pulling": state.replication_pull(),
         "gateway": state.sync.own_gateway(),
         "sync_links": sync_links,
         "feed": {
@@ -1772,8 +1773,6 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "writer_lock_owned": status.writer_lock_owned,
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
-        "outbox_messages": status.outbox_messages,
-        "outbox_capacity": status.outbox_capacity,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
         "peer_connection_failure_count": status.peer_connection_failure_count,
@@ -1782,6 +1781,9 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "backfill_budget_exhausted_real_peers": status.backfill.budget_exhausted_real,
         "backfill_budget_exhausted_capability_peers": status.backfill.budget_exhausted_capability,
         "backfill_ring_fullness_percent": status.backfill.ring_fullness_percent,
+        // Only a process that bound the gRPC-only listener gets this far with
+        // it set, so the kura-controller switches the gateway's gRPC on it.
+        "gateway_grpc_port": state.config.gateway_grpc_port,
     }))
 }
 
@@ -1869,6 +1871,7 @@ async fn get_keyvalue(
 async fn get_nx(
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
@@ -1885,6 +1888,7 @@ async fn get_nx(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -1920,6 +1924,7 @@ async fn put_nx(
 async fn get_metro(
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
@@ -1936,6 +1941,7 @@ async fn get_metro(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -1981,15 +1987,26 @@ async fn put_keyvalue(
 
     let body = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
         Ok(body) => body,
-        Err(error) => {
-            state
-                .metrics
-                .record_memory_action("keyvalue_payload_rejected");
-            return error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Failed to read key-value request body: {error}"),
-            );
-        }
+        Err(error) => match classify_buffered_body_error(error) {
+            // A payload above the limit was refused before a write was ever
+            // attempted, so it stays out of the write counter: that counter
+            // means "a write we accepted did not land".
+            BufferedBodyError::TooLarge => {
+                state
+                    .metrics
+                    .record_memory_action("keyvalue_payload_rejected");
+                return error_response(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Request body exceeded allowed size",
+                );
+            }
+            BufferedBodyError::Request(error) => {
+                state
+                    .metrics
+                    .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
+                return request_body_error_response(error);
+            }
+        },
     };
     let body = match serde_json::from_slice::<KeyValuePutRequest>(&body) {
         Ok(body) => body,
@@ -2014,24 +2031,20 @@ async fn put_keyvalue(
             );
         }
     };
-    let targets = replication_targets(&state);
-
     match state
         .store
-        .persist_inline_artifact_from_bytes_and_enqueue(
+        .persist_inline_artifact_from_bytes_and_replicate(
             ArtifactProducer::Xcode,
             &namespace.namespace_id,
             &key,
             "application/json",
             &payload_bytes,
-            &targets,
             None,
             None,
         )
         .await
     {
         Ok(manifest) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Xcode, "ok", manifest.size);
@@ -2043,16 +2056,6 @@ async fn put_keyvalue(
                 manifest.size,
             );
             StatusCode::NO_CONTENT.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => {
-            state
-                .metrics
-                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
         }
         Err(error) => {
             state
@@ -2070,6 +2073,7 @@ async fn get_xcode(
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
@@ -2089,6 +2093,7 @@ async fn get_xcode(
         analytics,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -2129,6 +2134,7 @@ async fn get_gradle(
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
@@ -2148,6 +2154,7 @@ async fn get_gradle(
         analytics,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -2221,6 +2228,7 @@ async fn head_module(
 async fn get_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let query = match ModuleQuery::from_params(&params) {
@@ -2238,6 +2246,7 @@ async fn get_module(
         None,
         Some(usage),
         request_range(&headers),
+        ArtifactRead::from_method(&method),
     )
     .await
 }
@@ -2340,8 +2349,13 @@ async fn upload_module_part(
                 "server is applying upload memory backpressure",
             );
         }
+        Err(BodyReadError::Request(error)) => {
+            state.metrics.record_multipart_part("error");
+            return request_body_error_response(error);
+        }
         Err(BodyReadError::Io(error)) => {
-            return io_error_response(
+            state.metrics.record_multipart_part("error");
+            return upload_io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
@@ -2416,14 +2430,12 @@ async fn complete_module_upload(
             namespace_id: upload.namespace_id,
         });
 
-    let targets = replication_targets(&state);
     match state
         .store
-        .complete_multipart_upload_and_enqueue(&query.upload_id, &body.parts, &targets)
+        .complete_multipart_upload_and_replicate(&query.upload_id, &body.parts)
         .await
     {
         Ok(manifest) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Module, "ok", manifest.size);
@@ -2454,13 +2466,6 @@ async fn complete_module_upload(
             "upload_memory",
             "server is applying upload memory backpressure",
         ),
-        Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
-        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2477,21 +2482,12 @@ async fn clean_namespace(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let targets = replication_targets(&state);
     match state
         .store
-        .delete_namespace_and_enqueue(&namespace.namespace_id, &targets)
+        .delete_namespace_and_replicate(&namespace.namespace_id)
         .await
     {
-        Ok(_version_ms) => {
-            state.notify.notify_one();
-            StatusCode::NO_CONTENT.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => capacity_shed_response(
-            &state.metrics,
-            "outbox",
-            "server is shedding writes while replication catches up",
-        ),
+        Ok(_version_ms) => StatusCode::NO_CONTENT.into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to clean cache: {error}"),
@@ -2543,9 +2539,10 @@ async fn internal_status(
         _ => state.config.node_url.clone(),
     };
 
-    // The membership view this node holds (design §11.2): a pusher takes a
-    // pulling peer off its push targets only once that peer's view names the
-    // pusher, which is what tells a node it can be dialled back.
+    // The membership view this node holds. A peer on a pre-pull release
+    // reads it with `pulling` (design §11.2): it takes this node off its
+    // push targets only once this view names it, which is what tells it
+    // that it can be dialled back and pulled from instead.
     let peers: Vec<String> = state
         .peer_views
         .load()
@@ -2558,7 +2555,7 @@ async fn internal_status(
         "tenant_id": state.config.tenant_id.clone(),
         "node_url": node_url,
         "traffic_state": state.runtime.traffic_state().as_str(),
-        "pulling": state.replication_pull(),
+        "pulling": true,
         "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),
         "peers": peers,
     }))
@@ -3020,10 +3017,17 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "invalid");
-            return error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Failed to read backfill bodies request: {error}"),
-            );
+            match classify_buffered_body_error(error) {
+                BufferedBodyError::TooLarge => {
+                    return error_response(
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        "Backfill bodies request exceeded allowed size",
+                    );
+                }
+                BufferedBodyError::Request(error) => {
+                    return request_body_error_response(error);
+                }
+            }
         }
     };
     let request_body: BackfillBodiesRequest = match serde_json::from_slice(&body) {
@@ -3396,12 +3400,16 @@ where
     }
 }
 
-/// Batched sibling of `internal_replicate_artifact`, for the metadata lane.
-/// Applies every framed inline artifact and answers one outcome per item in
-/// request order, so the sender can clear exactly the messages the peer is done
-/// with. A peer that predates this route answers 404 and the sender falls back
-/// to the per-artifact endpoint, which is what keeps a mixed-version mesh
-/// working during a rollout.
+/// Batched sibling of `internal_replicate_artifact`. Applies every framed
+/// inline artifact and answers one outcome per item in request order, so the
+/// sender can clear exactly the messages it is done with.
+///
+/// The three `/_internal/replicate/*` receivers are the push side of the
+/// replication this release removed, kept only for peers on a release that
+/// predates pull: a self-hosted node that has not been upgraded still drains
+/// its outbox into them, and refusing it would fill that outbox and refuse
+/// its clients' writes. This node never sends on these routes. Delete them
+/// once the oldest supported self-hosted release pulls.
 async fn internal_replicate_artifacts(
     State(state): State<SharedState>,
     request: Request,
@@ -3560,14 +3568,21 @@ async fn internal_replicate_artifact(
             Err(error) => {
                 state
                     .metrics
-                    .record_memory_action("keyvalue_payload_rejected");
-                state
-                    .metrics
                     .record_replication_apply("replication", "artifact", "error");
-                return error_response(
-                    StatusCode::PAYLOAD_TOO_LARGE,
-                    format!("Failed to read replication body: {error}"),
-                );
+                match classify_buffered_body_error(error) {
+                    BufferedBodyError::TooLarge => {
+                        state
+                            .metrics
+                            .record_memory_action("keyvalue_payload_rejected");
+                        return error_response(
+                            StatusCode::PAYLOAD_TOO_LARGE,
+                            "Request body exceeded allowed size",
+                        );
+                    }
+                    BufferedBodyError::Request(error) => {
+                        return request_body_error_response(error);
+                    }
+                }
             }
         };
 
@@ -3653,11 +3668,17 @@ async fn internal_replicate_artifact(
                 .record_replication_apply("replication", "artifact", "error");
             return overloaded_response("server is applying upload memory backpressure");
         }
+        Err(BodyReadError::Request(error)) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return request_body_error_response(error);
+        }
         Err(BodyReadError::Io(error)) => {
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
-            return io_error_response(
+            return upload_io_error_response(
                 format!("Failed to read replication body: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
@@ -3748,6 +3769,7 @@ async fn get_artifact(
     analytics: Option<ProjectAnalyticsContext<'_>>,
     usage: Option<UsageContext>,
     range_request: RangeRequest<'_>,
+    read: ArtifactRead,
 ) -> Response {
     let lookup_span = if trace_export_active() {
         tracing::info_span!(
@@ -3780,6 +3802,14 @@ async fn get_artifact(
                     return range_not_satisfiable_response(manifest.size);
                 }
             };
+            // A HEAD lands here because axum answers it with the GET route.
+            // Building a body for it would hand Hyper a stream it never polls,
+            // and the drop would book the probe as a transfer that delivered
+            // none of its bytes. The metadata is the whole answer: no stream,
+            // no stream-memory admission, no egress sample.
+            if matches!(read, ArtifactRead::MetadataOnly) {
+                return artifact_metadata_response(&manifest, range);
+            }
             // A streaming response's status is decided when the stream is
             // built, long before a byte reaches the client, so metering here
             // would book an artifact the client may never receive and book it
@@ -3885,30 +3915,32 @@ async fn put_blob_artifact(
                 "server is applying upload memory backpressure",
             );
         }
+        Err(BodyReadError::Request(error)) => {
+            state.metrics.record_artifact_write(producer, "error", 0);
+            return request_body_error_response(error);
+        }
         Err(BodyReadError::Io(error)) => {
-            return io_error_response(
+            state.metrics.record_artifact_write(producer, "error", 0);
+            return upload_io_error_response(
                 format!("Failed to persist artifact: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
         }
     };
 
-    let targets = replication_targets(&state);
     let result = state
         .store
-        .persist_artifact_from_path_and_enqueue(
+        .persist_artifact_from_path_and_replicate(
             producer,
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
             StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
-            &targets,
         )
         .await;
     temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(persisted) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(producer, "ok", persisted.manifest.size);
@@ -3935,14 +3967,6 @@ async fn put_blob_artifact(
                 persisted.manifest.size,
             );
             spec.success_status.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => {
-            state.metrics.record_artifact_write(producer, "error", 0);
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
         }
         Err(error) => {
             state.metrics.record_artifact_write(producer, "error", 0);
@@ -4437,6 +4461,19 @@ impl<S> InstrumentedArtifactStream<S> {
         self.yielded_bytes >= self.expected_bytes
     }
 
+    /// How a body that ended without an error should be labelled.
+    ///
+    /// Completion is measured in bytes, not in how the body ended: a source
+    /// that runs out early still promised `Content-Length`, and a client that
+    /// got less than that did not receive the response.
+    fn completion_result(&self) -> &'static str {
+        if self.delivered_in_full() {
+            "ok"
+        } else {
+            "aborted"
+        }
+    }
+
     fn record_once(&mut self, result: &str, error: Option<&str>) {
         if self.recorded {
             return;
@@ -4537,7 +4574,12 @@ where
                 Poll::Ready(Some(Err(error)))
             }
             Poll::Ready(None) => {
-                this.record_once("ok", None);
+                // Reached when the source ends on its own. That is usually a
+                // complete body, but a source shorter than the manifest says
+                // also ends here, and the client is left with a truncated
+                // response rather than a served one.
+                let result = this.completion_result();
+                this.record_once(result, None);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
@@ -4552,11 +4594,7 @@ impl<S> Drop for InstrumentedArtifactStream<S> {
         // the peer went away mid-transfer. Only the second is waste, and
         // conflating them made `result="aborted"` a label for "served by the
         // streaming path" rather than for a transfer nobody received.
-        let result = if self.delivered_in_full() {
-            "ok"
-        } else {
-            "aborted"
-        };
+        let result = self.completion_result();
         self.record_once(result, None);
     }
 }
@@ -4597,6 +4635,37 @@ fn request_range(headers: &HeaderMap) -> RangeRequest<'_> {
 
 fn header_str(headers: &HeaderMap, name: axum::http::header::HeaderName) -> Option<&str> {
     headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+/// Whether a read wants the artifact bytes or only the metadata describing them.
+///
+/// axum answers a HEAD on a GET-only route with the GET handler, so the read
+/// path has to tell the two apart itself.
+#[derive(Clone, Copy)]
+enum ArtifactRead {
+    Bytes,
+    MetadataOnly,
+}
+
+impl ArtifactRead {
+    fn from_method(method: &Method) -> Self {
+        if method == Method::HEAD {
+            Self::MetadataOnly
+        } else {
+            Self::Bytes
+        }
+    }
+}
+
+/// The headers a read would have answered with, and no body.
+///
+/// Same status, validator, length and range headers as the streamed response,
+/// so a client can size a download or test a resume without one being served.
+fn artifact_metadata_response(manifest: &ArtifactManifest, range: ServedRange) -> Response {
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = artifact_response_status(range);
+    apply_artifact_response_headers(&mut response, manifest, range);
+    response
 }
 
 fn artifact_response_status(range: ServedRange) -> StatusCode {
@@ -4675,8 +4744,75 @@ fn draining_response(version: Version) -> Response {
 }
 
 fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
-    let body = Json(serde_json::json!({ "message": message.into() }));
-    (status, body).into_response()
+    (
+        status,
+        Json(serde_json::json!({ "message": message.into() })),
+    )
+        .into_response()
+}
+
+#[derive(Clone)]
+struct ObservedHandlerError {
+    message: String,
+    result: &'static str,
+}
+
+fn observed_error_response(status: StatusCode, message: String, result: &'static str) -> Response {
+    let body = Json(serde_json::json!({ "message": &message }));
+    let mut response = (status, body).into_response();
+    response
+        .extensions_mut()
+        .insert(ObservedHandlerError { message, result });
+    response
+}
+
+fn request_body_error_response(error: RequestBodyError) -> Response {
+    let (status, result) = match error.kind {
+        RequestBodyErrorKind::ClientAborted => (
+            StatusCode::from_u16(499).expect("499 is a valid status code"),
+            "client_aborted",
+        ),
+        RequestBodyErrorKind::TimedOut => (StatusCode::REQUEST_TIMEOUT, "request_timeout"),
+        RequestBodyErrorKind::InvalidBody => (StatusCode::BAD_REQUEST, "invalid_request_body"),
+        RequestBodyErrorKind::Failed => (StatusCode::INTERNAL_SERVER_ERROR, "request_body_error"),
+    };
+    observed_error_response(
+        status,
+        format!("Failed to read request body: {}", error.message),
+        result,
+    )
+}
+
+fn upload_io_error_response(error: String, fallback_status: StatusCode) -> Response {
+    let mut response = io_error_response(error.clone(), fallback_status);
+    if response.status().is_server_error() {
+        response.extensions_mut().insert(ObservedHandlerError {
+            message: error,
+            result: "server_error",
+        });
+    }
+    response
+}
+
+enum BufferedBodyError {
+    TooLarge,
+    Request(RequestBodyError),
+}
+
+// to_bytes wraps both the size limiter and transport errors in axum::Error.
+// Only the actual limiter error is a size rejection; everything else is the
+// same incoming-body failure the staged uploads classify. Callers decide which
+// domain counters a rejection belongs in, because a payload we refused to read
+// and a read that failed under us are different workload outcomes.
+fn classify_buffered_body_error(error: axum::Error) -> BufferedBodyError {
+    use std::error::Error;
+    if error
+        .source()
+        .is_some_and(|source| source.is::<http_body_util::LengthLimitError>())
+    {
+        return BufferedBodyError::TooLarge;
+    }
+    BufferedBodyError::Request(RequestBodyError::from_error(error))
 }
 
 fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
@@ -4804,21 +4940,21 @@ mod tests {
     #[tokio::test]
     async fn cluster_status_reports_unique_regions_separately_from_node_members() {
         let context = test_context(|config| {
-            config.region = "eu-central".into();
+            config.region = "eu-west".into();
         })
         .await;
         context
             .state
             .apply_membership_view(
-                std::collections::BTreeSet::from(["eu-central".to_string()]),
+                std::collections::BTreeSet::from(["eu-west".to_string()]),
                 std::collections::BTreeMap::from([
                     (
                         "http://kura-1.kura-headless.kura.svc.cluster.local:7443".to_string(),
-                        "eu-central".to_string(),
+                        "eu-west".to_string(),
                     ),
                     (
                         "http://kura-2.kura-headless.kura.svc.cluster.local:7443".to_string(),
-                        "eu-central".to_string(),
+                        "eu-west".to_string(),
                     ),
                 ]),
                 true,
@@ -4839,7 +4975,7 @@ mod tests {
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("failed to decode up response");
         assert_eq!(body["ring_members"], 3);
-        assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
+        assert_eq!(body["regions"], serde_json::json!(["eu-west"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
     }
@@ -5272,7 +5408,6 @@ mod tests {
                 true,
             )
             .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -5347,20 +5482,13 @@ mod tests {
                 true,
             )
             .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
-        context.state.metrics.update_outbox_messages(7, 5);
         context
             .state
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
-        context.state.metrics.record_replication(
-            &peer,
-            "upsert_artifact",
-            "error",
-            Duration::from_millis(3),
-        );
+        context.state.metrics.note_peer_connection_failure();
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -5379,7 +5507,6 @@ mod tests {
         assert_eq!(body["state"], "draining");
         assert_eq!(body["ready"], false);
         assert_eq!(body["ring_members"], 2);
-        assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
         assert_eq!(body["peer_connection_failure_count"], 1);
@@ -5391,35 +5518,25 @@ mod tests {
         assert_eq!(body["backfill_initial_cycle"], "complete");
     }
 
-    fn backfill_tick<'a>(
-        discovered: &'a [String],
-        lost: &'a [String],
-    ) -> crate::backfill::lifecycle::MembershipTick<'a> {
-        crate::backfill::lifecycle::MembershipTick {
-            discovered,
-            lost,
-            view_settled: true,
-            control_plane_peers: &[],
-            admission: true,
+    #[tokio::test]
+    async fn rollout_status_reports_the_gateway_grpc_port_only_when_configured() {
+        for (gateway_grpc_port, expected) in [(None, Value::Null), (Some(4001), Value::from(4001))]
+        {
+            let context = test_context(|config| config.gateway_grpc_port = gateway_grpc_port).await;
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri("/status/rollout")
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("rollout status route should respond");
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("rollout status response should be json");
+            assert_eq!(body["gateway_grpc_port"], expected);
         }
-    }
-
-    /// Settles the initial backfill cycle over one peer: first pass plus the
-    /// seam follow-up, driven through the machine without pass tasks.
-    fn settle_backfill_cycle_over(state: &SharedState, peer: &str, now: tokio::time::Instant) {
-        use crate::backfill::lifecycle::PassResolution;
-        let discovered = vec![peer.to_string()];
-        state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        state
-            .backfill
-            .test_finish_pass(peer, PassResolution::Completed, now);
-        let seam = now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-        state.backfill.test_evaluate(&backfill_tick(&[], &[]), seam);
-        state
-            .backfill
-            .test_finish_pass(peer, PassResolution::Completed, seam);
     }
 
     async fn get_ready_status(state: &SharedState) -> (StatusCode, Value) {
@@ -5439,53 +5556,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_latches_under_backfill_and_survives_a_peer_flap() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
-        context.state.expire_readiness_settle_window().await;
-
-        let (status, body) = get_ready_status(&context.state).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["state"], "serving");
-
-        // The 2026-07-24 class: the peer flaps out and back, so its re-join
-        // backfill makes the node "backfilling" again. Readiness must not
-        // regress.
-        let flapped = vec![peer.clone()];
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &flapped), tokio::time::Instant::now());
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&flapped, &[]), tokio::time::Instant::now());
-        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
-        context
-            .state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-
-        let (status, body) = get_ready_status(&context.state).await;
-        assert_eq!(status, StatusCode::OK, "readiness never regresses");
-        assert_eq!(body["state"], "serving");
-        assert_eq!(body["ready"], true);
-    }
-
-    #[tokio::test]
     async fn ready_reports_draining_after_the_backfill_latch() {
         let context = test_context(|_| {}).await;
         context
@@ -5496,10 +5566,6 @@ mod tests {
                 true,
             )
             .await;
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         let (status, _) = get_ready_status(&context.state).await;
         assert_eq!(status, StatusCode::OK);
@@ -5515,62 +5581,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rollout_status_reports_the_backfill_cycle_through_to_completion() {
+    async fn rollout_status_reports_a_complete_catch_up_with_no_links_to_settle() {
         let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
         context
             .state
             .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
                 true,
             )
             .await;
-
-        // Mid-cycle: the mode is pending while a peer still gates.
-        let discovered = vec![peer.clone()];
-        let now = tokio::time::Instant::now();
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        let response = public_router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .uri("/status/rollout")
-                    .body(Body::empty())
-                    .expect("failed to build request"),
-            )
-            .await
-            .expect("rollout status route should respond");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body: Value = serde_json::from_str(&response_text(response).await)
-            .expect("rollout status response should be json");
-        assert_eq!(body["backfill_initial_cycle"], "pending");
-        assert_eq!(body["backfill_backfilling_peers"], 1);
-        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
-        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
-        assert_eq!(body["backfill_ring_fullness_percent"], 0);
-
-        // Settled: the mode reads complete, which is what gate.sh and the
-        // fleet-rollout flow act on.
-        {
-            use crate::backfill::lifecycle::PassResolution;
-            context
-                .state
-                .backfill
-                .test_finish_pass(&peer, PassResolution::Completed, now);
-            let seam =
-                now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-            context
-                .state
-                .backfill
-                .test_evaluate(&backfill_tick(&[], &[]), seam);
-            context
-                .state
-                .backfill
-                .test_finish_pass(&peer, PassResolution::Completed, seam);
-        }
         context.state.expire_readiness_settle_window().await;
         let response = public_router(context.state.clone())
             .oneshot(
@@ -5583,8 +5603,13 @@ mod tests {
             .expect("rollout status route should respond");
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("rollout status response should be json");
+        // The catch-up gate contract gate.sh and the kura-controller read.
         assert_eq!(body["backfill_initial_cycle"], "complete");
         assert_eq!(body["backfill_backfilling_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
+        assert_eq!(body["backfill_ring_fullness_percent"], 0);
+        assert!(body.get("outbox_messages").is_none());
         assert_eq!(body["ready"], true, "the settled node latched serving");
         assert_eq!(body["state"], "serving");
     }
@@ -8265,88 +8290,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_outbox_that_cannot_seat_every_target_sheds_rather_than_faulting() {
-        // The public-write middleware only checks that the outbox is not
-        // already at its cap. Each store write then atomically reserves one
-        // slot *per replication target*, so a write admitted by the pre-check
-        // still loses when the remaining room is smaller than the target
-        // count. Two targets against a cap of one reproduces that gap
-        // deterministically; concurrency reaches the same branch by racing.
-        //
-        // `public_router`, not `router`: the gap only exists downstream of
-        // `reject_overloaded_public_writes`, and `combined_router` does not
-        // layer it. Going through the middleware is what makes this a test of
-        // the persistence branches rather than of the handlers in isolation --
-        // on `router` it would stay green even if the middleware regressed to
-        // answering 503.
-        let context = test_context(|config| {
-            config.outbox_max_depth = Some(1);
-            config.peers = vec![
-                "http://127.0.0.1:7101".into(),
-                "http://127.0.0.1:7102".into(),
-            ];
-        })
-        .await;
-        let app = public_router(context.state.clone());
-
-        assert!(
-            !context
-                .state
-                .store
-                .outbox_saturated(&context.state.replication_targets()),
-            "the pre-check must admit this write, or the test is not exercising the gap"
-        );
-
-        let keyvalue = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("PUT")
-                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"cas_id":"cas-outbox","entries":[{"value":"hello"}]}"#,
-                    ))
-                    .expect("failed to build put request"),
-            )
-            .await
-            .expect("keyvalue put failed");
-
-        assert_eq!(keyvalue.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_retryable_hint(&keyvalue, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
-
-        let blob = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/cache/cas/outbox-blob?tenant_id=acme&namespace_id=ios")
-                    .header("content-type", "application/octet-stream")
-                    .body(Body::from("payload"))
-                    .expect("failed to build post request"),
-            )
-            .await
-            .expect("blob post failed");
-
-        assert_eq!(blob.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_retryable_hint(&blob, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
-
-        let metrics = context.state.metrics.render();
-        assert!(
-            metrics
-                .lines()
-                .any(|line| line.starts_with("kura_capacity_sheds_total")
-                    && line.contains("kind=\"outbox\"")),
-            "the shed must be attributable to the outbox, not to egress pressure: {metrics}"
-        );
-        assert!(
-            !metrics.lines().any(|line| {
-                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
-            }),
-            "a full outbox is not a server fault: {metrics}"
-        );
-    }
-
-    #[tokio::test]
     async fn public_writes_shed_with_backpressure_under_critical_memory_pressure() {
         let context = test_context(|_| {}).await;
         context
@@ -9095,6 +9038,106 @@ mod tests {
         );
     }
 
+    /// A source that ends early still promised `Content-Length` bytes. Ending
+    /// on `None` rather than on a drop does not make that a served response.
+    #[tokio::test]
+    async fn a_body_whose_source_ends_early_is_not_recorded_as_ok() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![Ok(Bytes::from_static(b"0123"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        // Polled all the way to the terminal `None`, four bytes short.
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="aborted""#),
+            "a truncated body must not count as delivered, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="ok""#),
+            "a truncated body must not record ok, got:\n{rendered}"
+        );
+    }
+
+    /// The terminal `None` and the drop must not both book a completion.
+    #[tokio::test]
+    async fn a_body_polled_to_completion_records_one_sample() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![Ok(Bytes::from_static(b"0123456789"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(
+                r#"kura_artifact_egress_completions_total_total{producer="module",result="ok"} 1"#
+            ),
+            "completion must be booked exactly once, got:\n{rendered}"
+        );
+    }
+
+    /// A failed read stays a failed read: the drop must not relabel it.
+    #[tokio::test]
+    async fn a_failed_body_is_not_relabelled_on_drop() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Err(std::io::Error::other("read failed")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            ArtifactStreamObservation {
+                status: StatusCode::OK,
+                serving_path: "reader",
+                expected_bytes: 10,
+                attribution: None,
+            },
+        );
+
+        assert!(stream.next().await.expect("first chunk").is_ok());
+        assert!(stream.next().await.expect("second chunk").is_err());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="error""#),
+            "a failed read must record error, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="aborted""#),
+            "the drop must not relabel a failed read, got:\n{rendered}"
+        );
+    }
+
     fn download_attribution(context: &crate::test_support::TestContext) -> DownloadAttribution {
         DownloadAttribution {
             state: context.state.clone(),
@@ -9295,6 +9338,118 @@ mod tests {
         // A full response must not claim to be partial.
         assert!(response.headers().get("content-range").is_none());
         assert_eq!(response_bytes(response).await, body);
+    }
+
+    /// axum answers a HEAD on a GET-only route with the GET handler. Serving a
+    /// body there would hand Hyper a stream it never polls, and the drop would
+    /// book an existence check as a transfer that delivered nothing — putting
+    /// a floor of probes under `result="aborted"`.
+    #[tokio::test]
+    async fn a_head_read_answers_with_metadata_and_meters_no_egress() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::empty())
+                    .expect("failed to build head request"),
+            )
+            .await
+            .expect("head request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("4096"),
+            "a HEAD must describe the artifact it would have served"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        assert!(response.headers().get("etag").is_some());
+        assert!(response_bytes(response).await.is_empty());
+
+        // Scoped to the egress family: the PUT that seeded the artifact
+        // records a write under the same producer and result labels.
+        let rendered = context.state.metrics.render();
+        assert!(
+            !rendered.contains(r#"kura_artifact_egress_completions_total_total{producer="nx""#),
+            "a HEAD serves no body and must not meter an egress completion, got:\n{rendered}"
+        );
+    }
+
+    /// A HEAD is how a client tests whether a resume is worth starting, so it
+    /// has to answer the range question the same way the GET would.
+    #[tokio::test]
+    async fn a_ranged_head_read_describes_the_window_without_serving_it() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/ranged-key")
+                    .header("range", "bytes=4000-")
+                    .body(Body::empty())
+                    .expect("failed to build ranged head request"),
+            )
+            .await
+            .expect("ranged head request failed");
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 4000-4095/4096")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("96")
+        );
+        assert!(response_bytes(response).await.is_empty());
+    }
+
+    /// A HEAD for something that is not stored is still a miss.
+    #[tokio::test]
+    async fn a_head_read_for_a_missing_artifact_is_not_found() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/v1/cache/absent-key")
+                    .body(Body::empty())
+                    .expect("failed to build head request"),
+            )
+            .await
+            .expect("head request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

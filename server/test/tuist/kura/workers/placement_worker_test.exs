@@ -21,7 +21,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
-    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
 
     :ok
   end
@@ -46,7 +46,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     assert :ok = perform_job(PlacementWorker, %{})
 
     assert PlacementProposals.open_proposal_for(account) == nil
-    assert PlacerRegions.primary_region(account) == "eu-central"
+    assert PlacerRegions.primary_region(account) == "eu-west"
 
     applied = Repo.get_by!(PlacementProposal, account_id: account.id, status: :applied)
     assert applied.resolved_by == "automatic"
@@ -74,7 +74,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       [first, second]
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 1
   end
@@ -92,7 +92,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       [first, second]
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 1
   end
@@ -110,9 +110,60 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       [first, second]
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 1
+  end
+
+  test "applies every open proposal of an uncapped kind in one pass" do
+    # What bounds an uncapped kind is the policy, per account. A fleet-wide
+    # count in front of a queue that grows with the account count only ever
+    # falls further behind.
+    stub_budgets(%{correct: :unlimited})
+    accounts = for _ <- 1..4, do: account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    applied =
+      accounts
+      |> Enum.map(&PlacerRegions.primary_region/1)
+      |> Enum.count(&(&1 == "eu-west"))
+
+    assert applied == 4
+  end
+
+  test "an uncapped kind is not held back by what it already spent today" do
+    # The trailing-day spend is what a ceiling is measured against, so a kind
+    # without one must not accumulate against it either.
+    stub_budgets(%{correct: :unlimited})
+    first = for _ <- 1..3, do: account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    second = for _ <- 1..3, do: account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    applied =
+      (first ++ second)
+      |> Enum.map(&PlacerRegions.primary_region/1)
+      |> Enum.count(&(&1 == "eu-west"))
+
+    assert applied == 6
+  end
+
+  test "a capped kind still stops at its ceiling while another runs uncapped" do
+    stub_budgets(%{correct: :unlimited, expand: 1})
+    accounts = for _ <- 1..3, do: account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    applied =
+      accounts
+      |> Enum.map(&PlacerRegions.primary_region/1)
+      |> Enum.count(&(&1 == "eu-west"))
+
+    assert applied == 3
   end
 
   defp stub_budgets(budgets) do

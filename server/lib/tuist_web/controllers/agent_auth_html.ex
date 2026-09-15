@@ -16,12 +16,7 @@ defmodule TuistWeb.AgentAuthHTML do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src={~p"/images/tuist_logo_32x32@2x.png"}
-              alt="Tuist logo"
-              data-part="logo"
-              decoding="async"
-            />
+            <.tuist_mark data-part="logo" aria-label="Tuist logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />

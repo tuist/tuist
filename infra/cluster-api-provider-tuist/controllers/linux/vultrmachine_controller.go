@@ -103,7 +103,7 @@ const (
 // either one filesystem spanning both disks or no RAID at all, so the mirrored
 // root plus separate XFS /data that tuist.kuraVolumeQuotaProgram requires can
 // only be reached afterwards. A box that skips it hosts cache volumes nothing
-// bounds, which is the shape of the 2026-07-16 eu-central outage.
+// bounds, which is the shape of the 2026-07-16 eu-west outage.
 type VultrMachineReconciler struct {
 	client.Client
 	APIReader   client.Reader

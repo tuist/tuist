@@ -70,6 +70,13 @@ defmodule TuistWeb.RemoteIp do
   end
 
   @doc """
+  `origin/1` as LiveView session data, for a `live_session` whose views act on
+  where the person using them is. The page's HTTP request is the one the edge
+  located, so the origin is read there and carried over to the socket.
+  """
+  def live_session(conn), do: %{"origin" => origin(conn)}
+
+  @doc """
   `origin/1`, with the reason when there is no origin to give.
 
   `:no_location` means the request arrived through a trusted hop and the edge
