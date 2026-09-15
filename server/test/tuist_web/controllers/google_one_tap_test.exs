@@ -82,7 +82,7 @@ defmodule TuistWeb.GoogleOneTapTest do
     key: key,
     public_key: public_key
   } do
-    user = AccountsFixtures.user_fixture(email: claims["email"])
+    signup_claims = Map.merge(claims, %{"email" => "one-tap@tuist.dev", "hd" => "tuist.dev"})
     use_public_key(public_key)
 
     conn = start(conn)
@@ -94,9 +94,9 @@ defmodule TuistWeb.GoogleOneTapTest do
     conn =
       conn
       |> recycle()
-      |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, claims), nonce: nonce_b})
+      |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, signup_claims), nonce: nonce_b})
 
-    assert redirected_to(conn) =~ "/#{user.account.name}"
+    assert redirected_to(conn) == "/users/choose-username"
     assert [%{nonce: ^nonce_a}] = get_session(conn, :google_one_tap)
   end
 
