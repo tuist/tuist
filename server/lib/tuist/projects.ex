@@ -310,7 +310,7 @@ defmodule Tuist.Projects do
     |> Repo.transaction()
     |> case do
       {:ok, %{project: project}} ->
-        seed_kura_cache_demand(project)
+        seed_kura_cache_demand(project, Keyword.get(opts, :origin))
         {:ok, project}
 
       {:error, _step, changeset, _changes} ->
@@ -348,16 +348,17 @@ defmodule Tuist.Projects do
 
   # Creating a project is the earliest signal that builds are coming, so it is
   # where an account with no Kura instance gets one
-  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band, because
-  # the cache decision reads the cluster and resolves a region, and that wait
-  # does not belong to a person naming a project.
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`), placed nearest
+  # `origin`, where the request creating the project came from. Out of band,
+  # because the cache decision reads the cluster and resolves a region, and that
+  # wait does not belong to a person naming a project.
   #
   # A rejected enqueue is logged rather than raised: the project is already
   # committed, and an account this misses is provisioned the ordinary way on
   # its first cache request. Anything that raises here is schema drift or a
   # dead connection rather than a cache decision, so it is left to surface.
-  defp seed_kura_cache_demand(%Project{account_id: account_id}) do
-    case %{account_id: account_id} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
+  defp seed_kura_cache_demand(%Project{account_id: account_id}, origin) do
+    case %{account_id: account_id, origin: origin} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
       {:ok, _job} ->
         :ok
 

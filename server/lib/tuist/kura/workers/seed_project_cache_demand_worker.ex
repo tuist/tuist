@@ -31,10 +31,14 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   to start its clock at the account's first endpoint resolution, because an
   instance seeded here has moved no bytes by construction.
 
-  **Placement.** No placer decision is recorded. A seed is a guess — the
-  origin of a project-creation request is where somebody clicked in a
-  dashboard, not where CI will run — and `Tuist.Kura.Placement`'s
-  `correct_initial` rung only fires while the primary was never decided.
+  **Placement.** No placer decision is recorded. The job carries `origin`, the
+  coarse location label of the request that created the project (never an
+  address), and the seed is placed nearest it rather than in the default
+  region (`AccountPolicies.resolve_with_origin_hint/2`). That is still a guess,
+  since where somebody created a project is not necessarily where CI will run,
+  so it only orders the choice: `Tuist.Kura.Placement`'s `correct_initial`
+  rung only fires while the primary was never decided, and it moves the
+  account once its own runs say otherwise.
 
   **Capacity.** A seed is speculative, so a region over its pressure line
   declines and the refusal is counted rather than retried. The account is
@@ -60,20 +64,21 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"account_id" => account_id}}) do
+  def perform(%Oban.Job{args: %{"account_id" => account_id} = args}) do
     case Repo.one(from(a in Account, where: a.id == ^account_id, preload: :subscriptions)) do
       nil -> :ok
-      account -> seed(account)
+      account -> seed(account, Map.get(args, "origin"))
     end
   end
 
-  defp seed(%Account{} = account) do
+  defp seed(%Account{} = account, origin) do
     if serving_instance?(account) do
       :ok
     else
-      case AccountPolicies.resolve(account) do
+      case AccountPolicies.resolve_with_origin_hint(account, origin) do
         # A plan or storage region with no pool behind it has nowhere to be
-        # seeded. `AccountPolicies.resolve/1` counts the refusal itself.
+        # seeded. `AccountPolicies.resolve_with_origin_hint/2` counts the
+        # refusal itself.
         {:error, _reason} -> :ok
         {:ok, resolution} -> seed_region(account, resolution)
       end

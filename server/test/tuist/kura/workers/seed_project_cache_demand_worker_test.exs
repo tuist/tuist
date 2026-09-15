@@ -122,6 +122,17 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert %{} = Demand.get(account.id, region)
     end
 
+    test "records demand in the region nearest where the project was created" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "FR"})
+
+      assert %{service_region: "eu-west"} = Demand.get(account.id, "eu-west")
+      assert Demand.get(account.id, @region) == nil
+      assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+    end
+
     test "does nothing for an account that already has a live instance" do
       account = account()
       {:ok, _} = Demand.upsert(account.id, @region, ago(30))
