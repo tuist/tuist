@@ -1394,34 +1394,35 @@ impl DemandCoalescer {
 /// the registry file.
 struct SourceContext {
     read_at: Instant,
-    /// The version of the registry file this was read from. Setup changes a
+    /// The fingerprint of the sources file this was read from. Setup changes a
     /// project's upload policy by replacing the file, and the build it runs next
     /// starts publishing within seconds, so a replaced file is re-read at once
     /// rather than when the TTL runs out.
-    registry: Option<RegistryVersion>,
+    sources: Option<SourcesFingerprint>,
     trunk: Option<String>,
     ci_branch: Option<String>,
     upload: bool,
 }
 
-/// How long a recorded context is reused while the registry file is unchanged.
+/// How long a recorded context is reused while the sources file is unchanged.
 const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
 
-/// Tells two versions of the sources registry apart without reading it. Setup
-/// swaps the file in by rename, which is a new inode, and the change time moves
-/// on any other write, since no writer can set it back.
+/// What is on disk at the sources registry's path, identified without reading
+/// it: two `stat`s return the same fingerprint only if nothing wrote the file in
+/// between. Setup swaps the file in by rename, which is a new inode, and the
+/// change time moves on any other write, since no writer can set it back.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct RegistryVersion {
+struct SourcesFingerprint {
     device: u64,
     inode: u64,
     changed_seconds: i64,
     changed_nanoseconds: i64,
 }
 
-fn registry_version(path: &Path) -> Option<RegistryVersion> {
+fn sources_fingerprint(path: &Path) -> Option<SourcesFingerprint> {
     use std::os::unix::fs::MetadataExt;
     let metadata = std::fs::metadata(path).ok()?;
-    Some(RegistryVersion {
+    Some(SourcesFingerprint {
         device: metadata.dev(),
         inode: metadata.ino(),
         changed_seconds: metadata.ctime(),
@@ -3931,22 +3932,23 @@ impl Proxy {
     }
 
     /// What setup recorded for the instance, memoized so a publish does not
-    /// re-read the registry. The memo holds only while the registry file is the
-    /// version it was read from, and for at most GIT_CONTEXT_TTL, so a policy
-    /// setup rewrites applies to the next publication and a project set up after
-    /// this proxy started is picked up without a restart.
+    /// re-read the registry. The memo holds only while the sources file's
+    /// fingerprint matches the one it was read under, and for at most
+    /// GIT_CONTEXT_TTL, so a policy setup rewrites applies to the next
+    /// publication and a project set up after this proxy started is picked up
+    /// without a restart.
     fn source_context(&self, instance: &str) -> SourceBranches {
         // Taken before the read. A rename landing between the two then shows up
-        // as a new version on the next call, instead of pairing the new file's
-        // version with the old file's contents until the TTL runs out.
-        let registry = self
+        // as a new fingerprint on the next call, instead of pairing the new
+        // file's fingerprint with the old file's contents until the TTL runs out.
+        let sources = self
             .registry_path
             .as_deref()
-            .and_then(|path| registry_version(&sources_path_for(path)));
+            .and_then(|path| sources_fingerprint(&sources_path_for(path)));
         {
             let cache = self.source_cache.lock().unwrap();
             if let Some(context) = cache.get(instance) {
-                if context.registry == registry && context.read_at.elapsed() < GIT_CONTEXT_TTL {
+                if context.sources == sources && context.read_at.elapsed() < GIT_CONTEXT_TTL {
                     return SourceBranches {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
@@ -3978,7 +3980,7 @@ impl Proxy {
             instance.to_string(),
             SourceContext {
                 read_at: Instant::now(),
-                registry,
+                sources,
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
                 upload,
@@ -6951,10 +6953,10 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// The memo's other half: a context read from the registry version that is
-    /// still on disk is trusted, but only for GIT_CONTEXT_TTL, which is what
-    /// bounds a change the version cannot show and retries a registry that could
-    /// not be read.
+    /// The memo's other half: a context whose sources fingerprint still matches
+    /// the file on disk is trusted, but only for GIT_CONTEXT_TTL, which is what
+    /// bounds a change the fingerprint cannot show and retries a registry that
+    /// could not be read.
     #[test]
     fn a_memoized_policy_is_reread_when_the_registry_changes_or_the_ttl_runs_out() {
         let dir = std::env::temp_dir().join(format!("tuist-policy-ttl-{}", std::process::id()));
@@ -6972,7 +6974,7 @@ mod tests {
             None,
         );
         // A memo that disagrees with the file it was read from: what a change
-        // the registry's version cannot show looks like.
+        // the sources fingerprint cannot show looks like.
         let contradict_the_registry = || {
             proxy
                 .source_cache
@@ -7002,7 +7004,7 @@ mod tests {
         assert!(proxy.upload_enabled("tuist/lane"), "past the TTL it is read again");
 
         contradict_the_registry();
-        // Rewritten in place with the same bytes: a new version all the same.
+        // Rewritten in place with the same bytes: a new fingerprint all the same.
         std::fs::write(&sources, r#"{"tuist/lane":{"trunk":"main","upload":true}}"#)
             .expect("rewrite sources");
         assert!(
