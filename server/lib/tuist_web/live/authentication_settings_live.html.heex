@@ -548,6 +548,11 @@
                     "dashboard_account",
                     "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
                   )}
+                <% @organization.sso_login_domain && @sso_automatic_enrollment -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the login email domain can join this organization automatically. Other users need an invitation. Verify the domain to also use it for provider discovery and identity linking."
+                  )}
                 <% @sso_automatic_enrollment -> %>
                   {dgettext(
                     "dashboard_account",
