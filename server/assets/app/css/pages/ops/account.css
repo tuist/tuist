@@ -98,6 +98,9 @@
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
   & [data-part="prepaid-empty"],
+  & [data-part="standing-prepaid-description"],
+  & [data-part="standing-prepaid-next"],
+  & [data-part="free-tier-description"],
   & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
@@ -130,14 +133,17 @@
     }
   }
 
-  & #prepaid-minutes-form {
+  & #prepaid-minutes-form,
+  & #standing-prepaid-minutes-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
     max-width: 480px;
   }
 
-  & [data-part="prepaid-quote"] {
+  & [data-part="prepaid-quote"],
+  & [data-part="standing-prepaid-quote"],
+  & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);

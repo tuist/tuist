@@ -32,6 +32,7 @@ defmodule Tuist.Gradle.Analytics do
           select: %{
             local_hit: sum(b.tasks_local_hit_count),
             remote_hit: sum(b.tasks_remote_hit_count),
+            cache_hit: sum(b.tasks_cache_hit_count),
             cacheable: sum(b.cacheable_tasks_count)
           }
         ),
@@ -41,9 +42,9 @@ defmodule Tuist.Gradle.Analytics do
     result = ClickHouseRepo.one(query)
 
     case result do
-      %{local_hit: local_hit, remote_hit: remote_hit, cacheable: cacheable}
+      %{local_hit: local_hit, remote_hit: remote_hit, cache_hit: cache_hit, cacheable: cacheable}
       when not is_nil(cacheable) ->
-        from_cache = (local_hit || 0) + (remote_hit || 0)
+        from_cache = Enum.sum(Enum.map([local_hit, remote_hit, cache_hit], &(&1 || 0)))
 
         if cacheable > 0 do
           from_cache / cacheable * 100.0
@@ -79,9 +80,10 @@ defmodule Tuist.Gradle.Analytics do
             root_project_name: b.root_project_name,
             hit_rate:
               fragment(
-                "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+                "(ifNull(?, 0) + ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
                 b.tasks_local_hit_count,
                 b.tasks_remote_hit_count,
+                b.tasks_cache_hit_count,
                 b.cacheable_tasks_count
               )
           }
@@ -183,6 +185,7 @@ defmodule Tuist.Gradle.Analytics do
             date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
             local_hit: sum(b.tasks_local_hit_count),
             remote_hit: sum(b.tasks_remote_hit_count),
+            cache_hit: sum(b.tasks_cache_hit_count),
             cacheable: sum(b.cacheable_tasks_count)
           },
           order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
@@ -194,7 +197,7 @@ defmodule Tuist.Gradle.Analytics do
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       cacheable = row.cacheable || 0
-      from_cache = (row.local_hit || 0) + (row.remote_hit || 0)
+      from_cache = (row.local_hit || 0) + (row.remote_hit || 0) + (row.cache_hit || 0)
 
       hit_rate =
         if cacheable > 0 do
@@ -262,10 +265,11 @@ defmodule Tuist.Gradle.Analytics do
             b.cacheable_tasks_count > 0,
         select:
           fragment(
-            "quantile(?)(( ? + ? ) / ? * 100.0)",
+            "quantile(?)(( ? + ? + ? ) / ? * 100.0)",
             ^flipped_percentile,
             b.tasks_local_hit_count,
             b.tasks_remote_hit_count,
+            b.tasks_cache_hit_count,
             b.cacheable_tasks_count
           )
       )
@@ -292,10 +296,11 @@ defmodule Tuist.Gradle.Analytics do
           date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           percentile_hit_rate:
             fragment(
-              "quantile(?)(( ? + ? ) / ? * 100.0)",
+              "quantile(?)(( ? + ? + ? ) / ? * 100.0)",
               ^flipped_percentile,
               b.tasks_local_hit_count,
               b.tasks_remote_hit_count,
+              b.tasks_cache_hit_count,
               b.cacheable_tasks_count
             )
         },

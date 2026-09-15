@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -27,6 +28,7 @@ const XCODE_WEBHOOK_PATH: &str = "/webhooks/cache";
 const GRADLE_WEBHOOK_PATH: &str = "/webhooks/gradle-cache";
 const REAPI_CACHE_WEBHOOK_PATH: &str = "/webhooks/reapi-cache";
 const BAZEL_INVOCATIONS_WEBHOOK_PATH: &str = "/webhooks/bazel-invocations";
+const MAX_BAZEL_INVOCATION_BATCH_SIZE: usize = 32;
 
 #[derive(Clone)]
 pub struct Analytics {
@@ -91,7 +93,7 @@ pub struct ReapiCacheAnalyticsEvent {
     pub outcome: &'static str,
     pub action_digest: String,
     pub size: u64,
-    pub duration_ms: u64,
+    pub duration_us: u64,
     pub observed_at_ms: u64,
 }
 
@@ -100,7 +102,7 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 13)?;
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 14)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
         event.serialize_field("client_kind", self.context.client_kind)?;
@@ -108,7 +110,13 @@ impl Serialize for ReapiCacheAnalyticsEvent {
         event.serialize_field("outcome", self.outcome)?;
         event.serialize_field("action_digest", &self.action_digest)?;
         event.serialize_field("size", &self.size)?;
-        event.serialize_field("duration_ms", &self.duration_ms)?;
+        // Microseconds are the real measurement: Kura answers most action-cache
+        // lookups in well under a millisecond, so a millisecond field rounds
+        // almost every observation to zero and makes latency and throughput
+        // uncomputable. `duration_ms` stays on the wire so a server that has
+        // not rolled yet keeps working, and can be dropped once it has.
+        event.serialize_field("duration_us", &self.duration_us)?;
+        event.serialize_field("duration_ms", &(self.duration_us / 1_000))?;
         event.serialize_field("observed_at_ms", &self.observed_at_ms)?;
         event.serialize_field("invocation_id", &self.context.invocation_id)?;
         event.serialize_field("action_mnemonic", &self.context.action_mnemonic)?;
@@ -128,10 +136,36 @@ pub struct BazelInvocationAnalyticsEvent {
     pub git_branch: String,
     pub git_commit_sha: String,
     pub is_ci: bool,
+    pub custom_values: BTreeMap<String, String>,
+    pub bazel_version: String,
+    pub cpu_time_ms: u64,
+    pub actions_created: u64,
+    pub actions_executed: u64,
+    pub targets_configured: u64,
+    pub packages_loaded: u64,
+    pub build_timeline_duration_ms: u64,
+    pub build_timeline_lanes: Vec<String>,
+    pub build_timeline_span_lanes: Vec<u8>,
+    pub build_timeline_span_start_ms: Vec<u64>,
+    pub build_timeline_span_durations_ms: Vec<u64>,
+    pub build_timeline_span_categories: Vec<String>,
+    pub build_timeline_span_descriptions: Vec<String>,
+    pub critical_path_duration_ms: u64,
+    pub critical_path_action_descriptions: Vec<String>,
+    pub critical_path_action_durations_ms: Vec<u64>,
+    pub logs: Vec<BazelInvocationLogAnalyticsEvent>,
     pub status: String,
     pub exit_code: i32,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct BazelInvocationLogAnalyticsEvent {
+    pub sequence_number: u64,
+    pub stream: &'static str,
+    pub message: String,
+    pub observed_at_ms: u64,
 }
 
 #[derive(Serialize)]
@@ -307,7 +341,8 @@ impl AnalyticsRuntime {
     ) {
         let mut ticker = interval(Duration::from_millis(self.config.batch_timeout_ms));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        let mut batch = Vec::with_capacity(self.config.batch_size);
+        let batch_size = self.config.batch_size.min(MAX_BAZEL_INVOCATION_BATCH_SIZE);
+        let mut batch = Vec::with_capacity(batch_size);
         let mut breaker = CircuitBreaker::new();
 
         self.metrics
@@ -321,7 +356,7 @@ impl AnalyticsRuntime {
                         break;
                     };
                     batch.push(event);
-                    if batch.len() >= self.config.batch_size {
+                    if batch.len() >= batch_size {
                         self.flush_bazel_invocations(&mut batch, &mut breaker).await;
                     }
                 }
@@ -721,7 +756,10 @@ impl CircuitState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{
         Router, body::Bytes, extract::Request, http::StatusCode, response::IntoResponse,
@@ -734,8 +772,8 @@ mod tests {
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, BazelInvocationAnalyticsEvent, CircuitBreaker, CircuitState,
-        ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
+        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
     };
 
     #[derive(Clone, Debug)]
@@ -782,7 +820,7 @@ mod tests {
             outcome: "hit",
             action_digest: "digest-1".into(),
             size: 128,
-            duration_ms: 9,
+            duration_us: 9_400,
             observed_at_ms: 1_700_000_000_123,
         });
         analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
@@ -794,6 +832,32 @@ mod tests {
             git_branch: "main".into(),
             git_commit_sha: "abc123".into(),
             is_ci: true,
+            custom_values: BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ]),
+            bazel_version: "9.1.0".into(),
+            cpu_time_ms: 1_250,
+            actions_created: 11,
+            actions_executed: 10,
+            targets_configured: 4,
+            packages_loaded: 2,
+            build_timeline_duration_ms: 15_000,
+            build_timeline_lanes: vec!["Execution lane 1".into()],
+            build_timeline_span_lanes: vec![0],
+            build_timeline_span_start_ms: vec![500],
+            build_timeline_span_durations_ms: vec![1_000],
+            build_timeline_span_categories: vec!["execution".into()],
+            build_timeline_span_descriptions: vec!["Compile //app:app".into()],
+            critical_path_duration_ms: 1_000,
+            critical_path_action_descriptions: vec!["Compile //app:app".into()],
+            critical_path_action_durations_ms: vec![1_000],
+            logs: vec![BazelInvocationLogAnalyticsEvent {
+                sequence_number: 6,
+                stream: "stderr",
+                message: "build failed".into(),
+                observed_at_ms: 1_700_000_014_000,
+            }],
             status: "success".into(),
             exit_code: 0,
             started_at_ms: 1_700_000_000_000,
@@ -876,6 +940,7 @@ mod tests {
                     "outcome": "hit",
                     "action_digest": "digest-1",
                     "size": 128,
+                    "duration_us": 9400,
                     "duration_ms": 9,
                     "observed_at_ms": 1700000000123u64,
                     "invocation_id": "invocation-1",
@@ -911,11 +976,89 @@ mod tests {
                     "is_ci": true,
                     "git_branch": "main",
                     "git_commit_sha": "abc123",
+                    "custom_values": {
+                        "environment": "local",
+                        "runner": "linux-arm64"
+                    },
+                    "bazel_version": "9.1.0",
+                    "cpu_time_ms": 1_250,
+                    "actions_created": 11,
+                    "actions_executed": 10,
+                    "targets_configured": 4,
+                    "packages_loaded": 2,
+                    "build_timeline_duration_ms": 15_000,
+                    "build_timeline_lanes": ["Execution lane 1"],
+                    "build_timeline_span_lanes": [0],
+                    "build_timeline_span_start_ms": [500],
+                    "build_timeline_span_durations_ms": [1_000],
+                    "build_timeline_span_categories": ["execution"],
+                    "build_timeline_span_descriptions": ["Compile //app:app"],
+                    "critical_path_duration_ms": 1_000,
+                    "critical_path_action_descriptions": ["Compile //app:app"],
+                    "critical_path_action_durations_ms": [1_000],
+                    "logs": [{
+                        "sequence_number": 6,
+                        "stream": "stderr",
+                        "message": "build failed",
+                        "observed_at_ms": 1_700_000_014_000u64
+                    }],
                     "started_at_ms": 1_700_000_000_000u64,
                     "finished_at_ms": 1_700_000_015_000u64
                 }]
             })
         );
+    }
+
+    #[tokio::test]
+    async fn caps_bazel_invocation_batches_independently_of_the_general_batch_size() {
+        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        let analytics = Analytics::from_config(
+            Some(&AnalyticsConfig {
+                server_url: base_url,
+                signing_key: "secret-key".into(),
+                batch_size: 100,
+                batch_timeout_ms: 50,
+                queue_capacity: 100,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 5_000,
+            }),
+            "https://cache-us-east-3.example.com:7443",
+            Metrics::new("us-east".into(), "tenant".into()),
+        )
+        .expect("analytics should initialize")
+        .expect("analytics should be enabled");
+
+        for index in 0..33 {
+            analytics.enqueue_bazel_invocation_event(empty_bazel_invocation_event(index));
+        }
+
+        timeout(Duration::from_secs(2), async {
+            loop {
+                if captured.lock().expect("captured requests lock").len() == 2 {
+                    break;
+                }
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("Bazel invocation batches should be delivered");
+
+        let requests = captured.lock().expect("captured requests lock");
+        let batch_sizes = requests
+            .iter()
+            .map(|request| {
+                let body: Value = serde_json::from_slice(&request.body)
+                    .expect("Bazel invocation payload should decode");
+                body["events"]
+                    .as_array()
+                    .expect("Bazel invocation payload should contain events")
+                    .len()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(batch_sizes, vec![32, 1]);
     }
 
     #[tokio::test]
@@ -953,7 +1096,7 @@ mod tests {
             outcome: "write",
             action_digest: "content-digest".into(),
             size: 4_096,
-            duration_ms: 14,
+            duration_us: 14_500,
             observed_at_ms: 1_700_000_000_456,
         });
 
@@ -993,6 +1136,7 @@ mod tests {
                     "outcome": "write",
                     "action_digest": "content-digest",
                     "size": 4096,
+                    "duration_us": 14500,
                     "duration_ms": 14,
                     "observed_at_ms": 1700000000456u64,
                     "invocation_id": "invocation-1",
@@ -1106,6 +1250,41 @@ mod tests {
             .map(|(_, value)| value.as_str())
             .expect("cache endpoint header should be present");
         assert_eq!(cache_endpoint, endpoint);
+    }
+
+    fn empty_bazel_invocation_event(index: usize) -> BazelInvocationAnalyticsEvent {
+        BazelInvocationAnalyticsEvent {
+            account_handle: "acme".into(),
+            project_handle: "bazel".into(),
+            invocation_id: format!("invocation-{index}"),
+            command: "build".into(),
+            target_patterns: Vec::new(),
+            git_branch: String::new(),
+            git_commit_sha: String::new(),
+            is_ci: false,
+            custom_values: BTreeMap::new(),
+            bazel_version: String::new(),
+            cpu_time_ms: 0,
+            actions_created: 0,
+            actions_executed: 0,
+            targets_configured: 0,
+            packages_loaded: 0,
+            build_timeline_duration_ms: 0,
+            build_timeline_lanes: Vec::new(),
+            build_timeline_span_lanes: Vec::new(),
+            build_timeline_span_start_ms: Vec::new(),
+            build_timeline_span_durations_ms: Vec::new(),
+            build_timeline_span_categories: Vec::new(),
+            build_timeline_span_descriptions: Vec::new(),
+            critical_path_duration_ms: 0,
+            critical_path_action_descriptions: Vec::new(),
+            critical_path_action_durations_ms: Vec::new(),
+            logs: Vec::new(),
+            status: "success".into(),
+            exit_code: 0,
+            started_at_ms: 0,
+            finished_at_ms: 0,
+        }
     }
 
     async fn spawn_capture_server(

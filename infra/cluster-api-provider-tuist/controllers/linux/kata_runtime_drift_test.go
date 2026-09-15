@@ -169,6 +169,10 @@ func TestKataRuntimeMissingIsSurfacedOnTheMachine(t *testing.T) {
 // correctly-bootstrapped runner box looks like, and it must cost nothing.
 func TestKataRuntimeReadyWhenNodeCarriesTheLabel(t *testing.T) {
 	h := newKataHarness(t, true, map[string]string{"katacontainers.io/kata-runtime": "true"})
+	h.node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(h.node)
+	if err := h.client.Update(context.Background(), h.node); err != nil {
+		t.Fatal(err)
+	}
 	h.reconcile()
 
 	cond := conditions.Get(h.machine, clusterv1.ConditionType("KataRuntimeReady"))

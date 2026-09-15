@@ -201,7 +201,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
@@ -219,7 +226,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
@@ -237,7 +251,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -266,6 +287,60 @@
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["10.128.0.0/12"],
 			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
+		},
+
+		// Staging cluster → the BER1 rack's host LAN, on SSH only.
+		//
+		// This is the FIRST-DIAL path for rack-owned Mac minis
+		// (RackAppleSiliconMachine). A rented mini has a public IP the
+		// operator can reach before anything is installed on it; a mini in a
+		// rack we own does not, and it is not on the tailnet yet either: 
+		// bootstrap is what puts it there. So the operator reaches it at its
+		// LAN address, through a subnet router in the rack that advertises
+		// that prefix.
+		//
+		// Routing it separately from the host's OWN tailnet identity is
+		// deliberate, not incidental. Bootstrap stops and replaces tailscaled
+		// to install the operator's pinned build; over a session transported
+		// by the host's own tailnet identity that would drop the tunnel it is
+		// riding, which is exactly why the drift loop's tailnet fallback has
+		// to set SkipTailscaleInstall. Through a separate router the session
+		// survives, so a rack host can be fully bootstrapped in one pass.
+		//
+		// Subnet-routed destinations match by CIDR, not by the router's tag,
+		// hence the literal prefix. tcp:22 only: everything else a mini serves
+		// (node_exporter, tart-kubelet, the VNC relay) is reached over the
+		// per-machine egress Service once the host has joined the tailnet, the
+		// same as for a rented one.
+		//
+		// A /32 PER HOST, never the rack's whole prefix, and that is load-bearing
+		// while the catch-all grant at the top of this list still exists. A
+		// catch-all of `*->*` subsumes the narrowing below, so what an advertised
+		// route actually exposes today is every address in it, on every port, to
+		// every device on the tailnet: three clusters' nodes, the rented Mac mini
+		// fleet, ops laptops, and every Tart runner VM that holds a tailnet
+		// identity. For the BER1 prototype the router is a machine on a HOME
+		// network, so a /24 there would hand CI runner VMs the router admin page
+		// and every personal device in the house. A /32 bounds that to the one
+		// lab box we are about to give cluster credentials to anyway.
+		//
+		// The cost is that the address is now load-bearing in two places: this
+		// grant and the RackHost's `spec.address`. Give the host a DHCP
+		// reservation; a lease change needs both updated and the route
+		// re-advertised.
+		//
+		// Widen to the rack's real prefix only once the catch-all above is gone
+		// and this file is the thing that actually decides reachability. That
+		// removal is a PREREQUISITE for the BER1 rack, not a follow-up: a rack
+		// advertised as one prefix under the catch-all gives every device on the
+		// tailnet SSH to every mini, and the runner VMs on this tailnet execute
+		// customer build code. The per-env grants below were written to survive
+		// the removal, so the work is auditing what still leans on the catch-all
+		// (Talos node access, ops laptops) rather than rewriting them.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["192.168.0.41/32"],
+			"ip":  ["tcp:22"],
 		},
 
 		// Humans SSH into any Mac mini. Not load-bearing — the
@@ -383,6 +458,14 @@
 			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
 		},
 	},
+
+	// The BER1 rack's host LAN is NOT auto-approved. Unlike the Connector's
+	// Service CIDR above, which a Pod re-advertises on every rollout so manual
+	// approval would break the route each time, the rack's
+	// subnet router is a long-lived box that advertises once. Auto-approval
+	// would buy nothing there and would mean any device holding the approver
+	// tag could put a private prefix into the tailnet's routing table by
+	// asserting it. Approve the rack router's route once, by hand.
 
 	// Tailscale SSH (distinct from "grants"). The same-env
 	// k8s→macmini accept grants let the cluster-side subnet-router

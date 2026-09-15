@@ -106,8 +106,11 @@ struct BazelSetupCommandServiceTests {
         #expect(bazelrcContent.contains("build --bes_backend=grpcs://cache.tuist.dev"))
         #expect(bazelrcContent.contains("build --bes_header=x-tuist-account-handle=my-account"))
         #expect(bazelrcContent.contains("build --bes_header=x-tuist-project-handle=my-project"))
-        #expect(bazelrcContent.contains("build --bes_timeout=30s"))
+        #expect(bazelrcContent.contains("build --bes_timeout=10m"))
         #expect(bazelrcContent.contains("build --bes_upload_mode=fully_async"))
+        #expect(bazelrcContent.contains("build --bes_outerr_chunk_size=262144"))
+        #expect(bazelrcContent.contains("build --build_event_max_named_set_of_file_entries=500"))
+        #expect(bazelrcContent.contains("build --build_event_publish_all_actions"))
 
         #expect(
             try await fileSystem.readTextFile(at: temporaryDirectory.appending(component: ".bazelrc"))

@@ -100,9 +100,12 @@ func main() {
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
-		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
-			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
-			"instances per host); Tart refuses to start a third VM.")
+		"Pod ceiling advertised as the Node's pods capacity. NOT the "+
+			"concurrent-VM limit: the scheduler counts terminated Pods against "+
+			"this until GC deletes them, so a host is given guests x 2 + 1. "+
+			"Apple's macOS SLA caps simultaneous virtualized macOS instances at "+
+			"2 per host, and Tart enforces that itself regardless of this value. "+
+			"The default of 2 is one guest slot plus one terminating predecessor.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
 		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
 			"this is left at the default `:8080`, the bind address is "+

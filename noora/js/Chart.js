@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 /**
  * Formats elapsed time into a human readable string
@@ -66,6 +66,7 @@ function formatMbps(bytesPerSecond) {
 }
 
 const formatters = {
+  formatNumber: () => (value) => formatNumber(value),
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(navigator.language, {
@@ -112,6 +113,7 @@ const formatters = {
 };
 
 const tooltipFormatters = {
+  formatNumber,
   formatBytes,
   formatCurrency,
   formatMbps,
@@ -122,12 +124,39 @@ const tooltipFormatters = {
 
 export default {
   mounted() {
-    this.render();
-    this.colorSchemeListener = () => this.render();
+    this.renderReady =
+      this.el.dataset.lazy !== "true" ||
+      typeof IntersectionObserver === "undefined";
+    this.colorSchemeListener = () => {
+      if (this.renderReady) this.render();
+    };
+    this.resizeListener = () => this.chart?.resize();
     window.addEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
     );
+    window.addEventListener("resize", this.resizeListener);
+    window.addEventListener("phx:resize", this.resizeListener);
+
+    if (this.renderReady) {
+      this.render();
+    } else {
+      this.visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          if (
+            this.visibilityObserver &&
+            entries.some((entry) => entry.isIntersecting)
+          ) {
+            this.visibilityObserver.disconnect();
+            this.visibilityObserver = null;
+            this.renderReady = true;
+            this.render();
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      this.visibilityObserver.observe(this.el);
+    }
   },
   render({ animate = true } = {}) {
     if (this.chart) this.chart.dispose();
@@ -170,22 +199,19 @@ export default {
         chartDom.style.cursor = "default";
       });
     }
-
-    this.resizeListener = () => {
-      this.chart.resize();
-    };
-    window.addEventListener("resize", this.resizeListener);
-    window.addEventListener("phx:resize", this.resizeListener);
   },
   updated() {
     // Re-render fully to update theme (including tooltip formatter), but skip
     // the entry animation so LiveView patches don't visibly re-animate charts.
-    this.render({ animate: false });
+    if (this.renderReady) this.render({ animate: false });
   },
   destroyed() {
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = null;
+    this.renderReady = false;
     const chartDom = this.el.querySelector("[data-part='chart']");
     if (chartDom) chartDom.__nooraChart = null;
-    this.chart.dispose();
+    this.chart?.dispose();
     window.removeEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
@@ -258,6 +284,22 @@ export function prepareChartOptions(input, element) {
 
     if (largestSeriesCount > 0) {
       element?.setAttribute("data-largest-series-count", largestSeriesCount);
+    }
+  }
+
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axes = [option[axisName]].flat().filter(Boolean);
+    for (const axis of axes) {
+      const isValueAxis = axis.type === "value" || (!axis.type && !axis.data);
+      if (
+        isValueAxis &&
+        (!axis.axisLabel?.formatter || axis.axisLabel.formatter === "{value}")
+      ) {
+        axis.axisLabel = {
+          ...axis.axisLabel,
+          formatter: (value) => formatNumber(value),
+        };
+      }
     }
   }
 
@@ -663,10 +705,13 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace("{value}", value);
+      formattedValue = options.valueFormat.replace(
+        "{value}",
+        options.valueFormat === "{value}" ? formatNumber(value) : value,
+      );
     }
   } else {
-    formattedValue = value;
+    formattedValue = formatNumber(value);
   }
 
   const hasExtra = data && typeof data === "object" && data.tooltipExtra;

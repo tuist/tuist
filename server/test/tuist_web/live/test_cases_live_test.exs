@@ -7,6 +7,7 @@ defmodule TuistWeb.TestCasesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Analytics
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "test cases page" do
@@ -90,6 +91,45 @@ defmodule TuistWeb.TestCasesLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='test-cases-table']")
+    end
+
+    test "lists individual Bazel test cases and their target", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          build_system: "bazel",
+          scheme: "//app:unit_tests",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60),
+          test_modules: [
+            %{
+              name: "//app:unit_tests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{
+                  name: "testExample",
+                  test_suite_name: "ExampleTest",
+                  status: "success",
+                  duration: 100
+                }
+              ]
+            }
+          ]
+        )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      render_async(lv)
+
+      assert has_element?(lv, "[data-part='test-cases-table']", "testExample")
+      assert has_element?(lv, "[data-part='test-cases-table']", "//app:unit_tests")
     end
 
     test "filters test cases whose module does not contain a substring", %{
@@ -227,6 +267,40 @@ defmodule TuistWeb.TestCasesLiveTest do
       # Then
       render_async(lv)
       assert has_element?(lv, "#widget-test-cases-count")
+    end
+  end
+
+  describe "bazel_target_collapse?/1" do
+    test "flags a case that matches Bazel's synthesized target-only report" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "kura_lib_test"
+             })
+    end
+
+    test "flags a target under a package" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//pkg/foo:bar_test",
+               suite_name: "bar_test",
+               name: "bar_test"
+             })
+    end
+
+    test "leaves a real per-case row alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "tests::routes::rejects_missing_auth"
+             })
+    end
+
+    test "leaves non-Bazel cases alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "AppTests",
+               suite_name: "AppTests",
+               name: "AppTests"
+             })
     end
   end
 end

@@ -64,8 +64,13 @@ defmodule Tuist.License do
     "58f8d43c65b5a3e200e8ef6ecefa6b700432124527edf50a5b5b0577242c51fd"
   end
 
+  # Ed25519 verify key for the air-gapped license files issued by Atlas
+  def atlas_ed25519_verify_key do
+    "8811b8ea16b76b3bc64bdd668d8843701ef45b7ab045d82ca2ac9ee3df5ad013"
+  end
+
   def ed25519_verify_keys do
-    [Tuist.Environment.license_verify_key(), ed25519_verify_key()]
+    [Tuist.Environment.license_verify_key(), atlas_ed25519_verify_key(), ed25519_verify_key()]
     |> Enum.filter(&(is_binary(&1) and &1 != ""))
     |> Enum.uniq()
   end

@@ -62,6 +62,33 @@ export default {
     };
     this.tooltip = new Tooltip(this.el, this.context);
     this.tooltip.init();
+
+    // Touch screens have no hover, and zag's tooltip opens only on hover
+    // and keyboard focus, so a tap did nothing. On hover-less devices a tap
+    // on the trigger toggles it and a tap anywhere else closes it. The open
+    // state is read on pointerdown, before zag's own closeOnPointerDown
+    // handling runs, so a tap on an open tooltip closes it instead of
+    // closing and immediately reopening.
+    if (window.matchMedia && window.matchMedia("(hover: none)").matches) {
+      const trigger = () => this.el.querySelector("[data-part='trigger']");
+      this.onPointerDown = (event) => {
+        const t = trigger();
+        if (t && t.contains(event.target)) {
+          this.wasOpen = this.tooltip.api.open;
+        } else if (this.tooltip.api.open) {
+          this.tooltip.api.setOpen(false);
+        }
+      };
+      this.onClick = (event) => {
+        const t = trigger();
+        if (!t || !t.contains(event.target)) return;
+        event.preventDefault();
+        this.tooltip.api.setOpen(!this.wasOpen);
+        this.wasOpen = false;
+      };
+      document.addEventListener("pointerdown", this.onPointerDown, true);
+      this.el.addEventListener("click", this.onClick);
+    }
   },
 
   updated() {
@@ -69,6 +96,9 @@ export default {
   },
 
   beforeDestroy() {
+    if (this.onPointerDown)
+      document.removeEventListener("pointerdown", this.onPointerDown, true);
+    if (this.onClick) this.el.removeEventListener("click", this.onClick);
     this.tooltip.destroy();
   },
 };

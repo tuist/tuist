@@ -460,9 +460,6 @@ enum Hashing {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    static func shortRevision(_ revision: String) -> String {
-        String(revision.prefix(12))
-    }
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

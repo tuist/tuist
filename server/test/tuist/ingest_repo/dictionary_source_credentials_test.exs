@@ -42,7 +42,7 @@ defmodule Tuist.IngestRepo.DictionarySourceCredentialsTest do
       |> Enum.filter(fn path ->
         source = File.read!(path)
 
-        String.contains?(source, "ClickHouseDictionarySource.local_table(") and
+        String.contains?(source, ["ClickHouseDictionarySource.local_table(", "ClickHouseDictionarySource.local_query("]) and
           not String.contains?(source, "ClickHouseDictionarySource.query_opts()")
       end)
       |> Enum.map(&Path.basename/1)
@@ -51,8 +51,8 @@ defmodule Tuist.IngestRepo.DictionarySourceCredentialsTest do
     assert unredacted == [],
            """
            These migrations render a dictionary source carrying a password but do not issue \
-           the statement with `Tuist.ClickHouseDictionarySource.query_opts/0`, so a statement \
-           that fails to parse reaches `system.query_log` verbatim:
+           the statement with `Tuist.ClickHouseDictionarySource.query_opts/0`, so the \
+           credential can reach application SQL logs:
 
            #{Enum.map_join(unredacted, "\n", &("  " <> &1))}
            """

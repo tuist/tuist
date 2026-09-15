@@ -231,6 +231,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       assert hosted_cache_crons == self_hosted_cache_crons
     end
 
+    test "the hosted sign-up report runs every hour, including weekends" do
+      assert {"@hourly", HourlySlackReportWorker} in RuntimeConfig.crontab(:web, :prod, true)
+    end
+
     test ":web + prod-like env, Tuist-hosted: hosted-only entries plus shared crons" do
       for env <- [:prod, :stag, :can], artifact_retention_days <- [%{}, %{cache_artifacts: 21}] do
         workers =

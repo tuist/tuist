@@ -3,6 +3,7 @@ use tonic::Status;
 pub(super) const BYTESTREAM_WRITE_DECODE_COPIES: u64 = 2;
 pub(super) const CAS_BATCH_UPDATE_DECODE_COPIES: u64 = 3;
 pub(super) const ACTION_CACHE_UPDATE_DECODE_COPIES: u64 = 4;
+pub(super) const CAS_SPLICE_DECODE_COPIES: u64 = 3;
 pub(super) const REAPI_BATCH_REQUEST_STRUCTURAL_BYTES: u64 = 512;
 pub(super) const REAPI_ACTION_OUTPUT_STRUCTURAL_BYTES: u64 = 1_024;
 const REAPI_NODE_PROPERTY_STRUCTURAL_BYTES: u64 = 512;
@@ -18,6 +19,7 @@ pub(super) enum GrpcWriteShapePolicy {
     BuildEventStream,
     BatchUpdate,
     ActionUpdate,
+    Splice,
 }
 
 impl GrpcWriteShapePolicy {
@@ -27,12 +29,41 @@ impl GrpcWriteShapePolicy {
             Self::BuildEventStream => BYTESTREAM_WRITE_DECODE_COPIES,
             Self::BatchUpdate => CAS_BATCH_UPDATE_DECODE_COPIES,
             Self::ActionUpdate => ACTION_CACHE_UPDATE_DECODE_COPIES,
+            Self::Splice => CAS_SPLICE_DECODE_COPIES,
         }
     }
 
     pub(super) fn is_unary(self) -> bool {
         !matches!(self, Self::ByteStream | Self::BuildEventStream)
     }
+}
+
+pub(super) fn inspect_splice_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    let mut shape = DecodeShape::default();
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "instance name")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Bytes { number: 2, value } => inspect_digest_wire(value, &mut shape)?,
+            ProtoField::Bytes { number: 3, value } => {
+                shape.add_structural(REAPI_BATCH_REQUEST_STRUCTURAL_BYTES)?;
+                inspect_digest_wire(value, &mut shape)?;
+            }
+            ProtoField::Varint { number: 4 | 5 } => {}
+            ProtoField::Varint { number: 1..=3 }
+            | ProtoField::Bytes { number: 4 | 5, .. }
+            | ProtoField::Fixed { number: 1..=5 } => {
+                return Err(Status::invalid_argument(
+                    "splice request field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(shape)
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

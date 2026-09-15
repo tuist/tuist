@@ -1,14 +1,17 @@
 name: Cloudflare Operator Image
 
-# PR validation + ad-hoc image build for cloudflare-operator, the
+# PR validation + main-branch image build for cloudflare-operator, the
 # Kubernetes controller that reconciles CRDs under cloudflare.tuist.dev
 # against the Cloudflare API so that zone-level configuration (rate
-# limits today, cache rules / WAF custom rules / AI Crawl Control /
-# zone settings as follow-on CRDs) lives in git.
+# limits and Web Application Firewall custom rules today, with cache rules,
+# crawler controls, and zone settings as possible follow-on resources) lives
+# in git.
 #
-# Steady-state image promotion for the operator will follow the same
-# pattern as the other infra controllers; today this workflow handles
-# PR validation and pre-release iteration via `:sha-<git-sha>` tags.
+# Every merge to main pushes a fresh image; Flux's
+# image-automation-controller (see `infra/flux/cloudflare-operator/
+# image-automation.yaml`) picks the newest tag and opens a bump commit
+# on the values file, so no human-authored PR is needed to roll a
+# controller change out to the management cluster.
 
 on:
   push:
@@ -74,12 +77,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compute tags
         id: tags
+        # Three tags per build, and each one has a reason to exist:
+        #   - `sha-<12sha>` is human-readable and what everything before
+        #     Flux image automation grep-ed for in review.
+        #   - `sha-<epoch>-<12sha>` is what `ImagePolicy` sorts on —
+        #     Flux extracts the numeric epoch, picks the largest, and
+        #     rewrites `values-mgmt.yaml` with this exact string. Ordering
+        #     by git SHA is not chronological, so without an embedded
+        #     timestamp Flux would have to pick effectively at random.
+        #   - `latest` is left for humans running `docker pull` while
+        #     debugging. Flux ignores it because it does not match the
+        #     policy pattern.
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           GIT_SHA="${GITHUB_SHA::12}"
+          EPOCH="$(date -u +%s)"
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "${IMAGE}:sha-${EPOCH}-${GIT_SHA}"
             echo "${IMAGE}:latest"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"

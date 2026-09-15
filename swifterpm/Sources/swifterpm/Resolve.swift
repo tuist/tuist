@@ -253,6 +253,71 @@ enum PackageResolver {
         }
     }
 
+    /// Drop pins whose declaring dependency has been removed from the
+    /// manifest since the seed `Package.resolved` was written. Native
+    /// SwiftPM's `swift package resolve` tries to fetch every pin it sees,
+    /// so an orphan whose location no longer resolves (a private mirror
+    /// gone, a revoked network, a moved repo) aborts the whole resolve
+    /// instead of being dropped as unused.
+    ///
+    /// Only prunes when the manifest actually diverged from the seed
+    /// (originHash mismatch) and only pins whose identity is definitely no
+    /// longer declared by the root manifest or any local package under it.
+    /// Direct-dep pins keep their exact recorded versions; transitives of
+    /// pruned direct deps are dropped along with them and re-resolved from
+    /// the remaining manifest, matching the behavior of a `resolve` that
+    /// never saw the removed dependency in the first place.
+    ///
+    /// Package.resolved is rewritten in place so both the warm and cold
+    /// paths see the pruned seed. `workspace-state.json` is cleared when
+    /// pruning happens, because SwiftPM otherwise re-associates the seed
+    /// with the stale checkout state and still reaches for the orphan.
+    static func pruneStalePinsIfNeeded(
+        packageDir: URL,
+        scratchDir: URL,
+        disableSandbox: Bool
+    ) async throws {
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        guard try await fileSystem.exists(resolvedPath.absolutePath) else { return }
+
+        let resolved = try await ResolvedFile.read(packageDir: packageDir)
+        guard !resolved.pins.isEmpty else { return }
+
+        let currentOriginHash = try await originHash(packageDir: packageDir)
+        guard resolved.originHash != currentOriginHash else { return }
+
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var expectedIdentities = Set(
+            try ManifestParser.dependencies(manifest).map { $0.identity.lowercased() }
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dep in try ManifestParser.dependencies(localPackage.manifest) {
+                expectedIdentities.insert(dep.identity.lowercased())
+            }
+        }
+
+        let survivors = resolved.pins.filter {
+            expectedIdentities.contains($0.identity.lowercased())
+        }
+        guard survivors.count != resolved.pins.count else { return }
+
+        var pruned = resolved
+        pruned.pins = survivors
+        try await ResolvedFile.write(packageDir: packageDir, resolved: pruned)
+
+        let workspaceStatePath = scratchDir.appendingPathComponent("workspace-state.json")
+        if try await fileSystem.exists(workspaceStatePath.absolutePath) {
+            try? await fileSystem.removePath(workspaceStatePath)
+        }
+    }
+
     /// Load the resolved pins for `packageDir`, resolving fresh only when
     /// needed. Centralizes the read-only / current-file / seed-and-resolve
     /// decision so every entry point (and any `SwifterPMCore` embedder) seeds

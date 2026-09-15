@@ -13,9 +13,6 @@ description: |
   binary means adding it here, once.
 
 inputs:
-  mise-version:
-    description: Version of mise to install (pass the workflow's MISE_VERSION)
-    required: true
   github-token:
     description: GitHub token for mise (falls back to MISE_GITHUB_TOKEN)
     required: false
@@ -37,11 +34,20 @@ runs:
         mkdir -p build
         go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
+    - name: Build GitLab job executor
+      shell: bash
+      working-directory: infra/linux-runner-image/gitlab-runner
+      env:
+        GOWORK: "off"
+        GOOS: darwin
+        GOARCH: arm64
+        CGO_ENABLED: "0"
+      run: go build -trimpath -ldflags="-s -w" -o ../../runner-image/build/tuist-gitlab-runner .
+
     # The Rust toolchain the cas-plugin needs, resolved from cas-plugin/mise.toml
     # rather than pinned here (single source of truth, as cli-build-publish does).
     - uses: ./.github/actions/mise-install
       with:
-        version: ${{ inputs.mise-version }}
         install: rust
         cache: "false"
         working-directory: cas-plugin

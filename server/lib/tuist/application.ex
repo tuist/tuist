@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -24,6 +25,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -61,6 +63,12 @@ defmodule Tuist.Application do
     application
   end
 
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
+  end
+
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
   end
@@ -69,6 +77,8 @@ defmodule Tuist.Application do
     Oban.Telemetry.attach_default_logger()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
+    QueryErrorContext.attach()
+    Tuist.Repo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -283,12 +293,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -297,6 +303,7 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
         Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
         Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
         Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
@@ -323,9 +330,6 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Cachex, [:tuist, []]},
         Cache,
@@ -338,6 +342,7 @@ defmodule Tuist.Application do
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
+        shadow_ingest_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
@@ -396,6 +401,28 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp shadow_ingest_children do
+    if Environment.clickhouse_bare_metal_url() do
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp ops_clickhouse_children do

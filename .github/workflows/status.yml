@@ -26,7 +26,6 @@ defaults:
     working-directory: status
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
@@ -36,7 +35,7 @@ jobs:
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
@@ -46,7 +45,6 @@ jobs:
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "node aube npm:wrangler"
           working-directory: status
       - run: aube run typecheck
@@ -57,7 +55,7 @@ jobs:
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
@@ -67,7 +65,6 @@ jobs:
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "node aube npm:wrangler"
           working-directory: status
       - run: aube run format:check
@@ -78,7 +75,7 @@ jobs:
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
@@ -88,7 +85,6 @@ jobs:
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "node aube npm:wrangler"
           working-directory: status
       - run: aube run test
@@ -99,7 +95,7 @@ jobs:
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
@@ -109,7 +105,6 @@ jobs:
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "node aube npm:wrangler"
           working-directory: status
       - run: aube run build

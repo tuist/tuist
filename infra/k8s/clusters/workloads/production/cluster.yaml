@@ -54,8 +54,17 @@ spec:
       # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
       # ClusterClass variable left implicit here makes the post-apply drift
       # check in `mgmt-cluster-apply.yml` fail permanently.
+      #
+      # 10 rather than the default 1, and this has to be right before the
+      # ClickHouse host's first rescue boot rather than after it: installimage
+      # applies the level across the whole disk set, and the partition layout
+      # is fixed at install. The production box carries four disks, so level 1
+      # there is a four-way mirror — 3.84 TB of usable space instead of 7.68,
+      # on a machine bought for its disk — and the only way back is a
+      # reinstall. Canary's two-disk AX42-1 keeps 1, where the two levels mean
+      # the same thing.
       - name: statefulRaidLevel
-        value: 1
+        value: 10
       # Insert InternalIP so the apiserver can reach kubelets on nodes with no
       # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
       # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
@@ -69,6 +78,56 @@ spec:
         value: true
     workers:
       machineDeployments:
+        # ClickHouse's own pool: bare metal, tainted so nothing else lands on
+        # it, with the database's data on the host's XFS `/data` behind a local
+        # PV. The `stateful-worker` class and this whole layout were exercised
+        # on staging first, which is the same cascade every deploy follows.
+        #
+        # replicas 0 until the two EX131-2-LTD are ordered, then 2, one per
+        # box. Two is the shape the migration finishes on: after the cutover
+        # the system of record cannot live on a single machine with only the
+        # Tigris backups beside it. The chart still runs one ClickHouse pod
+        # until each replica has a volume bound to its own host, so the second
+        # node joins tainted and idle.
+        #
+        # Zero rather than 2-ahead-of-the-hardware, because Flux gates this
+        # cluster's Kustomization on the `Cluster` `Available` rollup
+        # (`infra/flux/mgmt/cluster-production.yaml`), and replicas that can
+        # never be satisfied are an unavailable MachineDeployment for as long
+        # as the boxes do not exist. caph parks such a Machine as
+        # `NoAvailableHost` and nothing installs, but a permanently unhealthy
+        # rollup is not a state to leave a GitOps health gate in. Raise the
+        # count when the machines are ordered, not before.
+        #
+        # Two things are fixed at the host's first rescue boot and cannot be
+        # changed afterwards without a reinstall, so both have to be right
+        # BEFORE the server is named:
+        #
+        #   1. `statefulRaidLevel` is 10 here, set above. installimage applies
+        #      the level across the whole disk set, so level 1 on a four-disk
+        #      box is a four-way mirror (3.84 TB) rather than a pair of mirrors
+        #      striped (7.68 TB), on a machine bought for its disk.
+        #
+        #   2. `hetzner-robot-controller` must be running an image that carries
+        #      the WWN filler's four-disk fix. Before it, the filler promoted
+        #      only the first two WWNs into `spec.rootDeviceHints.raid.wwn`,
+        #      which was right while every box was an AX-class pair and installs
+        #      a four-disk box across two of its disks, silently. The pin lives
+        #      in `infra/k8s/mgmt/hetzner-robot-controller.yaml`.
+        #
+        # PREREQ, and the last step rather than the first: name the Robot
+        # servers `tuist-bm-production-ch-1` and `-2`. `hetzner-robot-controller`
+        # skips any server whose name lacks the `tuist-bm-` prefix
+        # (`controllers/hostdiscovery.go`), so a box ordered under Hetzner's
+        # default name is invisible to it, and to caph. Order the machines
+        # whenever stock allows and raise the count then; rename them only once
+        # both points above hold.
+        - class: stateful-worker
+          name: md-clickhouse
+          replicas: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: clickhouse
         # General-purpose pool: Phoenix server, redis, system DaemonSets,
         # plus the 3-instance CloudNativePG cluster — its hard pod
         # anti-affinity (`topologyKey: kubernetes.io/hostname,

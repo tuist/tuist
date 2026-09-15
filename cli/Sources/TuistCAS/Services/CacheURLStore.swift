@@ -10,6 +10,8 @@ import TuistServer
 @Mockable
 public protocol CacheURLStoring: Sendable {
     func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL
+    /// Every endpoint the account is currently served from, unranked.
+    func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL]
 }
 
 public struct CacheURLStore: CacheURLStoring {
@@ -86,6 +88,22 @@ public struct CacheURLStore: CacheURLStoring {
         return url
     }
 
+    public func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL] {
+        if Environment.current.variables["TUIST_CACHE_ENDPOINT"] != nil {
+            return [try await getCacheURL(for: serverURL, accountHandle: accountHandle)]
+        }
+
+        return try await getCacheEndpointsService.getCacheEndpoints(
+            serverURL: serverURL,
+            accountHandle: accountHandle
+        )
+        .endpoints
+        .map { endpoint in
+            guard let url = URL(string: endpoint) else { throw CacheURLStoreError.invalidURL(endpoint) }
+            return url
+        }
+    }
+
     private func refreshCacheInBackground(for serverURL: URL, accountHandle: String?, key: String) async {
         Logger.current.debug("Refreshing best cache endpoint in background for \(serverURL.absoluteString)")
 
@@ -125,7 +143,7 @@ public struct CacheURLStore: CacheURLStoring {
                 Logger.current.warning("Invalid endpoint URL: \(endpoint)")
                 return (endpoint, nil)
             }
-            let latency = await endpointLatencyService.measureLatency(for: endpointURL)
+            let latency = await measureLatency(for: endpointURL)
             return (endpoint, latency)
         }
 
@@ -154,6 +172,16 @@ public struct CacheURLStore: CacheURLStoring {
             )
 
         return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
+    }
+
+    /// A failed probe is retried once before the endpoint counts as unreachable,
+    /// so a single bad response from a serving endpoint does not hand the
+    /// selection to a farther one.
+    private func measureLatency(for endpointURL: URL) async -> TimeInterval? {
+        if let latency = await endpointLatencyService.measureLatency(for: endpointURL) {
+            return latency
+        }
+        return await endpointLatencyService.measureLatency(for: endpointURL)
     }
 
     /// How long a resolved endpoint stays good for.

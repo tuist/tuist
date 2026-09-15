@@ -14,6 +14,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
   alias Phoenix.LiveView.Socket
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Customers
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.StructuredMarkup
 
@@ -379,7 +380,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       },
       "headline" => post.title,
       "description" => post.excerpt,
-      "image" => if(is_nil(post.image_url), do: [], else: [post.image_url]),
+      "image" => [blog_post_image_url(post)],
       "author" =>
         maybe_put(
           %{"@type" => "Person", "name" => Blog.get_post_author_name(post)},
@@ -388,9 +389,24 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
         ),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "datePublished" => Timex.format!(post.date, "{ISO:Extended}"),
-      "dateModified" => Timex.format!(post.date, "{ISO:Extended}"),
-      "articleBody" => post.excerpt
+      "dateModified" => Timex.format!(post.date, "{ISO:Extended}")
     }
+  end
+
+  defp blog_post_image_url(post) do
+    case post.image_url || post.og_image_path do
+      nil ->
+        Tuist.Environment.app_url(
+          path: OpenGraph.image_path(:marketing_text, title: post.title),
+          marketing: true
+        )
+
+      "http" <> _rest = url ->
+        url
+
+      path ->
+        Tuist.Environment.app_url(path: path, marketing: true)
+    end
   end
 
   def get_changelog_structured_data(entries) do
@@ -454,7 +470,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       },
       "headline" => case_study.title,
       "description" => case_study.excerpt,
-      "image" => Tuist.Environment.app_url(path: case_study.og_image_path),
+      "image" => Tuist.Environment.app_url(path: TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)),
       "author" => %{
         "@type" => "Organization",
         "name" => case_study.company,

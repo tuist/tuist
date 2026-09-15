@@ -4,6 +4,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.OriginRollup
@@ -11,6 +13,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -24,7 +27,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-west"] end)
 
     :ok
   end
@@ -37,7 +40,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
-      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-central", status: :open} =
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-west", status: :open} =
                PlacementProposals.open_proposal_for(account)
     end
 
@@ -51,19 +54,22 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
-      assert %PlacementProposal{kind: :correct, from_region: "us-east", to_region: "eu-central", status: :open} =
+      assert %PlacementProposal{kind: :correct, from_region: "us-east", to_region: "eu-west", status: :open} =
                PlacementProposals.open_proposal_for(account)
     end
 
     test "leaves a settled placement to the slower rung" do
       # Past the correction window the account has a cache worth keeping, so
-      # the decision belongs to the rung that reads a month.
+      # the decision belongs to the relocation rung instead — which reaches the
+      # same answer, against its own floors and its own once-a-quarter budget.
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 30)
       seed_runs(account, "FR", 7, 20)
 
-      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
-      assert PlacementProposals.open_proposal_for(account) == nil
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-west", status: :open} =
+               PlacementProposals.open_proposal_for(account)
     end
 
     test "corrects a guess once and never again" do
@@ -76,7 +82,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       proposal = PlacementProposals.open_proposal_for(account)
       assert {:ok, %{kind: :correct}} = Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
-      assert PlacerRegions.primary_region(account) == "eu-central"
+      assert PlacerRegions.primary_region(account) == "eu-west"
       assert PlacerRegions.retiring_regions(account) == ["us-east"]
 
       # Traffic swings back; the guess has already been replaced by a decision,
@@ -102,6 +108,64 @@ defmodule Tuist.Kura.PlacementProposalsTest do
                |> Enum.filter(&(&1.kind == :relocate and &1.status == :applied))
     end
 
+    test "corrects a first placement that spilled for room once the preferred region has it" do
+      # The spill row holds the account against a room reading that moves, but
+      # it is a guess like any first placement, so the fast rung still applies.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :correct, from_region: "us-west", to_region: "us-east", status: :open} =
+               PlacementProposals.open_proposal_for(account)
+    end
+
+    test "corrects a first placement seeded where the project was created" do
+      # Where a project was created is not necessarily where its builds run, so
+      # the seed's row is a guess like any first placement and the fast rung
+      # still applies.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      seeded_at_creation!(account, "us-west")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :correct, from_region: "us-west", to_region: "us-east", status: :open} =
+               PlacementProposals.open_proposal_for(account)
+    end
+
+    test "proposes nothing into a region that has no room" do
+      # The traffic still points at the preferred region, but the scheduler
+      # could not place an instance there; it maps onto the region the account
+      # already serves until the preferred one has room again.
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "keeps mapping traffic onto a region the account already serves, however full" do
+      # Full means no room for a newcomer. The instance already there needs
+      # none, and dropping the region from the map would read the account's
+      # own traffic as a reason to move it out.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
     test "opens nothing for an account whose traffic is where it already is" do
       account = paid_account()
       insert_server!(account, "us-east")
@@ -122,6 +186,54 @@ defmodule Tuist.Kura.PlacementProposalsTest do
         AccountPolicies.assign_service_region(account, "us-east", AccountsFixtures.user_fixture(), "Pinned")
 
       assert {:ok, %{evaluated: 0, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "leaves an account whose primary is a region the catalog does not name alone" do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. An account is only looked at through an
+      # instance in a region that is known, so it takes a second region to get
+      # here at all, and that is the account a drain could actually proceed on.
+      # Read as a misplacement, the unknown primary would be moved off an
+      # instance that is serving it.
+      account = paid_account()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: "https://#{account.name}-atlantis-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      insert_server!(account, "us-east")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "atlantis")
+      seed_runs(account, "FR", 30, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "leaves an account whose live instance is in a region the catalog does not name alone, without placement rows" do
+      # Without placement rows the sweep reads the live instances, and a live
+      # region the catalog does not name has to count there too, or the account
+      # is placed as if it held only its known region.
+      account = paid_account()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: "https://#{account.name}-atlantis-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 30, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
       assert PlacementProposals.open_proposal_for(account) == nil
     end
 
@@ -194,10 +306,10 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       proposal = PlacementProposals.open_proposal_for(account)
 
-      assert {:ok, %{kind: :relocate, to_region: "eu-central"}} =
+      assert {:ok, %{kind: :relocate, to_region: "eu-west"}} =
                Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
 
-      assert PlacerRegions.primary_region(account) == "eu-central"
+      assert PlacerRegions.primary_region(account) == "eu-west"
       assert PlacerRegions.retiring_regions(account) == ["us-east"]
       assert Repo.get(PlacementProposal, proposal.id).status == :applied
       assert Repo.get(PlacementProposal, proposal.id).resolved_by == "operator@tuist.dev"
@@ -212,7 +324,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert {:ok, %{service_region: "eu-central"}} = AccountPolicies.resolve(account)
+      assert {:ok, %{service_region: "eu-west"}} = AccountPolicies.resolve(account)
     end
 
     test "a retiring region is not one the account should be running in" do
@@ -227,8 +339,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert AccountPolicies.serving_regions(account) == ["eu-central"]
-      assert account |> PlacerRegions.claimed_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert AccountPolicies.serving_regions(account) == ["eu-west"]
+      assert account |> PlacerRegions.claimed_regions() |> Enum.sort() == ["eu-west", "us-east"]
     end
 
     test "expanding adds a secondary and keeps the primary" do
@@ -241,11 +353,11 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       proposal = PlacementProposals.open_proposal_for(account)
       assert proposal.kind == :expand
 
-      assert {:ok, %{kind: :expand, to_region: "eu-central"}} =
+      assert {:ok, %{kind: :expand, to_region: "eu-west"}} =
                Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
 
       assert PlacerRegions.primary_region(account) == "us-east"
-      assert account |> AccountPolicies.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert account |> AccountPolicies.serving_regions() |> Enum.sort() == ["eu-west", "us-east"]
     end
 
     test "does not propose giving up the region it just expanded into" do
@@ -261,7 +373,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-west", "us-east"]
 
       {:ok, _second} = PlacementProposals.sweep(@today)
 
@@ -282,6 +394,25 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert Kura.apply_placement_proposal(proposal, "operator@tuist.dev") == {:error, :stale_proposal}
       assert Repo.get(PlacementProposal, proposal.id).status == :superseded
       assert Repo.get(PlacementProposal, proposal.id).resolved_by == "stale_on_apply"
+      assert PlacerRegions.primary_region(account) == "us-west"
+    end
+
+    test "refuses a proposal into a region that filled up since it was opened" do
+      account = paid_account()
+      insert_server!(account, "us-west")
+      spill!(account, "us-west", preferred: "us-east")
+      seed_runs(account, "US-VA", 7, 20)
+      room(%{"us-east" => true, "us-west" => true})
+      {:ok, _summary} = PlacementProposals.sweep(@today)
+      proposal = PlacementProposals.open_proposal_for(account)
+
+      room(%{"us-east" => false, "us-west" => true})
+
+      assert Kura.apply_placement_proposal(proposal, "operator@tuist.dev") == {:error, :stale_proposal}
+
+      assert %PlacementProposal{status: :superseded, resolved_by: "stale_on_apply"} =
+               Repo.get!(PlacementProposal, proposal.id)
+
       assert PlacerRegions.primary_region(account) == "us-west"
     end
 
@@ -328,7 +459,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 0
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 0, relocate: 0, expand: 0, retire: 0}
     end
 
     test "counts an automatic apply" do
@@ -342,7 +473,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 1
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 1, relocate: 0, expand: 0, retire: 0}
     end
   end
 
@@ -391,6 +522,69 @@ defmodule Tuist.Kura.PlacementProposalsTest do
         |> Ecto.Changeset.change(inserted_at: inserted_at)
         |> Repo.update!()
     end
+  end
+
+  defp spill!(account, region, preferred: preferred) do
+    {:ok, _row} =
+      PlacerRegions.put_primary(account, region, %{
+        "signal" => PlacerRegion.capacity_spill_signal(),
+        "preferred_region" => preferred,
+        "plan" => "pro"
+      })
+
+    account
+  end
+
+  defp seeded_at_creation!(account, region) do
+    {:ok, _row} = PlacerRegions.put_primary(account, region, %{"signal" => PlacerRegion.creation_origin_signal()})
+
+    account
+  end
+
+  # Room is read from a region's nodes and what is scheduled on them, so a
+  # region here is one box named after it: a full one carries a pod holding its
+  # whole disk, a roomy one carries nothing, and a region left out cannot be
+  # read, which the placer treats as room.
+  defp room(rooms) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector, _opts ->
+      region = Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector))
+
+      if region && Map.has_key?(rooms, region.id) do
+        {:ok, %{"items" => [box(region.id)]}}
+      else
+        {:error, :unavailable}
+      end
+    end)
+
+    stub(Client, :list_pods_on_node, fn name, _opts ->
+      if Map.fetch!(rooms, name), do: {:ok, []}, else: {:ok, [pod_holding_disk("800Gi")]}
+    end)
+  end
+
+  defp box(name) do
+    %{
+      "metadata" => %{"name" => name},
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => "True"}],
+        "allocatable" => %{
+          "cpu" => "32",
+          "memory" => "128Gi",
+          "ephemeral-storage" => "800Gi",
+          "tuist.dev/memory-ceiling-mib" => "262144",
+          "tuist.dev/egress-mbps" => "1500",
+          "pods" => "110"
+        }
+      }
+    }
+  end
+
+  defp pod_holding_disk(disk) do
+    %{
+      "status" => %{"phase" => "Running"},
+      "spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => disk}}}]}
+    }
   end
 
   defp seed_runs(account, origin, days, runs_per_day) do

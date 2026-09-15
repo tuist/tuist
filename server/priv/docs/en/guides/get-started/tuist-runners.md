@@ -27,7 +27,7 @@ Co-location improves artifact transfer performance, while the cache strategy det
 ## Adoption steps {#adoption-steps}
 
 1. Choose the <.localized_link href="/guides/server/accounts-and-projects">Tuist account</.localized_link> that will own the runner profiles and the project that will connect to the GitHub organization.
-2. Follow the <.localized_link href="/guides/features/runners/getting-started">runner getting-started guide</.localized_link> to connect the project to its GitHub organization.
+2. Follow the <.localized_link href="/guides/features/runners/github-actions">GitHub Actions runner guide</.localized_link> to connect the project to its GitHub organization.
 3. Start with the default `macos` or `linux` profile. To choose a different machine size or Xcode version, create a named profile with the <.localized_link href="/guides/features/runners/profiles">runner profiles guide</.localized_link>.
 4. Change a workflow job's `runs-on` value:
 

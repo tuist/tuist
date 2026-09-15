@@ -28,20 +28,8 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
-      <.sidebar_item
-        :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Invocations")}
-        icon="versions"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"
-          )
-        }
-      />
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project)}
+        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -63,7 +51,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            )
+            ) or
+              String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
+              )
           }
         />
       </.sidebar_group>
@@ -113,7 +105,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -125,7 +116,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
@@ -149,6 +139,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
       </.sidebar_group>
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project)}
+        label={dgettext("dashboard", "Bazel Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"
+          )
+        }
+      />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"
@@ -241,6 +243,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Tasks")}
+          icon="subtask"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Project.gradle_project?(@selected_project)}
@@ -327,10 +340,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
-          )
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
         }
       />
       <.sidebar_item
@@ -614,12 +624,7 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
-          <img
-            src={~p"/images/tuist_dashboard.png"}
-            alt={dgettext("dashboard", "Tuist Icon")}
-            class="headerbar__logo"
-            decoding="async"
-          />
+          <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
         </.link>
         <span :if={@title} data-part="title">{@title}</span>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
@@ -657,12 +662,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <div data-part="first-row">
         <div data-part="left-section">
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
-            <img
-              src={~p"/images/tuist_dashboard.png"}
-              alt={dgettext("dashboard", "Tuist Icon")}
-              class="headerbar__logo"
-              decoding="async"
-            />
+            <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
           </.link>
           <span :if={@title} data-part="title">{@title}</span>
         </div>

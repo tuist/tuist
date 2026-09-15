@@ -30,45 +30,47 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     :ok
   end
 
-  describe "new_organizations_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
+  describe "new_organizations_in_period/2" do
+    test "includes the start, excludes the end, and orders organizations by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      creator = AccountsFixtures.user_fixture()
+      later = AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.organization_fixture(creator: creator, created_at: start_at)
+      AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.organization_fixture(creator: creator, created_at: end_at)
 
-      # When
-      assert Accounts.new_organizations_in_last_hour() == [organization]
+      assert Accounts.new_organizations_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_organizations_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.organization_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_organizations_in_last_hour() == []
+    test "returns an empty list when no organizations were created in the period" do
+      assert Accounts.new_organizations_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
-  describe "new_users_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+  describe "new_users_in_period/2" do
+    test "includes the start, excludes the end, and orders users by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      later = AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.user_fixture(created_at: start_at)
+      AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.user_fixture(created_at: end_at)
 
-      # When
-      assert Accounts.new_users_in_last_hour() == [user]
+      assert Accounts.new_users_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.user_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_users_in_last_hour() == []
+    test "returns an empty list when no users were created in the period" do
+      assert Accounts.new_users_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
@@ -1929,6 +1931,28 @@ defmodule Tuist.AccountsTest do
       # When / Then
       assert {:error, :not_found} == Accounts.get_organization_by_id(999)
     end
+
+    test "returns not found error when id is a non-integer string" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1,`")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("not-a-number")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1abc")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("")
+    end
+
+    test "returns not found error when id is nil or an unexpected type" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id(nil)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(-1)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(%{})
+    end
+
+    test "returns organization when id is a string of digits" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org-string-id", creator: user})
+
+      # When / Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(Integer.to_string(organization.id))
+    end
   end
 
   describe "find_or_create_user_from_oauth2" do
@@ -3435,28 +3459,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_members_with_role/1" do
-    test "returns members of an organization" do
-      user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user_one)
-      user_two = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_two, organization, role: :user)
-      user_three = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_three, organization, role: :admin)
-
-      organization_two = AccountsFixtures.organization_fixture()
-      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
-
-      # When
-      got =
-        organization
-        |> Accounts.get_organization_members_with_role()
-        |> Enum.sort(&(hd(&1).id < hd(&2).id))
-
-      # Then
-      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
-    end
-
+  describe "list_organization_members_with_role/2 with SSO" do
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
       domain = unique_sso_domain()
@@ -3480,7 +3483,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin, regular user, and SSO user
@@ -3514,13 +3518,135 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin and SSO user
       assert length(got) == 2
       assert Enum.any?(got, fn [user, role] -> user.id == user_one.id and role == "admin" end)
       assert Enum.any?(got, fn [user, role] -> user.id == sso_user.id and role == "user" end)
+    end
+  end
+
+  describe "list_organization_members_with_role/2" do
+    test "paginates members ordered by account name with the total count" do
+      creator = AccountsFixtures.user_fixture(handle: "aaa-creator#{System.unique_integer([:positive])}")
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      members =
+        for index <- 1..4 do
+          user = AccountsFixtures.user_fixture(handle: "member-#{index}-#{System.unique_integer([:positive])}")
+          Accounts.add_user_to_organization(user, organization, role: :user)
+          user
+        end
+
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(hd(members), other_organization, role: :admin)
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_members_with_role(organization, page: 1, page_size: 3)
+      {second_page, second_total} = Accounts.list_organization_members_with_role(organization, page: 2, page_size: 3)
+
+      # Then
+      assert first_total == 5
+      assert second_total == 5
+
+      assert Enum.map(first_page ++ second_page, fn [user, role] -> {user.id, role} end) ==
+               [{creator.id, "admin"} | Enum.map(members, &{&1.id, "user"})]
+
+      assert Enum.all?(first_page, fn [user, _role] -> user.account.name end)
+    end
+
+    test "filters members by email or account name, case-insensitively" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+      by_email = AccountsFixtures.user_fixture(email: "Alice-#{System.unique_integer([:positive])}@example.com")
+      by_name = AccountsFixtures.user_fixture(handle: "alice-#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(by_email, organization)
+      Accounts.add_user_to_organization(by_name, organization)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "ALICE")
+
+      # Then
+      assert total == 2
+      assert members |> Enum.map(fn [user, _role] -> user.id end) |> Enum.sort() == Enum.sort([by_email.id, by_name.id])
+    end
+
+    test "treats LIKE wildcards in the search term literally" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "%")
+
+      # Then
+      assert members == []
+      assert total == 0
+    end
+  end
+
+  describe "list_organization_invitations/2" do
+    test "paginates the organization's invitations newest first with the total count" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      other_organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      invitations =
+        for index <- 1..3 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization("invitee-#{index}@tuist.dev", %{
+              inviter: inviter,
+              to: organization,
+              url: &"/auth/invitations/#{&1}"
+            })
+
+          Tuist.Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
+          )
+
+          invitation
+        end
+
+      Accounts.invite_user_to_organization("other@tuist.dev", %{
+        inviter: inviter,
+        to: other_organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_invitations(organization, page: 1, page_size: 2)
+      {second_page, second_total} = Accounts.list_organization_invitations(organization, page: 2, page_size: 2)
+
+      # Then
+      assert first_total == 3
+      assert second_total == 3
+      assert Enum.map(first_page ++ second_page, & &1.id) == invitations |> Enum.reverse() |> Enum.map(& &1.id)
+    end
+
+    test "filters invitations by invitee email, case-insensitively, with LIKE wildcards taken literally" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      {:ok, alice} =
+        Accounts.invite_user_to_organization("alice@tuist.dev", %{
+          inviter: inviter,
+          to: organization,
+          url: &"/auth/invitations/#{&1}"
+        })
+
+      Accounts.invite_user_to_organization("bob@tuist.dev", %{
+        inviter: inviter,
+        to: organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When / Then
+      assert {[%{id: id}], 1} = Accounts.list_organization_invitations(organization, search: "ALICE")
+      assert id == alice.id
+      assert {[], 0} = Accounts.list_organization_invitations(organization, search: "%")
     end
   end
 
@@ -4891,7 +5017,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _kura_endpoint} =
         Accounts.create_account_cache_endpoint(account, %{
           url: "https://kura-cache.example.com",
-          technology: :kura
+          technology: :kura_self_hosted_peer
         })
 
       # When
@@ -5043,11 +5169,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
@@ -5142,7 +5264,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5172,7 +5294,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5209,7 +5331,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5230,11 +5352,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://acme-us-east-1.kura.tuist.dev",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
       resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
@@ -5263,7 +5381,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5301,11 +5419,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
@@ -5568,7 +5682,7 @@ defmodule Tuist.AccountsTest do
                issued_by: %{id: ^claimed_by_user_id, email: ^email}
              } = Authentication.authenticated_subject(claimed.credential)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                claimed.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5629,8 +5743,8 @@ defmodule Tuist.AccountsTest do
       assert resent.registration.claim_requested_ip == "192.0.2.10"
 
       assert [
-               %AgentRegistrationEvent{event_type: :created},
-               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata}
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata},
+               %AgentRegistrationEvent{event_type: :created}
              ] = agent_registration_events(result.registration.id)
 
       assert metadata == %{
@@ -5714,7 +5828,7 @@ defmodule Tuist.AccountsTest do
       assert claimed_user_id == claimed_user.id
       refute claimed_user_id == anonymous_user_id
 
-      assert [:created, :claim_resent, :claimed] =
+      assert [:claim_resent, :claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5750,7 +5864,7 @@ defmodule Tuist.AccountsTest do
                assertion_jti: "id-jag-to-revoke"
              } = Repo.get!(AgentRegistration, result.registration.id)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5765,7 +5879,7 @@ defmodule Tuist.AccountsTest do
 
       assert revoked_at
 
-      assert [:created, :claimed, :revoked] =
+      assert [:claimed, :created, :revoked] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -6097,13 +6211,12 @@ defmodule Tuist.AccountsTest do
     }
   end
 
+  # Compare audit contents by type: occurred_at has second precision and cannot order events within a second.
   defp agent_registration_events(agent_registration_id) do
-    Repo.all(
-      from(e in AgentRegistrationEvent,
-        where: e.agent_registration_id == ^agent_registration_id,
-        order_by: e.occurred_at
-      )
-    )
+    AgentRegistrationEvent
+    |> where([e], e.agent_registration_id == ^agent_registration_id)
+    |> Repo.all()
+    |> Enum.sort_by(& &1.event_type)
   end
 
   defp id_jag_with_jwk(email, jti) do

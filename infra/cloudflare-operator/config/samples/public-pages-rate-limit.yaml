@@ -1,5 +1,6 @@
-# The rate limit currently live on tuist.dev, codified so future edits
-# happen via PR against this file rather than the Cloudflare dashboard.
+# Example matching the rate limit currently live on tuist.dev. The
+# deployed resource is maintained under infra/flux/cloudflare-config/;
+# future behavior changes belong there rather than in this sample.
 #
 # Counts responses from origin that carry `x-tuist-public: 1` (set by
 # TuistWeb.Plugs.PublicPageHeaderPlug on URLs reachable without sign-in)
@@ -40,9 +41,9 @@ spec:
     # so counting is scoped per edge datacenter. ip.src makes the key
     # per-visitor within a datacenter.
     characteristics:
-      - "cf.colo.id"
       - "ip.src"
+      - "cf.colo.id"
     requestsPerPeriod: 60
     period: 10
-    mitigationTimeoutSeconds: 60
+    mitigationTimeoutSeconds: 0
     countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"

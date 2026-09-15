@@ -16,6 +16,9 @@ Two grace-period garbage collectors live here, both off or in dry-run by default
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.
 
+### `helm/mdm/` — fleet MDM chart (managed only)
+Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program): NanoMDM + SCEP CA + NanoDEP + a small enrollment-orchestration service, backed by its own CNPG Postgres. One instance owns every Mac we own whatever cluster that Mac ends up serving, because the MDM manages a host before it joins anything; there is deliberately no per-cluster MDM. Deployed to the production cluster (namespace `mdm`) via `.github/workflows/mdm-deployment.yml`, alongside `tuist-ops` and for the same reason: it provisions the fleet, so it does not belong in the cluster we treat as disposable. Sources, operator runbook, and the manual Apple ceremonies live in [`mdm/`](mdm/AGENTS.md).
+
 ### `helm/slack/` — standalone Slack invitation chart
 Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.
 
@@ -40,6 +43,7 @@ Single-replica deploy of the `tuist-ops` app into the production cluster (same c
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config). Applied by `mgmt-cluster-apply.yml` (immutable templates stay out of Flux — see below).
 - `clusters/workloads/<cluster>/{cluster.yaml,kustomization.yaml}` — the per-cluster `Cluster` CRs **reconciled by Flux** (`infra/flux/mgmt/`): `staging` / `canary` / `production` plus the `hive` / `once` / `atlas` tenants (migrated in from `tuist/{hive,once,atlas}`, all reuse `org-tuist` + the `hetzner` Secret). One subdir per cluster so each has its own Flux `Kustomization` + health gate.
+- Canary's general-purpose `md-0` pool has three workers to leave capacity for deployment hooks and rolling updates alongside two CNPG instances. Keep this headroom when sizing the pool; see `k8s/clusters/README.md` for the deployment retry sequence.
 - `clusters/cluster-preview.yaml` and `clusters/cluster-pentest.yaml` — the preview and isolated security-assessment Cluster CRs, still on `mgmt-cluster-apply.yml`, not Flux (preview's replicas are mutated out-of-band by the preview workflows). Control-plane `MachineHealthCheck` remediation is defined once in the shared ClusterClass (`clusterclass-tuist.yaml`); a degraded control plane also pages via Pillar 2. See [hive/specs/72](https://hive.tuist.dev/specs/72).
 - `clusters/bare-metal.yaml` and `clusters/bare-metal-stateful.yaml`: Hetzner Robot substrates. The first backs the `bare-metal-worker` class (runner-shaped: Kata pre-baked, root takes the whole array); the second backs `stateful-worker` (database-shaped: capped root plus a separate `/data`, no Kata, and a per-cluster `statefulRaidLevel` because SWRAIDLEVEL 1 on a four-disk box installs as a four-way mirror). Both are applied by a `bare-metal*.yaml` glob in `mgmt-cluster-apply.yml`. Host CRs come from `hetzner-robot-controller`, which stamps only managed-by + cluster, so any bare-metal MachineDeployment in an env can claim any host in it.
 - Production Kura regions are node pools in `clusters/workloads/production/cluster.yaml` (US East/West moved to OVH fleets in the tuist chart), not separate workload clusters.
@@ -58,6 +62,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
+  The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
 - `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
@@ -65,8 +70,28 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `flux/` — GitOps reconciliation on the mgmt cluster
 Flux (`infra/flux/mgmt/`) is **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): it continuously reconciles the workload `Cluster` CRs under `k8s/clusters/workloads/` onto the mgmt cluster, so drift is corrected on an interval instead of only on merge and routine changes need no break-glass. Health alerting is the independent **Pillar 2** (`helm/k8s-monitoring/values-management.yaml` + `alerts.md`), Grafana Cloud, evaluated outside the single-node cluster with a heartbeat. Per-cluster `Kustomization`s never prune `Cluster` objects and use `force: false`; the immutable ClusterClass/bare-metal templates and preview stay on `mgmt-cluster-apply.yml`. See `infra/flux/mgmt/README.md` for bootstrap, the never-prune destroy flow, and the break-glass recovery path.
 
+Flux also installs management-cluster controllers whose desired state
+belongs in this repository. The Cloudflare operator release lives under
+`flux/cloudflare-operator/` and is reached through the
+`flux/mgmt/cloudflare-operator.yaml` Kustomization. Cloudflare resources
+live under `flux/cloudflare-config/`; their separate dependent
+Kustomization ensures the operator and its custom resource definitions
+are ready first.
+`flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
+Cloudflare-verified bots only when they POST to the production Faro collector;
+public page access remains governed by the separate crawler rules. Rollout
+checks and the distinction between verified bots and unrecognized automation
+are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
+
 ### `kura-controller/` — Kura endpoint controller
-Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
+
+Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle. Customer-plane TLS is one `*.kura.tuist.dev` Certificate per cluster, rendered by the chart next to the controller (`kuraController.publicWildcardCertificate`) rather than owned by any one `KuraInstance`; the controller points every public Ingress at its Secret. See `kura-controller/AGENTS.md`.
+
+Opt-in read-only connectivity diagnostics use a fixed-profile background worker
+in Kura and existing `pods/log` access, without `pods/exec` or a gateway bypass.
+The controller deployment selects exact instances; defaults remain disabled.
+See [`kura-controller/connectivity-diagnostics.md`](kura-controller/connectivity-diagnostics.md)
+for the threat model and the separate approved rollout required to add it to pods.
 
 ### `egress-tree-agent/` — per-node shared egress HTB tree
 Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
@@ -98,7 +123,7 @@ forwards with the token it already holds. Installed and drift-rolled by
 Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. The ingress hostname is an origin, not a separately advertised registry endpoint.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
-SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
+SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables and scoped updates to Bazel staging rows, including `bazel_profile_uploads`; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
 
 ### `clickhouse/` — ClickHouse access recovery
 Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md).
@@ -117,6 +142,12 @@ performed retrospectively.
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
 Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+
+`processor-service.json` compares application database queues and query phases
+across the web and processor runtimes using the shared `tuist_repo_*` metrics
+and the `workload` label. Its background job panels use the shared Oban
+metrics and an independent queue selector. Do not reintroduce the retired
+standalone service's `processor_*` metrics or `job="processor"` selectors.
 
 **Editing workflow:**
 - Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.

@@ -13,10 +13,10 @@
 //! the `cas_path -> instance` mapping a prior build primed.
 //!
 //! RESOLVE (op 1): payload = action key digest bytes. status 1 = hit (body =
-//! value llcas digest; the value graph materializes into the local CAS in the
-//! background — a consumer's demand load that outruns it self-heals through
-//! FETCH_OBJECT), status 0 = definitive miss, status 2 = proxy error (treat
-//! as miss).
+//! value llcas digest; this is a candidate while its graph materializes in the
+//! background. The plugin's global query prepares it through PREPARE_ACTION
+//! before advertising a compiler hit), status 0 = definitive miss, status 2 =
+//! proxy error (treat as miss).
 //! PUBLISH (op 2): payload = utf8 path of a write-ahead publication record.
 //! status 1 = accepted (publication proceeds asynchronously).
 //! FETCH_OBJECT (op 4): payload = llcas object digest bytes. Blocks until the
@@ -36,6 +36,10 @@
 //! this path (so the caller may prune it itself), status 2 = it could not run
 //! it. Asked by a runner's teardown before the image is measured, so the
 //! promoted master carries a bounded store; see `Proxy::prune_ondisk`.
+//! PREPARE_ACTION (op 7): payload = root digest from RESOLVE. Runs only for a
+//! global query, after the proxy has registered the closure guard. Returns the
+//! same statuses as FETCH_OBJECT. An older proxy rejects this new operation;
+//! clients must not retry it as an ordinary object fetch.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -79,6 +83,11 @@ pub const OP_DRAIN: u8 = 5;
 /// is the proxy's own: a caller pruning from a handle of its own would find the
 /// chain still live, collect nothing, and report success.
 pub const OP_PRUNE: u8 = 6;
+/// Prepare an action root before exposing a compiler hit. Unlike an ordinary
+/// object fetch, this requires a proxy that installs the closure guard during
+/// RESOLVE, before publishing any root fetch instruction. Older proxies reject
+/// this additive operation and the plugin safely reports a cache miss.
+pub const OP_PREPARE_ACTION: u8 = 7;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -212,12 +221,20 @@ impl ProxyClient {
         instance: &str,
         digest: &[u8],
     ) -> Result<bool, String> {
+        self.fetch_with_op(OP_FETCH_OBJECT, cas_path, instance, digest)
+    }
+
+    pub fn prepare_action(&self, cas_path: &str, instance: &str, root: &[u8]) -> Result<bool, String> {
+        self.fetch_with_op(OP_PREPARE_ACTION, cas_path, instance, root)
+    }
+
+    fn fetch_with_op(&self, op: u8, cas_path: &str, instance: &str, digest: &[u8]) -> Result<bool, String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
                 version: PROTOCOL_VERSION,
-                op: OP_FETCH_OBJECT,
+                op,
                 cas_path: cas_path.to_string(),
                 instance: instance.to_string(),
                 payload: digest.to_vec(),

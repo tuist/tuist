@@ -47,8 +47,10 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -277,6 +279,11 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackHostQuarantineRetryAfter time.Duration
+	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
+		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
+			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
+			"which strands the host unless something can write rackhosts/status.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -591,6 +598,54 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
+	// inventory of physical hosts, and the machine kind that claims from it.
+	//
+	// Both are registered unconditionally, unlike the provider-backed kinds
+	// that stay dormant until an env wires credentials. They need none: the
+	// pool is Kubernetes objects, and with no RackHost declared they simply
+	// have nothing to reconcile. Gating them on a flag would only add a way for
+	// an env to have inventory that nothing acts on.
+	powerRegistry := power.NewRegistry()
+	if err := (&macos.RackHostReconciler{
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Power:                powerRegistry,
+		SecretsNamespace:     secretsNamespace,
+		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackHostReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&macos.RackAppleSiliconMachineReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		CredentialsManager: credsManager,
+		Recorder:           mgr.GetEventRecorderFor("rackapplesiliconmachine-controller"),
+		Kubeconfig:         kubeconfigBuilder,
+		// The same fleet config the Scaleway kind gets: a rack mini and a
+		// rented one run the same host config, which is what lets one workload
+		// target both and one operator image roll both.
+		FleetConfig:                   fleetConfig,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
+		TartKubeletBinarySHA:          binarySHA,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		Power:                         powerRegistry,
+		SecretsNamespace:              secretsNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
+		os.Exit(1)
+	}
+
 	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
 	// provider, separate reconciler from Apple Silicon: bare-metal servers
 	// ordered through the Baremetal API that pass through an OS-install wait,
@@ -655,6 +710,34 @@ func main() {
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
+	}
+
+	// Vultr bare metal: the South America cache region, on the one provider that
+	// sells there. Gated on VULTR_API_KEY so it stays dormant until an env opts
+	// in. Note the key is useless without its source IP on Vultr's ACL, which the
+	// other providers have no equivalent of: a controller 401 here is usually the
+	// cluster's egress address missing from the allowlist rather than a bad key.
+	if os.Getenv("VULTR_API_KEY") != "" {
+		vultrClient, err := vultr.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "vultr client")
+			os.Exit(1)
+		}
+		if err := (&linux.VultrMachineReconciler{
+			Client:             mgr.GetClient(),
+			APIReader:          mgr.GetAPIReader(),
+			Scheme:             mgr.GetScheme(),
+			VultrClient:        vultrClient,
+			Recorder:           mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager: credsManager,
+			Kubeconfig:         kubeconfigBuilder,
+			KubernetesMinor:    "v1.34",
+			DefaultRegion:      "scl",
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup VultrMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("Vultr machine reconciler enabled")
 	}
 
 	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same

@@ -13,6 +13,10 @@ pub struct SegmentLocationRecord {
     pub size: u64,
     pub version_ms: u64,
     pub created_at_ms: u64,
+    /// Trailing, optional: a record written before the field existed decodes
+    /// with `None`, and a binary that predates it stops reading before the
+    /// tail, so both rollback directions read each other's rows.
+    pub origin_region: Option<String>,
 }
 
 impl SegmentLocationRecord {
@@ -35,6 +39,7 @@ impl SegmentLocationRecord {
             size: manifest.size,
             version_ms: manifest.version_ms,
             created_at_ms: manifest.created_at_ms,
+            origin_region: manifest.origin_region.clone(),
         })
     }
 
@@ -53,6 +58,7 @@ impl SegmentLocationRecord {
             version_ms: self.version_ms,
             created_at_ms: self.created_at_ms,
             branch: None,
+            origin_region: self.origin_region,
         })
     }
 
@@ -77,6 +83,9 @@ impl SegmentLocationRecord {
         push_string(&mut bytes, &self.key);
         push_string(&mut bytes, &self.content_type);
         push_string(&mut bytes, &self.segment_id);
+        if let Some(origin_region) = &self.origin_region {
+            push_string(&mut bytes, origin_region);
+        }
         bytes
     }
 
@@ -97,6 +106,11 @@ impl SegmentLocationRecord {
         let key = read_string(bytes, &mut cursor)?;
         let content_type = read_string(bytes, &mut cursor)?;
         let segment_id = read_string(bytes, &mut cursor)?;
+        let origin_region = if cursor < bytes.len() {
+            Some(read_string(bytes, &mut cursor)?).filter(|region| !region.is_empty())
+        } else {
+            None
+        };
 
         Ok(Some(
             Self {
@@ -109,6 +123,7 @@ impl SegmentLocationRecord {
                 size,
                 version_ms,
                 created_at_ms,
+                origin_region,
             }
             .into_manifest(artifact_id)?,
         ))
@@ -210,6 +225,7 @@ mod tests {
             version_ms: 5678,
             created_at_ms: 1234,
             branch: None,
+            origin_region: None,
         };
 
         let record = SegmentLocationRecord::from_manifest(&manifest)

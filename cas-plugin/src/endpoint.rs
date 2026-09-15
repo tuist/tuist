@@ -17,11 +17,40 @@
 
 use std::process::Command;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedEndpoint {
+    /// The endpoint the CLI picked by latency.
+    pub url: String,
+    /// Every endpoint the server currently serves the account from, or `None`
+    /// when the CLI did not report them.
+    pub endpoints: Option<Vec<String>>,
+}
+
+impl ResolvedEndpoint {
+    /// Whether `url` is still one of the account's endpoints. Unknown when the
+    /// CLI did not report the list.
+    pub fn lists(&self, url: &str) -> Option<bool> {
+        self.endpoints.as_ref().map(|endpoints| {
+            endpoints
+                .iter()
+                .any(|endpoint| same_endpoint(endpoint, url))
+        })
+    }
+}
+
+pub fn same_endpoint(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
+}
+
 /// The endpoint the CLI would use for `full_handle` right now, or `None` when
 /// it cannot be asked. `None` is not "no endpoint" — the caller keeps what it
 /// has, because a CLI that is missing, unauthenticated or offline says nothing
 /// about where the cache moved.
-pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> Option<String> {
+pub fn resolve(
+    tuist_bin: &str,
+    server_url: Option<&str>,
+    full_handle: &str,
+) -> Option<ResolvedEndpoint> {
     let mut command = Command::new(tuist_bin);
     // The full handle is positional, not an option.
     command
@@ -37,7 +66,7 @@ pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> 
     if !output.status.success() {
         return None;
     }
-    url_from_json(&String::from_utf8_lossy(&output.stdout))
+    resolution_from_json(&String::from_utf8_lossy(&output.stdout))
 }
 
 /// The argv `resolve` runs, so the command's shape is asserted rather than
@@ -58,22 +87,41 @@ fn argv(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> Vec<Str
     argv
 }
 
-/// The `url` field of the first JSON object on stdout.
+/// The `url` and `endpoints` fields of the first JSON object on stdout.
 ///
 /// Read as a stream from the first brace so neither CLI log noise ahead of the
 /// payload nor anything printed after it can stop the endpoint being found.
-fn url_from_json(stdout: &str) -> Option<String> {
+fn resolution_from_json(stdout: &str) -> Option<ResolvedEndpoint> {
     let start = stdout.find('{')?;
     let value = serde_json::Deserializer::from_str(&stdout[start..])
         .into_iter::<serde_json::Value>()
         .next()?
         .ok()?;
-    value
+    let url = value
         .get("url")?
         .as_str()
         .map(str::trim)
         .filter(|url| !url.is_empty())
-        .map(str::to_string)
+        .map(str::to_string)?;
+    let endpoints = value
+        .get("endpoints")
+        .and_then(serde_json::Value::as_array)
+        .map(|endpoints| {
+            endpoints
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|endpoint| !endpoint.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .filter(|endpoints| !endpoints.is_empty());
+    Some(ResolvedEndpoint { url, endpoints })
+}
+
+#[cfg(test)]
+fn url_from_json(stdout: &str) -> Option<String> {
+    resolution_from_json(stdout).map(|resolution| resolution.url)
 }
 
 #[cfg(test)]
@@ -82,10 +130,10 @@ mod tests {
 
     #[test]
     fn reads_the_url_out_of_the_cli_payload() {
-        let stdout = r#"{"url":"https://acme-eu-central-1.kura.tuist.dev","token":"t","accountHandle":"acme","projectHandle":"app"}"#;
+        let stdout = r#"{"url":"https://acme-eu-west-1.kura.tuist.dev","token":"t","accountHandle":"acme","projectHandle":"app"}"#;
         assert_eq!(
             url_from_json(stdout).as_deref(),
-            Some("https://acme-eu-central-1.kura.tuist.dev")
+            Some("https://acme-eu-west-1.kura.tuist.dev")
         );
     }
 
@@ -129,11 +177,35 @@ mod tests {
     fn reads_the_url_out_of_the_cli_payload_as_the_cli_writes_it() {
         // Real `tuist cache config --json` output: snake_case keys, escaped
         // forward slashes, pretty-printed.
-        let stdout = "{\n  \"account_handle\" : \"tuist\",\n  \"url\" : \"https:\\/\\/tuist-eu-central-1-staging.kura.tuist.dev\"\n}";
+        let stdout = "{\n  \"account_handle\" : \"tuist\",\n  \"url\" : \"https:\\/\\/tuist-eu-west-1-staging.kura.tuist.dev\"\n}";
         assert_eq!(
             url_from_json(stdout).as_deref(),
-            Some("https://tuist-eu-central-1-staging.kura.tuist.dev")
+            Some("https://tuist-eu-west-1-staging.kura.tuist.dev")
         );
+    }
+
+    #[test]
+    fn reads_every_endpoint_the_account_is_served_from() {
+        let stdout = "{\n  \"url\" : \"https:\\/\\/acme-us-central-1.kura.tuist.dev\",\n  \"endpoints\" : [\n    \"https:\\/\\/acme-us-central-1.kura.tuist.dev\",\n    \"https:\\/\\/acme-ap-southeast-1.kura.tuist.dev\"\n  ]\n}";
+        let resolution = resolution_from_json(stdout).unwrap();
+
+        assert_eq!(resolution.url, "https://acme-us-central-1.kura.tuist.dev");
+        assert_eq!(
+            resolution.lists("https://acme-ap-southeast-1.kura.tuist.dev/"),
+            Some(true)
+        );
+        assert_eq!(
+            resolution.lists("https://acme-eu-west-1.kura.tuist.dev"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn an_unreported_endpoint_list_is_unknown_not_empty() {
+        let resolution = resolution_from_json(r#"{"url":"https://acme.kura.tuist.dev"}"#).unwrap();
+
+        assert_eq!(resolution.endpoints, None);
+        assert_eq!(resolution.lists("https://acme.kura.tuist.dev"), None);
     }
 
     #[test]

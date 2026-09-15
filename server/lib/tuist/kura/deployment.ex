@@ -17,8 +17,8 @@ defmodule Tuist.Kura.Deployment do
 
   `cluster_id` is an audit field: which backing cluster the deployment
   actually targeted, captured at insert time so operators reading the
-  deployment list see something concrete (`"eu-central-1"`) rather
-  than the abstract region (`"eu-central"`).
+  deployment list see something concrete (`"eu-west-1"`) rather
+  than the abstract region (`"eu-west"`).
   """
   use Ecto.Schema
 

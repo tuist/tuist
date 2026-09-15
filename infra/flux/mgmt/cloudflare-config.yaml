@@ -1,0 +1,22 @@
+# Applies the Cloudflare desired state only after the operator Helm release
+# is healthy. Read-only Cloudflare resources deliberately report Ready=False,
+# so this Kustomization does not wait on their health while adoption is being
+# verified. The resource status remains the rollout gate before active mode.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cloudflare-config
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cloudflare-operator
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infra/flux/cloudflare-config
+  prune: true
+  wait: false
+  force: false

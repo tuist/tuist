@@ -51,6 +51,9 @@ tuist inspect bundle App.apk
 <!-- -->
 :::
 
+> [!NOTE]
+> **Analyzing an `.apk` requires `aapt2`**, which ships with the Android SDK build tools. Set `ANDROID_HOME` or `ANDROID_SDK_ROOT` so Tuist can find it, or put `aapt2` on `PATH`. Analyzing an `.aab` needs no external tools.
+
 The `tuist inspect bundle` command analyzes the bundle and provides you with a link to see a detailed overview of the bundle including a scan of the contents of the bundle or a module breakdown:
 
 ![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
