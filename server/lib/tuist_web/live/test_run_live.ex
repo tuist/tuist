@@ -164,9 +164,11 @@ defmodule TuistWeb.TestRunLive do
 
   defp coverage_cell(assigns) do
     ~H"""
-    <div data-part="coverage-cell">
-      <.progress_bar value={@covered} max={max(@executable, 1)} />
-      <span data-part="percentage">{XcodeCoverage.percentage(@covered, @executable)}%</span>
+    <div data-part="cell" data-type="text">
+      <div data-part="coverage-cell">
+        <.progress_bar value={@covered} max={max(@executable, 1)} />
+        <span data-part="percentage">{XcodeCoverage.percentage(@covered, @executable)}%</span>
+      </div>
     </div>
     """
   end

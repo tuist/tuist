@@ -959,6 +959,7 @@
       display: flex;
       flex-direction: row;
       align-items: center;
+      flex-grow: 1;
       gap: var(--noora-spacing-3);
       min-width: 160px;
 

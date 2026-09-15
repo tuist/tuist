@@ -2386,12 +2386,14 @@
       <.card_section data-part="coverage-files-section">
         <.table id="coverage-files-table" rows={@coverage_files}>
           <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.link
-              data-part="coverage-file-link"
-              patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
-            >
-              {file.path}
-            </.link>
+            <div data-part="cell" data-type="text">
+              <.link
+                data-part="coverage-file-link"
+                patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
+              >
+                {file.path}
+              </.link>
+            </div>
           </:col>
           <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
             <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
