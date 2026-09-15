@@ -2752,5 +2752,5 @@ msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1037
 #, elixir-autogen, elixir-format
-msgid "By default, actions run only when a test starts matching. Tests that currently match won't get them unless they recover and then match again."
+msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
 msgstr ""
