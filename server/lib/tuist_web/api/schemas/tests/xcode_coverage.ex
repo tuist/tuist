@@ -39,6 +39,11 @@ defmodule TuistWeb.API.Schemas.Tests.XcodeCoverage do
               items: %Schema{type: :string},
               description: "The targets whose binaries compiled the file."
             },
+            is_test: %Schema{
+              type: :boolean,
+              description:
+                "Whether only test bundles compiled the file. Test code is stored but left out of coverage figures."
+            },
             covered_lines: %Schema{type: :integer, description: "Executable lines the tests ran at least once."},
             executable_lines: %Schema{type: :integer, description: "Lines the compiler instrumented."},
             line_numbers: %Schema{

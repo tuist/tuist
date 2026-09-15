@@ -10,7 +10,9 @@ defmodule Tuist.Tests.XcodeCoverage do
   each had, which only the checkout knows.
 
   Every file the run covered is stored in `xcode_coverage_files` with its line
-  data, and `test_runs` carries the totals. A run that left tests out on purpose
+  data, and `test_runs` carries the totals. Test code (files only `.xctest`
+  bundles compiled) is stored but left out of every figure: a test that runs
+  covers its own body, which says nothing about the product. A run that left tests out on purpose
   (selective testing, `-only-testing`) is marked partial: its coverage describes
   the tests that ran and nothing else, so it stays out of the coverage trend.
 
@@ -57,7 +59,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   def run_attrs(nil), do: %{}
 
   def run_attrs(%{partial: partial, files: files}) do
-    {covered, executable} = union_totals(files)
+    {covered, executable} = files |> Enum.reject(& &1.is_test) |> union_totals()
     %{coverage_covered_lines: covered, coverage_executable_lines: executable, coverage_partial: partial}
   end
 
@@ -148,7 +150,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   """
   def file_detail(project_id, test_run_id, path) do
     from(f in XcodeCoverageFile,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.path == ^path,
+      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.path == ^path and not f.is_test,
       order_by: [desc: f.inserted_at]
     )
     |> ClickHouseRepo.all()
@@ -221,7 +223,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   # gave it, since there are no lines to merge.
   defp merged_files_query(project_id, test_run_id) do
     from(f in XcodeCoverageFile,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
+      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and not f.is_test,
       group_by: f.path,
       select: %{
         path: f.path,
@@ -264,6 +266,7 @@ defmodule Tuist.Tests.XcodeCoverage do
       path: file.path,
       git_blob_id: value(file, :git_blob_id, ""),
       targets: value(file, :targets, []),
+      is_test: value(file, :is_test, false),
       covered_lines: value(file, :covered_lines, 0),
       executable_lines: value(file, :executable_lines, 0),
       line_numbers: value(file, :line_numbers, []),

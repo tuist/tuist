@@ -44,6 +44,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         let report = try JSONDecoder().decode(XccovReport.self, from: reportData)
         let archive = try JSONDecoder().decode([String: [XccovLine]].self, from: archiveData)
 
+        let testTargets = Set(report.targets.filter { Self.isTestBundle($0.buildProductPath) }.map(\.name))
         var targetsByPath: [String: [String]] = [:]
         var functionsByPath: [String: [XcodeCoverageFunction]] = [:]
         var countsByPath: [String: (covered: Int, executable: Int)] = [:]
@@ -76,10 +77,13 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
             let lines = (archive[absolutePath] ?? []).filter(\.isExecutable).sorted { $0.line < $1.line }
             let counts = lines.map { $0.executionCount ?? 0 }
             let reported = countsByPath[absolutePath]
+            let targets = targetsByPath[absolutePath] ?? []
+            let productTargets = targets.filter { !testTargets.contains($0) }
             return XcodeCoverageFile(
                 path: path,
                 gitBlobId: blobIdsByPath[path],
-                targets: targetsByPath[absolutePath] ?? [],
+                targets: productTargets.isEmpty ? targets : productTargets,
+                isTest: !targets.isEmpty && productTargets.isEmpty,
                 coveredLines: lines.isEmpty ? reported?.covered ?? 0 : counts.filter { $0 > 0 }.count,
                 executableLines: lines.isEmpty ? reported?.executable ?? 0 : lines.count,
                 lineNumbers: lines.map(\.line),
@@ -131,6 +135,17 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         stderr.contains("No coverage data") || stderr.contains("No coverage archive present")
     }
 
+    /// Whether the binary belongs to a test bundle. Only the innermost bundle counts: a framework
+    /// embedded in a test bundle (`AppTests.xctest/Frameworks/Lib.framework/Lib`) is product code,
+    /// while a test bundle inside an app (`App.app/PlugIns/AppTests.xctest/AppTests`) is a test.
+    static func isTestBundle(_ buildProductPath: String?) -> Bool {
+        let bundleExtensions: Set<String> = ["app", "appex", "bundle", "framework", "xctest"]
+        let innermostBundle = (buildProductPath ?? "").split(separator: "/").reversed().first { component in
+            bundleExtensions.contains((component as NSString).pathExtension)
+        }
+        return innermostBundle.map { ($0 as NSString).pathExtension == "xctest" } ?? false
+    }
+
     /// Longest first, so a root nested in another one wins.
     private static func roots(_ rootDirectories: [String]) -> [String] {
         rootDirectories
@@ -159,6 +174,7 @@ private struct XccovReport: Decodable {
 
 private struct XccovTarget: Decodable {
     let name: String
+    let buildProductPath: String?
     let files: [XccovFile]
 }
 

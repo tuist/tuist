@@ -8699,6 +8699,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/git_blob_id`.
                 public var git_blob_id: Swift.String?
+                /// Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/is_test`.
+                public var is_test: Swift.Bool?
                 /// The executable lines, ascending.
                 ///
                 /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/line_numbers`.
@@ -8719,6 +8723,7 @@ public enum Components {
                 ///   - execution_counts: How many times each of `line_numbers` ran, index by index.
                 ///   - functions:
                 ///   - git_blob_id: The Git blob object id of the file's contents, absent for files Git does not track.
+                ///   - is_test: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
                 ///   - line_numbers: The executable lines, ascending.
                 ///   - path: The file's path, relative to the repository's root when it lives under it and absolute otherwise.
                 ///   - targets: The targets whose binaries compiled the file.
@@ -8728,6 +8733,7 @@ public enum Components {
                     execution_counts: [Swift.Int],
                     functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload,
                     git_blob_id: Swift.String? = nil,
+                    is_test: Swift.Bool? = nil,
                     line_numbers: [Swift.Int],
                     path: Swift.String,
                     targets: [Swift.String]
@@ -8737,6 +8743,7 @@ public enum Components {
                     self.execution_counts = execution_counts
                     self.functions = functions
                     self.git_blob_id = git_blob_id
+                    self.is_test = is_test
                     self.line_numbers = line_numbers
                     self.path = path
                     self.targets = targets
@@ -8747,6 +8754,7 @@ public enum Components {
                     case execution_counts
                     case functions
                     case git_blob_id
+                    case is_test
                     case line_numbers
                     case path
                     case targets

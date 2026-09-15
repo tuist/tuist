@@ -3920,6 +3920,11 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              is_test:
+                description: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                type: boolean
+                x-struct:
+                x-validate:
               line_numbers:
                 description: The executable lines, ascending.
                 items:

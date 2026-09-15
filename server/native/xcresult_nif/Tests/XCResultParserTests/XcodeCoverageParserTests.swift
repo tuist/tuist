@@ -73,7 +73,7 @@ struct XcodeCoverageParserTests {
         {"name": "Calculator", "coveredLines": 2, "executableLines": 3, "lineCoverage": 0.6, "buildProductPath": "/dd/Calculator", "files": [\(
             file
         )]},
-        {"name": "CalculatorTests", "coveredLines": 3, "executableLines": 4, "lineCoverage": 0.7, "buildProductPath": "/dd/CalculatorTests", "files": [\(
+        {"name": "CalculatorTests", "coveredLines": 3, "executableLines": 4, "lineCoverage": 0.7, "buildProductPath": "/dd/CalculatorTests.xctest/Contents/MacOS/CalculatorTests", "files": [\(
             file
         ),
           {"name": "Dep.swift", "path": "\(
@@ -104,6 +104,7 @@ struct XcodeCoverageParserTests {
                 path: dependency,
                 gitBlobId: nil,
                 targets: ["CalculatorTests"],
+                isTest: true,
                 coveredLines: 1,
                 executableLines: 1,
                 lineNumbers: [7],
@@ -113,7 +114,7 @@ struct XcodeCoverageParserTests {
             XcodeCoverageFile(
                 path: "Sources/Calculator/Add.swift",
                 gitBlobId: "a1b2",
-                targets: ["Calculator", "CalculatorTests"],
+                targets: ["Calculator"],
                 coveredLines: 2,
                 executableLines: 3,
                 lineNumbers: [2, 3, 4],
@@ -129,6 +130,16 @@ struct XcodeCoverageParserTests {
                 ]
             ),
         ])
+    }
+
+    @Test
+    func classifiesTargetsByTheirInnermostBundle() {
+        #expect(XcodeCoverageParser.isTestBundle("/dd/Debug/CalculatorTests.xctest/Contents/MacOS/CalculatorTests"))
+        #expect(XcodeCoverageParser.isTestBundle("/dd/Debug-iphonesimulator/App.app/PlugIns/AppTests.xctest/AppTests"))
+        #expect(!XcodeCoverageParser.isTestBundle("/dd/Debug-iphonesimulator/AppTests.xctest/Frameworks/Lib.framework/Lib"))
+        #expect(!XcodeCoverageParser.isTestBundle("/dd/Debug/PackageFrameworks/Calculator.framework/Calculator"))
+        #expect(!XcodeCoverageParser.isTestBundle("/dd/Debug/libCalculator.dylib"))
+        #expect(!XcodeCoverageParser.isTestBundle(nil))
     }
 
     @Test

@@ -20,6 +20,7 @@ defmodule Tuist.IngestRepo.Migrations.AddXcodeCoverage do
       `path` String,
       `git_blob_id` String,
       `targets` Array(LowCardinality(String)),
+      `is_test` Bool DEFAULT false,
       `covered_lines` UInt32,
       `executable_lines` UInt32,
       `line_numbers` Array(UInt32) CODEC(Delta, ZSTD(1)),

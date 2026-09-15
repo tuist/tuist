@@ -1,7 +1,8 @@
 defmodule Tuist.Tests.XcodeCoverageFile do
   @moduledoc """
   One source file's line coverage for a test run, read from the run's result
-  bundle.
+  bundle. `is_test` marks test code (compiled only by `.xctest` bundles), which
+  is kept but left out of every coverage figure.
 
   `line_numbers` lists the file's executable lines, ascending, and
   `execution_counts` how many times each ran. The `function_*` arrays describe
@@ -17,6 +18,7 @@ defmodule Tuist.Tests.XcodeCoverageFile do
     field :path, Ch, type: "String"
     field :git_blob_id, Ch, type: "String"
     field :targets, Ch, type: "Array(LowCardinality(String))"
+    field :is_test, :boolean, default: false
     field :covered_lines, Ch, type: "UInt32"
     field :executable_lines, Ch, type: "UInt32"
     field :line_numbers, Ch, type: "Array(UInt32)"

@@ -112,6 +112,28 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     end
   end
 
+  describe "test code" do
+    test "is stored but left out of the totals, targets and files", %{project: project, account: account} do
+      test_file =
+        "Tests/CalculatorTests/CalculatorTests.swift"
+        |> file("tests1", ["CalculatorTests"], [{1, 1}, {2, 1}, {3, 1}])
+        |> Map.put(:is_test, true)
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), test_file])})
+
+      assert {:ok, stored} = Tests.get_test(test.id)
+      assert {stored.coverage_covered_lines, stored.coverage_executable_lines} == {2, 5}
+
+      assert project.id |> XcodeCoverage.targets_for_run(test.id) |> Enum.map(& &1.name) == [
+               "Calculator",
+               "CalculatorTests"
+             ]
+
+      assert {[%{path: "Sources/Calculator/Add.swift"}], 1} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+      assert XcodeCoverage.file_detail(project.id, test.id, "Tests/CalculatorTests/CalculatorTests.swift") == nil
+    end
+  end
+
   describe "the xcode_coverage feature flag" do
     test "drops the coverage of an account that does not have it", %{project: project, account: account} do
       stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)

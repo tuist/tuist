@@ -71,8 +71,12 @@ public struct XcodeCoverageFile: Codable, Equatable, Sendable {
     public let path: String
     /// Nil for a file Git does not track: one outside the checkout, generated or ignored.
     public let gitBlobId: String?
-    /// The targets whose binaries compiled the file.
+    /// The targets whose binaries compiled the file. For product code, only the non-test targets:
+    /// a test bundle that links a framework statically compiles the framework's files too.
     public let targets: [String]
+    /// Whether only test bundles (`.xctest`) compiled the file: the test code itself, which covers
+    /// nothing of the product and is left out of every coverage figure.
+    public let isTest: Bool
     public let coveredLines: Int
     public let executableLines: Int
     /// The executable lines, ascending, paired with ``executionCounts``.
@@ -83,6 +87,7 @@ public struct XcodeCoverageFile: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case path, targets, functions
         case gitBlobId = "git_blob_id"
+        case isTest = "is_test"
         case coveredLines = "covered_lines"
         case executableLines = "executable_lines"
         case lineNumbers = "line_numbers"
@@ -93,6 +98,7 @@ public struct XcodeCoverageFile: Codable, Equatable, Sendable {
         path: String,
         gitBlobId: String?,
         targets: [String],
+        isTest: Bool = false,
         coveredLines: Int,
         executableLines: Int,
         lineNumbers: [Int],
@@ -102,6 +108,7 @@ public struct XcodeCoverageFile: Codable, Equatable, Sendable {
         self.path = path
         self.gitBlobId = gitBlobId
         self.targets = targets
+        self.isTest = isTest
         self.coveredLines = coveredLines
         self.executableLines = executableLines
         self.lineNumbers = lineNumbers

@@ -497,6 +497,7 @@ import TuistHTTP
                             )
                         },
                         git_blob_id: file.gitBlobId,
+                        is_test: file.isTest,
                         line_numbers: file.lineNumbers,
                         path: file.path,
                         targets: file.targets
