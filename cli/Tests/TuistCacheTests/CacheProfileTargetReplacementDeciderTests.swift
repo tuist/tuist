@@ -67,6 +67,24 @@ struct CacheProfileTargetReplacementDeciderTests {
         #expect(decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["cacheable"]))))
     }
 
+    @Test func none_replaces_only_specific_external_targets() {
+        let profile = TuistConfig.CacheProfile(
+            base: .none,
+            targetQueries: ["ExternalMacro", "tag:cacheable"]
+        )
+        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: [])
+
+        #expect(decider.shouldReplace(
+            project: .test(type: .external()),
+            target: .test(name: "ExternalMacro")
+        ))
+        #expect(decider.shouldReplace(
+            project: .test(type: .external()),
+            target: .test(metadata: .test(tags: ["cacheable"]))
+        ))
+        #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(name: "Other")))
+    }
+
     @Test func onlyExternal_with_no_targets_does_not_replace_internals() {
         let profile = TuistConfig.CacheProfile(
             base: .onlyExternal,
