@@ -4,6 +4,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
+  alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
@@ -99,11 +100,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-    expected_entity = %{type: :test_case, id: triggered_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^triggered_id], :trigger ->
       assert actions == automation.trigger_actions
-      :ok
+      [{triggered_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{alert_id: id, test_case_id: tc, status: "triggered"} ->
@@ -132,11 +131,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       []
     end)
 
-    expected_entity = %{type: :test_case, id: affected_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^affected_id], :trigger ->
       assert actions == automation.trigger_actions
-      :ok
+      [{affected_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{alert_id: id, test_case_id: tc, status: "triggered"} ->
@@ -175,7 +172,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       []
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
@@ -202,7 +199,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       raise "evaluation failed"
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert_raise RuntimeError, "evaluation failed", fn ->
@@ -222,7 +219,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(ClickHouseRepo, :all, fn _query -> [] end)
     reject(&FlakyTestsMonitor.evaluate/2)
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
@@ -260,7 +257,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(ClickHouseRepo, :all, fn _query -> [] end)
     reject(&FlakyTestsMonitor.evaluate/2)
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert {:snooze, 0} =
@@ -322,7 +319,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     expect(Automations, :list_active_alert_events, 2, fn _alert_id, [^test_case_id] -> [] end)
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert {:snooze, 0} = run_recent_test_case_runs_for_project(project.id)
@@ -401,7 +398,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       []
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     log =
@@ -443,7 +440,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       []
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
@@ -461,6 +458,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]
   end
 
+  test "ingestion-driven job sends one Slack message for test cases triggered across ranges" do
+    action = %{"type" => "send_slack", "channel" => "C1", "message" => "{{test_case.name}} matched"}
+    automation = AutomationsFixtures.automation_alert_fixture(trigger_actions: [action])
+    {:ok, automation} = Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:00Z])
+    test_case_ids = Enum.map(1..8, fn _ -> Ecto.UUID.generate() end)
+    automation_id = automation.id
+
+    expect(ClickHouseRepo, :all, fn _query -> test_case_ids end)
+    expect(FlakyTestsMonitor, :evaluate, 4, fn ^automation, range -> %{triggered: range, all: range} end)
+    expect(Automations, :list_active_alert_events, fn _alert, ^test_case_ids -> [] end)
+    reject(&SendSlackAction.execute/3)
+
+    expect(SendSlackAction, :execute_group, fn %{id: ^automation_id}, ^test_case_ids, ^action, :trigger -> :ok end)
+    expect(Automations, :create_alert_event, 8, fn %{alert_id: ^automation_id, status: "triggered"} -> :ok end)
+
+    assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
+  end
+
   test "ingestion-driven job no-ops when the alert is disabled" do
     automation = AutomationsFixtures.automation_alert_fixture()
 
@@ -469,7 +484,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ClickHouseRepo.all/1)
     reject(&FlakyTestsMonitor.evaluate/1)
     reject(&FlakyTestsMonitor.evaluate/2)
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run_recent_test_case_runs(disabled.id)
@@ -487,7 +502,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: already, triggered_at: NaiveDateTime.utc_now()}]
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -513,11 +528,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
     end)
 
-    expected_entity = %{type: :test_case, id: recovered_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^recovered_id], :recovery ->
       assert actions == automation.recovery_actions
-      :ok
+      [{recovered_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{
@@ -561,10 +574,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     # No recovery actions run (the test was manually moved out of the filter),
     # but the alert re-arms so it can fire again later.
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
-      assert actions == []
-      :ok
-    end)
+    reject(&ActionExecutor.execute_grouped_actions/4)
 
     expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
 
@@ -590,7 +600,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -617,8 +627,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     # 7 runs have happened since the trigger, exceeds the rolling window of 5.
     expect(ClickHouseRepo, :all, fn _query, _opts -> [{recovered_id, 7}] end)
 
-    expected_entity = %{type: :test_case, id: recovered_id}
-    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^recovered_id], :recovery ->
+      [{recovered_id, :ok}]
+    end)
 
     expect(Automations, :create_alert_event, fn %{
                                                   alert_id: id,
@@ -653,7 +664,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     # should not fire.
     expect(ClickHouseRepo, :all, fn _query, _opts -> [{recovered_id, 2}] end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -679,7 +690,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     # A single batched query regardless of candidate count — no N+1.
     expect(ClickHouseRepo, :all, 1, fn _query, _opts -> [] end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -712,8 +723,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     # rolling window of 5, not_ready_id did not.
     expect(ClickHouseRepo, :all, fn _query, _opts -> [{ready_id, 6}, {not_ready_id, 3}] end)
 
-    expected_entity = %{type: :test_case, id: ready_id}
-    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^ready_id], :recovery ->
+      [{ready_id, :ok}]
+    end)
 
     expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
 
@@ -762,8 +774,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       ]
     end)
 
-    expected_entity = %{type: :test_case, id: ready_id}
-    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^ready_id], :recovery ->
+      [{ready_id, :ok}]
+    end)
+
     expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
@@ -818,8 +832,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       ]
     end)
 
-    expected_entity = %{type: :test_case, id: ready_id}
-    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^ready_id], :recovery ->
+      [{ready_id, :ok}]
+    end)
+
     expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
@@ -846,12 +862,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: recovered_id, triggered_at: triggered_just_now}]
     end)
 
-    # The opt-in undo actions are withheld (empty list) even though the alert
-    # defines recovery_actions, because recovery is disabled.
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
-      assert actions == []
-      :ok
-    end)
+    # The opt-in undo actions are withheld even though the alert defines
+    # recovery_actions, because recovery is disabled.
+    reject(&ActionExecutor.execute_grouped_actions/4)
 
     # Re-arm bookkeeping happens so the alert can fire again later.
     expect(Automations, :create_alert_event, fn %{
@@ -892,10 +905,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ClickHouseRepo.all/1)
     reject(&Tests.get_test_case_states/2)
 
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
-      assert actions == []
-      :ok
-    end)
+    reject(&ActionExecutor.execute_grouped_actions/4)
 
     expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
 
@@ -918,7 +928,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: stale_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)}]
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -934,7 +944,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&FlakyTestsMonitor.evaluate/1)
     reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
     reject(&FlakyTestsMonitor.evaluate_by_reliability_rate/1)
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
@@ -984,9 +994,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       stub(FlakyTestsMonitor, :measurable_test_case_ids, fn _, ids -> ids end)
       test_pid = self()
 
-      stub(ActionExecutor, :execute_actions, fn actions, _, %{id: id} ->
+      stub(ActionExecutor, :execute_actions_without_notifications, fn actions, _, %{id: id} ->
         send(test_pid, {:action, id, actions})
         if id == failing_id, do: {:error, :channel_not_found}, else: :ok
+      end)
+
+      stub(ActionExecutor, :execute_grouped_actions, fn actions, _, ids, _phase ->
+        Enum.map(ids, fn id ->
+          send(test_pid, {:action, id, actions})
+          {id, if(id == failing_id, do: {:error, :channel_not_found}, else: :ok)}
+        end)
       end)
 
       assert :ok = run(requested.id)
@@ -1005,7 +1022,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     test "Slack actions require a fresh opt-in after condition or action edits" do
       config = %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"}
-      actions = [%{"type" => "send_slack", "channel" => "test-channel", "message" => "Matching test"}]
+      action = %{"type" => "send_slack", "channel" => "test-channel", "message" => "Matching test"}
+      actions = [action]
 
       automation =
         AutomationsFixtures.automation_alert_fixture(
@@ -1021,21 +1039,21 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       stub(FlakyTestsMonitor, :evaluate, fn _alert -> %{triggered: [id]} end)
       test_pid = self()
 
-      stub(ActionExecutor, :execute_actions, fn actions, _alert, %{id: ^id} ->
-        send(test_pid, {:executed, actions})
+      stub(SendSlackAction, :execute, fn _alert, %{id: ^id}, action ->
+        send(test_pid, {:executed, action})
         :ok
       end)
 
       assert :ok = run(automation.id)
-      assert_received {:executed, ^actions}
+      assert_received {:executed, ^action}
       refute Repo.reload!(automation).trigger_config["apply_actions_to_existing_matches"]
 
       {:ok, edited} = Automations.update_alert(automation, %{trigger_config: Map.put(config, "threshold", 20)})
       assert :ok = run(edited.id)
       refute_received {:executed, _}
 
-      edited_actions = [%{"type" => "send_slack", "channel" => "test-channel", "message" => "Updated message"}]
-      {:ok, edited} = Automations.update_alert(edited, %{trigger_actions: edited_actions})
+      edited_action = %{"type" => "send_slack", "channel" => "test-channel", "message" => "Updated message"}
+      {:ok, edited} = Automations.update_alert(edited, %{trigger_actions: [edited_action]})
       assert :ok = run(edited.id)
       refute_received {:executed, _}
 
@@ -1045,7 +1063,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         })
 
       assert :ok = run(requested.id)
-      assert_received {:executed, ^edited_actions}
+      assert_received {:executed, ^edited_action}
       assert :ok = run(requested.id)
       refute_received {:executed, _}
     end
@@ -1090,11 +1108,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       assert [%{test_case_id: ^id}] = Automations.list_active_alert_events(automation.id)
       assert %{^id => %{state: "enabled", is_flaky: false}} = Tests.get_test_case_states(automation.project_id, [id])
 
-      reject(&ActionExecutor.execute_actions/3)
+      reject(&ActionExecutor.execute_grouped_actions/4)
       assert :ok = run(automation.id)
     end
 
-    test "opted-in baselines apply trigger actions to qualifying current matches" do
+    test "opted-in baselines request actions for qualifying current matches" do
       automation =
         AutomationsFixtures.automation_alert_fixture(
           baseline_established_at: nil,
@@ -1122,14 +1140,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         %{muted => %{state: "muted"}, skipped => %{state: "skipped"}}
       end)
 
-      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch, apply_match ->
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch, true ->
         assert evaluate_batch.([muted, skipped]) == [muted]
-        assert :ok = apply_match.(automation, muted)
-        :ok
-      end)
-
-      expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^muted} ->
-        assert actions == automation.trigger_actions
         :ok
       end)
 
@@ -1146,9 +1158,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
       # No trigger actions on the baseline path.
-      reject(&ActionExecutor.execute_actions/3)
+      reject(&ActionExecutor.execute_grouped_actions/4)
 
-      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch ->
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch, false ->
         assert evaluate_batch.([tc1, tc2]) == [tc1, tc2]
         :ok
       end)
@@ -1169,9 +1181,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         [%{test_case_id: already, triggered_at: NaiveDateTime.utc_now()}]
       end)
 
-      expected_entity = %{type: :test_case, id: newcomer}
-
-      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+      expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^newcomer], :trigger ->
+        [{newcomer, :ok}]
+      end)
 
       expect(Automations, :create_alert_event, fn %{
                                                     alert_id: id,
@@ -1205,7 +1217,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-      reject(&ActionExecutor.execute_actions/3)
+      reject(&ActionExecutor.execute_grouped_actions/4)
       reject(&Automations.create_alert_event/1)
 
       assert :ok = run(automation.id)
@@ -1230,8 +1242,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-      expected_entity = %{type: :test_case, id: validated_id}
-      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+      expect(ActionExecutor, :execute_grouped_actions, fn _actions, ^automation, [^validated_id], :trigger ->
+        [{validated_id, :ok}]
+      end)
 
       expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
 
@@ -1252,12 +1265,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         [validated_id]
       end)
 
-      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch ->
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch, false ->
         assert evaluate_batch.([validated_id, new_test_id]) == [validated_id]
         :ok
       end)
 
-      reject(&ActionExecutor.execute_actions/3)
+      reject(&ActionExecutor.execute_grouped_actions/4)
 
       assert :ok = run(automation.id)
     end
@@ -1281,11 +1294,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-    expected_entity = %{type: :test_case, id: cleanup_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^cleanup_id], :trigger ->
       assert actions == automation.trigger_actions
-      :ok
+      [{cleanup_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{
@@ -1319,11 +1330,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-    expected_entity = %{type: :test_case, id: unreliable_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^unreliable_id], :trigger ->
       assert actions == automation.trigger_actions
-      :ok
+      [{unreliable_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{
@@ -1397,7 +1406,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       ]
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
+    reject(&ActionExecutor.execute_grouped_actions/4)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -1428,11 +1437,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       ]
     end)
 
-    expected_entity = %{type: :test_case, id: recovered_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+    expect(ActionExecutor, :execute_grouped_actions, fn actions, ^automation, [^recovered_id], :recovery ->
       assert actions == automation.recovery_actions
-      :ok
+      [{recovered_id, :ok}]
     end)
 
     expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)

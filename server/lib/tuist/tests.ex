@@ -1176,6 +1176,25 @@ defmodule Tuist.Tests do
   end
 
   @doc """
+  Returns the name, module name, and suite name of existing test cases, keyed by ID.
+  """
+  def get_test_case_identities(_project_id, []), do: %{}
+
+  def get_test_case_identities(project_id, test_case_ids) do
+    query =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        where: fragment("? IN (?)", tc.id, type(^test_case_ids, {:array, Ecto.UUID})),
+        group_by: [tc.id, tc.name, tc.module_name, tc.suite_name],
+        select: %{id: tc.id, name: tc.name, module_name: tc.module_name, suite_name: tc.suite_name}
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  @doc """
   Gets a test case by its UUID with all denormalized fields.
   Returns {:ok, test_case} or {:error, :not_found}.
   """

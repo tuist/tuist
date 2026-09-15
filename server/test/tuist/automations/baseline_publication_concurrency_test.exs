@@ -6,6 +6,7 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias Tuist.Automations
+  alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.BaselineAttempt
   alias Tuist.Automations.Alerts.BaselineResult
@@ -45,7 +46,7 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
       publisher =
         database_task(fn ->
-          Automations.establish_alert_baseline(alert, & &1, fn _, id ->
+          stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, %{id: id} ->
             refute Repo.in_transaction?()
             send(parent, {:action_started, id})
 
@@ -55,6 +56,8 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
               5000 -> flunk("external action was not released")
             end
           end)
+
+          Automations.establish_alert_baseline(alert, & &1, true)
         end)
 
       try do
@@ -69,7 +72,8 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
         competitor =
           database_task(fn ->
-            Automations.establish_alert_baseline(alert, & &1, fn _, _ -> flunk("duplicate publisher") end)
+            stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, _ -> flunk("duplicate publisher") end)
+            Automations.establish_alert_baseline(alert, & &1, true)
           end)
 
         assert Task.await(competitor, 1000) == :ok
@@ -96,7 +100,8 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
         next_publisher =
           database_task(fn ->
-            Automations.establish_alert_baseline(requested, & &1, fn _, ^second -> :ok end)
+            stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, %{id: ^second} -> :ok end)
+            Automations.establish_alert_baseline(requested, & &1, true)
           end)
 
         assert Task.await(next_publisher, 5000) == :ok

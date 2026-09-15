@@ -454,6 +454,35 @@ defmodule Tuist.Automations do
     where(query, [event], fragment("? IN (?)", event.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})))
   end
 
+  @doc """
+  Returns a page of the test cases an alert has matched and that haven't
+  recovered yet, most recently matched first, along with their total count.
+  """
+  def list_matched_test_cases(%Alert{} = alert, opts \\ []) do
+    active_events = subquery(active_alert_events_query(alert.id, Alert.event_generation(alert), nil))
+
+    page_query =
+      from(event in active_events,
+        order_by: [desc: event.triggered_at, asc: event.test_case_id],
+        limit: ^Keyword.get(opts, :limit, 20),
+        offset: ^Keyword.get(opts, :offset, 0)
+      )
+
+    events = ClickHouseRepo.all(page_query)
+    total_count = ClickHouseRepo.one(from(event in active_events, select: count()))
+    identities = Tests.get_test_case_identities(alert.project_id, Enum.map(events, & &1.test_case_id))
+
+    test_cases =
+      Enum.flat_map(events, fn event ->
+        case Map.get(identities, event.test_case_id) do
+          nil -> []
+          identity -> [Map.put(identity, :matched_at, event.triggered_at)]
+        end
+      end)
+
+    {test_cases, total_count}
+  end
+
   def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok
 
   def enqueue_flaky_alert_evaluations(project_id, test_case_ids) do
@@ -559,7 +588,7 @@ defmodule Tuist.Automations do
   attempt's durable checkpoints. Returns `:ok` whether it enumerated, published
   or found nothing left to do.
 
-  `apply_match` turns the silent pass into the opted-in backlog pass. Both share
+  `apply_actions?` turns the silent pass into the opted-in backlog pass. Both share
   one pipeline on purpose: the backlog needs the same exact, resumable, bounded
   matching set as the baseline, and running it separately would mean two
   enumerations of the same project and two publishers racing for the same
@@ -570,8 +599,12 @@ defmodule Tuist.Automations do
   only to keep the recovery ledger alive across that window. A backlog pass with
   its own progress row could avoid the suspension, at the price of a second
   enumeration and a second publisher to serialize against this one.
+
+  The backlog pass checks the attempt before each test case's actions, so an
+  edit stops the remaining work. Its Slack actions run once, as a summary of
+  every test case it triggered, right before the pass commits.
   """
-  def establish_alert_baseline(%Alert{} = alert, evaluate_batch, apply_match \\ nil)
+  def establish_alert_baseline(%Alert{} = alert, evaluate_batch, apply_actions? \\ false)
       when is_function(evaluate_batch, 1) do
     case begin_alert_baseline(alert) do
       {:established, _alert} ->
@@ -583,7 +616,7 @@ defmodule Tuist.Automations do
       {:ok, %BaselineAttempt{state: "evaluating"} = attempt} ->
         case evaluate_alert_baseline(attempt, alert.project_id, evaluate_batch) do
           {:ok, %BaselineAttempt{state: "publishing"} = publishing_attempt} ->
-            publish_and_commit_alert_baseline(publishing_attempt, evaluate_batch, apply_match)
+            publish_and_commit_alert_baseline(publishing_attempt, evaluate_batch, apply_actions?)
 
           {:ok, %BaselineAttempt{}} ->
             # A competing worker still owns the enumeration. The publication
@@ -598,7 +631,7 @@ defmodule Tuist.Automations do
         end
 
       {:ok, %BaselineAttempt{state: "publishing"} = attempt} ->
-        publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match)
+        publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_actions?)
 
       {:ok, %BaselineAttempt{state: "committed"}} ->
         :ok
@@ -892,7 +925,7 @@ defmodule Tuist.Automations do
       alert.baseline_generation != attempt.baseline_generation
   end
 
-  defp publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) do
+  defp publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_actions?) do
     # Pin the session lock across external calls, but keep row-lock transactions
     # short so edits and cancellation do not wait on Slack. A competing publisher
     # leaves the pending attempt for the next scheduled evaluation.
@@ -903,7 +936,7 @@ defmodule Tuist.Automations do
         case Repo.query!("SELECT pg_try_advisory_lock(hashtextextended($1, 0))", [lock_name]) do
           %{rows: [[true]]} ->
             try do
-              do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match)
+              do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_actions?)
             after
               Repo.query!("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lock_name])
             end
@@ -916,11 +949,12 @@ defmodule Tuist.Automations do
     )
   end
 
-  defp do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) when is_function(apply_match, 2) do
+  defp do_publish_and_commit_alert_baseline(attempt, evaluate_batch, true) do
     test_case_ids = list_unpublished_baseline_results(attempt)
 
     case test_case_ids do
       [] ->
+        notify_baseline_matches(attempt)
         commit_alert_baseline(attempt)
 
       test_case_ids ->
@@ -930,20 +964,20 @@ defmodule Tuist.Automations do
 
         result =
           Enum.reduce_while(test_case_ids, {:ok, attempt}, fn test_case_id, {:ok, attempt} ->
-            case apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
+            case apply_and_publish_baseline_match(attempt, test_case_id, matching_ids) do
               {:ok, next_attempt} -> {:cont, {:ok, next_attempt}}
               {:error, :stale} -> {:halt, {:error, :stale}}
             end
           end)
 
         case result do
-          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, evaluate_batch, apply_match)
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, evaluate_batch, true)
           {:error, :stale} -> :ok
         end
     end
   end
 
-  defp do_publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt, _evaluate_batch, nil) do
+  defp do_publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt, _evaluate_batch, false) do
     test_case_ids = list_unpublished_baseline_results(attempt)
 
     case test_case_ids do
@@ -954,7 +988,7 @@ defmodule Tuist.Automations do
         result = publish_silent_baseline_batch(attempt, test_case_ids)
 
         case result do
-          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, nil, nil)
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, nil, false)
           {:error, :stale} -> :ok
         end
     end
@@ -981,10 +1015,10 @@ defmodule Tuist.Automations do
     end)
   end
 
-  defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
+  defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids) do
     case prepare_baseline_match(attempt, test_case_id) do
       {:ok, {:ready, alert, current_attempt}} ->
-        maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids, apply_match)
+        maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids)
         checkpoint_baseline_match(current_attempt, test_case_id)
 
       {:ok, {:already_published, current_attempt}} ->
@@ -1021,9 +1055,11 @@ defmodule Tuist.Automations do
     end)
   end
 
-  defp maybe_apply_baseline_match(alert, attempt, test_case_id, matching_ids, apply_match) do
+  defp maybe_apply_baseline_match(alert, attempt, test_case_id, matching_ids) do
     if MapSet.member?(matching_ids, test_case_id) do
-      case apply_match.(alert, test_case_id) do
+      entity = %{type: :test_case, id: test_case_id}
+
+      case ActionExecutor.execute_actions_without_notifications(alert.trigger_actions, alert, entity) do
         :ok ->
           publish_alert_baseline_events(attempt, [test_case_id], Alert.event_generation(alert), NaiveDateTime.utc_now())
 
@@ -1031,6 +1067,37 @@ defmodule Tuist.Automations do
           Logger.error("Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}")
       end
     end
+  end
+
+  # A backlog can span several jobs, so its Slack actions run once, as a summary
+  # of every test case the pass triggered. Scheduled triggers and recoveries are
+  # suspended until the commit, so the alert's active events triggered since the
+  # attempt began are exactly those test cases. An interruption between the
+  # message and the commit sends the message again.
+  defp notify_baseline_matches(attempt) do
+    alert = Repo.get!(Alert, attempt.alert_id)
+
+    if alert.enabled and not stale_alert_baseline_attempt?(alert, attempt) do
+      results =
+        alert
+        |> baseline_triggered_test_case_ids(attempt)
+        |> Enum.map(&{&1, :ok})
+
+      ActionExecutor.send_grouped_notifications(alert.trigger_actions, alert, results, :trigger)
+    end
+  end
+
+  defp baseline_triggered_test_case_ids(alert, attempt) do
+    since = DateTime.to_unix(attempt.cursor, :microsecond)
+
+    query =
+      from(event in subquery(active_alert_events_query(alert.id, Alert.event_generation(alert), nil)),
+        where: fragment("toUnixTimestamp64Micro(?) >= ?", event.triggered_at, type(^since, :integer)),
+        order_by: [asc: event.triggered_at, asc: event.test_case_id],
+        select: event.test_case_id
+      )
+
+    ClickHouseRepo.all(query)
   end
 
   defp list_unpublished_baseline_results(attempt) do

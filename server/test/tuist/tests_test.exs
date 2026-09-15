@@ -4510,6 +4510,35 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "get_test_case_identities/2" do
+    test "returns the identity of each existing test case in the project" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testIdentity",
+          module_name: "IdentityModule",
+          suite_name: "IdentitySuite"
+        )
+
+      other_test_case = RunsFixtures.test_case_fixture(project_id: other_project.id)
+      IngestRepo.insert!(test_case)
+      IngestRepo.insert!(test_case)
+      IngestRepo.insert!(other_test_case)
+
+      assert Tests.get_test_case_identities(project.id, [test_case.id, other_test_case.id, Ecto.UUID.generate()]) == %{
+               test_case.id => %{
+                 id: test_case.id,
+                 name: "testIdentity",
+                 module_name: "IdentityModule",
+                 suite_name: "IdentitySuite"
+               }
+             }
+    end
+  end
+
   describe "get_test_case_by_id/1" do
     test "returns {:ok, test_case} when test case exists" do
       # Given

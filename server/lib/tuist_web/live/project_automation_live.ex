@@ -9,9 +9,11 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Alert
   alias TuistWeb.ProjectAutomationsLive
 
   @history_page_size 5
+  @matched_test_cases_page_size 20
 
   @impl true
   def mount(
@@ -28,12 +30,16 @@ defmodule TuistWeb.ProjectAutomationLive do
          {:ok, automation} <- Automations.get_alert(automation_id),
          true <- automation.project_id == selected_project.id do
       {revisions, has_more_revisions?} = fetch_revisions(automation.id)
+      {matched_test_cases, matched_test_cases_count} = fetch_matched_test_cases(automation)
 
       {:ok,
        socket
        |> assign(:automation, automation)
        |> assign(:revisions, revisions)
        |> assign(:has_more_revisions?, has_more_revisions?)
+       |> assign(:show_matched_tests?, Alert.recovery_ledger?(automation))
+       |> assign(:matched_test_cases, matched_test_cases)
+       |> assign(:matched_test_cases_count, matched_test_cases_count)
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
@@ -54,6 +60,16 @@ defmodule TuistWeb.ProjectAutomationLive do
      socket
      |> update(:revisions, &(&1 ++ revisions))
      |> assign(:has_more_revisions?, has_more_revisions?)}
+  end
+
+  def handle_event("show_more_matched_tests", _params, socket) do
+    {matched_test_cases, matched_test_cases_count} =
+      fetch_matched_test_cases(socket.assigns.automation, length(socket.assigns.matched_test_cases))
+
+    {:noreply,
+     socket
+     |> update(:matched_test_cases, &(&1 ++ matched_test_cases))
+     |> assign(:matched_test_cases_count, matched_test_cases_count)}
   end
 
   def automation_actions_summary(%{trigger_actions: actions}), do: actions_summary(actions)
@@ -310,6 +326,16 @@ defmodule TuistWeb.ProjectAutomationLive do
 
   defp window_summary(config) when is_map(config), do: config["window"] || "30d"
   defp window_summary(_config), do: "30d"
+
+  # Only metric automations keep a ledger of matched tests; event-driven ones
+  # act on each event and never record a test as currently matched.
+  defp fetch_matched_test_cases(automation, offset \\ 0) do
+    if Alert.recovery_ledger?(automation) do
+      Automations.list_matched_test_cases(automation, limit: @matched_test_cases_page_size, offset: offset)
+    else
+      {[], 0}
+    end
+  end
 
   defp fetch_revisions(automation_id, before \\ nil) do
     revisions =
