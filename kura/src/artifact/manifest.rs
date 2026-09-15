@@ -24,6 +24,12 @@ pub struct ArtifactManifest {
     pub created_at_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    /// The region whose node first accepted this write, stamped at that
+    /// write and carried through replication. Additive: a record written by
+    /// an older binary has none, and a peer that forwards none leaves it
+    /// unknown — which region sync lists from everywhere (design §4.1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_region: Option<String>,
 }
 
 impl ArtifactManifest {
@@ -81,6 +87,8 @@ pub struct PersistedManifestRecord {
     pub created_at_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_region: Option<String>,
 }
 
 impl PersistedManifestRecord {
@@ -98,6 +106,7 @@ impl PersistedManifestRecord {
             version_ms: manifest.version_ms,
             created_at_ms: manifest.created_at_ms,
             branch: manifest.branch.clone(),
+            origin_region: manifest.origin_region.clone(),
         }
     }
 
@@ -116,6 +125,7 @@ impl PersistedManifestRecord {
             version_ms: self.version_ms,
             created_at_ms: self.created_at_ms,
             branch: self.branch,
+            origin_region: self.origin_region,
         })
     }
 }
@@ -142,6 +152,7 @@ mod tests {
             version_ms: 100,
             created_at_ms: 90,
             branch: None,
+            origin_region: None,
         };
 
         let metadata = manifest.metadata("acme");
@@ -172,6 +183,7 @@ mod tests {
             version_ms: 200,
             created_at_ms: 150,
             branch: None,
+            origin_region: None,
         };
 
         let restored = PersistedManifestRecord::from_manifest(&manifest)

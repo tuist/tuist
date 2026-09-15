@@ -2,12 +2,12 @@
 {
   "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance for Xcode and Gradle projects with Tuist Build Insights."
+  "description": "Track build performance for Xcode, Gradle, and Bazel projects with Tuist Build Insights."
 }
 ---
 # Build Insights {#build-insights}
 
-Use Build Insights to track local and CI build performance. It currently supports both Xcode and Gradle build systems.
+Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, and Bazel build systems.
 
 <.home_cards>
   <.home_card
@@ -24,5 +24,10 @@ Use Build Insights to track local and CI build performance. It currently support
     title="Gradle"
     details="Track Gradle task timing and cache effectiveness with the Tuist Gradle plugin."
     link="/guides/features/build-insights/gradle"
+/>
+  <.home_card
+    title="Bazel"
+    details="Track Bazel command duration, cache totals, and critical-path diagnostics through the Build Event Protocol."
+    link="/guides/features/build-insights/bazel"
 />
 </.home_cards>

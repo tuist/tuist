@@ -58,15 +58,47 @@ config :esbuild,
       "--loader:.woff=file",
       "--loader:.woff2=file",
       "--loader:.ttf=file",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
+  ],
+  # CSS-only bundle for the redesigned marketing pages. The root layout links
+  # bundle-new.css instead of bundle.css when TuistWeb.Marketing.Design flags
+  # the page onto the new design; JS stays in the shared marketing bundle.
+  marketing_new: [
+    args: [
+      "marketing_new.css",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--outfile=../../priv/static/marketing/assets/bundle-new.css",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--external:/marketing/*",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
+    cd: Path.expand("../assets/marketing", __DIR__),
+    # build_path resolves the colocated CSS extract (phoenix-colocated/...),
+    # as for the legacy bundle above.
     env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
   docs: [

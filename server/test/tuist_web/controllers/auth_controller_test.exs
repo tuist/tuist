@@ -130,6 +130,16 @@ defmodule TuistWeb.AuthControllerTest do
       end
     end
 
+    test "raises unauthorized error when organization_id is not a valid integer", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta?organization_id=1%2C%60")
+      end
+
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta?organization_id=not-a-number")
+      end
+    end
+
     test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 

@@ -25,7 +25,7 @@ registry:
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
-  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # Keep terminate-then-replace on the canary pool. The chart default
   # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
   # while every other Deployment in the release is surging too, so the extra
   # Pods queue behind each other on FailedScheduling and whichever waits past
@@ -63,6 +63,12 @@ server:
   # is safe here and rehearses the exact ESO sync + hostname-allowlist path
   # production runs.
   turnstile:
+    enabled: true
+
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
     enabled: true
 
   appUrl: https://canary.tuist.dev
@@ -150,7 +156,7 @@ server:
     tlsSecretName: tuist-tls-cloudflare-origin
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
-  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # alongside the live pod on the canary nodepool. Steady-state
   # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
@@ -162,7 +168,7 @@ server:
 
   # The migration hook runs before Helm can roll any workload pods, so it
   # must fit next to the steady-state canary server, processor, Redis, and
-  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # telemetry pods on the canary cluster. `Tuist.Release.migrate` only
   # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
   # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
   # canary server's request so the hook fits whenever the server fits;
@@ -205,18 +211,7 @@ server:
       # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
-      value: eu-central,scw-fr-par-runners,ca-east
-    - name: TUIST_KURA_AIR_REGION
-      # Air is funded on the ca-east OVH validation box, as on staging.
-      # Without this the default names us-east, which this environment does not
-      # serve, so every Air account resolved into a region the lifecycle loop
-      # never iterates and no instance was ever provisioned.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget, matching staging, so
-      # traffic-driven placement is observable rather than collapsing onto a
-      # single funded region.
-      value: ca-east,eu-central
+      value: eu-west,scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -246,6 +241,14 @@ server:
     # interim-paced ordering here; kept aligned with production.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Matches production so the cascade runs the automatic-apply path before
+    # production gets it. What it proves is bounded: this environment has one
+    # public region and its accounts are acceptance-test accounts reclaimed the
+    # next day, so the sweep has nowhere to move anything to and no history to
+    # move it on. It exercises the parse, the per-kind budget and the sweep
+    # under a non-empty value, not a real transition.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -261,36 +264,85 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
+  # The in-cluster ClickHouse (spec #73). On: both AX42-1 are installed and
+  # Ready in the `clickhouse` pool, each with `/data` as XFS on its 2x512 GB
+  # mirror.
   #
-  # Turning it on is step 2 of the rollout plan in the pull request, and the
-  # steps after it are `shadowWrites.enabled`, then `migration` with the
-  # backfill in the background, then the read flag. Each is its own deploy, and
-  # each has a gate.
+  # This is step 2 of the rollout plan, and it brings the server up empty and
+  # nothing more. The steps after it are the schema clone, then
+  # `shadowWrites.enabled`, then `migration` with the backfill in the
+  # background, then the read flag. Each is its own deploy, and each has a
+  # gate.
   managed:
-    enabled: false
+    enabled: true
     # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
     # mirror, so this is sized for the environment's own data. What canary is
     # for is the shape production will run — a second replica and a
     # three-member quorum, neither of which staging exercises.
     #
-    # Both are still 1 here, because two replicas need a volume per replica and
-    # a database initialised on each of them, and neither exists yet. Raise
-    # them together once they do.
-    #
-    # The volume per replica is what gates `enabled: true` above, not just this
-    # count: the pool is two nodes and the local PersistentVolume binds on the
-    # pool label rather than a node name, so even one pod can be scheduled onto
-    # the node that does not hold the data.
+    # Both are still 1. Two replicas need a database initialised on each of
+    # them, which the init Job does not do: it reaches whichever pod the
+    # Service picks. The volume half is solved, by `nodeName` below, so raising
+    # these is now gated on the init alone.
     replicas: 1
     persistence:
       size: 200Gi
+      localVolume:
+        # The pool has two nodes, so this names which one holds the data. See
+        # the `nodeName` comment in values.yaml for why it is a hostname and
+        # not the pool label. The second box is joined, tainted and idle until
+        # the two-replica work lands.
+        nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads from the in-cluster
+    # server yet, so a mirrored write that fails costs a metric and not a
+    # request: inserts are handed to a bounded Task.Supervisor rather than
+    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
+    # cannot overtake the inserts it is meant to erase.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow pool
+    # is not ready for the first seconds of its life, which is what the retry
+    # covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
       enabled: true
+    # Step 6a, the full parity gate, is disarmed. Its last run found five copied
+    # tables differing from the system of record across the whole dataset:
+    # shard_plans, xcode_targets, command_events and cacheable_tasks short of
+    # rows, and test_runs with a differing duration. Reads stay where they are
+    # until those are explained and repaired.
+    migration:
+      enabled: false
+      name: parity
+      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -338,6 +390,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"
@@ -366,17 +420,20 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
-# replica), 10Gi per instance. Matches the cluster's general-purpose
-# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
-# requires one CNPG instance per host, so a 3-instance cluster would
-# leave the third pod permanently Pending until md-0 was scaled up.
+# replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
+# on separate hosts. The general-purpose pool has three workers so hooks
+# and rolling updates have headroom; keep CNPG at two instances rather
+# than consuming that capacity with another database replica.
 # Canary is a soak environment, not an HA-shape one; production keeps
 # the 3-instance design on its 3-worker pool. Each instance is a
 # streaming replica holding the whole DB, so the size is per-replica
@@ -529,10 +586,10 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
 # DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
 # in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
@@ -544,7 +601,7 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:
@@ -741,10 +798,7 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

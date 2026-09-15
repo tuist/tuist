@@ -54,6 +54,39 @@ defmodule Tuist.FeatureFlags do
     Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
   end
 
+  @doc """
+  Whether anonymous entry to a public-project or public-account
+  dashboard has to solve a Cloudflare Turnstile challenge before the
+  LiveView mounts. Shape mirrors `turnstile_enabled?`: the env-var
+  toggle `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` decides where the gate
+  is armed at all, and `:public_page_challenge_kill_switch` is a
+  flag-flippable emergency off with no deploy required. Off by default
+  everywhere so a rollout is one env-var change per environment.
+  """
+  def public_page_challenge_enabled? do
+    Environment.public_page_challenge_required?() and
+      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+  end
+
+  @doc """
+  Whether the marketing site should render the redesigned version instead of
+  the legacy one. The whole redesign launches behind a single boolean flag
+  (`:new_marketing`) that is flipped for everyone at once — marketing traffic
+  is mostly anonymous. The redesign can be previewed before the flip by
+  enabling the flag for a specific user (actor gate), which is what the
+  optional `user` serves. Callers should go through
+  `TuistWeb.Marketing.Design` rather than checking this flag directly.
+  """
+  def new_marketing_enabled?(user \\ nil)
+
+  def new_marketing_enabled?(nil) do
+    FunWithFlags.enabled?(:new_marketing)
+  end
+
+  def new_marketing_enabled?(user) do
+    FunWithFlags.enabled?(:new_marketing, for: user)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

@@ -19,6 +19,7 @@ pub mod proxy;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
+pub mod chunk_cache;
 pub mod token;
 pub mod types;
 pub mod upstream;
@@ -286,10 +287,8 @@ struct CasState {
     // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
-    // Resolve hits whose association was NOT recorded because the graph had not
-    // materialized yet. Not a degradation: the key resolves again next build and
-    // is recorded then. A count that stays high across builds means graphs are
-    // not landing at all, which is a materialization problem, not a cache one.
+    // Remote candidates returned as compiler misses because their graph was
+    // unavailable. Keep the diagnostic name stable; these also defer the put.
     stats_deferred_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
@@ -1168,18 +1167,6 @@ unsafe fn actioncache_get_impl(
         .unwrap_or_default();
     match client.resolve(&cas_path, &state.proxy_instance, key) {
         Ok(Resolution::Hit(value_digest)) => {
-            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
-            // Remember the association: the client re-puts replayed results
-            // at the end of its job, and re-publishing a (key, value) that
-            // just came FROM the remote is pure churn — a spool write on
-            // the compile path plus a proxy publish check per key
-            // (thousands per warm build). actioncache_put_remote skips
-            // puts that match this map.
-            state
-                .remote_hits
-                .lock()
-                .unwrap()
-                .insert(key.to_vec(), value_digest.clone());
             let value_digest_t =
                 llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
             let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1188,23 +1175,32 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // Record the association ONLY once the graph it names is actually
-            // here. A resolve replies before materialization finishes (protocol
-            // v2 is non-blocking on purpose — this runs on the serial task-setup
-            // path), so putting unconditionally writes `key -> value` for a graph
-            // that may never arrive, and NOTHING can retract it: the ABI has no
-            // delete and a re-put with a different value is refused. That made
-            // this function an author of the very state `verified_local_get`
-            // exists to catch, with no prune involved — measured on a real build
-            // over an EMPTY store, which ended it holding 9 dangling roots.
-            //
-            // Skipping costs one extra resolve for this key, ONCE: the
-            // materialized root persists on disk, so the next build's resolve
-            // finds it present and records the association then. On the warm
-            // snapshot path the graph is already materialized, the probe passes,
-            // and nothing changes. The same ROOT-only probe as the read guard —
-            // an interior node still needs the load path's FETCH_OBJECT.
-            if value_graph_is_available(state, value_id) {
+            // A remote association is only a candidate until materialization
+            // publishes its root over a complete, verified local graph. Fetch
+            // instructions cannot promise availability: a recipe and its whole
+            // download fallback can both lose the same chunk. Clang cannot
+            // recover from that loss once we have advertised a compiler hit.
+            // Xcode's task-setup probes are local-only; its separate network
+            // query tasks ask globally. Only the latter may wait for the graph.
+            // A failed global restore remains a miss, before Clang commits to
+            // replay. The proxy withholds the root until every child is ready.
+            if globally && !value_graph_is_available(state, value_id) {
+                if let Err(message) =
+                    client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
+                {
+                    log_line(&format!("proxy graph preparation failed: {message}"));
+                }
+            }
+            if !value_graph_is_available(state, value_id) {
+                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
+                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+            // Only actual hits suppress publication. A miss above may compile
+            // this same value and must be allowed to repair the remote cache.
+            state.remote_hits.lock().unwrap().insert(key.to_vec(), value_digest);
+            {
                 let mut put_error: *mut c_char = std::ptr::null_mut();
                 if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
                     // Reachable BECAUSE of the verification: a stale association sends
@@ -1216,8 +1212,6 @@ unsafe fn actioncache_get_impl(
                         return LLCAS_LOOKUP_RESULT_ERROR;
                     }
                 }
-            } else {
-                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
             }
             if !p_value.is_null() {
                 *p_value = value_id;
@@ -1236,21 +1230,48 @@ unsafe fn actioncache_get_impl(
     }
 }
 
-/// The ROOT only, and a probe rather than a load: this runs on the thread that
-/// schedules every task in the build, so its cost is multiplied by every lookup
-/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
-/// write-through ordering, not to a graph walk here.
-///
-/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
-/// condition. A probe that errors counts as unavailable — falling through costs a
-/// resolve, serving an unbacked hit costs a build.
+/// Validate the local closure without consulting the remote. Root containment
+/// alone accepts graphs written incompletely by older proxies. Do not memoize a
+/// positive result: another process can rotate the shared store between gets.
 unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
+    local_graph_is_available(state.up, state.cas, value)
+}
+
+/// The ids and loaded references must belong to the same live CAS handle.
+unsafe fn local_graph_is_available(
+    up: &Upstream,
+    cas: llcas_cas_t,
+    root: llcas_objectid_t,
+) -> bool {
+    const MAX_NODES: usize = 100_000;
+    let mut visited = std::collections::HashSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id.opaque) {
+            continue;
+        }
+        if visited.len() > MAX_NODES {
+            return false;
+        }
+        let mut loaded = llcas_loaded_object_t { opaque: 0 };
+        let mut error = std::ptr::null_mut();
+        let result = (up.llcas_cas_load_object)(cas, id, &mut loaded, &mut error);
+        if !error.is_null() {
+            (up.llcas_string_dispose)(error);
+        }
+        if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+            return false;
+        }
+        let refs = (up.llcas_loaded_object_get_refs)(cas, loaded);
+        let count = (up.llcas_object_refs_get_count)(cas, refs);
+        if count > MAX_NODES.saturating_sub(pending.len()) {
+            return false;
+        }
+        for index in 0..count {
+            pending.push((up.llcas_object_refs_get_id)(cas, refs, index));
+        }
     }
-    result == LLCAS_LOOKUP_RESULT_SUCCESS
+    true
 }
 
 /// The upstream local lookup, with a hit verified before it is served.
@@ -1262,7 +1283,7 @@ unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) ->
 /// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
 ///
 /// The write-side invariants keep this guard from being the only defense: an
-/// association is recorded only once its root is present, and materialization
+/// association is recorded only once its closure is present, and materialization
 /// publishes a root only over a complete closure. This still runs, because a
 /// prune remains an author no writer controls.
 ///

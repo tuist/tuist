@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -92,7 +93,7 @@ pub struct ReapiCacheAnalyticsEvent {
     pub outcome: &'static str,
     pub action_digest: String,
     pub size: u64,
-    pub duration_ms: u64,
+    pub duration_us: u64,
     pub observed_at_ms: u64,
 }
 
@@ -101,7 +102,7 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 13)?;
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 14)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
         event.serialize_field("client_kind", self.context.client_kind)?;
@@ -109,7 +110,13 @@ impl Serialize for ReapiCacheAnalyticsEvent {
         event.serialize_field("outcome", self.outcome)?;
         event.serialize_field("action_digest", &self.action_digest)?;
         event.serialize_field("size", &self.size)?;
-        event.serialize_field("duration_ms", &self.duration_ms)?;
+        // Microseconds are the real measurement: Kura answers most action-cache
+        // lookups in well under a millisecond, so a millisecond field rounds
+        // almost every observation to zero and makes latency and throughput
+        // uncomputable. `duration_ms` stays on the wire so a server that has
+        // not rolled yet keeps working, and can be dropped once it has.
+        event.serialize_field("duration_us", &self.duration_us)?;
+        event.serialize_field("duration_ms", &(self.duration_us / 1_000))?;
         event.serialize_field("observed_at_ms", &self.observed_at_ms)?;
         event.serialize_field("invocation_id", &self.context.invocation_id)?;
         event.serialize_field("action_mnemonic", &self.context.action_mnemonic)?;
@@ -129,6 +136,7 @@ pub struct BazelInvocationAnalyticsEvent {
     pub git_branch: String,
     pub git_commit_sha: String,
     pub is_ci: bool,
+    pub custom_values: BTreeMap<String, String>,
     pub bazel_version: String,
     pub cpu_time_ms: u64,
     pub actions_created: u64,
@@ -748,7 +756,10 @@ impl CircuitState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{
         Router, body::Bytes, extract::Request, http::StatusCode, response::IntoResponse,
@@ -809,7 +820,7 @@ mod tests {
             outcome: "hit",
             action_digest: "digest-1".into(),
             size: 128,
-            duration_ms: 9,
+            duration_us: 9_400,
             observed_at_ms: 1_700_000_000_123,
         });
         analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
@@ -821,6 +832,10 @@ mod tests {
             git_branch: "main".into(),
             git_commit_sha: "abc123".into(),
             is_ci: true,
+            custom_values: BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ]),
             bazel_version: "9.1.0".into(),
             cpu_time_ms: 1_250,
             actions_created: 11,
@@ -925,6 +940,7 @@ mod tests {
                     "outcome": "hit",
                     "action_digest": "digest-1",
                     "size": 128,
+                    "duration_us": 9400,
                     "duration_ms": 9,
                     "observed_at_ms": 1700000000123u64,
                     "invocation_id": "invocation-1",
@@ -960,6 +976,10 @@ mod tests {
                     "is_ci": true,
                     "git_branch": "main",
                     "git_commit_sha": "abc123",
+                    "custom_values": {
+                        "environment": "local",
+                        "runner": "linux-arm64"
+                    },
                     "bazel_version": "9.1.0",
                     "cpu_time_ms": 1_250,
                     "actions_created": 11,
@@ -1076,7 +1096,7 @@ mod tests {
             outcome: "write",
             action_digest: "content-digest".into(),
             size: 4_096,
-            duration_ms: 14,
+            duration_us: 14_500,
             observed_at_ms: 1_700_000_000_456,
         });
 
@@ -1116,6 +1136,7 @@ mod tests {
                     "outcome": "write",
                     "action_digest": "content-digest",
                     "size": 4096,
+                    "duration_us": 14500,
                     "duration_ms": 14,
                     "observed_at_ms": 1700000000456u64,
                     "invocation_id": "invocation-1",
@@ -1241,6 +1262,7 @@ mod tests {
             git_branch: String::new(),
             git_commit_sha: String::new(),
             is_ci: false,
+            custom_values: BTreeMap::new(),
             bazel_version: String::new(),
             cpu_time_ms: 0,
             actions_created: 0,

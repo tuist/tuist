@@ -21,7 +21,9 @@ defmodule Tuist.Processor.XCActivityLogParser do
   @delay_to_sigkill to_timeout(second: 5)
 
   @doc """
-  Parses an xcactivitylog file and returns structured build data.
+  Parses an xcactivitylog file and invokes `consume` with structured build data.
+  The `build_steps` enumerable must be consumed inside the callback: its temporary
+  JSONL file is removed when the callback returns or raises.
 
   ## Parameters
 
@@ -29,52 +31,75 @@ defmodule Tuist.Processor.XCActivityLogParser do
     * `cas_analytics_db_path` - Path to the CAS analytics SQLite database
     * `legacy_cas_metadata_path` - Path to the legacy CAS metadata directory (for backward compatibility)
     * `xcode_cache_upload_enabled` - Accepted for call-site compatibility; the parser does not read it
+    * `consume` - Ingests the summary and lazy step enumerable before temporary-file cleanup
 
   ## Returns
 
-    * `{:ok, map}` - Parsed build data as a map
+    * The return value of `consume` on successful parsing
     * `{:error, reason}` - If parsing fails
   """
-  def parse(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, _xcode_cache_upload_enabled) do
+  def parse(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, _xcode_cache_upload_enabled, consume) do
     output_path = Path.join(System.tmp_dir!(), "xcactivitylog_#{System.unique_integer([:positive])}.json")
 
+    steps_path = output_path <> ".steps.jsonl"
+
     try do
-      with {:ok, executable} <- executable_path(),
-           :ok <-
-             run(executable, [
-               xcactivitylog_path,
-               cas_analytics_db_path,
-               legacy_cas_metadata_path,
-               output_path
-             ]),
-           {:ok, json} <- File.read(output_path) do
-        JSON.decode(json)
+      result =
+        :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
+          result =
+            parse_data(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, output_path, steps_path)
+
+          status = if match?({:ok, _}, result), do: :ok, else: :error
+          {result, %{status: status}}
+        end)
+
+      with {:ok, parsed} <- result do
+        steps = steps_path |> File.stream!() |> Stream.map(&JSON.decode!/1)
+        consume.(Map.put(parsed, "build_steps", steps))
       end
     after
       File.rm(output_path)
+      File.rm(steps_path)
+    end
+  end
+
+  defp parse_data(log, cas, metadata, output, steps) do
+    with {:ok, executable} <- executable_path(),
+         :ok <- run(executable, [log, cas, metadata, output, steps]),
+         {:ok, json} <- File.read(output) do
+      JSON.decode(json)
     end
   end
 
   defp run(executable, arguments) do
-    case MuonTrap.cmd(executable, arguments,
-           timeout: @timeout,
-           delay_to_sigkill: @delay_to_sigkill,
-           stderr_to_stdout: true
-         ) do
-      {_output, 0} ->
+    # MuonTrap.cmd acknowledges output over stdin, which can exit the caller
+    # with :epipe when the parser exits before the acknowledgement is written.
+    # The wrapper leaves stderr inherited without capture flags, so System.cmd
+    # can collect diagnostics directly while MuonTrap still owns child cleanup.
+    task =
+      Task.async(fn ->
+        System.cmd(
+          MuonTrap.muontrap_path(),
+          ["--delay-to-sigkill", to_string(@delay_to_sigkill), "--", executable | arguments],
+          stderr_to_stdout: true
+        )
+      end)
+
+    case Task.yield(task, @timeout) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {_output, 0}} ->
         :ok
 
-      {_output, :timeout} ->
+      nil ->
         {:error, :parse_timeout}
 
       # muontrap reports a child killed by a signal as 128 + signum, so a Swift
       # trap (SIGILL) arrives here as 132. Keep it distinguishable from an
       # error the parser reported itself: a crash means a build we cannot parse
       # until the trap is fixed, not a transient failure worth retrying.
-      {output, status} when status > 128 ->
+      {:ok, {output, status}} when status > 128 ->
         {:error, {:parser_crashed, status, String.trim(output)}}
 
-      {output, _status} ->
+      {:ok, {output, _status}} ->
         {:error, String.trim(output)}
     end
   end

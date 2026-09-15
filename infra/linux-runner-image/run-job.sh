@@ -22,6 +22,27 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+# Optional: route the job's Tuist cache at the account's per-job
+# endpoint when dispatch-poll.sh staged one. The CLI honors
+# TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
+# exec propagates it to the runner process. The job-start hook below
+# also publishes it to GitHub's job environment for container steps.
+# Falls back to default cache resolution when the file is absent.
+CACHE_ENDPOINT_PATH="${JIT_PATH}.cache-endpoint"
+if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
+  cache_endpoint="$(cat "${CACHE_ENDPOINT_PATH}")"
+  if [ -n "${cache_endpoint}" ]; then
+    echo "$(date -u +%FT%TZ) run-job: routing cache to runner-local endpoint ${cache_endpoint}"
+    export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
+  fi
+fi
+
+if [ -s "${JIT_PATH}.gitlab.json" ]; then
+  [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
+  exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \
+    --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
 BUILDKITE_ENV_PATH="${JIT_PATH}.buildkite-env"
 
 # Buildkite branch. The poller stages a credential file instead of a JIT
@@ -78,19 +99,6 @@ if [ -z "${jit}" ]; then
   echo "$(date -u +%FT%TZ) run-job: JIT at ${JIT_PATH} unreadable/empty; aborting"
   exit 1
 fi
-# Optional: route the job's Tuist cache at the account's per-job
-# endpoint when dispatch-poll.sh staged one. The CLI honors
-# TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
-# exec propagates it to the runner process and every job step. Falls
-# back to the CLI's default cache resolution when the file is absent.
-CACHE_ENDPOINT_PATH="${JIT_PATH}.cache-endpoint"
-if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
-  cache_endpoint="$(cat "${CACHE_ENDPOINT_PATH}")"
-  if [ -n "${cache_endpoint}" ]; then
-    echo "$(date -u +%FT%TZ) run-job: routing cache to runner-local endpoint ${cache_endpoint}"
-    export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
-  fi
-fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
 # Forensic vitals for this job's lifetime. Backgrounded so it keeps
 # sampling until the container (and microVM) dies; its last line
@@ -137,6 +145,14 @@ cat >"${JOB_STARTED_HOOK}" <<HOOK
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+# Docker job steps only receive GitHub's explicit job environment,
+# not arbitrary variables inherited by the runner process. GITHUB_ENV
+# is created when this hook executes, not when run-job.sh writes it.
+if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
+  if ! printf 'TUIST_CACHE_ENDPOINT=%s\\n' "\${TUIST_CACHE_ENDPOINT}" >> "\${GITHUB_ENV}"; then
+    echo "::warning::Could not publish the runner cache endpoint to the job environment"
+  fi
+fi
 exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"

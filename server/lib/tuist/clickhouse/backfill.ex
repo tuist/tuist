@@ -53,7 +53,8 @@ defmodule Tuist.ClickHouse.Backfill do
   wrong. It also removes the need to reason about the dual write's boundary
   separately: a row the mirror already delivered is one the copy skips.
 
-  See `identity_columns/2` for what the destination "lacking" a row means.
+  See `identity_columns/1` and `lacking/3` for what the destination "lacking"
+  a row means.
 
   ## Where the copy stops
 
@@ -120,21 +121,31 @@ defmodule Tuist.ClickHouse.Backfill do
   # Held on one pinned connection for the length of the run rather than inside
   # a transaction: the copy takes hours, and an open transaction for hours is
   # its own problem.
+  #
+  # `timeout: :infinity` because that is how long the connection is held, not
+  # how long any query on it runs. The default is 15 seconds, so DBConnection
+  # killed the pinned connection fifteen seconds into a copy and took the run
+  # down with it, mid-enumeration, no matter how healthy the copy was. Staging
+  # passed only because its dataset finished inside the window; canary's did
+  # not. The run's real bound is the Job's `activeDeadlineSeconds`.
   defp with_single_flight(fun) do
-    Repo.checkout(fn ->
-      case Repo.query!("SELECT pg_try_advisory_lock($1)", [@lock_key]) do
-        %{rows: [[true]]} ->
-          try do
-            fun.()
-          after
-            Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
-          end
+    Repo.checkout(
+      fn ->
+        case Repo.query!("SELECT pg_try_advisory_lock($1)", [@lock_key]) do
+          %{rows: [[true]]} ->
+            try do
+              fun.()
+            after
+              Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
+            end
 
-        _ ->
-          Logger.warning("Another ClickHouse backfill holds the lock; leaving it to finish")
-          {:error, :already_running}
-      end
-    end)
+          _ ->
+            Logger.warning("Another ClickHouse backfill holds the lock; leaving it to finish")
+            {:error, :already_running}
+        end
+      end,
+      timeout: :infinity
+    )
   end
 
   defp backfill(source, target, opts) do
@@ -174,11 +185,6 @@ defmodule Tuist.ClickHouse.Backfill do
     else
       claim_chunk(table, chunk)
 
-      # The credentials are query parameters rather than interpolated text, so
-      # the statement carries no secret even if something logs it. `log: false`
-      # as well, because a driver-level error can echo the parameters too.
-      statement = copy_statement(target, table, chunk)
-
       params = %{
         "address" => source_address(source),
         "database" => source.database,
@@ -188,7 +194,7 @@ defmodule Tuist.ClickHouse.Backfill do
       }
 
       try do
-        target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
+        copy(source, target, table, chunk, params)
 
         {source_rows, destination_rows} = verify(source, target, table, chunk)
         finish_chunk(table, chunk, source_rows, destination_rows)
@@ -331,81 +337,151 @@ defmodule Tuist.ClickHouse.Backfill do
   # every chunk of a first backfill, and gap-filling when it holds something,
   # which is a repair or the overlap the dual write leaves behind.
   #
-  # `GLOBAL NOT IN` rather than `NOT IN`: the subquery reads the destination,
-  # and without `GLOBAL` it is sent to the source to run, where that table
-  # does not exist.
-  defp copy_statement(target, table, chunk) do
-    into = "INSERT INTO #{quote_ident(target.database)}.#{quote_ident(table)}"
+  # The credentials are query parameters rather than interpolated text, so the
+  # statement carries no secret even if something logs it. `log: false` as
+  # well, because a driver-level error can echo the parameters too.
+  defp copy(source, target, table, chunk, params) do
+    destination = "#{quote_ident(target.database)}.#{quote_ident(table)}"
     from = "remoteSecure({address:String}, {database:String}, {table:String}, {user:String}, {password:String})"
 
-    if count(target, table, chunk) == 0 do
-      "#{into} SELECT * FROM #{from} WHERE #{predicate(chunk)}"
-    else
-      Logger.info("#{table} #{inspect(chunk)}: destination already holds rows here, copying only what it lacks")
-      identity = target |> identity_columns(table) |> Enum.map_join(", ", &quote_ident/1)
+    case count(target, table, chunk) do
+      0 ->
+        run!(target, "INSERT INTO #{destination} SELECT * FROM #{from} WHERE #{predicate(chunk)}", params)
 
-      """
-      #{into}
-      SELECT * FROM #{from}
-      WHERE #{predicate(chunk)}
-        AND cityHash64(#{identity}) GLOBAL NOT IN (
-          SELECT cityHash64(#{identity})
-          FROM #{quote_ident(target.database)}.#{quote_ident(table)}
-          WHERE #{predicate(chunk)}
-        )
-      """
+      destination_rows ->
+        Logger.info("#{table} #{inspect(chunk)}: destination already holds rows here, copying only what it lacks")
+        shape = shape(target, table)
+        where = lacking(identity_columns(shape), destination, chunk)
+
+        if not Tables.collapsing?(shape.engine) do
+          %{rows: [[lacking_rows]]} = run!(target, "SELECT count() FROM #{from} WHERE #{where}", params)
+          refuse_duplicates!(lacking_rows, count(source, table, chunk) - destination_rows)
+        end
+
+        run!(target, "INSERT INTO #{destination} SELECT * FROM #{from} WHERE #{where}", params)
     end
+  end
+
+  defp run!(target, statement, params) do
+    target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
+  end
+
+  # On a plain `MergeTree` the destination cannot lack more rows than it is
+  # short of. When more look missing, some rows it already holds do not match
+  # their source copy under the identity, and inserting them would duplicate
+  # them and fire every view that reads the table a second time, neither of
+  # which a later step can take back. Raised, so the chunk is recorded as
+  # failed instead of copied.
+  #
+  # Collapsing engines are left out because their raw counts move with merges
+  # on either side while the data stays the same.
+  defp refuse_duplicates!(lacking_rows, shortfall) when lacking_rows > shortfall do
+    raise "#{lacking_rows} row(s) look missing but the destination is only #{shortfall} short, so some rows it already holds do not match their source copy and would be copied twice"
+  end
+
+  defp refuse_duplicates!(_lacking_rows, _shortfall), do: :ok
+
+  @doc """
+  The `WHERE` clause selecting the rows of a chunk whose identity the
+  destination does not hold.
+
+  The identity is hashed as a single tuple. A hash of a NULL argument is NULL,
+  and `NULL NOT IN (...)` is not true, so hashing the columns as separate
+  arguments skips every row with a NULL in any of them. A tuple is never NULL
+  itself, so every row gets a hash, and a NULL still hashes differently from
+  an empty value.
+
+  `GLOBAL NOT IN` rather than `NOT IN`: the subquery reads the destination,
+  and without `GLOBAL` it is sent to the source to run, where that table does
+  not exist.
+
+  Public for the same reason as `predicate/1`: when it is wrong, rows go
+  missing without any error.
+  """
+  def lacking(identity, destination, chunk) do
+    hash = "cityHash64(tuple(#{Enum.map_join(identity, ", ", &quote_ident/1)}))"
+
+    "#{predicate(chunk)} AND #{hash} GLOBAL NOT IN (SELECT #{hash} FROM #{destination} WHERE #{predicate(chunk)})"
   end
 
   @doc """
   What makes a row the same row, for deciding which ones the destination is
-  missing.
+  missing, given a table's engine, sorting key and columns.
 
   On an engine that collapses by its sorting key, that key is the identity the
-  engine itself uses: two rows sharing it are already one row as far as the
-  table is concerned.
+  engine itself uses, together with the columns the engine is told to tell
+  versions apart by: the version of a `ReplacingMergeTree`, the sign of a
+  `CollapsingMergeTree`. Without the version, a destination holding an older
+  version of a row counts as holding the row, and the newer one is never
+  copied.
 
   On a plain `MergeTree` nothing is unique, because duplicate rows are legal
-  and meaningful, so identity has to be every column. The cost is that two
-  genuinely identical rows are treated as one and only one is copied. That is
-  a narrower failure than the alternative: `build_files` sorts by project, so
-  a sorting-key identity would make most missing rows look present and they
-  would never be copied at all.
+  and meaningful, so identity is every column the writer supplies. The cost is
+  that two genuinely identical rows are treated as one and only one is copied.
+  That is a narrower failure than the alternative: `build_files` sorts by
+  project, so a sorting-key identity would make most missing rows look present
+  and they would never be copied at all.
+
+  Columns with a default are left out of that. When a write omits one, each
+  server fills it in for itself and the two need not agree, as
+  `command_events.legacy_id` did while it came from a per-server counter, and
+  a row the destination holds would then look missing. If every column has a
+  default, all of them are used.
   """
-  def identity_columns(endpoint, table) do
-    case Tables.final_clause(endpoint, table) do
-      " FINAL" -> sorting_key_columns(endpoint, table)
-      _ -> all_columns(endpoint, table)
+  def identity_columns(%{engine: engine, engine_full: engine_full, sorting_key: sorting_key, columns: columns}) do
+    if Tables.collapsing?(engine) and sorting_key != "" do
+      Enum.uniq(split_columns(sorting_key) ++ engine_columns(engine_full))
+    else
+      case for({name, ""} <- columns, do: name) do
+        [] -> Enum.map(columns, &elem(&1, 0))
+        written -> written
+      end
     end
   end
 
-  defp sorting_key_columns(endpoint, table) do
-    %{rows: rows} =
+  defp shape(endpoint, table) do
+    params = %{"database" => endpoint.database, "table" => table}
+
+    %{rows: [[engine, engine_full, sorting_key]]} =
       endpoint.repo.query!(
-        "SELECT sorting_key FROM system.tables WHERE database = {database:String} AND name = {table:String}",
-        %{"database" => endpoint.database, "table" => table},
+        "SELECT engine, engine_full, sorting_key FROM system.tables WHERE database = {database:String} AND name = {table:String}",
+        params,
         log: false
       )
 
-    case rows do
-      [[key]] when is_binary(key) and key != "" -> key |> String.split(",") |> Enum.map(&String.trim/1)
-      _ -> all_columns(endpoint, table)
-    end
-  end
-
-  defp all_columns(endpoint, table) do
-    %{rows: rows} =
+    %{rows: columns} =
       endpoint.repo.query!(
         """
-        SELECT name FROM system.columns
+        SELECT name, default_kind FROM system.columns
         WHERE database = {database:String} AND table = {table:String}
         ORDER BY position
         """,
-        %{"database" => endpoint.database, "table" => table},
+        params,
         log: false
       )
 
-    List.flatten(rows)
+    %{engine: engine, engine_full: engine_full, sorting_key: sorting_key, columns: Enum.map(columns, &List.to_tuple/1)}
+  end
+
+  defp split_columns(key), do: key |> String.split(",") |> Enum.map(&String.trim/1)
+
+  # The engine's own column arguments, after the Keeper path and replica name
+  # a replicated engine carries:
+  # `ReplicatedReplacingMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}', inserted_at)`
+  # names `inserted_at`. `SummingMergeTree` takes arguments too, but they are
+  # the values it adds up rather than anything that identifies a row.
+  defp engine_columns(engine_full) do
+    case Regex.run(~r/(?:Replacing|Collapsing)MergeTree\(([^)]*)\)/, engine_full) do
+      [_, arguments] ->
+        arguments
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == "" or String.starts_with?(&1, "'")))
+        |> Enum.map(&String.trim(&1, "`"))
+
+      nil ->
+        []
+    end
   end
 
   # Raw counts first, and only if they disagree are both sides counted again

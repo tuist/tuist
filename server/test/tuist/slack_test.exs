@@ -84,7 +84,7 @@ defmodule Tuist.SlackTest do
       stub(Environment, :slack_tuist_token, fn -> token end)
 
       stub(Req, :post, fn _, [headers: _, body: _] ->
-        {:ok, %Req.Response{status: 200, body: %{}}}
+        {:ok, %Req.Response{status: 200, body: %{"ok" => true}}}
       end)
 
       # When
@@ -92,6 +92,28 @@ defmodule Tuist.SlackTest do
 
       # Then
       assert response == :ok
+    end
+
+    test "returns Slack API errors even when the HTTP request succeeds" do
+      stub(Environment, :slack_tuist_token, fn -> "token" end)
+
+      for error <- ["account_inactive", "invalid_auth", "not_in_channel", "channel_not_found"] do
+        expect(Req, :post, fn _, [headers: _, body: _] ->
+          {:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}
+        end)
+
+        assert Slack.send_message([], channel: "#gtm") == {:error, "Slack API error: #{error}"}
+      end
+    end
+
+    test "does not accept a response without an explicit success" do
+      stub(Environment, :slack_tuist_token, fn -> "token" end)
+
+      for body <- [%{}, %{"ok" => false}, "invalid response"] do
+        expect(Req, :post, fn _, _ -> {:ok, %Req.Response{status: 200, body: body}} end)
+
+        assert Slack.send_message([]) == {:error, "Unexpected Slack API response"}
+      end
     end
 
     test "when the response is not successful" do

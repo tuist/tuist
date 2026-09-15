@@ -26,7 +26,6 @@ defaults:
     working-directory: grafana-datasource
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
@@ -39,7 +38,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -55,7 +53,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -71,7 +68,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -87,7 +83,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -103,7 +98,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -118,7 +112,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -133,7 +126,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "go node"
           working-directory: grafana-datasource
           github-token: ${{ env.MISE_GITHUB_TOKEN }}

@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
@@ -59,6 +60,7 @@ defmodule TuistWeb.RunnerJobLive do
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
         buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -73,10 +75,11 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:head_title, head_title)
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job, buildkite_job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")

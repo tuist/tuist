@@ -226,7 +226,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           )
           |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
-          |> ClickHouseRepo.all()
+          |> ClickHouseRepo.all(multipart: true)
 
         {:rolling, size} ->
           rolling_triggered_test_case_ids(project_id, scope, "flakiness_rate", size, threshold, comparison, test_case_ids)
@@ -255,7 +255,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           )
           |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
-          |> ClickHouseRepo.all()
+          |> ClickHouseRepo.all(multipart: true)
 
         {:rolling, size} ->
           rolling_triggered_test_case_ids(
@@ -292,7 +292,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           )
           |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
-          |> ClickHouseRepo.all()
+          |> ClickHouseRepo.all(multipart: true)
 
         {:rolling, size} ->
           rolling_triggered_test_case_ids(
@@ -772,7 +772,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp filter_test_case_ids(query, []), do: where(query, false)
 
   defp filter_test_case_ids(query, test_case_ids) do
-    where(query, [row], row.test_case_id in ^test_case_ids)
+    where(
+      query,
+      [row],
+      fragment("? IN (?)", row.test_case_id, type(^test_case_ids, {:array, Ecto.UUID}))
+    )
   end
 
   # Persisted alerts always carry an explicit `window_type` after the backfill

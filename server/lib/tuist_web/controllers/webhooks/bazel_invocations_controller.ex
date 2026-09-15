@@ -18,6 +18,9 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   @max_invocation_logs 32
   @max_invocation_log_message_bytes 2 * 1_024
   @max_invocation_log_total_bytes 32 * 1_024
+  @max_custom_metadata_entries 20
+  @max_custom_metadata_key_bytes 50
+  @max_custom_metadata_value_bytes 500
 
   def handle(conn, %{"events" => events}) when is_list(events) do
     {events, overflow_events} = Enum.split(events, @max_events_per_request)
@@ -72,6 +75,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
     git_branch = Map.get(event, "git_branch", "")
     git_commit_sha = Map.get(event, "git_commit_sha", "")
     is_ci = Map.get(event, "is_ci", false)
+    custom_values = Map.get(event, "custom_values", %{})
 
     with %{
            "account_handle" => account_handle,
@@ -95,6 +99,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
         git_branch: git_branch,
         git_commit_sha: git_commit_sha,
         is_ci: is_ci,
+        custom_values: custom_values,
         status: status,
         exit_code: exit_code,
         started_at: started_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second),
@@ -137,6 +142,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
         Map.get(event, "git_commit_sha", ""),
         Map.get(event, "is_ci", false)
       ) and
+      valid_custom_values?(Map.get(event, "custom_values", %{})) and
       valid_diagnostics?(event) and
       valid_logs?(Map.get(event, "logs", [])) and
       valid_result?(event["status"], event["exit_code"]) and
@@ -161,6 +167,15 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
       is_binary(git_branch) and byte_size(git_branch) <= 1_024 and
       is_binary(git_commit_sha) and byte_size(git_commit_sha) <= 1_024 and is_boolean(is_ci)
   end
+
+  defp valid_custom_values?(values) when is_map(values) and map_size(values) <= @max_custom_metadata_entries do
+    Enum.all?(values, fn {key, value} ->
+      is_binary(key) and key != "" and byte_size(key) <= @max_custom_metadata_key_bytes and
+        is_binary(value) and byte_size(value) <= @max_custom_metadata_value_bytes
+    end)
+  end
+
+  defp valid_custom_values?(_), do: false
 
   defp valid_result?(status, exit_code),
     do:

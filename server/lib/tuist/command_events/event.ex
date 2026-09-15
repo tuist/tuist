@@ -22,7 +22,7 @@ defmodule Tuist.CommandEvents.Event do
       :cache_endpoint,
       :ran_at
     ],
-    sortable: [:created_at, :ran_at, :duration, :hit_rate]
+    sortable: [:created_at, :ran_at, :duration, :hit_rate, :id]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}

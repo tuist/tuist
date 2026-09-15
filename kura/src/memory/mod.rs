@@ -30,7 +30,8 @@ use pools::MemoryPools;
 use pressure::transition;
 use reservation::{
     AdmissionClass, DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT, FOREGROUND_ADMISSION_TIMEOUT,
-    ForegroundWaiter, ResponseStreamWaiter,
+    ForegroundWaiter, RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT, ResponseStreamWaiter,
+    TransientElasticity,
 };
 
 /// Coordinates deterministic admission for memory that Kura allocates on behalf of a request.
@@ -94,6 +95,7 @@ struct MemoryControllerInner {
     response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
+    pressure_tier_changed: Notify,
     /// Mapped regions currently lent out, each holding its pool permit once.
     mmap_regions: StdMutex<HashMap<MmapRegion, MmapRegionEntry>>,
     pools: MemoryPools,
@@ -200,7 +202,10 @@ impl MemoryController {
             pools.foreground_response_streaming_bytes(),
             pools.degraded_response_stream_slots(),
         );
-        metrics.update_transient_memory_capacity(pools.transient_capacity_bytes() as u64);
+        metrics.update_transient_memory_capacity(
+            pools.transient_capacity_bytes() as u64,
+            pools.elastic_transient_capacity_bytes() as u64,
+        );
         Self {
             inner: Arc::new(MemoryControllerInner {
                 runtime_limit_bytes,
@@ -217,6 +222,7 @@ impl MemoryController {
                 response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
+                pressure_tier_changed: Notify::new(),
                 mmap_regions: StdMutex::new(HashMap::new()),
                 pools,
                 metrics,
@@ -254,6 +260,7 @@ impl MemoryController {
         if next != current {
             self.inner.state.store(next.as_u8(), Ordering::Relaxed);
             self.inner.pressure_changed.notify_waiters();
+            self.inner.pressure_tier_changed.notify_waiters();
             self.inner
                 .metrics
                 .record_memory_pressure_transition(current.as_str(), next.as_str());
@@ -329,6 +336,10 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
+    pub(crate) fn pressure_tier_changed(&self) -> tokio::sync::futures::Notified<'_> {
+        self.inner.pressure_tier_changed.notified()
+    }
+
     // Every admission gate below follows the pressure tier alone. The raw
     // cgroup charge (`memory.current`) is deliberately not consulted: it is
     // dominated by reclaimable clean file cache on a warm serving node, sits
@@ -357,13 +368,9 @@ impl MemoryController {
         self.pressure() != MemoryPressure::Critical
     }
 
-    /// Gates the *usage* (metering) outbox only. Replication delivery is
-    /// deliberately never paused: its durable backlog is bounded by the outbox
-    /// capacity (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per replication peer, or a
-    /// fixed `KURA_OUTBOX_MAX_DEPTH`), and a full replication outbox rejects cache
-    /// writes, so pausing it converts a memory problem into a correctness and
-    /// availability one. Metering has no such feedback — a delayed usage batch
-    /// costs nothing but freshness — so it stays sheddable.
+    /// Gates the *usage* (metering) outbox. Metering has no feedback into the
+    /// write path — a delayed usage batch costs nothing but freshness — so it
+    /// stays sheddable.
     pub fn pause_usage_outbox(&self) -> bool {
         self.pressure() == MemoryPressure::Critical
     }
@@ -411,6 +418,41 @@ impl MemoryController {
 
     pub fn transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.transient_reserved_bytes() as u64
+    }
+
+    pub fn elastic_transient_capacity_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_capacity_bytes() as u64
+    }
+
+    pub fn elastic_transient_reserved_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_reserved_bytes() as u64
+    }
+
+    /// Everything a borrowing foreground caller may hold: the floor-derived
+    /// pool plus the ceiling headroom above it. Callers that size a window
+    /// against the budget have to use this, or they clamp themselves to the
+    /// floor and never reach the pool at all.
+    pub fn foreground_transient_capacity_bytes(&self) -> u64 {
+        self.transient_capacity_bytes()
+            .saturating_add(self.elastic_transient_capacity_bytes())
+    }
+
+    /// Session bookkeeping scales at one slot per MiB of transient capacity: the
+    /// old 128-slot limit at 128 MiB of headroom. This is a concurrency sizing
+    /// ratio, not a payload reservation; part storage and assembly retain their
+    /// independent byte permits. Pressure stops elastic borrowing and halves
+    /// ceiling-derived capacity. Already-open sessions may drain above this cap.
+    pub fn multipart_upload_capacity(&self) -> usize {
+        let capacity_bytes = match self.pressure() {
+            MemoryPressure::Normal => self.foreground_transient_capacity_bytes(),
+            MemoryPressure::Constrained => self
+                .transient_capacity_bytes()
+                .min(self.foreground_transient_capacity_bytes() / 2),
+            MemoryPressure::Critical => return 0,
+        };
+        usize::try_from(capacity_bytes / (1024 * 1024))
+            .unwrap_or(usize::MAX)
+            .max(1)
     }
 
     pub fn snapshot_cache_target_bytes(&self, capacity_bytes: usize) -> usize {
@@ -498,6 +540,59 @@ impl MemoryController {
         content_bytes: usize,
     ) -> Result<Option<MemoryPermit>, ()> {
         self.try_acquire_reapi_materialization(content_bytes.checked_mul(2).ok_or(())?)
+    }
+
+    /// Admission for a response the node is about to materialize, waiting for
+    /// headroom rather than refusing on a momentarily full pool.
+    ///
+    /// The pool this waits on is the floor-derived one, deliberately. The
+    /// elastic pool is ceiling headroom above the pod's `memory.min`: anonymous
+    /// memory the kernel cannot reclaim and the guarantee does not cover. It is
+    /// lent to write decoding, whose reservation tracks a message high-water and
+    /// churns with the stream. A materialized response is the opposite shape --
+    /// its permit lives until the client has read the whole body, and no
+    /// server-side deadline bounds that -- so borrowing there would park
+    /// unprotected memory above the floor for as long as the slowest reader
+    /// takes. Waiting keeps the burst inside the guarantee instead.
+    ///
+    /// Callers must hold no other materialization permit when they call this:
+    /// the pool is what they are waiting on, so waiting while holding part of it
+    /// is hold-and-wait. Acquire a request's whole response budget here, once,
+    /// and draw the individual responses down from it.
+    pub async fn reserve_response_materialization(
+        &self,
+        content_bytes: usize,
+    ) -> Result<Option<MemoryPermit>, ()> {
+        let requested_bytes = content_bytes.checked_mul(2).ok_or(())?;
+        if requested_bytes == 0 {
+            return Ok(None);
+        }
+        // No wait makes room for a response the pool could never admit.
+        if requested_bytes > self.reapi_materialization_limit_bytes() {
+            return Err(());
+        }
+        if let Ok(transient) =
+            self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)
+        {
+            return Ok(Some(MemoryPermit {
+                _transient: transient,
+            }));
+        }
+        self.inner
+            .metrics
+            .record_memory_action("response_materialization_admission_wait");
+        // Registering as a waiter is what stops a later arrival from taking the
+        // headroom this one is queued for.
+        let _waiter = ForegroundWaiter::new(self.inner.clone());
+        let transient = timeout(
+            RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT,
+            self.reserve_transient(requested_bytes as u64, AdmissionClass::Foreground),
+        )
+        .await
+        .map_err(|_| ())??;
+        Ok(Some(MemoryPermit {
+            _transient: transient,
+        }))
     }
 
     /// Non-waiting admission for the mmap fast path.
@@ -624,6 +719,26 @@ impl MemoryController {
         }
         self.try_reserve_transient(requested_bytes, AdmissionClass::Foreground)
             .map(ForegroundMemoryReservation::new)
+    }
+
+    /// A foreground reservation that may draw on ceiling headroom above the
+    /// floor-derived pool while pressure is normal.
+    ///
+    /// For the callers whose only alternative is to refuse the write outright.
+    /// `reserve_foreground_memory` waits instead, so it stays on the floor.
+    pub(crate) fn try_reserve_elastic_foreground_memory(
+        &self,
+        requested_bytes: u64,
+    ) -> Result<ForegroundMemoryReservation, ()> {
+        if requested_bytes > 0 && self.inner.foreground_waiters.load(Ordering::Acquire) > 0 {
+            return Err(());
+        }
+        self.try_reserve_transient_with(
+            requested_bytes,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowCeilingHeadroom,
+        )
+        .map(ForegroundMemoryReservation::new)
     }
 
     pub(crate) async fn reserve_foreground_memory(
@@ -958,11 +1073,7 @@ impl MemoryController {
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(TransientElasticity::Fixed));
         }
         if requested_bytes > self.transient_capacity_bytes() {
             return Err(());
@@ -975,10 +1086,22 @@ impl MemoryController {
                 return Ok(TransientMemoryReservation {
                     controller: self.clone(),
                     permit: Some(permit),
+                    elastic_permit: None,
+                    elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
             }
             drop(permit);
+        }
+    }
+
+    fn empty_transient(&self, elasticity: TransientElasticity) -> TransientMemoryReservation {
+        TransientMemoryReservation {
+            controller: self.clone(),
+            permit: None,
+            elastic_permit: None,
+            elasticity,
+            bytes: 0,
         }
     }
 
@@ -987,25 +1110,52 @@ impl MemoryController {
         requested_bytes: u64,
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
+        self.try_reserve_transient_with(requested_bytes, class, TransientElasticity::Fixed)
+    }
+
+    fn try_reserve_transient_with(
+        &self,
+        requested_bytes: u64,
+        class: AdmissionClass,
+        elasticity: TransientElasticity,
+    ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(elasticity));
         }
-        if !self.allow_transient_admission(class)
-            || requested_bytes > self.transient_capacity_bytes()
-        {
+        let borrows = elasticity == TransientElasticity::MayBorrowCeilingHeadroom;
+        let capacity_bytes = if borrows {
+            self.foreground_transient_capacity_bytes()
+        } else {
+            self.transient_capacity_bytes()
+        };
+        if !self.allow_transient_admission(class) || requested_bytes > capacity_bytes {
             return Err(());
         }
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let permit = self.inner.pools.try_acquire_transient(permits)?;
-        Ok(TransientMemoryReservation {
-            controller: self.clone(),
-            permit: Some(permit),
-            bytes: requested_bytes,
-        })
+        let mut reservation = self.empty_transient(elasticity);
+        match self.inner.pools.try_acquire_transient(permits) {
+            Ok(permit) => reservation.permit = Some(permit),
+            Err(()) if borrows => {
+                reservation.elastic_permit = Some(self.try_acquire_elastic_transient(permits)?)
+            }
+            Err(()) => return Err(()),
+        }
+        reservation.bytes = requested_bytes;
+        Ok(reservation)
+    }
+
+    pub(super) fn try_acquire_elastic_transient(
+        &self,
+        permits: u32,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit, ()> {
+        if self.pressure() != MemoryPressure::Normal {
+            return Err(());
+        }
+        let permit = self.inner.pools.try_acquire_elastic_transient(permits)?;
+        self.inner
+            .metrics
+            .record_memory_action("transient_ceiling_headroom_borrowed");
+        Ok(permit)
     }
 
     fn allow_transient_admission(&self, class: AdmissionClass) -> bool {
@@ -1032,6 +1182,18 @@ impl MemoryController {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn pressure_tier_signal_ignores_response_permit_releases() {
+        let controller =
+            MemoryController::new(Metrics::new("local".into(), "tenant".into()), 100, 200);
+        let mut changed = Box::pin(controller.pressure_tier_changed());
+        assert!(futures_util::poll!(&mut changed).is_pending());
+        controller.inner.pressure_changed.notify_waiters();
+        assert!(futures_util::poll!(&mut changed).is_pending());
+        controller.observe(150);
+        assert!(futures_util::poll!(&mut changed).is_ready());
+    }
+
     fn mmap_region(source: &str, len: usize) -> MmapRegion {
         MmapRegion {
             source: Arc::from(source),
@@ -1039,10 +1201,8 @@ mod tests {
             len: len as u64,
         }
     }
-    use crate::{
-        constants::RESPONSE_STREAM_MIN_CHUNK_BYTES,
-        memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT,
-    };
+    use super::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
+    use crate::constants::RESPONSE_STREAM_MIN_CHUNK_BYTES;
     use tokio::sync::Barrier;
     use tokio::task::JoinSet;
 
@@ -1278,6 +1438,58 @@ mod tests {
     }
 
     #[test]
+    fn multipart_capacity_scales_with_memory_headroom() {
+        const MIB: u64 = 1024 * 1024;
+        for (runtime_mib, expected) in [(512, 128), (1024, 256), (4096, 1024)] {
+            let controller = MemoryController::with_runtime_limit(
+                Metrics::new("local".into(), "tenant".into()),
+                runtime_mib * MIB,
+                runtime_mib * 60 / 100 * MIB,
+                runtime_mib * 85 / 100 * MIB,
+            );
+            assert_eq!(controller.multipart_upload_capacity(), expected);
+        }
+    }
+
+    #[test]
+    fn multipart_capacity_stops_borrowing_under_pressure_and_recovers() {
+        const MIB: u64 = 1024 * 1024;
+        let controller = MemoryController::with_anon_budget(
+            Metrics::new("local".into(), "tenant".into()),
+            4096 * MIB,
+            2457 * MIB,
+            3481 * MIB,
+            Some(256 * MIB),
+        );
+        assert_eq!(controller.multipart_upload_capacity(), 1024);
+        controller.observe_container(ContainerMemoryPressureSample {
+            current_bytes: 4000 * MIB,
+            pressure_bytes: 100 * MIB,
+            working_set_bytes: 4000 * MIB,
+            reclaimable_inactive_file_bytes: 0,
+            limit_bytes: Some(4096 * MIB),
+        });
+        assert_eq!(controller.multipart_upload_capacity(), 1024);
+        assert_eq!(controller.observe(2600 * MIB), MemoryPressure::Constrained);
+        assert_eq!(controller.multipart_upload_capacity(), 256);
+        assert_eq!(controller.observe(3500 * MIB), MemoryPressure::Critical);
+        assert_eq!(controller.multipart_upload_capacity(), 0);
+        controller.observe(100 * MIB);
+        assert_eq!(controller.multipart_upload_capacity(), 1024);
+    }
+
+    #[test]
+    fn multipart_capacity_keeps_one_slot_on_tiny_noncritical_budgets() {
+        let controller =
+            MemoryController::new(Metrics::new("local".into(), "tenant".into()), 100, 200);
+        assert_eq!(controller.multipart_upload_capacity(), 1);
+        controller.observe(150);
+        assert_eq!(controller.multipart_upload_capacity(), 1);
+        controller.observe(250);
+        assert_eq!(controller.multipart_upload_capacity(), 0);
+    }
+
+    #[test]
     fn admission_follows_the_tier_not_the_raw_charge() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
@@ -1391,6 +1603,101 @@ mod tests {
             Some(runtime_limit * 4),
         );
         assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
+    }
+
+    /// A controller whose floor-derived budget is a fraction of its ceiling
+    /// headroom, which is the shape every governed instance has in production.
+    fn elastic_controller(forced: Option<MemoryPressure>) -> (MemoryController, u64, u64) {
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let anon_budget = 192 * 1024 * 1024_u64;
+        let controller = MemoryController::with_runtime_limit_and_forced(
+            Metrics::new("us-west".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            forced,
+            Some(anon_budget),
+        );
+        (controller, anon_budget, hard_limit - soft_limit)
+    }
+
+    #[test]
+    fn the_elastic_pool_is_exactly_the_headroom_the_floor_clamp_discards() {
+        let (controller, anon_budget, ceiling_headroom) = elastic_controller(None);
+
+        assert_eq!(controller.transient_capacity_bytes(), anon_budget);
+        assert_eq!(
+            controller.elastic_transient_capacity_bytes(),
+            ceiling_headroom - anon_budget
+        );
+        // Borrowing can never take anonymous admission past what a node with no
+        // published floor would already have granted.
+        assert_eq!(
+            controller.foreground_transient_capacity_bytes(),
+            ceiling_headroom
+        );
+    }
+
+    #[test]
+    fn a_decode_reservation_borrows_ceiling_headroom_once_the_floor_pool_is_full() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        // The floor-derived pool is empty, so a fixed reservation is refused
+        // exactly as it is today.
+        assert!(controller.try_reserve_foreground_memory(1024).is_err());
+
+        let mut elastic = controller
+            .try_reserve_elastic_foreground_memory(0)
+            .expect("a zero-byte reservation always admits");
+        assert!(elastic.try_resize(64 * 1024 * 1024).is_ok());
+        assert_eq!(
+            controller.elastic_transient_reserved_bytes(),
+            64 * 1024 * 1024
+        );
+
+        // Shrinking returns borrowed ceiling memory before the protected floor
+        // allocation, so a node stops borrowing as soon as it stops needing to.
+        assert!(elastic.try_resize(0).is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn borrowing_stops_above_normal_pressure() {
+        let (controller, anon_budget, _) = elastic_controller(Some(MemoryPressure::Constrained));
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut elastic = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+
+        // Constrained is where anonymous growth above the floor stops being
+        // something the kernel can resolve by reclaiming, so the borrow closes.
+        assert!(elastic.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn a_fixed_reservation_never_reaches_the_elastic_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut fixed = controller.try_reserve_foreground_memory(0).unwrap();
+
+        assert!(fixed.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
     }
 
     #[test]
@@ -2146,6 +2453,162 @@ mod tests {
         assert_eq!(controller.transient_reserved_bytes(), 150);
         drop((first, second));
         assert_eq!(controller.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_response_waits_for_headroom_instead_of_shedding_on_a_full_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        // A refused read is an artifact the client fetches again, and the pool
+        // it is refused against drains in milliseconds. Waiting for it costs a
+        // little latency on a cache hit; shedding costs a round trip and, on
+        // Bazel, a retry storm. The memory stays inside the floor either way,
+        // which borrowing ceiling headroom would not.
+        let waiting = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_response_materialization(4096).await }
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiting.is_finished());
+
+        drop(held);
+        waiting
+            .await
+            .expect("the response should acquire once the pool frees")
+            .expect("a freed pool admits the response");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_waiting_response_still_sheds_once_the_pool_never_frees() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let _held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        // The wait is bounded: a pool held by stalled responses must not turn
+        // every later read into a hung request. Past the deadline the answer is
+        // the shed it always was.
+        let started_at = tokio::time::Instant::now();
+        assert!(
+            controller
+                .reserve_response_materialization(4096)
+                .await
+                .is_err()
+        );
+        assert!(started_at.elapsed() >= RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT);
+    }
+
+    #[tokio::test]
+    async fn a_waiting_response_never_reaches_the_elastic_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        // The elastic pool is ceiling headroom above the floor: anonymous memory
+        // the kernel cannot reclaim and `memory.min` does not protect. A
+        // materialized response holds its permit until the client has read the
+        // whole body, which no server-side deadline bounds, so it is exactly the
+        // caller that must not park memory there.
+        let waiting = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_response_materialization(4096).await }
+        });
+        tokio::task::yield_now().await;
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(!waiting.is_finished());
+
+        drop(held);
+        assert!(waiting.await.expect("join").is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_response_larger_than_the_pool_sheds_without_waiting() {
+        let (controller, _, _) = elastic_controller(None);
+        let limit = controller.reapi_materialization_limit_bytes();
+
+        // No amount of waiting makes room for a response the pool could never
+        // admit, so the per-response cap is still checked before the wait.
+        let started_at = std::time::Instant::now();
+        assert!(
+            controller
+                .reserve_response_materialization(limit + 1)
+                .await
+                .is_err()
+        );
+        assert!(started_at.elapsed() < RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_timed_out_response_leaves_nothing_latched_behind_it() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        // A response permit is released only when the client has finished
+        // reading the body, so a stalled reader can hold the pool for a long
+        // time and every read behind it will time out. That must cost exactly
+        // those requests and nothing more: no waiter left registered, no pool
+        // bytes stranded, and the next read served the moment the pool frees.
+        assert!(
+            controller
+                .reserve_response_materialization(4096)
+                .await
+                .is_err()
+        );
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        drop(held);
+        assert_eq!(controller.transient_reserved_bytes(), 0);
+        let recovered = controller
+            .reserve_response_materialization(4096)
+            .await
+            .expect("the pool is free again");
+        assert!(recovered.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_queued_response_cannot_wedge_an_upload_or_a_write_stream() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        // A queued read registers as a foreground waiter, which is what stops a
+        // later arrival from taking the headroom it is queued for. That must not
+        // become a way for read contention to wedge the write paths: uploads
+        // still queue and are served, and a gRPC write stream still grows,
+        // because growth draws on the pools directly rather than through the
+        // waiter guard.
+        let reading = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_response_materialization(4096).await }
+        });
+        tokio::task::yield_now().await;
+        assert!(!reading.is_finished());
+
+        let mut writer = controller
+            .try_reserve_elastic_foreground_memory(0)
+            .expect("a write stream still admits while reads are queued");
+        assert!(
+            writer.try_resize(4 * 1024 * 1024).is_ok(),
+            "write-stream growth must not queue behind reads"
+        );
+
+        let uploading = tokio::spawn({
+            let controller = controller.clone();
+            async move { controller.reserve_foreground_memory(4096).await }
+        });
+
+        drop(held);
+        assert!(reading.await.expect("join").is_ok());
+        assert!(uploading.await.expect("join").is_ok());
+        assert!(writer.try_resize(0).is_ok());
     }
 
     #[tokio::test]

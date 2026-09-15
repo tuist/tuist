@@ -19,8 +19,6 @@ use crate::{
 };
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
-const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
-const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Eviction reports awaiting a successful delivery. In memory only: the claim
 // sizing policy reads weeks of aggregates, so reports lost to a restart are
 // noise, and keeping them off the durable outbox keeps the on-disk format
@@ -488,11 +486,7 @@ async fn flush_loop(state: SharedState) {
 }
 
 async fn delivery_loop(state: SharedState) {
-    let client = match Client::builder()
-        .connect_timeout(USAGE_CONNECT_TIMEOUT)
-        .timeout(USAGE_REQUEST_TIMEOUT)
-        .build()
-    {
+    let client = match crate::control_plane_http::client_builder().build() {
         Ok(client) => client,
         Err(error) => {
             warn!("failed to build usage delivery client: {error}");
@@ -886,14 +880,14 @@ mod tests {
         let event = eviction_event(
             "acme",
             "node-1.kura.local",
-            "eu-central",
+            "eu-west",
             capacity_eviction("segment-1"),
         );
 
         assert_eq!(event.event_id, "evict:node-1.kura.local:segment-1");
         assert_eq!(event.tenant_id, "acme");
         assert_eq!(event.node_id, "node-1.kura.local");
-        assert_eq!(event.region, "eu-central");
+        assert_eq!(event.region, "eu-west");
         assert_eq!(event.segment_id, "segment-1");
         assert_eq!(event.reason, "capacity");
         assert_eq!(event.evicted_at_unix_ms, 90_000);

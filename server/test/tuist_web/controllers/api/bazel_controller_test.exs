@@ -30,6 +30,12 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert invocation["git_branch"] == "feature/bazel"
       assert invocation["git_commit_sha"] == "abcdef"
       assert invocation["is_ci"]
+
+      assert invocation["custom_metadata"] == %{
+               "tags" => [],
+               "values" => %{"environment" => "local", "runner" => "linux-arm64"}
+             }
+
       assert invocation["bazel_version"] == "9.1.0"
       assert invocation["cache_endpoint"] == "cache.tuist.dev"
       assert invocation["status"] == "success"
@@ -228,6 +234,7 @@ defmodule TuistWeb.API.BazelControllerTest do
         git_branch: "feature/bazel",
         git_commit_sha: "abcdef",
         is_ci: true,
+        custom_values: %{"environment" => "local", "runner" => "linux-arm64"},
         bazel_version: "9.1.0",
         cpu_time_ms: 1_250,
         actions_created: 11,

@@ -4,6 +4,9 @@
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 {{- $task := .Values.clickhouse.managed.migration.task | quote }}
 {{- $background := .Values.clickhouse.managed.migration.background }}
+{{- $m := .Values.clickhouse.managed }}
+{{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+{{- $chSecretName := printf "%s-credentials" $chName }}
 {{- /*
 Runs one step of the ClickHouse migration (spec #73) against the in-cluster
 server: cloning the schema from the system of record, backfilling the rows
@@ -73,13 +76,75 @@ spec:
         {{- end }}
     spec:
       restartPolicy: Never
+      # Wait for the destination before doing anything, because this Job can be
+      # applied at the same moment the server it needs is being replaced.
+      #
+      # A background step is an ordinary release resource, so Kubernetes starts
+      # its pod as soon as Helm applies the release, concurrently with any
+      # rolling update of the ClickHouse StatefulSet. The backfill lost that
+      # race twice: it began five seconds before the pod was recreated, got
+      # `connection refused`, and `backoffLimit: 0` made that final. A hook
+      # step does not race in the same way, and waiting costs it nothing.
+      #
+      # This is a wait, not a retry. Startup stops being a failure; a step that
+      # fails once the server is answering still fails, and is re-run
+      # deliberately rather than repeated automatically against a database.
+      initContainers:
+        - name: wait-for-clickhouse
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          imagePullPolicy: {{ $m.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            # The `clickhouse` user in the server image, which is what
+            # `clickhouse-client` expects to find a home directory for. Stated
+            # here rather than inherited, because this pod sets no
+            # pod-level security context: the step container is the server
+            # image and runs as its own user.
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $chSecretName }}
+                  key: password
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              i=0
+              until clickhouse-client \
+                      --host {{ $chName }} \
+                      --port 9000 \
+                      --user default \
+                      --password "$CLICKHOUSE_PASSWORD" \
+                      --query "SELECT 1" >/dev/null 2>&1; do
+                i=$((i + 1))
+                if [ "$i" -ge {{ $m.migration.waitAttempts }} ]; then
+                  echo "ClickHouse did not answer after {{ $m.migration.waitAttempts }} attempts; giving up." >&2
+                  exit 1
+                fi
+                echo "Waiting for ClickHouse at {{ $chName }} (attempt $i)"
+                sleep 5
+              done
+              echo "ClickHouse is answering."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
       {{- with .Values.server.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: clickhouse-migration
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist
@@ -120,13 +185,8 @@ spec:
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             {{- end }}
-            - name: TUIST_CLICKHOUSE_URL
-              value: {{ include "tuist.clickhouseUrl" . | quote }}
-            - name: TUIST_SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-secret-key-base
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
             {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}

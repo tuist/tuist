@@ -346,7 +346,7 @@ spec:
       # node if the scheduler picks it, but it is not pinned there — it runs its
       # helper Pods on the target node regardless of where it sits. runner-cache
       # is the Elastic Metal runner-cache pool; kura-cache is the public-region
-      # pools (Dedibox eu-central, OVH) that also provision scw-local-nvme PVCs.
+      # pools (Dedibox eu-west, OVH) that also provision scw-local-nvme PVCs.
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists
@@ -488,6 +488,19 @@ node for a metrics endpoint.
    exporter is never pointed at a box with no cache volumes to read. Mirrors the
    default in ovh-fleets.yaml: taints unset means the kura-cache taint. */ -}}
 {{- range $key, $fleet := .Values.ovhFleets }}
+{{- if $fleet.enabled }}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet }}
+{{- if eq $taint.key "tuist.dev/kura-cache" }}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- /* vultrFleets carries the same shape and the same taint default, so a Vultr
+   cache pool qualifies on the same test. Without this the exporter never lands
+   on the pool and kura_volume_quota_enforced has no series for it at all, which
+   reads as "no data" rather than as an unbounded volume. */ -}}
+{{- range $key, $fleet := .Values.vultrFleets }}
 {{- if $fleet.enabled }}
 {{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet }}
 {{- if eq $taint.key "tuist.dev/kura-cache" }}

@@ -187,8 +187,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return r.reconcileDelete(ctx, pool)
 	}
+	// Patched, not Updated. A full-object Update writes back every
+	// field the controller decoded, including an
+	// `autoscaling.minWarmPoolFloor` the API server supplied from the
+	// CRD default because helm rendered none. That pins the floor and
+	// moves the field's manager from `helm` to this controller, after
+	// which the chart can no longer set it.
+	beforeFinalizer := pool.DeepCopy()
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
-		if err := r.Update(ctx, pool); err != nil {
+		if err := r.Patch(ctx, pool, client.MergeFrom(beforeFinalizer)); err != nil {
 			return ctrl.Result{}, fmt.Errorf("add drain finalizer: %w", err)
 		}
 	}
@@ -663,8 +670,9 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	original := pool.DeepCopy()
 	controllerutil.RemoveFinalizer(pool, runnerPoolFinalizer)
-	if err := r.Update(ctx, pool); err != nil {
+	if err := r.Patch(ctx, pool, client.MergeFrom(original)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
 	}
 	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)

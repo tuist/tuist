@@ -110,6 +110,9 @@ enum ReleaseCause {
     /// Capacity completion released a composed-but-unfetched segmented
     /// claim: capacity-skipped for the releaser.
     CapacityUnfetched,
+    /// An arrival-ordered pass declined this one tuple on capacity. The
+    /// releaser resolves, while another peer's waiter may still re-claim it.
+    CapacityDeclined,
 }
 
 impl Core {
@@ -313,6 +316,14 @@ impl PassClaimGuard {
         self.set
             .lock_core()
             .release(key, self.pass_id, ReleaseCause::Absent);
+    }
+
+    /// An arrival-ordered pass declined this tuple on the marginal capacity
+    /// trade. Unlike descending-walk completion, later tuples remain eligible.
+    pub fn resolve_capacity_declined(&self, key: &ClaimKey) {
+        self.set
+            .lock_core()
+            .release(key, self.pass_id, ReleaseCause::CapacityDeclined);
     }
 
     /// A bodies batch carrying this claim failed. The claim releases;

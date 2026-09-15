@@ -19,6 +19,7 @@ defmodule TuistWeb.API.Schemas.Run do
       :swift_version,
       :macos_version,
       :status,
+      :is_ci,
       :git_commit_sha,
       :git_ref,
       :git_branch,
@@ -61,7 +62,17 @@ defmodule TuistWeb.API.Schemas.Run do
       },
       status: %Schema{
         type: :string,
+        enum: ["success", "failure"],
         description: "Status of the command event"
+      },
+      is_ci: %Schema{
+        type: :boolean,
+        description: "Whether the run was executed on CI"
+      },
+      error_message: %Schema{
+        type: :string,
+        nullable: true,
+        description: "Error reported by a failed run, truncated to 255 characters. Null when the run succeeded."
       },
       git_commit_sha: %Schema{
         type: :string,

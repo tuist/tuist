@@ -29,6 +29,14 @@ class TuistBuildInsightsTest {
     private val gson = Gson()
 
     @Test
+    fun `recording origin includes early samples and never clips earlier operations`() {
+        val sample = MachineMetricSample(2.0, 10f, 100, 200, 0, 0, 0, 0)
+        assertEquals(2000L, recordingStartedAt(listOf("1970-01-01T00:00:03Z"), listOf(sample), 4000))
+        assertEquals(1000L, recordingStartedAt(listOf("1970-01-01T00:00:01Z"), listOf(sample), 4000))
+        assertEquals(4000L, recordingStartedAt(emptyList(), emptyList(), 4000))
+    }
+
+    @Test
     fun `URL construction is correct`() {
         val baseUrl = "https://tuist.dev"
         val accountHandle = "my-org"
@@ -81,29 +89,6 @@ class TuistBuildInsightsTest {
     }
 
     @Test
-    fun `TaskCacheMetadata defaults are correct`() {
-        val metadata = TaskCacheMetadata()
-        assertNull(metadata.cacheKey)
-        assertNull(metadata.artifactSize)
-        assertEquals(CacheHitType.MISS, metadata.cacheHitType)
-        assertFalse(metadata.remoteCacheMiss)
-        assertNull(metadata.remoteCacheStored)
-    }
-
-    @Test
-    fun `TaskCacheMetadata copy preserves and overrides fields`() {
-        val metadata = TaskCacheMetadata(cacheKey = "abc123", artifactSize = 4096, cacheHitType = CacheHitType.REMOTE)
-        assertEquals("abc123", metadata.cacheKey)
-        assertEquals(4096L, metadata.artifactSize)
-        assertEquals(CacheHitType.REMOTE, metadata.cacheHitType)
-
-        val updated = metadata.copy(cacheHitType = CacheHitType.LOCAL, artifactSize = 8192)
-        assertEquals("abc123", updated.cacheKey)
-        assertEquals(8192L, updated.artifactSize)
-        assertEquals(CacheHitType.LOCAL, updated.cacheHitType)
-    }
-
-    @Test
     fun `BuildReportRequest serializes with snake_case field names`() {
         val report = BuildReportRequest(
             id = "test-build-id",
@@ -123,10 +108,12 @@ class TuistBuildInsightsTest {
                 tags = listOf("nightly"),
                 values = mapOf("team" to "android")
             ),
+            startedAt = "2026-09-09T10:00:00.123Z",
             configurationCache = ConfigurationCacheReport(status = "reused")
         )
 
         val json = gson.toJson(report)
+        assertTrue(json.contains("\"started_at\":\"2026-09-09T10:00:00.123Z\""))
         assertTrue(json.contains("\"duration_ms\""))
         assertTrue(json.contains("\"gradle_version\""))
         assertTrue(json.contains("\"java_version\""))

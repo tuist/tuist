@@ -8,6 +8,7 @@ defmodule Tuist.StorageTest do
   alias Tuist.Environment
   alias Tuist.Storage
   alias Tuist.Storage.AzureBlob
+  alias TuistTestSupport.TelemetryCapture
 
   setup do
     # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
@@ -647,7 +648,7 @@ defmodule Tuist.StorageTest do
     test "returns an error and reports it when the object storage rejects the request" do
       # Given
       event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
-      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+      event_ref = TelemetryCapture.attach_event_handlers([event_name])
 
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()

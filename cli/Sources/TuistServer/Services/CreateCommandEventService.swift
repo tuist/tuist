@@ -139,7 +139,7 @@
             }
         }
 
-        private func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
+        func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
             .init(
                 binary_build_duration: graph.binaryBuildDuration.map { Int($0) },
                 name: graph.name,
@@ -175,16 +175,25 @@
                                                     core_data_models: subhashes.coreDataModels,
                                                     dependencies: subhashes.dependencies,
                                                     deployment_target: subhashes.deploymentTarget,
+                                                    destinations: subhashes.destinations,
+                                                    embedded_product_references: subhashes.embeddedProductReferences
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )
@@ -221,16 +230,25 @@
                                                     core_data_models: subhashes.coreDataModels,
                                                     dependencies: subhashes.dependencies,
                                                     deployment_target: subhashes.deploymentTarget,
+                                                    destinations: subhashes.destinations,
+                                                    embedded_product_references: subhashes.embeddedProductReferences
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )

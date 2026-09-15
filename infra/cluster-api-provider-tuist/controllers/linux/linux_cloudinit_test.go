@@ -466,6 +466,8 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
 		"katacontainers.io/kata-runtime=true",
 		"tuist.dev/kata-runtime=true",
+		kataSharedMemoryScript,
+		kataSharedMemoryUnit,
 		// Set on the handler itself: the earlier rewrite only touches what the
 		// generated default emitted, and this block is appended after it.
 		"SystemdCgroup = true",
@@ -496,9 +498,14 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
 	}
 
+	shmIdx := strings.Index(withKata, "systemctl restart tuist-kata-shared-memory.service")
+	if shmIdx < 0 || shmIdx > restartIdx {
+		t.Fatal("shared memory must be sized before containerd restarts")
+	}
+
 	// Cache fleets: nothing kata anywhere, including the node labels.
 	withoutKata := renderLinuxBootstrapScript(opts)
-	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime"} {
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory"} {
 		if strings.Contains(withoutKata, unwanted) {
 			t.Errorf("cache-fleet render must not contain %q", unwanted)
 		}

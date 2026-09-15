@@ -13,6 +13,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
@@ -29,7 +30,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -82,7 +83,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -118,7 +119,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -154,7 +155,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -175,11 +176,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = organization.account
       project = ProjectsFixtures.project_fixture(account: account)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
 
@@ -210,7 +207,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # env's local-controller-only catalog.
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -240,11 +237,7 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://custom-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
 
@@ -276,11 +269,7 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://custom-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
 
@@ -333,7 +322,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -354,17 +343,8 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "eu-west", url: "https://kura-cache-1.example.com")
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://kura-cache-2.example.com")
 
       conn =
         conn
@@ -394,17 +374,8 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://default-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "eu-west", url: "https://kura-cache-1.example.com")
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://kura-cache-2.example.com")
 
       conn =
         conn
@@ -429,7 +400,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_from_user(user)
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 

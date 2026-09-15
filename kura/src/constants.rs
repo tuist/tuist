@@ -23,23 +23,6 @@ pub const DESIRED_NEW_SEGMENTS: usize = 2;
 pub const CAS_CAPACITY_DEFAULT_DISK_PERCENT: u64 = 50;
 pub const CAS_CAPACITY_MAX_DISK_PERCENT: u64 = 80;
 pub const MAX_DESIRED_SEGMENTS: usize = 16_384;
-pub const REPLICATION_RETRY_SECS: u64 = 2;
-pub const REPLICATION_BACKOFF_BASE_SECS: u64 = 2;
-pub const REPLICATION_BACKOFF_MAX_SECS: u64 = 60;
-// How long an outbox artifact upload may go without producing another body
-// chunk before the attempt is abandoned. Chunk production tracks socket
-// progress (the next chunk is pulled only when the transport accepts bytes),
-// and the body stream re-arms the window when it terminates, so the response
-// wait gets one whole window of its own — the receiver still has to copy the
-// staged body into a segment and fsync it under a node-wide lock before it
-// answers. A stalled receiver therefore fails fast while a slow-but-
-// progressing transfer of any size completes. The upload client itself
-// carries no read timeout: the response side is silent for the whole upload,
-// so a read timeout there is a hard ceiling on total upload time and
-// permanently strands large artifacts. Tunable per node with
-// KURA_REPLICATION_UPLOAD_STALL_MS, since this is now the only deadline on
-// the path.
-pub const DEFAULT_REPLICATION_UPLOAD_STALL_MS: u64 = 60_000;
 pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
@@ -47,49 +30,8 @@ pub const ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER: i32 = 20;
 pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;
 pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
-
-// Outbox messages one replication target may hold. Every cache write
-// enqueues one message per peer, so a single node-wide cap fills in
-// proportion to the mesh and lets one slow peer's backlog consume the room
-// meant for the healthy ones. The quota is enforced per target instead: a
-// write is refused once any of its targets is at this depth, so a dead peer
-// holds at most one share and the node's total is this times the peer count.
-// A message costs about half a KiB of RocksDB (key plus JSON body), so a
-// share is ~50 MiB on disk; the in-memory cost is a counter per target.
-// KURA_OUTBOX_MAX_DEPTH replaces it with a fixed node-wide total.
-pub const DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER: usize = 100_000;
-// Node-wide ceiling on the outbox, whatever the peer count. The share bounds
-// each peer, but the depth cap is the only bound on the outbox's RocksDB
-// footprint (the free-space guard covers segment rotation, not metadata), so
-// the total must not grow without limit with the mesh: ten shares, ~500 MiB.
-pub const OUTBOX_MAX_DEPTH_CEILING: usize = 1_000_000;
-// Outbox deliveries dispatched before the drain waits for one to finish, and
-// the only throughput knob the bulk lane has: the drain moves roughly this many
-// messages per per-delivery latency. Every artifact enqueues one message per
-// peer, so the artifact rate is this divided again by the peer count.
-//
-// `drain_metadata_batches` amortizes the metadata lane over far fewer requests,
-// but it stops at `OUTBOX_BULK_LANE_PREFIX` and takes only inline upserts, so
-// segment-backed artifacts reach a peer one delivery at a time. A runner-cache
-// workload is almost entirely those, which is why this bounds it.
-//
-// Per-delivery latency is dominated by body transfer, not by the round trip: a
-// write-primary replicating to two peers one region away runs at hundreds of
-// milliseconds per delivery, so the ceiling this sets has to be read against
-// ingest measured in tens of messages per second. A ceiling below ingest does
-// not shave the peak, it fills the outbox to its capacity
-// (`DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER` per peer) and starts refusing public
-// writes.
-//
-// The cost is per-delivery body residency: one `RESPONSE_STREAM_CHUNK_BYTES`
-// chunk for a segment-backed artifact, or up to
-// `MAX_INLINE_REPLICATION_BODY_BYTES` for an inline one. That is a few MiB
-// times this number, which stays well inside the transient budget that bounds
-// concurrent writes.
-pub const OUTBOX_MAX_INFLIGHT: usize = 32;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
-pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;
 // REAPI action-cache entries are append-only from the client's perspective
 // (every source change publishes new keys), so a recency sweep is what bounds
 // the namespace keyspace. An expired entry costs its next reader one
@@ -133,25 +75,9 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
-
-// Ceilings on one batched replication request. The metadata lane carries
-// inline artifacts (action-cache entries, small CAS objects) whose bodies run
-// to a few KiB, so a per-message request spends a whole round trip shipping
-// less than one MTU of payload: the drain is bound by messages per second
-// rather than bytes per second, orders of magnitude below the link. Batching
-// moves the bound back onto bytes. The item cap is what does that; the byte cap
-// only stops a run of unusually large inline bodies (up to
-// MAX_INLINE_REPLICATION_BODY_BYTES each) from assembling a request that has to
-// be buffered whole on both sides.
+// Ceilings on one batched push request (`PUT /_internal/replicate/artifacts`)
+// from a peer on a pre-pull release, which is the only sender left.
 pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
-// Batch rounds one pass may take before it hands control back to the
-// per-message drain. The batch pre-pass restarts its scan at the outbox head
-// after every round, so without a bound a target under sustained inflow keeps
-// producing batchable pairs and the pass never reaches the messages batching
-// declines — namespace deletes, and everything bound for a peer that predates
-// the batch route. Four rounds still moves thousands of messages before
-// yielding.
-pub const REPLICATION_BATCH_MAX_ROUNDS: usize = 4;
 pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 64 * 1024;
@@ -191,15 +117,6 @@ pub const fn default_backfill_ready_ring_percent(margin_percent: u64) -> u64 {
     let derived = margin_percent / 2;
     if derived == 0 { 1 } else { derived }
 }
-// Clock-skew allowance subtracted from a pass's start point before it becomes
-// the per-peer watermark. `version_ms` values are stamped by writer clocks, so
-// a writer running behind the requester's clock can stamp entries below an
-// exact start-point watermark, and later windows over that peer would skip
-// them for good. One minute comfortably covers NTP-disciplined fleet drift;
-// its cost is one minute of re-listed (presence-checked, not re-fetched)
-// entries per completed pass. Compiled rather than env-exposed: no
-// demonstrated per-mesh tuning need.
-pub const BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS: u64 = 60_000;
 // Backfill index maintenance-stamp cadence. Each stamp is one tiny put of the
 // DB's latest sequence number into `backfill/meta/last_maintained_seq`; a
 // short cadence keeps the unclean-shutdown staleness slack (below) small.
@@ -356,42 +273,17 @@ pub const BACKFILL_FETCH_QUEUE_TUPLES: usize = 4_096;
 // exhausts it, while the worst case bounds the cycle at budget × max pass
 // backoff per peer. Background retries continue after exhaustion.
 pub const BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET: u32 = 5;
-// Wall-clock cap on one pass's cumulative budget-exempt retry backoff
-// (index building, not-capable/endpoint-absent, backpressure, tmp budget).
-// Past the cap the lifecycle cancels the pass and charges the failure budget:
-// uncapped, a cold node whose in-cycle peers are all stuck in an exempt class
-// (a peer at sustained Critical memory pressure sheds bodies responses for
-// hours) never charges budget and never latches ready — the politeness
-// exemption would recreate the never-ready livelock. Sized to ride out an
-// index build on a large peer without holding first readiness open
-// indefinitely.
-pub const BACKFILL_RETRYABLE_WAIT_CAP_MS: u64 = 30 * 60 * 1000;
-// Tighter wall-clock cap on the not-capable class alone. A 404 means the peer
-// permanently lacks the backfill routes until its own binary is replaced —
-// and under an OrderedReady rolling update that replacement is *blocked
-// behind this node's readiness*, so unlike an index build there is nothing to
-// politely wait out: every second spent in this class is pure rollout stall.
-// With the shared 30-minute cap a quiet mesh (empty recency ring, so the
-// ring-fullness readiness arm can't open) held first readiness for cap ×
-// failure budget = 2.5 h per updated pod on a mixed-version fleet. One minute
-// still absorbs 404 blips from a peer mid-restart while converting a genuine
-// pre-AB peer to a capability charge in minutes, not hours.
-pub const BACKFILL_NOT_CAPABLE_WAIT_CAP_MS: u64 = 60 * 1000;
-// Poll cadence of the cap watchdogs above. Coarse is fine: the caps are
-// livelock backstops measured in minutes, not precise deadlines.
-pub const BACKFILL_CAP_POLL_INTERVAL_MS: u64 = 1_000;
 // Bounded backoff between passes over a peer whose previous pass was
 // budget-charged. Distinct from BACKFILL_RETRY_BACKOFF_* (which paces
 // request retries inside a pass): this paces whole-pass retries, including
 // the metered background retries that continue after budget exhaustion.
 pub const BACKFILL_PASS_RETRY_BACKOFF_BASE_MS: u64 = 5_000;
 pub const BACKFILL_PASS_RETRY_BACKOFF_MAX_MS: u64 = 300_000;
-// Delay of the single follow-up pass after a newly discovered peer's first
-// completed pass: ~2× the 2s membership cadence, long enough for the peer to
-// have discovered this node and applied writes that raced the bilateral
-// discovery seam. Cost is one listing re-walk of the slack window. Sub-tick
-// flaps remain an accepted residual (see the dirty-flag site).
-pub const BACKFILL_SEAM_FOLLOWUP_DELAY_MS: u64 = 4_000;
+// How often a link whose peer predates pull probes it again. A rolling
+// upgrade of that peer is the event being waited for, and until the probe
+// lands nothing carries the upgraded peer's writes to this node; the probe
+// itself is one request answered 404 or one listing page.
+pub const SYNC_UNSUPPORTED_REPROBE_MS: u64 = 30_000;
 // Retention for per-peer `backfill/wm/` watermark rows, judged by the row's
 // completion-time `refreshed_at` against the local clock. A live peer that
 // completes no pass for 90 days is pathological; the cost of a GC'd row is
@@ -421,6 +313,57 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// on production namespaces and every snapshot fetch timed out against it.
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
+
+// ---- Pull-based replication (docs/replication-design.md) ----
+
+/// `KURA_SYNC_FEED_MAX_ROWS` default: rows the arrival feed retains before it
+/// drops its oldest (design §3.1, §10). At ~100 B a row this is ~100 MB
+/// logical; it must hold the writes that land during the longest backward
+/// pass a sibling can need, or recovery loops.
+pub const DEFAULT_SYNC_FEED_MAX_ROWS: u64 = 1_000_000;
+/// Feed rows below the lowest consumer cursor are trimmed once at least this
+/// many have accumulated; a range delete per request would be wasteful and a
+/// wall of point tombstones is what the explicit floor exists to avoid.
+pub const SYNC_FEED_TRIM_BATCH_ROWS: u64 = 1_024;
+/// `KURA_SYNC_LONG_POLL_SECS` default: how long a forward read blocks with
+/// nothing to return. Below the peer client's 30 s idle read timeout so an
+/// idle long-poll never races it (implementation decision D-8).
+pub const DEFAULT_SYNC_LONG_POLL_SECS: u64 = 25;
+/// Upper bound a requester may ask for.
+pub const SYNC_LONG_POLL_MAX_SECS: u64 = 60;
+/// `KURA_SYNC_PASS_START_BUFFER_MS` default: how far below the region
+/// watermark a backward pass starts (design §4.4).
+pub const DEFAULT_SYNC_PASS_START_BUFFER_MS: u64 = 10 * 60 * 1000;
+/// `KURA_SYNC_REGION_SETTLE_MS` default: the ascending region read lists no
+/// entry younger than this against the serving node's clock, so a commit
+/// that lands out of `version_ms` order inside the window is never skipped
+/// (implementation decision D-6).
+pub const DEFAULT_SYNC_REGION_SETTLE_MS: u64 = 2_000;
+/// `KURA_SYNC_FEED_STALE_PEER_SECS` default: a feed consumer unseen for this
+/// long no longer pins the trim floor, and a feed with no consumer for this
+/// long switches off. Matches the control plane's stale-peer window.
+pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
+/// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
+/// from the drain timeout so the sibling wait never eats the process exit.
+pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
+/// Re-check cadence of an idle long-poll, the bound on a missed wake.
+pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// Ceiling of `kura_region_listing_bound_lag_seconds`. The serving bound is
+/// a wall-clock instant and is `0` while a replica link bounds the listing
+/// whole (design §4.1), so an unclamped `now − bound` would report the epoch;
+/// the gauge saturates here instead, and the value doubles as the "held
+/// whole" reading.
+pub const REGION_LISTING_BOUND_LAG_MAX_SECONDS: u64 = 24 * 60 * 60;
+/// `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` default: bodies requests one peer
+/// identity may hold in flight on this node's serving side (design §11.1).
+pub const DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER: u64 = 1;
+/// Floor of the derived peer-serving aggregate (design §11.1): the node
+/// serves at most `max(this, visible peers × slots per peer)` bodies requests
+/// in flight unless `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` pins it. Above the
+/// bound the node answers `503` rather than queueing, so a receiver backs off
+/// or skips. The floor absorbs requesters the membership view does not count
+/// yet: a peer a tick ahead of the view, or one that cannot be dialled back.
+pub const SYNC_PEER_SERVING_MIN_INFLIGHT: u64 = 8;
 
 #[cfg(test)]
 mod tests {

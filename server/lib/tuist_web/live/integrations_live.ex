@@ -8,6 +8,7 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.GitLab
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
@@ -53,12 +54,13 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
-      |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(runner_integrations_visible?: FeatureFlags.runners_enabled?(selected_account))
       |> assign(buildkite_field_errors: %{})
       |> assign(buildkite_form_error: nil)
       |> assign(buildkite_flash: nil)
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
+      |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -72,6 +74,51 @@ defmodule TuistWeb.IntegrationsLive do
       end)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_event("save-gitlab", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      attrs =
+        params
+        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.new(fn
+          {"_id", value} -> {:id, String.trim(value)}
+          {key, value} -> {String.to_existing_atom(key), String.trim(value)}
+        end)
+
+      case GitLab.save_connection(account.id, attrs) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(gitlab_connections: GitLab.list_connections(account.id), gitlab_error: nil)
+           |> push_event("close-modal", %{id: "connect-gitlab-modal"})}
+
+        {:error, _} ->
+          {:noreply,
+           assign(
+             socket,
+             :gitlab_error,
+             dgettext(
+               "dashboard_integrations",
+               "Check the GitLab URL and runner authentication token."
+             )
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-gitlab", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    :ok = GitLab.delete_connection(account.id, id)
+    {:noreply, assign(socket, :gitlab_connections, GitLab.list_connections(account.id))}
+  end
+
+  @impl true
+  def handle_event("close-connect-gitlab-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-gitlab-modal"})}
   end
 
   @impl true

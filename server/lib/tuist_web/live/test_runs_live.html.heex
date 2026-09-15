@@ -428,7 +428,12 @@
   <.card title={dgettext("dashboard_tests", "Test Runs")} icon="dashboard" data-part="test-runs">
     <.card_section data-part="test-runs-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-test-runs" phx-debounce="200">
+        <.form
+          for={%{}}
+          id="test-runs-filter-form"
+          phx-change="search-test-runs"
+          phx-debounce="200"
+        >
           <.text_input
             type="search"
             id="search-test-runs"
@@ -463,9 +468,7 @@
           }
         >
           <:col :let={test_run} label={scheme_label(@selected_project)}>
-            <.text_and_description_cell label={
-              (test_run.scheme !== "" && test_run.scheme) || "Unknown"
-            } />
+            <.text_and_description_cell label={test_run_label(@selected_project, test_run.scheme)} />
           </:col>
           <:col :let={test_run} label="Status">
             <.status_badge_cell

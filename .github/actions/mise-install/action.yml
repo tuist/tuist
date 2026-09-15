@@ -7,12 +7,12 @@ description: |
   direct URLs instead of api.github.com, which gets rate-limited under CI concurrency.
 
 inputs:
-  version:
-    description: Version of mise to install
-    required: true
   install:
-    description: Space-separated tools to install (same value you would pass to mise-action's install_args)
-    required: true
+    description: |
+      Space-separated tools to install (same value you would pass to mise-action's
+      install_args). Leave unset to put mise on PATH without installing any tools.
+    required: false
+    default: ""
   cache:
     description: Whether mise-action should read/write its tool cache
     required: false
@@ -46,9 +46,8 @@ runs:
         done
         echo "core=${core# }" >> "$GITHUB_OUTPUT"
         echo "locked=${locked# }" >> "$GITHUB_OUTPUT"
-    - uses: jdx/mise-action@v4.0.1
+    - uses: ./.github/actions/mise
       with:
-        version: ${{ inputs.version }}
         install: ${{ steps.split.outputs.core != '' }}
         install_args: ${{ steps.split.outputs.core }}
         cache: ${{ inputs.cache }}

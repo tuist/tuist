@@ -4,8 +4,8 @@ defmodule Tuist.Bazel.Invocation do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :command, :inserted_at],
-    sortable: [:inserted_at, :started_at, :finished_at, :duration_ms],
+    filterable: [:project_id, :status, :command, :is_ci, :inserted_at],
+    sortable: [:inserted_at, :started_at, :finished_at, :duration_ms, :status, :command],
     default_order: %{order_by: [:finished_at], order_directions: [:desc]}
   }
 
@@ -18,6 +18,7 @@ defmodule Tuist.Bazel.Invocation do
     field :git_branch, Ch, type: "String", default: ""
     field :git_commit_sha, Ch, type: "String", default: ""
     field :is_ci, :boolean, default: false
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :bazel_version, Ch, type: "LowCardinality(String)", default: ""
     field :cpu_time_ms, Ch, type: "UInt64", default: 0
     field :actions_created, Ch, type: "UInt64", default: 0
@@ -44,5 +45,25 @@ defmodule Tuist.Bazel.Invocation do
     field :project_handle, Ch, type: "String"
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
+  end
+
+  def timeline_spans(invocation) do
+    [
+      invocation.build_timeline_span_lanes,
+      invocation.build_timeline_span_start_ms,
+      invocation.build_timeline_span_durations_ms,
+      invocation.build_timeline_span_categories,
+      invocation.build_timeline_span_descriptions
+    ]
+    |> Enum.zip()
+    |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
+      %{
+        lane: lane,
+        start_ms: start_ms,
+        duration_ms: duration_ms,
+        category: category,
+        description: description
+      }
+    end)
   end
 end

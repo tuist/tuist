@@ -18,7 +18,7 @@ defmodule Tuist.Kura.DemandTest do
   setup do
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
-    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-west"] end)
     :ok
   end
 
@@ -78,7 +78,7 @@ defmodule Tuist.Kura.DemandTest do
 
       assert {:ok, 2} = Demand.flush()
 
-      assert %AccountRegionLifecycle{} = Demand.get(europe.id, "eu-central")
+      assert %AccountRegionLifecycle{} = Demand.get(europe.id, "eu-west")
       assert %AccountRegionLifecycle{} = Demand.get(usa.id, "us-east")
     end
 
@@ -130,7 +130,7 @@ defmodule Tuist.Kura.DemandTest do
       {:ok, 2} =
         Demand.upsert_many([
           %{account_id: first.id, service_region: "us-east", last_cache_demand_at: earlier},
-          %{account_id: second.id, service_region: "eu-central", last_cache_demand_at: earlier}
+          %{account_id: second.id, service_region: "eu-west", last_cache_demand_at: earlier}
         ])
 
       later = DateTime.utc_now()
@@ -146,7 +146,7 @@ defmodule Tuist.Kura.DemandTest do
              ) == :eq
 
       assert DateTime.compare(
-               Demand.get(second.id, "eu-central").last_cache_demand_at,
+               Demand.get(second.id, "eu-west").last_cache_demand_at,
                DateTime.truncate(earlier, :second)
              ) == :eq
     end

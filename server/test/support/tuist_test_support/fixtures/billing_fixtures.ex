@@ -29,6 +29,8 @@ defmodule TuistTestSupport.Fixtures.BillingFixtures do
       status: status,
       account_id: account_id,
       default_payment_method: default_payment_method,
+      current_period_start: Keyword.get(opts, :current_period_start),
+      current_period_end: Keyword.get(opts, :current_period_end),
       inserted_at: Keyword.get(opts, :inserted_at, Tuist.Time.utc_now())
     })
     |> Repo.insert!()

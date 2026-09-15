@@ -29,9 +29,13 @@ scoped to a single `workloads/<cluster>/` subdir. Key invariants:
   `Available` rollup (a sync gate, not health alerting).
 
 `cloudflare-operator.yaml` follows the same child-Kustomization pattern,
-but points at a local Helm release and waits for it to become ready. Its
-managed values pin the operator image by digest. `cloudflare-config.yaml`
-depends on that release and applies the Cloudflare resources under
+but points at a local Helm release and waits for it to become ready.
+Alongside the release, `infra/flux/cloudflare-operator/image-automation.yaml`
+declares an `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation`
+that bump `values-mgmt.yaml`'s image tag on every merge to main; the
+initial reconcile leaves the automation suspended so the rollout can be
+confirmed by hand before it goes autonomous. `cloudflare-config.yaml`
+depends on the release and applies the Cloudflare resources under
 `infra/flux/cloudflare-config/`, preventing Flux from applying a custom
 resource before its definition exists.
 

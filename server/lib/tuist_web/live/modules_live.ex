@@ -4,11 +4,13 @@ defmodule TuistWeb.ModulesLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
-  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.ModuleCache
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
@@ -73,11 +75,23 @@ defmodule TuistWeb.ModulesLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
+    {:noreply,
+     socket
+     |> assign(
+       ModuleCache.analytics_period_assigns(
+         %{
+           "analytics-date-range" => preset,
+           "analytics-start-date" => start_date,
+           "analytics-end-date" => end_date
+         },
+         %{}
+       )
+     )
+     |> push_patch(to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
   def handle_event("select_miss_reason", %{"type" => type}, %{assigns: assigns} = socket)
-      when type in ~w(all changed upstream cold) do
+      when type in ~w(all changed upstream cold evicted) do
     query_params = Query.put(assigns.uri.query, "miss-reason", type)
     path = "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/module-cache/modules"
 
@@ -121,12 +135,10 @@ defmodule TuistWeb.ModulesLive do
     analytics_environment = params["analytics-environment"] || "any"
     sort_by = if params["sort-by"] in @sort_options, do: params["sort-by"], else: "invalidations"
     sort_order = if params["sort-order"] in ~w(asc desc), do: params["sort-order"], else: default_sort_order(sort_by)
-    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
       socket
-      |> assign(:analytics_preset, preset)
-      |> assign(:analytics_period, period)
+      |> assign(ModuleCache.analytics_period_assigns(params, socket.assigns))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
@@ -134,79 +146,80 @@ defmodule TuistWeb.ModulesLive do
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
-      |> assign(:selected_miss_reason, params["miss-reason"] || "all")
+      |> assign(:selected_miss_reason, normalize_miss_reason(params["miss-reason"]))
 
-    opts = analytics_opts(socket.assigns)
+    assign_analytics(socket, analytics_opts(socket.assigns))
+  end
+
+  defp assign_analytics(socket, opts) do
     default_branch = socket.assigns.selected_project.default_branch || "main"
 
     # Sorting, searching and paging all run over the loaded list, so only a
     # change to what the query itself selects has to go back to ClickHouse.
-    if opts == socket.assigns[:modules_opts] do
-      socket
-    else
-      socket
-      |> assign(:modules_opts, opts)
-      |> assign_async([:modules], fn ->
-        {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
-      end)
-      |> assign_async([:timeseries, :miss_reasons_series, :modules_series, :module_count], fn ->
-        {:ok,
-         %{
-           timeseries: opts |> Analytics.module_invalidation_timeseries() |> with_hit_rates(),
-           miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts),
-           modules_series: Analytics.modules_timeseries(opts),
-           module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))
-         }}
-      end)
-    end
-  end
+    same_opts? = opts == socket.assigns[:modules_opts]
 
-  defp with_hit_rates(timeseries) do
-    hit_rates =
-      timeseries.invalidations
-      |> Enum.zip(timeseries.reuses)
-      |> Enum.map(fn {misses, hits} ->
-        case misses + hits do
-          0 -> 0.0
-          total -> Float.round(hits / total * 100, 1)
-        end
-      end)
+    socket =
+      if same_opts? and !socket.assigns.modules.failed do
+        socket
+      else
+        assign_async(socket, [:modules, :miss_reasons_series, :timeseries, :modules_series], fn ->
+          breakdown = Analytics.module_invalidation_breakdown(opts)
+          series = Analytics.module_timeseries_from_breakdown(breakdown, opts)
 
-    Map.put(timeseries, :hit_rates, hit_rates)
+          {:ok,
+           %{
+             modules: Analytics.module_invalidations_from_breakdown(breakdown, Keyword.put(opts, :limit, @max_modules)),
+             miss_reasons_series: series.miss_reasons_series,
+             timeseries: ModuleCache.with_hit_rates(series.timeseries),
+             modules_series: series.modules_series
+           }}
+        end)
+      end
+
+    socket =
+      if same_opts? and !socket.assigns.module_count.failed do
+        socket
+      else
+        assign_async(socket, :module_count, fn ->
+          {:ok, %{module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))}}
+        end)
+      end
+
+    assign(socket, :modules_opts, opts)
   end
 
   @doc """
-  Totals for the analytics widgets.
-
-  None of it comes from the table, which lists only the modules that missed at
-  least once. The module count is the project's latest commit on its default
-  branch, and the rest come from the series, which cover every module.
+  Hit and miss totals from series covering every module, including hit-only
+  modules omitted from the table. The latest-commit module count loads separately.
   """
-  def analytics_totals(module_count, timeseries, miss_reasons) do
+  def analytics_totals(timeseries, miss_reasons) do
     %{
-      modules: module_count,
       hits: Enum.sum(timeseries.reuses),
       misses: Enum.sum(timeseries.invalidations),
       changed: Enum.sum(miss_reasons.changed),
       upstream: Enum.sum(miss_reasons.upstream),
-      cold: Enum.sum(miss_reasons.cold)
+      cold: Enum.sum(miss_reasons.cold),
+      evicted: Enum.sum(miss_reasons.evicted)
     }
   end
 
   def miss_reason_value(totals, "changed"), do: totals.changed
   def miss_reason_value(totals, "upstream"), do: totals.upstream
   def miss_reason_value(totals, "cold"), do: totals.cold
+  def miss_reason_value(totals, "evicted"), do: totals.evicted
   def miss_reason_value(totals, _all), do: totals.misses
 
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
   def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
+  def miss_reason_title("evicted"), do: dgettext("dashboard_cache", "Evicted misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_color("changed"), do: "primary"
   def miss_reason_color("upstream"), do: "secondary"
   def miss_reason_color("cold"), do: "tertiary"
-  def miss_reason_color(_all), do: "destructive"
+  def miss_reason_color("evicted"), do: "destructive"
+  def miss_reason_color(_all), do: "amber"
 
   defp analytics_opts(%{
          selected_project: project,

@@ -110,7 +110,7 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <div data-part="widgets">
+    <div :if={!@module.failed} data-part="widgets">
       <.widget
         loading={!@module.ok?}
         id="widget-cache-activity"
@@ -154,7 +154,7 @@
             "How many modules this one invalidates downstream when it changes."
           )
         }
-        value={if @module.ok?, do: Integer.to_string(@module.result.blast_radius || 0)}
+        value={if @module.ok?, do: format_number(@module.result.blast_radius || 0)}
         phx_click="select_widget"
         phx_value_widget="blast_radius"
         selected={@analytics_selected_widget == "blast_radius"}
@@ -164,12 +164,7 @@
         id="widget-why-it-misses"
         title={miss_reason_title(@selected_miss_reason)}
         legend_color={miss_reason_legend(@selected_miss_reason)}
-        description={
-          dgettext(
-            "dashboard_cache",
-            "Builds where this module was a cache miss: its own content changed, only an upstream dependency changed, or it had never been cached."
-          )
-        }
+        description={reason_description(@selected_miss_reason)}
         value={
           if @module.ok?,
             do: format_number(miss_reason_value(@module.result, @selected_miss_reason))
@@ -182,10 +177,11 @@
           <.dropdown_item
             :for={
               {value, label, color} <- [
-                {"all", dgettext("dashboard_cache", "All"), "destructive"},
+                {"all", dgettext("dashboard_cache", "All"), "amber"},
                 {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
                 {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
-                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
+                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"},
+                {"evicted", dgettext("dashboard_cache", "Evicted"), "destructive"}
               ]
             }
             value={value}
@@ -208,9 +204,13 @@
       </.widget>
     </div>
 
-    <.card_section :if={!@timeseries.ok?} data-part="analytics-chart-section">
+    <.card_section
+      :if={!@timeseries.ok? and !@timeseries.failed}
+      data-part="analytics-chart-section"
+    >
       <.skeleton_chart />
     </.card_section>
+    <.error_card_section :if={@timeseries.failed} data-part="analytics-error" />
 
     <.card_section
       :if={@timeseries.ok? && @analytics_selected_widget == "cache_activity"}
@@ -402,6 +402,14 @@
             stack: "total",
             color: "var:noora-chart-tertiary",
             barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "Evicted"),
+            data: @miss_reasons_series.result.evicted,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-destructive",
+            barMaxWidth: 18
           }
         ]}
         y_axis_min={0}
@@ -460,7 +468,7 @@
           secondary_text={dgettext("dashboard_cache", "Reason:")}
         >
           <.dropdown_item
-            :for={value <- ~w(any hit changed upstream cold)}
+            :for={value <- ~w(any hit changed upstream cold evicted)}
             value={value}
             label={builds_reason_label(value)}
             patch={builds_filter_patch(@uri, "builds-reason", value)}
@@ -471,13 +479,15 @@
         </.dropdown>
       </div>
 
-      <div :if={!@build_history.ok?} data-part="skeleton">
+      <div :if={!@build_history.ok? and !@build_history.failed} data-part="skeleton">
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
         <.skeleton_box width="100%" height="44px" border_radius="8px" />
       </div>
+
+      <.error_state :if={@build_history.failed} data-part="error" />
 
       <.empty_card_section
         :if={@build_history.ok? && Enum.empty?(@build_history.result.rows)}
@@ -525,11 +535,22 @@
             />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Reason")}>
-            <.badge_cell
-              label={build_reason_label(build.reason)}
-              color={build_reason_color(build.reason)}
-              style="light-fill"
-            />
+            <.tooltip
+              id={"module-miss-reason-#{build.id}"}
+              size="large"
+              title={build_reason_label(build.reason)}
+              description={reason_description(build.reason)}
+            >
+              <:trigger :let={attrs}>
+                <div {attrs} tabindex="0">
+                  <.badge_cell
+                    label={build_reason_label(build.reason)}
+                    color={build_reason_color(build.reason)}
+                    style="light-fill"
+                  />
+                </div>
+              </:trigger>
+            </.tooltip>
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell

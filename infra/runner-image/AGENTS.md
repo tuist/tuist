@@ -437,7 +437,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
+["27.0", "26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // newest first
 ```
 
 `check-releases` reads this into the `runner-image-matrix` output and
@@ -628,3 +628,9 @@ For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
 (`runnersFleet.pools[]`) — they're the right place for routing
 semantics; this doc is just about the VM image.
+
+## GitLab CI
+
+`/opt/tuist/tuist-gitlab-runner` executes a server-acquired GitLab job with the upstream shell executor. Its source is in `infra/linux-runner-image/gitlab-runner/` and the shared `build-runner-image-binaries` action builds its darwin/arm64 binary for Packer. Dispatch stages the assignment as private JSON and reuses the normal VM lifecycle. Reusable GitLab runner tokens never enter the VM.
+
+- GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
