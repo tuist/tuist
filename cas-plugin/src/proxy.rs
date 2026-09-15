@@ -393,6 +393,14 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 /// building, which the size caps alone never release.
 const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 
+/// How long a path whose store failed to reopen answers misses before the next
+/// check starts another attempt.
+const REOPEN_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+
+/// How long a reopen may run before the proxy logs that it has not returned. A
+/// healthy one takes milliseconds.
+const REOPEN_STALL_REPORT: Duration = Duration::from_secs(10);
+
 /// How often `bound_store` measures a store whose project set a size limit.
 /// Measuring walks the store directory, and a prune that could not rotate the
 /// store (another process still holds it open) would otherwise be retried on
@@ -531,10 +539,71 @@ fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGenerati
     matches!((stored, current), (Some(prev), Some(now)) if prev != now)
 }
 
+/// What `check_generation` knows about a path's handle.
+struct StoreBinding {
+    /// Identity of the CAS directory the handle was last bound to. A change
+    /// means the store was deleted and recreated under this long-lived proxy.
+    generation: Option<CasGeneration>,
+    reopen: Reopen,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reopen {
+    /// Nothing is rebinding the handle.
+    Idle,
+    /// A `cas-reopen` thread is rebinding the handle.
+    InFlight { since: Instant, stall_reported: bool },
+    /// The last reopen failed at `at` and left the slot empty.
+    Failed { at: Instant },
+}
+
+/// What `check_generation` does for a path.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum StoreVerdict {
+    /// Answer from the handle.
+    Serve,
+    /// Answer a miss: a reopen is running, or failed inside
+    /// `REOPEN_RETRY_INTERVAL`.
+    Unavailable,
+    /// Rebind the handle to the directory with this identity.
+    Reopen(CasGeneration),
+}
+
+/// The verdict for a path from its binding and the CAS directory's identity at
+/// `now`. A failed reopen is retried once the interval has passed whether or not
+/// the directory changed again, because the slot it left is empty. A directory
+/// that is gone is left to `reclaim_idle`, as in `generation_changed`. Pure so
+/// the policy is unit-testable.
+fn store_verdict(
+    binding: &StoreBinding,
+    current: Option<CasGeneration>,
+    now: Instant,
+) -> StoreVerdict {
+    match (binding.reopen, current) {
+        (Reopen::InFlight { .. }, _) => StoreVerdict::Unavailable,
+        (Reopen::Failed { at }, Some(current))
+            if now.saturating_duration_since(at) >= REOPEN_RETRY_INTERVAL =>
+        {
+            StoreVerdict::Reopen(current)
+        }
+        (Reopen::Failed { .. }, _) => StoreVerdict::Unavailable,
+        (Reopen::Idle, Some(current))
+            if generation_changed(binding.generation, Some(current)) =>
+        {
+            StoreVerdict::Reopen(current)
+        }
+        (Reopen::Idle, _) => StoreVerdict::Serve,
+    }
+}
+
+/// Opens a handle on the store at a path. `open_cas` outside tests.
+type OpenCas = Box<dyn Fn(&'static Upstream, &str) -> Result<llcas_cas_t, String> + Send + Sync>;
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
+    open: OpenCas,
     // The handle addressing the store at `cas_path`. Behind a lock because it
     // is REBOUND when the directory is wiped and recreated: an llcas handle
     // holds the store's files open, so after an `rm -rf DerivedData` the old
@@ -543,20 +612,20 @@ pub struct PathState {
     // nothing will ever read them. Readers hold the guard across their whole
     // FFI call so a swap can never dispose a handle mid-use.
     //
-    // `None` is a store that is OUT OF SERVICE: `prune_ondisk` has to dispose
-    // the handle before it can reopen one (llcas only rotates a store as its
-    // last handle closes), and a reopen that then fails must not leave readers
-    // a disposed pointer to dereference. Every reader treats `None` as "this
-    // store can answer nothing" -- a miss on the read paths, an error on the
-    // write ones -- which is exactly what a store we can no longer open is.
+    // `None` is a store that is OUT OF SERVICE: `prune_ondisk` and `reopen_cas`
+    // both dispose the handle before they open another (llcas only rotates a
+    // store as its last handle closes), and an open that then fails must not
+    // leave readers a disposed pointer to dereference. Every reader treats
+    // `None` as "this store can answer nothing" -- a miss on the read paths, an
+    // error on the write ones -- which is exactly what a store we can no longer
+    // open is.
     cas: RwLock<Option<llcas_cas_t>>,
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
-    // it for wipe detection (see `generation`).
+    // it for wipe detection (see `binding`).
     cas_path: String,
-    // Identity of the CAS directory as last observed by a resolve. A change means
-    // the store was deleted and recreated under this long-lived proxy, so the
-    // in-memory marks below are stale and must be dropped before they are trusted.
-    generation: Mutex<Option<CasGeneration>>,
+    // The directory identity `cas` is bound to and the state of any reopen.
+    // Every resolve takes this lock, so it is never held across an FFI call.
+    binding: Mutex<StoreBinding>,
     // Monotonic counter bumped by every invalidation (a detected wipe or a prune
     // signal). A resolve snapshots it after its wipe check and only commits its
     // known_local / resolved writes if it is unchanged, so a resolve that began
@@ -602,6 +671,9 @@ pub struct PathState {
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
+    // Resolves answered as a miss because the store was being reopened or its
+    // reopen had failed (see `check_generation`).
+    pub stats_reopen_misses: AtomicU64,
     // Keys answered from the instance's action-cache snapshot (no remote
     // lookup at all).
     pub stats_snapshot_hits: AtomicU64,
@@ -927,9 +999,10 @@ impl PathState {
         // the read-ahead wavefront's work and sent every later lookup back to
         // the remote (measured: ~2x the remote round trips of the key set).
         // Keeping it is only safe while that guard probes the store the
-        // consumer reads: a wipe must rebind the handle (see `reopen_cas`)
-        // BEFORE this runs, or every retained Hit is re-verified against the
-        // deleted store and served as a `missing object` build failure.
+        // consumer reads: a wipe must take the stale handle out of service (see
+        // `reopen_cas`) BEFORE this runs, or every retained Hit is re-verified
+        // against the deleted store and served as a `missing object` build
+        // failure.
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
@@ -967,18 +1040,60 @@ impl PathState {
     /// Dropping the marks is not enough on its own, because `load_present`
     /// re-learns them from that same handle.
     ///
-    /// The fresh handle is opened before the lock is taken, so a failure leaves
-    /// the existing one in place; the stale handle is disposed only once the
-    /// swap holds the write lock, where no thread can be inside a call with it.
-    /// Disposing (rather than leaking) also lets go of the deleted store's
-    /// inodes, which is what actually returns the disk the user meant to free.
+    /// The stale handle leaves the slot and is disposed BEFORE the fresh one is
+    /// opened, the order `prune_ondisk` uses, so the open never runs beside a
+    /// handle of ours on the same path. Taking it under the write lock means no
+    /// thread is inside a call with it. Readers see the empty slot as out of
+    /// service meanwhile, and it stays empty if the open fails. Disposing
+    /// (rather than leaking) also lets go of the deleted store's inodes, which
+    /// is what actually returns the disk the user meant to free.
+    ///
+    /// The marks are dropped as soon as the slot is empty. A probe through the
+    /// stale handle finished before the write lock was granted, so the resolve
+    /// that made it observed the counter before this bump and `committable`
+    /// drops its writes.
+    ///
+    /// Blocks for as long as the upstream dispose and open take, so outside
+    /// tests only the `cas-reopen` thread `check_generation` starts calls it.
     fn reopen_cas(&self) -> Result<(), String> {
-        let fresh = unsafe { open_cas(self.up, &self.cas_path)? };
-        let mut cas = self.cas.write().unwrap();
-        if let Some(stale) = std::mem::replace(&mut *cas, Some(fresh)) {
+        let stale = self.cas.write().unwrap().take();
+        self.invalidate();
+        self.publish_cache.lock().unwrap().clear();
+        if let Some(stale) = stale {
             unsafe { (self.up.llcas_cas_dispose)(stale) };
         }
+        let fresh = (self.open)(self.up, &self.cas_path)?;
+        *self.cas.write().unwrap() = Some(fresh);
         Ok(())
+    }
+
+    /// Runs the reopen `check_generation` claimed and records how it ended.
+    /// `target` is the directory identity observed before the open, so a wipe
+    /// that lands during it still reads as a change afterwards.
+    fn finish_reopen(&self, target: CasGeneration) {
+        let started = Instant::now();
+        let outcome = self.reopen_cas();
+        {
+            let mut binding = self.binding.lock().unwrap();
+            match &outcome {
+                Ok(()) => {
+                    binding.generation = Some(target);
+                    binding.reopen = Reopen::Idle;
+                }
+                Err(_) => binding.reopen = Reopen::Failed { at: Instant::now() },
+            }
+        }
+        let elapsed = started.elapsed().as_millis();
+        match outcome {
+            Ok(()) => crate::log_line(&format!(
+                "cas reopen after wipe took {elapsed}ms for {}",
+                self.cas_path
+            )),
+            Err(message) => crate::log_line(&format!(
+                "cas reopen after wipe failed after {elapsed}ms for {}: {message}; resolves on it answer misses until a retry opens it",
+                self.cas_path
+            )),
+        }
     }
 
     /// Bounds the on-disk store to `limit_bytes` PER GENERATION and deletes the
@@ -1014,6 +1129,13 @@ impl PathState {
         };
         let before = generation_sizes(&self.cas_path);
         let mut cas = self.cas.write().unwrap();
+        // A reopen owns the slot from taking the stale handle until it installs
+        // the fresh one. A prune in between would open a handle beside that
+        // open, which rotates nothing.
+        let reopen = self.binding.lock().unwrap().reopen;
+        if matches!(reopen, Reopen::InFlight { .. }) {
+            return Err("the store is being reopened after a wipe".into());
+        }
 
         if let Some(live) = *cas {
             // Only worth a log: a limit we failed to set means the dispose below
@@ -1034,13 +1156,13 @@ impl PathState {
 
         // The fresh handle sees the post-rotation chain. A store that will not
         // reopen is one we can no longer serve at all, so leave the slot `None`
-        // rather than hand readers a disposed pointer; the recovery is a later
-        // build, which registers the path afresh.
+        // rather than hand readers a disposed pointer, and mark the reopen
+        // failed so `check_generation` retries it on its own thread.
         //
         // Every path from here runs through the invalidation below, including
         // that one. The rotation has already happened, so the marks describe a
         // chain this state no longer addresses whether or not the prune ran.
-        let outcome = match unsafe { open_cas(self.up, &self.cas_path) } {
+        let outcome = match (self.open)(self.up, &self.cas_path) {
             Ok(fresh) => {
                 *cas = Some(fresh);
                 // Re-set on the new primary so the NEXT close rotates too,
@@ -1064,7 +1186,14 @@ impl PathState {
             }
             Err(message) => Err(format!("reopen after rotation: {message}")),
         };
+        let out_of_service = cas.is_none();
         drop(cas);
+        if out_of_service {
+            let mut binding = self.binding.lock().unwrap();
+            if binding.reopen == Reopen::Idle {
+                binding.reopen = Reopen::Failed { at: Instant::now() };
+            }
+        }
 
         // A prune removed objects from the store IN PLACE. Our known-local marks
         // are trusted without an on-disk probe, so a surviving mark for a
@@ -1900,9 +2029,13 @@ impl Proxy {
         }
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
+            open: Box::new(|up: &'static Upstream, path: &str| unsafe { open_cas(up, path) }),
             cas: RwLock::new(Some(cas)),
             cas_path: cas_path.to_string(),
-            generation: Mutex::new(cas_generation(cas_path)),
+            binding: Mutex::new(StoreBinding {
+                generation: cas_generation(cas_path),
+                reopen: Reopen::Idle,
+            }),
             gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
@@ -1915,6 +2048,7 @@ impl Proxy {
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_reopen_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
@@ -1961,8 +2095,12 @@ impl Proxy {
         // before the fast path and before resolve_uncached's manifest filter, so
         // an uncached/changed key or a parallel build can't trust known_local
         // marks for a store that no longer exists (which would skip re-fetching
-        // wiped nodes and hand back a value whose graph is missing on disk).
-        self.check_generation(state);
+        // wiped nodes and hand back a value whose graph is missing on disk). A
+        // store that is being reopened answers a miss instead of waiting.
+        if !self.check_generation(state) {
+            state.stats_reopen_misses.fetch_add(1, Ordering::Relaxed);
+            return Ok(None);
+        }
         // Fast path, outside single-flight so the presence load never
         // serializes other keys: serve a cached Hit only after confirming its
         // value object is still on disk. A long-lived proxy keeps Hits in memory
@@ -2033,10 +2171,13 @@ impl Proxy {
         // during the wait must be caught before resolve_uncached trusts
         // known_local. `observed` is snapshotted here so the write guard drops
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
-        self.check_generation(state);
-        let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome =
-            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some());
+        let outcome = if self.check_generation(state) {
+            let observed = state.gen_counter.load(Ordering::SeqCst);
+            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some())
+        } else {
+            state.stats_reopen_misses.fetch_add(1, Ordering::Relaxed);
+            Ok(None)
+        };
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -2635,8 +2776,9 @@ impl Proxy {
         // fetch stores into a directory nothing reads. Both end as the
         // `missing object` the rebind exists to prevent, and clang does not
         // survive that one. The resolve path restats for the same reason; this
-        // is the door it does not cover.
-        self.check_generation(state);
+        // is the door it does not cover. A store that is being reopened answers
+        // not-found rather than waiting for it.
+        let serving = self.check_generation(state);
         // And a demand fetch IS the build working. The resolves all land during
         // planning, so a long compile phase afterwards is nothing but these: with
         // only resolves and publishes stamping this, the machine reads as idle
@@ -2646,6 +2788,9 @@ impl Proxy {
         state
             .last_used
             .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if !serving {
+            return Ok(false);
+        }
         let mut repairing = Vec::new();
         self.fetch_object_inner(state, cas_path, declared_instance, digest, &mut repairing)
     }
@@ -2862,41 +3007,83 @@ impl Proxy {
         })
     }
 
-    /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
-    /// this long-lived proxy) from a change in the CAS directory's identity,
-    /// rebinds the CAS handle to the new store, and drops the now-stale
-    /// in-memory marks (`resolved`, `known_local`, `publish_cache`) so a resolve
-    /// re-probes and re-materializes authoritatively. Called at the head of
-    /// every resolve, so it covers uncached/changed keys and parallel builds,
-    /// not only re-requested cached Hits. The generation lock is held across the
-    /// invalidation so a concurrent resolve can't observe the new generation as
-    /// unchanged and filter against `known_local` while it is being cleared.
+    /// Whether the path's store can answer now. Detects a wiped-and-recreated
+    /// on-disk CAS (a deleted DerivedData, or a per-job directory, under this
+    /// long-lived proxy) from a change in the CAS directory's identity, and
+    /// rebinds the handle to the new store through `reopen_cas`, which also drops
+    /// the now-stale marks (`known_local`, `publish_cache`). Called at the head
+    /// of every resolve and demand fetch and before a snapshot warms the path,
+    /// so it covers uncached/changed keys and parallel builds, not only
+    /// re-requested cached Hits.
     ///
-    /// The handle is rebound BEFORE the counter is bumped, so a resolve that
-    /// probed the old store cannot have its answer committed: it snapshotted
-    /// `observed` before the bump, so `committable` drops the write. Dropping
-    /// the marks without rebinding would achieve nothing -- `load_present` would
-    /// re-learn every one of them from the deleted store (see `reopen_cas`).
-    fn check_generation(&self, state: &PathState) {
-        let Some(current) = cas_generation(&state.cas_path) else {
-            return;
-        };
-        let mut stored = state.generation.lock().unwrap();
-        if generation_changed(*stored, Some(current)) {
-            if let Err(message) = state.reopen_cas() {
-                // Leave `stored` untouched so the next resolve retries: serving
-                // from the old handle is answering about a store that no longer
-                // exists, which fails the compiler with `missing object`.
-                crate::log_line(&format!(
-                    "cas reopen after wipe failed for {}: {message}",
-                    state.cas_path
-                ));
-                return;
+    /// It never waits for the rebind. The caller that sees the change hands
+    /// `reopen_cas` to a `cas-reopen` thread, and every caller gets `false`
+    /// until that thread finishes, and for `REOPEN_RETRY_INTERVAL` after it
+    /// fails. A resolve answers `false` with a miss, so the compiler compiles,
+    /// and no resolve filters against `known_local` while it is being cleared.
+    /// The open is an FFI call that can block indefinitely and cannot be
+    /// cancelled: when it ran while holding `binding`, every lookup on the path
+    /// parked behind it until the plugin's 120s socket timeout. So `binding` is
+    /// held only to read and claim, at most one reopen runs per path, and one
+    /// still running after `REOPEN_STALL_REPORT` is logged once.
+    fn check_generation(&self, state: &'static PathState) -> bool {
+        let current = cas_generation(&state.cas_path);
+        let now = Instant::now();
+        let mut stalled_for = None;
+        let verdict = {
+            let mut binding = state.binding.lock().unwrap();
+            let verdict = store_verdict(&binding, current, now);
+            match verdict {
+                StoreVerdict::Serve => {
+                    if current.is_some() {
+                        binding.generation = current;
+                    }
+                }
+                StoreVerdict::Reopen(_) => {
+                    binding.reopen = Reopen::InFlight {
+                        since: now,
+                        stall_reported: false,
+                    };
+                }
+                StoreVerdict::Unavailable => {
+                    if let Reopen::InFlight {
+                        since,
+                        stall_reported: false,
+                    } = binding.reopen
+                    {
+                        if now.saturating_duration_since(since) >= REOPEN_STALL_REPORT {
+                            binding.reopen = Reopen::InFlight {
+                                since,
+                                stall_reported: true,
+                            };
+                            stalled_for = Some(now.saturating_duration_since(since));
+                        }
+                    }
+                }
             }
-            state.invalidate();
-            state.publish_cache.lock().unwrap().clear();
+            verdict
+        };
+        if let Some(stalled_for) = stalled_for {
+            crate::log_line(&format!(
+                "cas reopen after wipe has not returned after {}s for {}; resolves on it answer misses until it does",
+                stalled_for.as_secs(),
+                state.cas_path
+            ));
         }
-        *stored = Some(current);
+        let StoreVerdict::Reopen(target) = verdict else {
+            return verdict == StoreVerdict::Serve;
+        };
+        let spawned = std::thread::Builder::new()
+            .name("cas-reopen".into())
+            .spawn(move || state.finish_reopen(target));
+        if let Err(error) = spawned {
+            state.binding.lock().unwrap().reopen = Reopen::Failed { at: Instant::now() };
+            crate::log_line(&format!(
+                "cas reopen after wipe could not start for {}: {error}",
+                state.cas_path
+            ));
+        }
+        false
     }
 
     fn is_local(&self, state: &PathState, observed: u64, digest: &[u8]) -> bool {
@@ -4134,8 +4321,11 @@ impl Proxy {
             // handle bound to the deleted store: the fetches cost bandwidth, the
             // stores land where nothing reads them, and they hold the wiped
             // directory's inodes on disk. The resolve that eventually rebinds
-            // discards it all. One restat per snapshot, not per key.
-            self.check_generation(state);
+            // discards it all. One restat per snapshot, not per key. A path whose
+            // store is being reopened is skipped: its stores would fail.
+            if !self.check_generation(state) {
+                continue;
+            }
             let observed = state.gen_counter.load(Ordering::SeqCst);
             // Warm newest-first (the wire order) and stop at the node budget:
             // a shared namespace's snapshot carries every project's history,
@@ -4289,12 +4479,13 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_snapshot_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
+                state.stats_reopen_misses.load(Ordering::Relaxed),
                 state.stats_demand_fetched.load(Ordering::Relaxed),
                 state.pending_objects.lock().unwrap().len(),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
@@ -6419,14 +6610,26 @@ mod tests {
     // Builds a PathState over a real on-disk CAS at `path`, the way `path_state`
     // does, so the wipe tests drive the production probe rather than a copy.
     fn path_state_for(path: &str) -> &'static PathState {
+        path_state_with_open(
+            path,
+            Box::new(|up: &'static Upstream, path: &str| unsafe { open_cas(up, path) }),
+        )
+    }
+
+    // The initial handle is always a real one; `open` serves every reopen.
+    fn path_state_with_open(path: &str, open: OpenCas) -> &'static PathState {
         let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
         let up: &'static Upstream = Box::leak(Box::new(up));
         let cas = unsafe { open_cas(up, path).unwrap() };
         Box::leak(Box::new(PathState {
             up,
+            open,
             cas: RwLock::new(Some(cas)),
             cas_path: path.to_string(),
-            generation: Mutex::new(cas_generation(path)),
+            binding: Mutex::new(StoreBinding {
+                generation: cas_generation(path),
+                reopen: Reopen::Idle,
+            }),
             gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
@@ -6439,6 +6642,7 @@ mod tests {
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_reopen_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
@@ -7305,7 +7509,7 @@ mod tests {
                 "{label}: both schedules keep refusing the incomplete root"
             );
 
-            // reopen_cas opens the replacement before disposing the old handle.
+            // reopen_cas releases the old handle, then opens a replacement.
             // Loading through it bypasses proxy bookkeeping, as a compiler's
             // local load does, so a withheld_roots entry cannot hide this root.
             state.reopen_cas().expect("reopen persisted reader CAS");
@@ -8016,6 +8220,8 @@ mod tests {
             "a fetch after a wipe must not report an object the compiler's own CAS \
              cannot see: that is the `missing object` this rebind exists to prevent"
         );
+        assert!(wait_until_serving(proxy, state), "the reopen finishes");
+        assert!(!state.load_present(&digest), "on the live store");
     }
 
     // check_generation is the only caller that rebinds, and it must do so from
@@ -8031,7 +8237,8 @@ mod tests {
 
         dir.wipe();
         let proxy = test_proxy();
-        proxy.check_generation(state);
+        assert!(!proxy.check_generation(state), "a wipe starts a reopen");
+        assert!(wait_until_serving(proxy, state), "the reopen finishes");
 
         assert!(
             state.gen_counter.load(Ordering::SeqCst) > before,
@@ -8046,6 +8253,279 @@ mod tests {
             "and the probe behind it must now read the live store"
         );
     }
+
+    // An open that does not return must not hold the resolves on its path. They
+    // answer a miss, so the compiler compiles, where queueing behind the open
+    // left every lookup waiting out the plugin's 120s socket timeout.
+    #[test]
+    fn a_blocked_reopen_does_not_park_resolves() {
+        let dir = TempCasDir::new("reopen-blocked");
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let release_rx = Mutex::new(release_rx);
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                let _ = entered_tx.send(());
+                let _ = release_rx.lock().unwrap().recv();
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let digest = store_probe_object(state, b"served-before-the-blocked-reopen");
+        let key = b"reopen-blocked-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest.clone()));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/reopen-blocked");
+        let (answered_tx, answered_rx) = std::sync::mpsc::channel();
+        type Answer = Result<Option<Vec<u8>>, String>;
+        let spawn_resolve = |answered: std::sync::mpsc::Sender<Answer>| {
+            let remote = remote.clone();
+            let key = key.clone();
+            std::thread::spawn(move || {
+                let answer = proxy.resolve(&remote, "tuist/reopen-blocked", state, &key, None);
+                let _ = answered.send(answer);
+            });
+        };
+
+        dir.wipe();
+        spawn_resolve(answered_tx.clone());
+        entered_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the resolve that sees the wipe must start a reopen");
+        const QUEUED: usize = 8;
+        for _ in 0..QUEUED {
+            spawn_resolve(answered_tx.clone());
+        }
+        drop(answered_tx);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut answers = Vec::new();
+        while answers.len() < QUEUED + 1 {
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            let Ok(answer) = answered_rx.recv_timeout(left) else {
+                break;
+            };
+            answers.push(answer);
+        }
+        let _ = release_tx.send(());
+
+        assert_eq!(
+            answers.len(),
+            QUEUED + 1,
+            "every resolve must answer while the reopen is blocked, not wait for it"
+        );
+        assert!(
+            answers.iter().all(|answer| matches!(answer, Ok(None))),
+            "a store being reopened answers misses: {answers:?}"
+        );
+        assert_eq!(
+            state.stats_reopen_misses.load(Ordering::Relaxed),
+            (QUEUED + 1) as u64
+        );
+        assert!(
+            wait_until_serving(proxy, state),
+            "the path serves again once the open returns"
+        );
+        assert!(
+            !state.load_present(&digest),
+            "and it serves the live store, not the deleted one"
+        );
+    }
+
+    // A failed open leaves the path with no store to answer from. Retrying it
+    // inside every resolve queues each resolve behind the previous attempt, and
+    // serving from the handle it could not replace answers about the deleted
+    // store.
+    #[test]
+    fn a_failed_reopen_answers_misses_without_retrying_per_resolve() {
+        let dir = TempCasDir::new("reopen-failing");
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |_: &'static Upstream, _: &str| {
+                counted.fetch_add(1, Ordering::SeqCst);
+                Err("injected open failure".to_string())
+            }),
+        );
+        let digest = store_probe_object(state, b"served-before-the-failed-reopen");
+        let key = b"reopen-failing-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/reopen-failing");
+
+        dir.wipe();
+        let mut answers = Vec::new();
+        for _ in 0..20 {
+            answers.push(proxy.resolve(&remote, "tuist/reopen-failing", state, &key, None));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while attempts.load(Ordering::SeqCst) == 0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        let served = answers
+            .iter()
+            .filter(|answer| !matches!(answer, Ok(None)))
+            .count();
+        assert_eq!(served, 0, "a store that could not be reopened answers misses");
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            1,
+            "a failed reopen is retried on an interval, not by every resolve"
+        );
+    }
+
+    // By the time the fresh handle is opened, the stale one is out of the slot
+    // and the generation has advanced, so nothing probed through the stale
+    // handle can be committed once the fresh one serves.
+    #[test]
+    fn a_reopen_releases_the_stale_handle_before_opening() {
+        let dir = TempCasDir::new("reopen-order");
+        let this: Arc<std::sync::OnceLock<&'static PathState>> = Arc::default();
+        let seen: Arc<Mutex<Vec<(bool, u64)>>> = Arc::default();
+        let (this_in_open, seen_in_open) = (this.clone(), seen.clone());
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if let Some(state) = this_in_open.get() {
+                    let slot = state.cas.try_read();
+                    let released = matches!(slot.as_deref(), Ok(None));
+                    drop(slot);
+                    let generation = state.gen_counter.load(Ordering::SeqCst);
+                    seen_in_open.lock().unwrap().push((released, generation));
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let _ = this.set(state);
+        let before = state.gen_counter.load(Ordering::SeqCst);
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1, "one reopen, one open");
+        assert!(seen[0].0, "the stale handle must be released before the fresh open");
+        assert!(
+            seen[0].1 > before,
+            "the generation must advance before the fresh open"
+        );
+    }
+
+    // `check_generation` hands a reopen to its own thread and answers `false`
+    // until that thread finishes.
+    fn wait_until_serving(proxy: &Proxy, state: &'static PathState) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if proxy.check_generation(state) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        false
+    }
+
+    #[test]
+    fn a_path_answers_misses_while_its_store_is_reopened_or_failed() {
+        let now = Instant::now();
+        let (g1, g2) = (generation(1, 100), generation(2, 200));
+        let bound = |reopen: Reopen| StoreBinding {
+            generation: Some(g1),
+            reopen,
+        };
+        let in_flight = Reopen::InFlight {
+            since: now,
+            stall_reported: false,
+        };
+        let failed = Reopen::Failed { at: now };
+        let retry_due = now + REOPEN_RETRY_INTERVAL;
+
+        assert_eq!(store_verdict(&bound(Reopen::Idle), Some(g1), now), StoreVerdict::Serve);
+        assert_eq!(
+            store_verdict(&bound(Reopen::Idle), Some(g2), now),
+            StoreVerdict::Reopen(g2)
+        );
+        assert_eq!(
+            store_verdict(&bound(Reopen::Idle), None, now),
+            StoreVerdict::Serve,
+            "a gone directory is left to reclaim_idle"
+        );
+        assert_eq!(
+            store_verdict(&bound(in_flight), Some(g2), retry_due),
+            StoreVerdict::Unavailable
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), Some(g2), now),
+            StoreVerdict::Unavailable
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), Some(g1), retry_due),
+            StoreVerdict::Reopen(g1),
+            "a failed reopen left the slot empty, so it is retried without a further wipe"
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), None, retry_due),
+            StoreVerdict::Unavailable
+        );
+    }
+
+    // Once `REOPEN_RETRY_INTERVAL` has passed, the next check retries a failed
+    // reopen, and a retry that opens puts the path back in service on the live
+    // store.
+    #[test]
+    fn a_failed_reopen_is_retried_after_the_interval() {
+        let dir = TempCasDir::new("reopen-retry");
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if counted.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Err("injected open failure".to_string());
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let digest = store_probe_object(state, b"present-before-the-retried-reopen");
+        let proxy = test_proxy();
+
+        dir.wipe();
+        assert!(!proxy.check_generation(state), "the wipe starts a reopen");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let failed_at = loop {
+            let reopen = state.binding.lock().unwrap().reopen;
+            if let Reopen::Failed { at } = reopen {
+                break at;
+            }
+            assert!(Instant::now() < deadline, "the injected failure is recorded");
+            std::thread::sleep(Duration::from_millis(2));
+        };
+        assert!(!proxy.check_generation(state), "inside the interval nothing retries");
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+
+        state.binding.lock().unwrap().reopen = Reopen::Failed {
+            at: failed_at.checked_sub(REOPEN_RETRY_INTERVAL).unwrap(),
+        };
+        assert!(wait_until_serving(proxy, state), "the retry opens the store");
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert!(
+            !state.load_present(&digest),
+            "and the path serves the live store"
+        );
+    }
+
     include!("proxy_cold_replay_benchmark.rs");
 
 }

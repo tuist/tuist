@@ -1877,6 +1877,16 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
+  parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
+  `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`
+  normalizes and orders them.
+  """
+  def runner_macos_xcode_versions do
+    Application.get_env(:tuist, :runner_macos_xcode_versions, [])
+  end
+
+  @doc """
   Runner platforms whose fleets can resolve and reach the cluster's
   internal Service network (`*.svc.cluster.local`) — the per-environment
   input behind `Tuist.Runners.Catalog.fleet_on_cluster_network?/1`.
