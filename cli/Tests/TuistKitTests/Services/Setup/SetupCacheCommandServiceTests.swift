@@ -31,6 +31,7 @@ struct SetupCacheCommandServiceTests {
     private let getProjectService = MockGetProjectServicing()
     private let gitController = MockGitControlling()
     private let cacheSocketService = MockCacheSocketServicing()
+    private let xcodeController = MockXcodeControlling()
 
     init() {
         subject = SetupCacheCommandService(
@@ -42,8 +43,18 @@ struct SetupCacheCommandServiceTests {
             getProjectService: getProjectService,
             gitController: gitController,
             cacheSocketService: cacheSocketService,
+            xcodeController: xcodeController,
             cacheDaemonStartupTimeout: .zero
         )
+
+        // The real answers come from `xcode-select`, and the developer directory
+        // lands in the agent's environment, which these tests pin exactly.
+        given(xcodeController)
+            .systemDeveloperDirectory()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(TestError("no Xcode"))
 
         // Every kura-path setup resolves the project's default branch to record the
         // trunk. Left to the real service these tests would reach the production
@@ -89,6 +100,16 @@ struct SetupCacheCommandServiceTests {
         given(launchAgentService)
             .runningProcessIdentifier(label: .any)
             .willReturn(4242)
+
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(false)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
@@ -167,16 +188,18 @@ struct SetupCacheCommandServiceTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(),
-        .withMockedLogger(),
-        .withMockedXcodeController
+        .withMockedLogger()
     ) func setupCache_withNonTuistProject_onXcode27_mentionsPrefixMapping() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
-        let xcodeControllerMock = try #require(XcodeController.mocked)
-        given(xcodeControllerMock)
+        xcodeController.reset()
+        given(xcodeController)
+            .systemDeveloperDirectory()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
             .selectedVersion()
             .willReturn(Version(27, 0, 0))
 
@@ -721,6 +744,15 @@ struct SetupCacheCommandServiceTests {
 
         launchAgentService.reset()
         given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(false)
+        given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .willReturn(4242)
         given(launchAgentService)
@@ -943,6 +975,185 @@ struct SetupCacheCommandServiceTests {
           }
         }
         """)
+    }
+
+    /// A job that changes only what the registry records, its upload policy
+    /// included, leaves a proxy already running this configuration in place: the
+    /// proxy reads the registry by itself, and reinstalling it puts the job
+    /// through a bootout for nothing.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_changesTheUploadPolicyWithoutReinstallingARunningProxy() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let proxyBinary = temporaryDirectory.appending(component: "tuist-cas-proxy")
+        environment.variables["TUIST_CAS_PROXY_PATH"] = proxyBinary.pathString
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText("proxy", at: proxyBinary)
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        try await fileSystem.writeText(#"{"tuist/tuist":{"trunk":"main","upload":true}}"#, at: sourcesPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(upload: false)))
+        launchAgentService.reset()
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(nil)
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(true)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+        verify(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
+                programArguments: .value([
+                    "cache-proxy",
+                    "--url",
+                    Constants.URLs.production.absoluteString,
+                    "--account",
+                    "tuist",
+                ]),
+                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"]),
+                launchInputs: .value([proxyBinary])
+            )
+            .called(1)
+        verify(cacheSocketService)
+            .waitUntilListening(at: .value(environment.casProxySocketPath()), timeout: .any)
+            .called(1)
+        let sources = try await fileSystem.readTextFile(at: sourcesPath)
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : false
+          }
+        }
+        """)
+    }
+
+    /// A proxy that looks current but does not answer is not left in place.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_reinstallsACurrentProxyThatIsNotListening() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        launchAgentService.reset()
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(nil)
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(true)
+        var checks = 0
+        cacheSocketService.reset()
+        given(cacheSocketService)
+            .waitUntilListening(at: .any, timeout: .any)
+            .willProduce { _, _ in
+                checks += 1
+                return checks > 1
+            }
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
+                programArguments: .any,
+                environmentVariables: .any
+            )
+            .called(1)
+    }
+
+    /// The proxy resolves the Xcode it loads its CAS plugin from once, when it
+    /// starts. Recording that Xcode makes switching the machine to another one a
+    /// changed configuration, and the plugin a launch input, so an Xcode updated
+    /// in place restarts the proxy too.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_recordsTheXcodeTheProxyLoadsItsPluginFrom() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let developerDirectory = temporaryDirectory.appending(components: "Xcode.app", "Contents", "Developer")
+        let plugin = developerDirectory.appending(components: "usr", "lib", "libToolchainCASPlugin.dylib")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+        try await fileSystem.writeText("plugin", at: plugin)
+        xcodeController.reset()
+        given(xcodeController)
+            .systemDeveloperDirectory()
+            .willReturn(developerDirectory)
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(TestError("no Xcode"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .matching { $0["TUIST_CAS_PROXY_DEVELOPER_DIR"] == developerDirectory.pathString },
+                launchInputs: .matching { $0.contains(plugin) }
+            )
+            .called(1)
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_PROXY_DEVELOPER_DIR": developerDirectory.pathString,
+                ])
+            )
+            .called(1)
     }
 }
 
