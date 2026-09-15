@@ -11,7 +11,7 @@ defmodule TuistWeb.CreateProjectLive do
   alias Tuist.Projects.Project
 
   @impl true
-  def mount(params, _session, socket) do
+  def mount(params, session, socket) do
     form = to_form(Project.create_changeset(%{}))
 
     current_user = socket.assigns.current_user
@@ -30,7 +30,8 @@ defmodule TuistWeb.CreateProjectLive do
           form: form,
           selected_account: selected_account,
           selected_build_system: "xcode",
-          accounts: organization_accounts
+          accounts: organization_accounts,
+          origin: session["origin"]
         )
 
       {:ok, socket}
@@ -138,7 +139,8 @@ defmodule TuistWeb.CreateProjectLive do
          :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
          {:ok, project} <-
            Projects.create_project(%{name: params["name"], account: account},
-             build_system: String.to_existing_atom(socket.assigns.selected_build_system)
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system),
+             origin: socket.assigns.origin
            ) do
       {:noreply,
        push_navigate(socket,

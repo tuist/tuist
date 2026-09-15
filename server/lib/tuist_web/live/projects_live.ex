@@ -15,7 +15,7 @@ defmodule TuistWeb.ProjectsLive do
   @pagination_threshold 6
 
   @impl true
-  def mount(_params, _uri, socket) do
+  def mount(_params, session, socket) do
     selected_account = socket.assigns[:selected_account]
     current_user = socket.assigns[:current_user]
 
@@ -38,6 +38,7 @@ defmodule TuistWeb.ProjectsLive do
        Authorization.authorize(:project_create, current_user, selected_account) == :ok
      )
      |> assign(:selected_build_system, "xcode")
+     |> assign(:origin, session["origin"])
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
   end
@@ -478,7 +479,8 @@ defmodule TuistWeb.ProjectsLive do
     with :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
          {:ok, _project} <-
            Projects.create_project(%{name: name, account: account},
-             build_system: String.to_existing_atom(socket.assigns.selected_build_system)
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system),
+             origin: socket.assigns.origin
            ) do
       socket =
         socket
