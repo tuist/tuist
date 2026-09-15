@@ -167,9 +167,9 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
-  # A claim funds a ring smaller than itself, so only the resized claim can
-  # report a ring larger than the claim it replaced.
-  defp resized_ring?(%{last_ring_budget_bytes: ring_bytes}, previous_bytes) do
+  # A claim funds a ring smaller than itself, so the day's smallest ring clears
+  # the replaced claim only when no instance ran the old ring that day.
+  defp resized_ring?(%{min_ring_budget_bytes: ring_bytes}, previous_bytes) do
     is_integer(ring_bytes) and ring_bytes > previous_bytes
   end
 

@@ -24,6 +24,7 @@ defmodule Tuist.Kura.StorageRollups do
     :max_occupancy_percent,
     :max_live_segment_bytes,
     :last_ring_budget_bytes,
+    :min_ring_budget_bytes,
     :updated_at
   ]
 
@@ -91,7 +92,8 @@ defmodule Tuist.Kura.StorageRollups do
           snapshot_count: aggregate.snapshot_count,
           max_occupancy_percent: aggregate.max_occupancy_percent,
           max_live_segment_bytes: aggregate.max_live_segment_bytes,
-          last_ring_budget_bytes: aggregate.last_ring_budget_bytes
+          last_ring_budget_bytes: aggregate.last_ring_budget_bytes,
+          min_ring_budget_bytes: aggregate.min_ring_budget_bytes
         })
       )
     end)
@@ -113,6 +115,7 @@ defmodule Tuist.Kura.StorageRollups do
       max_occupancy_percent: nil,
       max_live_segment_bytes: nil,
       last_ring_budget_bytes: nil,
+      min_ring_budget_bytes: nil,
       inserted_at: now,
       updated_at: now
     }

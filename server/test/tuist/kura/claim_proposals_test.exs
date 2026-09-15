@@ -291,7 +291,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       insert_applied_growth!(account, "8Gi", "16Gi", 20_528, resized_at)
       pin_resized_claim!(account, server, "16Gi", resized_at)
       seed_churn_rollups(account, 1, @today)
-      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 13 * @gibibyte])
+      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 13 * @gibibyte, min_ring_budget_bytes: 13 * @gibibyte])
 
       assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
 
@@ -312,7 +312,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       insert_applied_growth!(account, "16Gi", "20Gi", 3 * 86_400, resized_at)
       pin_resized_claim!(account, server, "20Gi", resized_at)
       seed_churn_rollups(account, 1, @today)
-      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 17 * @gibibyte])
+      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 17 * @gibibyte, min_ring_budget_bytes: 17 * @gibibyte])
 
       assert {:ok, %{evaluated: 1, open: 0}} = ClaimProposals.sweep(@today)
     end

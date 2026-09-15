@@ -21,7 +21,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
         snapshot_count: 0,
         max_occupancy_percent: nil,
         max_live_segment_bytes: nil,
-        last_ring_budget_bytes: nil
+        last_ring_budget_bytes: nil,
+        min_ring_budget_bytes: nil
       },
       Map.new(attrs)
     )
@@ -437,7 +438,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
             median_shed_age_seconds: 21 * 3_600,
             median_ring_span_seconds: 21 * 3_600,
             evicted_bytes: 20 * @gibibyte,
-            last_ring_budget_bytes: 26 * @gibibyte
+            last_ring_budget_bytes: 26 * @gibibyte,
+            min_ring_budget_bytes: 26 * @gibibyte
           ],
           attrs
         )
@@ -493,7 +495,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
           snapshot_count: 96,
           max_occupancy_percent: 70,
           max_live_segment_bytes: 18 * @gibibyte,
-          last_ring_budget_bytes: 26 * @gibibyte
+          last_ring_budget_bytes: 26 * @gibibyte,
+          min_ring_budget_bytes: 26 * @gibibyte
         )
       ]
 
@@ -502,10 +505,19 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "a day still reporting the ring the capped resize replaced does not qualify" do
       for ring_budget_bytes <- [13 * @gibibyte, nil] do
-        rollups = resized_churn(1, @today, last_ring_budget_bytes: ring_budget_bytes)
+        rollups =
+          resized_churn(1, @today, last_ring_budget_bytes: ring_budget_bytes, min_ring_budget_bytes: ring_budget_bytes)
 
         assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
       end
+    end
+
+    test "a day that also ran the replaced ring does not qualify, whichever ring reported last" do
+      # Evictions cover the whole day, so a rollout finishing after midnight
+      # sheds on the old ring before the resized one snapshots.
+      rollups = resized_churn(1, @today, min_ring_budget_bytes: 13 * @gibibyte)
+
+      assert ClaimSizing.evaluate(resized_context(rollups: rollups)) == :none
     end
 
     test "the resize day itself does not qualify" do
@@ -527,7 +539,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
                    plan: :enterprise,
                    current_claim_size: "200Gi",
                    capped_resize_from: "100Gi",
-                   rollups: Enum.map(rollups, &Map.put(&1, :last_ring_budget_bytes, 190 * @gibibyte))
+                   rollups:
+                     Enum.map(
+                       rollups,
+                       &Map.merge(&1, %{last_ring_budget_bytes: 190 * @gibibyte, min_ring_budget_bytes: 190 * @gibibyte})
+                     )
                  )
                )
     end
