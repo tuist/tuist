@@ -91,6 +91,7 @@ struct XcodeBuildBuildCommandService {
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } catch {
+            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             await captureBuildRunReport(
                 succeeded: false,
                 startedAt: buildStartedAt,
@@ -98,6 +99,7 @@ struct XcodeBuildBuildCommandService {
             )
             throw error
         }
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         await captureBuildRunReport(
             succeeded: true,
             startedAt: buildStartedAt,

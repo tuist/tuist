@@ -778,11 +778,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var testError: Error?
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
             testError = error
         }
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
 
         let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -948,11 +950,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var testError: Error?
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
             testError = error
         }
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
 
         let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -2108,6 +2112,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let buildStartedAt = Date()
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -2126,6 +2131,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
+            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             await uploadBuildRunIfNeeded(
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 projectPath: graphTraverser.workspace.xcWorkspacePath,
@@ -2166,6 +2172,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         await uploadBuildRunIfNeeded(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             projectPath: graphTraverser.workspace.xcWorkspacePath,

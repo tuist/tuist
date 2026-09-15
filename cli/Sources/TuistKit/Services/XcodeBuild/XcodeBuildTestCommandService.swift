@@ -180,9 +180,11 @@ struct XcodeBuildTestCommandService {
             )
         }
 
+        let buildStartedAt = Date()
         do {
             try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
+            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             if let derivedDataPath {
                 await processBuildRun(
                     projectDerivedDataDirectory: derivedDataPath,
@@ -254,6 +256,7 @@ struct XcodeBuildTestCommandService {
             throw error
         }
 
+        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         if let derivedDataPath {
             await processBuildRun(
                 projectDerivedDataDirectory: derivedDataPath,
