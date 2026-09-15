@@ -65,6 +65,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
+    enabled: true
+
   appUrl: https://canary.tuist.dev
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
