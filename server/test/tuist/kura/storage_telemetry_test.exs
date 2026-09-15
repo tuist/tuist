@@ -3,14 +3,12 @@ defmodule Tuist.Kura.StorageTelemetryTest do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.StorageSnapshot
   alias Tuist.Kura.StorageTelemetry
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.KuraFixtures
 
   defp eviction_payload(attrs) do
     Map.merge(
@@ -51,17 +49,13 @@ defmodule Tuist.Kura.StorageTelemetryTest do
   end
 
   describe "create_eviction_events/1" do
-    test "attributes the row to the account of the instance the node belongs to" do
-      account = AccountsFixtures.organization_fixture().account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
+    test "resolves the tenant handle to an account id and persists the row" do
+      handle = "acme-#{System.unique_integer([:positive])}"
+      account = AccountsFixtures.organization_fixture(name: handle).account
 
       {:ok, 1} =
         StorageTelemetry.create_eviction_events([
-          eviction_payload(%{
-            "event_id" => "wire-evict-1",
-            "tenant_id" => account.name,
-            "node_id" => KuraFixtures.node_id(server)
-          })
+          eviction_payload(%{"event_id" => "wire-evict-1", "tenant_id" => handle})
         ])
 
       row = ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == "wire-evict-1"))
@@ -75,32 +69,10 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       assert row.bytes == 536_870_912
     end
 
-    test "keeps attributing a renamed account's rows to it" do
-      account = AccountsFixtures.organization_fixture().account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
-      provisioned_handle = account.name
-      {:ok, _account} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
-      event_id = "evict-renamed-#{account.id}"
-
+    test "an unknown tenant drops to account 0 rather than failing the batch" do
       {:ok, 1} =
         StorageTelemetry.create_eviction_events([
-          eviction_payload(%{
-            "event_id" => event_id,
-            "tenant_id" => provisioned_handle,
-            "node_id" => KuraFixtures.node_id(server)
-          })
-        ])
-
-      row = ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^event_id))
-      assert row.account_id == account.id
-    end
-
-    test "a node no live instance owns drops to account 0, even when its tenant names an account" do
-      account = AccountsFixtures.organization_fixture().account
-
-      {:ok, 1} =
-        StorageTelemetry.create_eviction_events([
-          eviction_payload(%{"event_id" => "wire-evict-2", "tenant_id" => account.name})
+          eviction_payload(%{"event_id" => "wire-evict-2", "tenant_id" => "nobody-knows-this"})
         ])
 
       row = ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == "wire-evict-2"))
@@ -115,17 +87,13 @@ defmodule Tuist.Kura.StorageTelemetryTest do
   end
 
   describe "create_storage_snapshots/1" do
-    test "persists the occupancy snapshot with the account of the node's instance" do
-      account = AccountsFixtures.organization_fixture().account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
+    test "persists the occupancy snapshot with the resolved account" do
+      handle = "acme-#{System.unique_integer([:positive])}"
+      account = AccountsFixtures.organization_fixture(name: handle).account
 
       {:ok, 1} =
         StorageTelemetry.create_storage_snapshots([
-          snapshot_payload(%{
-            "event_id" => "wire-snapshot-1",
-            "tenant_id" => account.name,
-            "node_id" => KuraFixtures.node_id(server)
-          })
+          snapshot_payload(%{"event_id" => "wire-snapshot-1", "tenant_id" => handle})
         ])
 
       row = ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == "wire-snapshot-1"))
@@ -136,18 +104,13 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       assert row.desired_segment_count == 50
     end
 
-    test "attributes a mixed-case account's snapshots to it although its node reports the handle downcased" do
+    test "resolves a tenant whose casing differs from the account handle" do
       account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
       event_id = "snapshot-mixed-case-#{account.id}"
 
       {:ok, 1} =
         StorageTelemetry.create_storage_snapshots([
-          snapshot_payload(%{
-            "event_id" => event_id,
-            "tenant_id" => String.downcase(account.name),
-            "node_id" => KuraFixtures.node_id(server)
-          })
+          snapshot_payload(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})
         ])
 
       row = ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^event_id))

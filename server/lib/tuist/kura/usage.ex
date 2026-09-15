@@ -5,24 +5,24 @@ defmodule Tuist.Kura.Usage do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
-  alias Tuist.Kura
   alias Tuist.Kura.UsageEvent
   alias Tuist.Projects
 
   @max_events_per_batch 5_000
 
   @doc """
-  Persists usage rollups from managed nodes. Each is attributed to the account of
-  the instance its node belongs to (`Tuist.Kura.account_ids_by_node_id/1`) and to
-  that account's project named by `namespace_id`. Anything that does not resolve
-  lands on 0 and is treated as unattributable traffic.
+  Persists usage rollups from managed nodes. Each is attributed to the account
+  named by `tenant_id` and to that account's project named by `namespace_id`,
+  whatever the casing of either handle. Anything that does not resolve lands on 0
+  and is treated as unattributable traffic.
   """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    account_ids_by_node_id = events |> Enum.map(& &1["node_id"]) |> Kura.account_ids_by_node_id()
-    insert_events(events, &Map.get(account_ids_by_node_id, &1["node_id"], 0))
+    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Accounts.get_account_ids_by_handles()
+    insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
   end
 
   def create_events(events) when is_list(events), do: {:error, :too_many_events}

@@ -7,9 +7,9 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
-  alias Tuist.Kura
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.StorageSnapshot
 
@@ -27,12 +27,11 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   def create_storage_snapshots(events) when is_list(events), do: {:error, :too_many_events}
 
-  # A node no live instance owns lands on account 0, which the day aggregates skip.
   defp insert_rows(schema, events, row_builder) do
-    account_ids_by_node_id = events |> Enum.map(& &1["node_id"]) |> Kura.account_ids_by_node_id()
+    account_ids_by_handle = lookup_account_ids(events)
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
-    rows = Enum.map(events, &row_builder.(&1, account_ids_by_node_id, now))
+    rows = Enum.map(events, &row_builder.(&1, account_ids_by_handle, now))
 
     if rows != [] do
       IngestRepo.insert_all(schema, rows)
@@ -41,10 +40,17 @@ defmodule Tuist.Kura.StorageTelemetry do
     {:ok, length(rows)}
   end
 
-  defp eviction_row(event, account_ids_by_node_id, now) do
+  # Unresolvable tenants drop to 0, matching `Tuist.Kura.Usage`.
+  defp lookup_account_ids(events) do
+    events
+    |> Enum.map(& &1["tenant_id"])
+    |> Accounts.get_account_ids_by_handles()
+  end
+
+  defp eviction_row(event, account_ids_by_handle, now) do
     %{
       event_id: event["event_id"],
-      account_id: Map.get(account_ids_by_node_id, event["node_id"], 0),
+      account_id: resolve_account_id(account_ids_by_handle, event["tenant_id"]),
       node_id: event["node_id"],
       region: event["region"],
       segment_id: event["segment_id"],
@@ -58,10 +64,10 @@ defmodule Tuist.Kura.StorageTelemetry do
     }
   end
 
-  defp snapshot_row(event, account_ids_by_node_id, now) do
+  defp snapshot_row(event, account_ids_by_handle, now) do
     %{
       event_id: event["event_id"],
-      account_id: Map.get(account_ids_by_node_id, event["node_id"], 0),
+      account_id: resolve_account_id(account_ids_by_handle, event["tenant_id"]),
       node_id: event["node_id"],
       region: event["region"],
       captured_at: unix_ms_to_naive_datetime(event["captured_at_unix_ms"]),
@@ -73,6 +79,10 @@ defmodule Tuist.Kura.StorageTelemetry do
       newest_content_at: unix_ms_to_naive_datetime(event["newest_content_at_unix_ms"]),
       inserted_at: now
     }
+  end
+
+  defp resolve_account_id(account_ids_by_handle, tenant_id) do
+    Map.get(account_ids_by_handle, tenant_id) || 0
   end
 
   # Absent timestamps land as the epoch; readers gate on live_segment_count.

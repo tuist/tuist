@@ -21,12 +21,4 @@ defmodule TuistTestSupport.Fixtures.KuraFixtures do
       peer_roles: Keyword.get(opts, :peer_roles, [])
     })
   end
-
-  @doc """
-  The node id a pod of `server`'s instance reports its telemetry under: the host
-  of the pod's `KURA_NODE_URL`.
-  """
-  def node_id(%Server{provisioner_node_ref: ref}, ordinal \\ 0) do
-    "#{ref}-#{ordinal}.#{ref}-headless.kura.svc.cluster.local"
-  end
 end

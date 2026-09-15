@@ -8,7 +8,6 @@ defmodule Tuist.Kura.UsageTest do
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   defp insert_event(attrs) do
@@ -65,18 +64,16 @@ defmodule Tuist.Kura.UsageTest do
   defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
 
   describe "create_events/1" do
-    test "attributes events to the account of the node's instance and the namespace's project" do
+    test "resolves tenant and namespace handles to account and project ids regardless of casing" do
       account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
       project = ProjectsFixtures.project_fixture(account: account, name: "ios")
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
 
       {:ok, 1} =
         Usage.create_events([
           wire_event(%{
             "event_id" => "wire-1",
             "tenant_id" => String.downcase(account.name),
-            "namespace_id" => "ios",
-            "node_id" => KuraFixtures.node_id(server)
+            "namespace_id" => "ios"
           })
         ])
 
@@ -90,7 +87,6 @@ defmodule Tuist.Kura.UsageTest do
     test "matches the namespace to a project regardless of casing" do
       account = AccountsFixtures.organization_fixture().account
       project = ProjectsFixtures.project_fixture(account: account, name: "ios")
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
       event_id = "wire-namespace-case-#{account.id}"
 
       {:ok, 1} =
@@ -98,8 +94,7 @@ defmodule Tuist.Kura.UsageTest do
           wire_event(%{
             "event_id" => event_id,
             "tenant_id" => account.name,
-            "namespace_id" => "iOS",
-            "node_id" => KuraFixtures.node_id(server)
+            "namespace_id" => "iOS"
           })
         ])
 
@@ -111,7 +106,6 @@ defmodule Tuist.Kura.UsageTest do
 
     test "keeps the account when the namespace names no project" do
       account = AccountsFixtures.organization_fixture().account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
 
       {:ok, 1} =
         Usage.create_events([
@@ -119,7 +113,6 @@ defmodule Tuist.Kura.UsageTest do
             "event_id" => "wire-orphan-project",
             "tenant_id" => account.name,
             "namespace_id" => "no-such-project",
-            "node_id" => KuraFixtures.node_id(server),
             "bytes" => 50
           })
         ])

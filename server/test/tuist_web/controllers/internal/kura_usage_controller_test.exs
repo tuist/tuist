@@ -13,7 +13,6 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
@@ -43,7 +42,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     "Basic " <> Base.encode64("#{client_id}:#{client_secret}")
   end
 
-  defp build_event(overrides) do
+  defp build_event(overrides \\ %{}) do
     Map.merge(
       %{
         "event_id" => "event-1",
@@ -81,12 +80,9 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   test "persists usage events with account and project mapping", %{conn: conn, kura_client: client} do
     account = AccountsFixtures.organization_fixture(name: "acme").account
     project = ProjectsFixtures.project_fixture(account: account, name: "ios")
-    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
 
     conn =
-      post_events(conn, [build_event(%{"node_id" => KuraFixtures.node_id(server)})],
-        authorization: authorization_header(client.id, client.secret)
-      )
+      post_events(conn, [build_event()], authorization: authorization_header(client.id, client.secret))
 
     assert %{"accepted" => 1} = json_response(conn, 202)
 
@@ -179,9 +175,8 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   test "persists storage telemetry attached to the batch", %{conn: conn, kura_client: client} do
     account = AccountsFixtures.organization_fixture().account
-    node_id = KuraFixtures.node_id(KuraFixtures.active_server_fixture(account, region: "eu-west"))
-    eviction = build_eviction(%{"tenant_id" => account.name, "node_id" => node_id})
-    snapshot = build_snapshot(%{"tenant_id" => account.name, "node_id" => node_id})
+    eviction = build_eviction(%{"tenant_id" => account.name})
+    snapshot = build_snapshot(%{"tenant_id" => account.name})
 
     conn =
       conn

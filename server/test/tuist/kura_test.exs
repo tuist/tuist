@@ -17,7 +17,6 @@ defmodule Tuist.KuraTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
-  alias TuistTestSupport.Fixtures.KuraFixtures
 
   setup :set_mimic_from_context
 
@@ -918,38 +917,6 @@ defmodule Tuist.KuraTest do
       ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert source.id in ids
       refute moving_in.id in ids
-    end
-  end
-
-  describe "account_ids_by_node_id/1" do
-    test "maps every pod of an instance to the account of the server that owns it" do
-      account = AccountsFixtures.organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
-      server = KuraFixtures.active_server_fixture(account, region: "us-east")
-      first = KuraFixtures.node_id(server, 0)
-      second = KuraFixtures.node_id(server, 1)
-
-      assert Kura.account_ids_by_node_id([first, second, first]) == %{first => account.id, second => account.id}
-    end
-
-    test "leaves out destroyed instances and ids that are not an instance's pod host" do
-      account = AccountsFixtures.organization_fixture().account
-      live = KuraFixtures.active_server_fixture(account, region: "us-east")
-
-      destroyed =
-        Repo.insert!(%Server{
-          account_id: account.id,
-          region: "eu-west",
-          status: :destroyed,
-          provisioner_node_ref: "kura-destroyed-#{account.id}"
-        })
-
-      assert Kura.account_ids_by_node_id([
-               KuraFixtures.node_id(destroyed),
-               "#{live.provisioner_node_ref}-0.kura-someone-else-headless.kura.svc.cluster.local",
-               live.provisioner_node_ref,
-               "kura-0",
-               nil
-             ]) == %{}
     end
   end
 
