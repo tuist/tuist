@@ -511,3 +511,43 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		}
 	}
 }
+
+// The `fleet-node-ports-no-world` Cilium host policy selects nodes by
+// `node.cluster.x-k8s.io/instance-type` merely existing, so it is a predicate
+// over this bootstrap rather than a provider list. A kubelet unit rendered
+// without the label, or with it empty, silently unselects that node and
+// reopens 10250/8472/4240 to the internet.
+func TestKubeletUnitAlwaysCarriesANonEmptyInstanceTypeLabel(t *testing.T) {
+	const labelKey = "node.cluster.x-k8s.io/instance-type="
+
+	for _, tc := range []struct {
+		name         string
+		instanceType string
+		want         string
+	}{
+		{"unset falls back to scaleway", "", "scaleway"},
+		{"ovh", ovhInstanceType, ovhInstanceType},
+		{"dedibox", dediboxInstanceType, dediboxInstanceType},
+		{"vultr", vultrInstanceType, vultrInstanceType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for form, out := range map[string]string{
+				"cloud-init": renderLinuxBootstrapScript(linuxCloudInitOptions{
+					NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+					BootstrapUser: "ubuntu", InstanceType: tc.instanceType,
+				}),
+				"unit": kubeletUnitContent("kura-1", "", instanceTypeOrDefault(tc.instanceType), ""),
+			} {
+				idx := strings.Index(out, labelKey)
+				if idx < 0 {
+					t.Fatalf("%s form: expected %s in the kubelet unit, got:\n%s", form, labelKey, out)
+				}
+				rest := out[idx+len(labelKey):]
+				value := rest[:strings.IndexAny(rest, ",\n \\")]
+				if value != tc.want {
+					t.Fatalf("%s form: expected instance-type=%q, got %q", form, tc.want, value)
+				}
+			}
+		})
+	}
+}
