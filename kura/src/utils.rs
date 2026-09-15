@@ -176,6 +176,10 @@ pub struct TempBodyFile {
     pub path: PathBuf,
     pub size: u64,
     pub file_cache_policy: FileCachePolicy,
+    /// Lowercase hex SHA-256 of the staged bytes, computed inline while they
+    /// streamed in. Present only when the caller asked for it via
+    /// `RequestBodyStaging::compute_sha256`.
+    pub sha256_hex: Option<String>,
     _cleanup: TempFileCleanup,
     _memory_reservation: ForegroundFileCacheReservation,
 }
@@ -437,6 +441,10 @@ pub struct RequestBodyStaging<'a> {
     pub io: &'a IoController,
     pub memory: &'a MemoryController,
     pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
+    /// Hash the body into `TempBodyFile::sha256_hex` while it streams in.
+    /// Costs CPU per byte, so it is opt-in: only lanes that go on to verify a
+    /// client-declared digest set it, and only when the request declared one.
+    pub compute_sha256: bool,
 }
 
 pub async fn read_request_to_temp(
@@ -485,6 +493,7 @@ pub async fn read_request_to_temp(
     let mut stream = request.into_body().into_data_stream();
     let mut size = 0_u64;
     let mut advised_through = 0_u64;
+    let mut hasher = staging.compute_sha256.then(Sha256::new);
 
     while let Some(item) = stream.next().await {
         let chunk = match item {
@@ -508,6 +517,9 @@ pub async fn read_request_to_temp(
         }
         if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
+        }
+        if let Some(hasher) = hasher.as_mut() {
+            hasher.update(&chunk);
         }
 
         if let Err(error) = file.write_all(&chunk).await {
@@ -553,6 +565,7 @@ pub async fn read_request_to_temp(
         path: temp_path,
         size,
         file_cache_policy,
+        sha256_hex: hasher.map(|hasher| hex::encode(hasher.finalize())),
         _cleanup: cleanup,
         _memory_reservation: memory_reservation,
     })
@@ -1098,6 +1111,7 @@ mod tests {
                     io: &io,
                     memory: &memory,
                     bandwidth_limiter: None,
+                    compute_sha256: false,
                 },
             )
             .await;
@@ -1452,6 +1466,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1516,6 +1531,7 @@ mod tests {
                             io: &io,
                             memory: &memory,
                             bandwidth_limiter: None,
+                            compute_sha256: false,
                         },
                     )
                     .await
@@ -1547,6 +1563,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1592,6 +1609,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1644,6 +1662,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1690,6 +1709,7 @@ mod tests {
                     io: &io,
                     memory: &memory,
                     bandwidth_limiter: None,
+                    compute_sha256: false,
                 },
             ),
         )
@@ -1750,6 +1770,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await

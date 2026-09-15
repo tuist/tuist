@@ -5,6 +5,11 @@ components:
     CompleteMultipartUploadRequest:
       description: Request to complete a multipart upload
       properties:
+        checksum_sha256:
+          description: Lowercase hex SHA-256 (64 characters) of the assembled artifact. When present, the server refuses the completion with 422 if the assembled bytes do not match, and otherwise serves the digest back as the tuist-checksum-sha256 header on downloads.
+          type: string
+          x-struct:
+          x-validate:
         parts:
           description: Ordered list of part numbers that were uploaded
           items:
@@ -755,7 +760,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Parts mismatch or missing parts
+          description: Parts mismatch or missing parts, or a malformed checksum_sha256
         '401':
           content:
             application/json:
@@ -780,6 +785,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Upload not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The assembled artifact does not match checksum_sha256
         '500':
           content:
             application/json:
@@ -1058,6 +1069,14 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '206':
           content:
             application/octet-stream: {}
@@ -1072,6 +1091,13 @@ paths:
               style: simple
             etag:
               description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
               schema:
                 type: string
                 x-struct:
@@ -1239,6 +1265,6 @@ paths:
 security:
   - authorization: []
 servers:
-  - url: http://localhost:8189
+  - url: http://localhost:8378
     variables: {}
 tags: []

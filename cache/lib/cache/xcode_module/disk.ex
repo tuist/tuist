@@ -10,6 +10,8 @@ defmodule Cache.XcodeModule.Disk do
 
   require Logger
 
+  @checksum_read_bytes 1_048_576
+
   @doc """
   Constructs a sharded Xcode module cache key from account handle, project handle, category, hash, and name.
 
@@ -113,8 +115,14 @@ defmodule Cache.XcodeModule.Disk do
   @doc """
   Finalizes a multipart assembly file by appending buffered parts (if any)
   and atomically renaming to the final artifact destination.
+
+  When `checksum_sha256` is given (the lowercase hex SHA-256 the uploading
+  client declared), the assembled file is hashed before the rename and a
+  mismatch returns `{:error, {:checksum_mismatch, expected, actual}}` without
+  publishing anything. An existing destination still returns `{:error, :exists}`
+  without hashing: the stored object is another upload's, with its own digest.
   """
-  def complete_assembly(assembly_path, upload, buffered_part_paths) do
+  def complete_assembly(assembly_path, upload, buffered_part_paths, checksum_sha256) do
     dest_path =
       upload.account_handle
       |> key(upload.project_handle, upload.category, upload.hash, upload.name)
@@ -123,6 +131,7 @@ defmodule Cache.XcodeModule.Disk do
     with :ok <- Disk.ensure_directory(dest_path),
          false <- File.exists?(dest_path),
          :ok <- append_buffered_parts(assembly_path, buffered_part_paths),
+         :ok <- verify_checksum(assembly_path, checksum_sha256),
          :ok <- File.rename(assembly_path, dest_path) do
       :ok
     else
@@ -134,9 +143,37 @@ defmodule Cache.XcodeModule.Disk do
         File.rm(assembly_path)
         {:error, :exists}
 
+      {:error, {:checksum_mismatch, _expected, _actual}} = error ->
+        error
+
       {:error, reason} = error ->
         Logger.error("Failed to finalize assembled artifact to #{dest_path}: #{inspect(reason)}")
         error
+    end
+  end
+
+  defp verify_checksum(_path, nil), do: :ok
+
+  defp verify_checksum(path, expected) do
+    case sha256_file(path) do
+      {:ok, ^expected} -> :ok
+      {:ok, actual} -> {:error, {:checksum_mismatch, expected, actual}}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp sha256_file(path) do
+    case File.open(path, [:read, :binary, :raw], &hash_device(&1, :crypto.hash_init(:sha256))) do
+      {:ok, result} -> result
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp hash_device(device, state) do
+    case :file.read(device, @checksum_read_bytes) do
+      {:ok, chunk} -> hash_device(device, :crypto.hash_update(state, chunk))
+      :eof -> {:ok, state |> :crypto.hash_final() |> Base.encode16(case: :lower)}
+      {:error, _reason} = error -> error
     end
   end
 

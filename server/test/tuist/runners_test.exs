@@ -1043,6 +1043,34 @@ defmodule Tuist.RunnersTest do
       assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
     end
 
+    test "stores the reported content digest on the HEAD and clears it when the next promote reports none" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("d", 64)
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", digest, 0, nil, content_digest)
+      assert %{generation: 1, content_digest: ^content_digest} = VolumeHeads.get_head(account.id)
+
+      # A promote from a runner image that predates the content hash publishes a
+      # NEW object with no digest: the previous digest describes the old object
+      # and must not survive onto the new HEAD, where hosts would verify the new
+      # download against it and decline every convergence.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-2", String.duplicate("b", 40), 1)
+      assert %{generation: 2, content_digest: nil} = VolumeHeads.get_head(account.id)
+    end
+
+    test "reads a malformed content digest as unreported rather than rejecting the promote" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      bad_digests = ["", "not-hex", String.duplicate("d", 63), String.upcase(String.duplicate("d", 64)), 42]
+
+      for {bad, base_generation} <- Enum.with_index(bad_digests) do
+        assert {:ok, _generation} = Runners.report_volume_head(account.id, "node-1", digest, base_generation, nil, bad)
+        assert %{content_digest: nil} = VolumeHeads.get_head(account.id)
+      end
+    end
+
     test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
       account = account_fixture()
 
@@ -1227,7 +1255,7 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "volume_master_upload_url/2" do
+  describe "volume_master_upload_url/3" do
     test "mints a content-addressed presigned PUT URL keyed by the inventory digest" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
@@ -1236,11 +1264,53 @@ defmodule Tuist.RunnersTest do
       expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, actor, opts ->
         assert actor.id == account.id
         assert Keyword.has_key?(opts, :expires_in)
+        # No content digest reported, so nothing may be signed into the URL.
+        refute Keyword.has_key?(opts, :signed_headers)
         "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
       end)
 
-      assert {:ok, url} = Runners.volume_master_upload_url(account.id, digest)
+      assert {:ok, url, nil} = Runners.volume_master_upload_url(account.id, digest)
       assert url =~ expected_key
+    end
+
+    test "signs the reported content digest into the URL as an x-amz-checksum-sha256 header" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("ab", 32)
+      expected_checksum = content_digest |> Base.decode16!(case: :lower) |> Base.encode64()
+
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn actor ->
+        assert actor.id == account.id
+        true
+      end)
+
+      expect(Tuist.Storage, :generate_upload_url, fn _key, _actor, opts ->
+        assert opts[:signed_headers] == [{"x-amz-checksum-sha256", expected_checksum}]
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, _url, ^expected_checksum} = Runners.volume_master_upload_url(account.id, digest, content_digest)
+    end
+
+    test "signs nothing for a malformed content digest or a provider without signed upload headers" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, opts ->
+        refute Keyword.has_key?(opts, :signed_headers)
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      # Malformed digests read as unreported — the PUT goes out bare, the
+      # status quo — rather than failing the mint or signing garbage.
+      for bad <- ["", "not-hex", String.duplicate("a", 63), String.upcase(String.duplicate("a", 64))] do
+        assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, digest, bad)
+      end
+
+      # A well-formed digest against a provider whose presigned URLs cannot
+      # carry signed headers: the guest must NOT be told to send the header.
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> false end)
+      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, digest, String.duplicate("c", 64))
     end
 
     test "rejects a non-hex digest before any storage call (no traversal, no clobber)" do

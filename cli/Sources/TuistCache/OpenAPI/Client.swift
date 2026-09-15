@@ -1668,6 +1668,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 422:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeModuleCacheMultipartUpload.Output.UnprocessableContent.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unprocessableContent(.init(body: body))
                 case 500:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.completeModuleCacheMultipartUpload.Output.InternalServerError.Body
@@ -2212,6 +2234,11 @@ public struct Client: APIProtocol {
             deserializer: { response, responseBody in
                 switch response.status.code {
                 case 200:
+                    let headers: Operations.downloadModuleCacheArtifact.Output.Ok.Headers = .init(tuist_hyphen_checksum_hyphen_sha256: try converter.getOptionalHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "tuist-checksum-sha256",
+                        as: Swift.String.self
+                    ))
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.downloadModuleCacheArtifact.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
@@ -2232,7 +2259,10 @@ public struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
+                    return .ok(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 206:
                     let headers: Operations.downloadModuleCacheArtifact.Output.PartialContent.Headers = .init(
                         content_hyphen_range: try converter.getOptionalHeaderFieldAsURI(
@@ -2243,6 +2273,11 @@ public struct Client: APIProtocol {
                         etag: try converter.getOptionalHeaderFieldAsURI(
                             in: response.headerFields,
                             name: "etag",
+                            as: Swift.String.self
+                        ),
+                        tuist_hyphen_checksum_hyphen_sha256: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "tuist-checksum-sha256",
                             as: Swift.String.self
                         )
                     )

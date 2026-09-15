@@ -1607,6 +1607,7 @@ targets.append(contentsOf: [
             pathDependency,
             xcodeGraphDependency,
             "TuistHasher",
+            .product(name: "Crypto", package: "apple.swift-crypto"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
         ],

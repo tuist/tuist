@@ -20,6 +20,7 @@ defmodule Cache.S3 do
   @exists_cache :s3_exists_cache
   @exists_positive_ttl to_timeout(hour: 6)
   @exists_negative_ttl to_timeout(second: 30)
+  @content_sha256_metadata_header "x-amz-meta-tuist-checksum-sha256"
 
   def child_spec(_) do
     %{
@@ -117,7 +118,7 @@ defmodule Cache.S3 do
 
       bucket ->
         case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
-          :exists -> {:ok, true}
+          {:exists, _response} -> {:ok, true}
           :not_found -> {:ok, false}
           {:error, reason} -> {:error, reason}
         end
@@ -137,7 +138,7 @@ defmodule Cache.S3 do
     Logger.info("Starting S3 upload for artifact: #{key}")
 
     if File.exists?(local_path) do
-      case upload_file(key, local_path) do
+      case upload_file(key, local_path, content_sha256: Cache.CacheArtifacts.content_sha256(key)) do
         :ok ->
           Logger.info("Successfully uploaded artifact to S3: #{key}")
           :ok
@@ -180,8 +181,8 @@ defmodule Cache.S3 do
     local_path = Cache.Disk.artifact_path(key)
 
     case head_object_status(bucket, key) do
-      :exists ->
-        download_existing_object(key, bucket, local_path)
+      {:exists, head_response} ->
+        download_existing_object(key, bucket, local_path, head_response)
 
       :not_found ->
         {:ok, :miss}
@@ -195,7 +196,7 @@ defmodule Cache.S3 do
     end
   end
 
-  defp download_existing_object(key, bucket, local_path) do
+  defp download_existing_object(key, bucket, local_path, head_response) do
     tmp_path = tmp_download_path(local_path)
 
     local_path |> Path.dirname() |> File.mkdir_p!()
@@ -207,7 +208,35 @@ defmodule Cache.S3 do
         |> ExAws.request()
       end)
 
-    handle_download_result(key, local_path, tmp_path, dl_duration, dl_result)
+    case handle_download_result(key, local_path, tmp_path, dl_duration, dl_result) do
+      {:ok, :hit} = hit ->
+        restore_content_sha256(key, head_response)
+        hit
+
+      other ->
+        other
+    end
+  end
+
+  # An artifact pulled back from object storage after eviction lost its row, and
+  # with it the digest its uploader declared. The object's metadata still carries
+  # it, so the next disk hit serves it again instead of going unverified.
+  defp restore_content_sha256(key, %{headers: headers}) do
+    case content_sha256_from_headers(headers) do
+      nil -> :ok
+      content_sha256 -> Cache.CacheArtifacts.record_content_sha256(key, content_sha256)
+    end
+  end
+
+  defp restore_content_sha256(_key, _head_response), do: :ok
+
+  defp content_sha256_from_headers(headers) do
+    Enum.find_value(headers, fn {name, value} ->
+      if String.downcase(name) == @content_sha256_metadata_header do
+        normalized = value |> List.wrap() |> List.first() |> to_string() |> String.downcase()
+        if Regex.match?(~r/\A[0-9a-f]{64}\z/, normalized), do: normalized
+      end
+    end)
   end
 
   defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}) do
@@ -324,6 +353,7 @@ defmodule Cache.S3 do
 
     * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
+    * `:content_sha256` - The uploader's declared SHA-256, stored as `tuist-checksum-sha256` object metadata
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
   """
@@ -337,6 +367,14 @@ defmodule Cache.S3 do
       if content_type_opt,
         do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
         else: [timeout: 120_000, max_concurrency: 8]
+
+    # The uploader's declared digest travels with the object, so an artifact
+    # served from (or pulled back from) object storage still carries it.
+    upload_opts =
+      case Keyword.get(opts, :content_sha256) do
+        nil -> upload_opts
+        content_sha256 -> upload_opts ++ [meta: [{"tuist-checksum-sha256", content_sha256}]]
+      end
 
     {duration, result} =
       :timer.tc(fn ->
@@ -435,9 +473,9 @@ defmodule Cache.S3 do
       end)
 
     case result do
-      {:ok, _response} ->
+      {:ok, response} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
-        :exists
+        {:exists, response}
 
       {:error, {:http_error, 404, _}} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
