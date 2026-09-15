@@ -333,6 +333,9 @@ kuraGatewayNetworkPolicy:
   # (`kuraController.namespace` in the tuist chart).
   namespace: kura
   port: 4000
+  # kura-controller's `gatewayGRPCPort`, the gRPC-only port the gRPC Ingress
+  # routes to once an instance's pods serve it.
+  grpcPort: 4001
 
 external-dns:
   enabled: true

@@ -1781,6 +1781,9 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "backfill_budget_exhausted_real_peers": status.backfill.budget_exhausted_real,
         "backfill_budget_exhausted_capability_peers": status.backfill.budget_exhausted_capability,
         "backfill_ring_fullness_percent": status.backfill.ring_fullness_percent,
+        // Only a process that bound the gRPC-only listener gets this far with
+        // it set, so the kura-controller switches the gateway's gRPC on it.
+        "gateway_grpc_port": state.config.gateway_grpc_port,
     }))
 }
 
@@ -5513,6 +5516,27 @@ mod tests {
         assert_eq!(fingerprint.len(), 16);
         assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(body["backfill_initial_cycle"], "complete");
+    }
+
+    #[tokio::test]
+    async fn rollout_status_reports_the_gateway_grpc_port_only_when_configured() {
+        for (gateway_grpc_port, expected) in [(None, Value::Null), (Some(4001), Value::from(4001))]
+        {
+            let context = test_context(|config| config.gateway_grpc_port = gateway_grpc_port).await;
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri("/status/rollout")
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("rollout status route should respond");
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("rollout status response should be json");
+            assert_eq!(body["gateway_grpc_port"], expected);
+        }
     }
 
     async fn get_ready_status(state: &SharedState) -> (StatusCode, Value) {
