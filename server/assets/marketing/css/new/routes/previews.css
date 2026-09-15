@@ -697,7 +697,7 @@
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
           }
 
           & > [data-part="description"] {

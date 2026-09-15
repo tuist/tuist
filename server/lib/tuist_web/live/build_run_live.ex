@@ -238,8 +238,9 @@ defmodule TuistWeb.BuildRunLive do
        |> assign(:run, run)
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
+       |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
        |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
-       |> assign_timeline(socket.assigns.selected_tab, true)}
+       |> assign_timeline(true)}
     else
       {:noreply, socket}
     end
@@ -287,6 +288,9 @@ defmodule TuistWeb.BuildRunLive do
         do: "timeline",
         else: params["tab"] || "overview"
 
+    socket = TuistWeb.BuildTimelineLoader.select_tab(socket, selected_tab, socket.assigns.run)
+    selected_tab = socket.assigns.selected_tab
+
     available_filters =
       case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
         {"overview", "file", _} -> file_breakdown_available_filters
@@ -321,7 +325,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
       |> assign(:selected_cache_tab, selected_cache_tab)
       |> assign_selected_tab_data(params)
-      |> assign_timeline(selected_tab)
+      |> assign_timeline()
 
     {
       :noreply,
@@ -444,8 +448,8 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp assign_timeline(socket, tab, force \\ false) do
-    TuistWeb.BuildTimelineLoader.assign_timeline(socket, tab, socket.assigns.run, force)
+  defp assign_timeline(socket, force \\ false) do
+    TuistWeb.BuildTimelineLoader.assign_timeline(socket, socket.assigns.selected_tab, socket.assigns.run, force)
   end
 
   @impl true
@@ -533,8 +537,9 @@ defmodule TuistWeb.BuildRunLive do
      |> assign(:run, refreshed_run)
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
+     |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
      |> assign_selected_tab_data(Query.query_params(URI.to_string(socket.assigns.uri)))
-     |> assign_timeline(socket.assigns.selected_tab, true)}
+     |> assign_timeline(true)}
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)

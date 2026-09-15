@@ -259,8 +259,6 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       ]
     )
 
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
-
     conn
     |> basic_auth(client.client_id, secret)
     |> post(~p"/_internal/kura/mesh/enroll", %{
@@ -282,7 +280,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     refute Map.has_key?(body, "peer_roles")
   end
 
-  test "mesh heartbeat answers a false pull flag for an account without managed servers", %{
+  test "mesh heartbeat answers a true pull flag for an account without managed servers", %{
     conn: conn,
     client: client,
     secret: secret
@@ -299,7 +297,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> basic_auth(client.client_id, secret)
       |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
 
-    assert %{"mesh_member" => true, "replication_pull" => false} = json_response(conn, 200)
+    assert %{"mesh_member" => true, "replication_pull" => true} = json_response(conn, 200)
   end
 
   test "mesh heartbeat reports non-membership for a node that never enrolled", %{
@@ -408,8 +406,6 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     # Every field in this response is a Postgres read: no apiserver on the path.
     reject(&Client.get_kura_instance/3)
 
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
-
     conn =
       conn
       |> basic_auth("static-kura-client", "static-kura-secret")
@@ -441,7 +437,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> basic_auth("static-kura-client", "static-kura-secret")
       |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
 
-    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => false} = json_response(conn, 200)
+    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => true} = json_response(conn, 200)
   end
 
   test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do

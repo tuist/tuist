@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and serialize publication per alert with a session advisory lock. Each action runs outside a row-lock transaction, between a short preflight check and a durable checkpoint; edits may cancel the remaining work while an authorized action finishes. Clear the request on completion. Silent publication deduplication tokens include the sorted test ID set so changed payloads on retry are not dropped. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Condition edits require a fresh opt-in. Omitting the request preserves pending work; explicit false cancels remaining actions. Baseline attempt generations invalidate stale workers; nullable `event_generation` separately scopes recovery history (falling back to `baseline_generation` for existing rows), so opt-ins and cancellations retain active recovery events. Returned action errors are logged and checkpointed without publishing a successful trigger, allowing the baseline and subsequent evaluation to progress.
 - Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
@@ -18,6 +19,8 @@ This directory contains the core business logic and domain modules for the serve
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
+
+- Application startup and shutdown ordering: `server/lib/tuist/application/AGENTS.md`.
 
 - Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
   `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
@@ -38,8 +41,14 @@ This directory contains the core business logic and domain modules for the serve
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
-- `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
-  so Oban retries them and the final attempt marks the build as `failed_processing`.
+- `Processor.BuildProcessor` maps known archive-corruption errors from
+  `:zip.unzip` (`:bad_eocd`, `:bad_eocd64`, `:bad_central_directory`,
+  `:bad_local_file_header`, and per-entry `:bad_crc`) to
+  `{:error, :corrupt_archive}`. `ProcessBuildWorker` discards those jobs on
+  the first attempt and marks the build as `failed_processing` right away,
+  since the archive is a bad upload and retries won't heal it. Other
+  extraction errors still bubble up as `{:error, reason}` so Oban retries
+  them and the final attempt marks the build as `failed_processing`.
 
 ## Related Context (Downlinks)
 

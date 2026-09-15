@@ -95,6 +95,8 @@ defmodule TuistWeb.GradleBuildLive do
   """
   def assign_handle_params(socket, params) do
     selected_tab = if params["tab"] == "machine-metrics", do: "timeline", else: params["tab"] || "overview"
+    socket = BuildTimelineLoader.select_tab(socket, selected_tab, socket.assigns.build)
+    selected_tab = socket.assigns.selected_tab
     uri = URI.new!("?" <> URI.encode_query(params))
 
     socket

@@ -328,62 +328,13 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # One step of the migration, run as a Job by the chart. The sequence is
-    # advanced by changing `task` and deploying, so each step is a reviewed
-    # change in the release history rather than a command typed at a database.
-    #
-    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
-    # deploy that first introduced the workload, this one has somewhere to
-    # clone to. The Job is a post-upgrade hook, so it runs once the release is
-    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
-    # the destination from already exists.
-    #
-    # Gate: table, view and migration-version counts match the source. Engines
-    # need no assertion, because `database_replicated_allow_only_replicated_engine`
-    # makes the destination reject a non-replicated table, so creation
-    # succeeding is the proof.
-    #
-    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
-    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
-    # one enabled re-runs it on every deploy. That was harmless for the clone,
-    # which creates what is missing and leaves the rest alone, and it is not
-    # harmless for what comes next.
-    #
-    # `name` and `task` are the step this would run if it were enabled, which
-    # is why they name the *next* one rather than the last that ran.
-    #
-    # `cutoff` is deliberately absent, and arming the backfill without it fails
-    # loudly rather than copying to a stale timestamp. Set it to a moment after
-    # the deploy that turns dual writes on above has finished rolling out: the
-    # backfill covers everything before it, the mirror covers everything after,
-    # and naming the boundary is what stops the two from leaving a gap.
-    # Step 6a: the full parity gate, before reads move anywhere.
-    #
-    # Step 5 is done here. The backfill copied 260 chunks across 50 tables with
-    # 101 skipped and none failed, in 58 seconds, and a second run finished in
-    # 7 with everything skipped, which is the ledger doing its job.
-    #
-    # This is a different check from the hourly worker, and that distinction is
-    # the point. The worker compares a two-hour window, so it says recent
-    # writes agree. `check_clickhouse_parity` compares every copied table over
-    # the whole dataset, schemas included, which is what the backfill's
-    # coverage of history has never been measured against. The worker reporting
-    # "all 62 copied table(s) agree" is not evidence for this.
-    #
-    # It raises rather than reports, and that is deliberate: it is the gate for
-    # the cutover, and schema drift in particular is fatal here because from
-    # the flip onward a missing column breaks the ingest path rather than
-    # costing one mirrored write.
-    #
-    # Consequence worth stating: a post-upgrade hook that raises fails the
-    # release, and the deploy runs with `--atomic`, so a parity failure rolls
-    # canary back. That is correct for a gate and it is also how three canary
-    # releases were lost last week. If it fails, read the Job, then disarm this
-    # rather than redeploying into the same wall.
-    #
-    # `cutoff` is gone with the backfill it belonged to.
+    # Step 6a, the full parity gate, is disarmed. Its last run found five copied
+    # tables differing from the system of record across the whole dataset:
+    # shard_plans, xcode_targets, command_events and cacheable_tasks short of
+    # rows, and test_runs with a differing duration. Reads stay where they are
+    # until those are explained and repaired.
     migration:
-      enabled: true
+      enabled: false
       name: parity
       task: Tuist.Release.check_clickhouse_parity
 

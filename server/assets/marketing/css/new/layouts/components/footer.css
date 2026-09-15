@@ -161,6 +161,15 @@
     gap: var(--noora-spacing-4) var(--noora-spacing-5);
     margin-top: var(--noora-spacing-12);
 
+    /* Mobile: the label sits above the buttons instead of beside them,
+       both centered. */
+    @media (max-width: 1023px) {
+      flex-direction: column;
+      align-items: center;
+      align-self: center;
+      gap: var(--noora-spacing-5);
+    }
+
     & > [data-part="ask-label"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);

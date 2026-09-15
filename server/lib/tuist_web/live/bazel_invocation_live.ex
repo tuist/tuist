@@ -70,6 +70,8 @@ defmodule TuistWeb.BazelInvocationLive do
     selected_tab = selected_tab(params)
     project = socket.assigns.selected_project
     invocation = socket.assigns.invocation
+    socket = BuildTimelineLoader.select_tab(socket, selected_tab, invocation)
+    selected_tab = socket.assigns.selected_tab
 
     {cache_events, cache_detail_metrics, cache_meta, active_cache_filters, available_filters, cache_sort_by,
      cache_sort_order, selected_cache_view} =
@@ -180,6 +182,7 @@ defmodule TuistWeb.BazelInvocationLive do
           selected={@selected_tab == "overview"}
         />
         <.tab_menu_horizontal_item
+          :if={@timeline_available}
           label={dgettext("dashboard_builds", "Timeline")}
           patch={tab_path(assigns, "timeline")}
           selected={@selected_tab == "timeline"}

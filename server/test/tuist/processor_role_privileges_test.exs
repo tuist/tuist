@@ -3,6 +3,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   use Mimic
 
   alias Tuist.Bazel
+  alias Tuist.Bazel.Profile
   alias Tuist.Bazel.ProfileUpload
   alias Tuist.Bazel.TestInvocation
   alias Tuist.Bazel.Workers.ProcessProfileWorker
@@ -109,6 +110,45 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     }
 
     assert :ok == ProcessorRole.as_processor(fn -> ProcessXcresultWorker.perform(job) end)
+  end
+
+  test "the Bazel profile processor can publish profiles and reject invalid uploads with deployed privileges", %{
+    project: project
+  } do
+    body =
+      :zlib.gzip(
+        JSON.encode!(%{
+          otherData: %{build_id: "profile"},
+          traceEvents: [%{ph: "X", name: "Compile", ts: 0, dur: 1000}]
+        })
+      )
+
+    assert :ok = ProfileUpload.stage(project, "profile", body)
+    assert :ok = ProfileUpload.stage(project, "invalid-profile", "invalid gzip")
+
+    ProcessorRole.as_processor(fn ->
+      assert :ok =
+               ProcessProfileWorker.perform(%Oban.Job{
+                 args: %{"project_id" => project.id, "invocation_id" => "profile"},
+                 attempt: 5,
+                 max_attempts: 5
+               })
+
+      assert %{state: "processed", compressed: nil} = Repo.one(ProfileUpload.query(project.id, "profile"))
+
+      assert {:discard, :invalid_profile} =
+               ProcessProfileWorker.perform(%Oban.Job{
+                 args: %{"project_id" => project.id, "invocation_id" => "invalid-profile"},
+                 attempt: 5,
+                 max_attempts: 5
+               })
+
+      assert %{state: "rejected", compressed: nil} = Repo.one(ProfileUpload.query(project.id, "invalid-profile"))
+    end)
+
+    invocation = %Bazel.Invocation{project_id: project.id, invocation_id: "profile"}
+    assert is_binary(Profile.steps_version(invocation))
+    assert [%{title: "Compile"}] = Profile.load(invocation).events
   end
 
   test "the Bazel test ingestion path only reads and writes granted tables", %{project: project} do

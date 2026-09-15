@@ -10,12 +10,14 @@ defmodule TuistWeb.Router do
   import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
+  alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
+  alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -42,19 +44,22 @@ defmodule TuistWeb.Router do
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
 
-    # Deliberately reads the env-var toggle directly rather than the
-    # flag-aware `TuistWeb.Turnstile.required?/0`. This plug feeds the
+    # Deliberately reads the env-var toggles directly rather than the
+    # flag-aware wrappers. This plug feeds the
     # `:content_security_policy` pipeline, which the app, marketing, docs,
     # image and ueberauth pipelines all use, so a per-request
-    # `FunWithFlags.enabled?(:turnstile_kill_switch)` would fire on every
-    # page load site-wide for a widget only two LiveViews ever render — and
+    # `FunWithFlags.enabled?(...)` would fire on every page load
+    # site-wide for a widget only a handful of routes ever render — and
     # the underlying store `raise`s on a cold cache during a Postgres blip,
     # which would 500 pages that previously had no DB dependency here.
-    # Flipping the kill switch still turns off the widget and the verify
-    # path everywhere immediately; the only thing left behind is a CSP
-    # source pointing at a host nothing loads from.
+    # Flipping either kill switch still turns off the widget and the
+    # verify path everywhere immediately; the only thing left behind is
+    # a CSP source pointing at a host nothing loads from.
     turnstile_source =
-      if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
+      if Tuist.Environment.turnstile_required?() or
+           Tuist.Environment.public_page_challenge_required?(),
+         do: " https://challenges.cloudflare.com",
+         else: ""
 
     [
       frame_ancestors: "'self'",
@@ -324,6 +329,13 @@ defmodule TuistWeb.Router do
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: @marketing_route_metadata
 
     get "/sitemap.xml", MarketingController, :sitemap, metadata: @marketing_route_metadata
+  end
+
+  scope "/", TuistWeb.Marketing do
+    pipe_through [:non_authenticated_api]
+
+    # Steps for the build timeline embedded in the Bazel announcement post.
+    get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
   end
 
   scope "/" do
@@ -1089,6 +1101,17 @@ defmodule TuistWeb.Router do
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
   end
 
+  # Anonymous Turnstile challenge shown before public-project and
+  # public-account dashboard pages when the feature flag is armed.
+  # Kept OUTSIDE the `:project` / `:public_account` scopes so the
+  # visitor can actually reach the challenge without solving it first.
+  scope "/turnstile-challenge", TuistWeb do
+    pipe_through [:browser_app]
+
+    get "/", PublicPageChallengeController, :show
+    post "/verify", PublicPageChallengeController, :verify
+  end
+
   # Dashboard
 
   scope "/:account_handle/:project_handle/previews", TuistWeb do
@@ -1141,6 +1164,12 @@ defmodule TuistWeb.Router do
     get "/qr-code.png", PreviewController, :download_qr_code_png
   end
 
+  # `/download` is the install-flow redirect a mobile device opens
+  # to fetch the signed S3 URL of the archive. It cannot render a
+  # Turnstile widget, so it stays outside the challenge gate. Other
+  # native-download endpoints (`app.ipa`, `app.apk`, `manifest.plist`,
+  # `qr-code.{svg,png}`, `icon.png`) already live in sibling scopes
+  # above that never carry the challenge plug.
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
@@ -1152,10 +1181,23 @@ defmodule TuistWeb.Router do
     ]
 
     get "/download", PreviewController, :download_preview
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :require_authenticated_user_for_previews,
+      :mark_public_preview_page,
+      PublicPageChallengePlug,
+      :analytics,
+      :embeddable
+    ]
 
     live_session :preview_detail,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
@@ -1176,6 +1218,7 @@ defmodule TuistWeb.Router do
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,
       :mark_public_account_page,
+      PublicPageChallengePlug,
       :require_sso_authentication,
       :analytics
     ]
@@ -1187,6 +1230,7 @@ defmodule TuistWeb.Router do
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
@@ -1257,6 +1301,7 @@ defmodule TuistWeb.Router do
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
       :mark_public_project_page,
+      PublicPageChallengePlug,
       :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
@@ -1265,6 +1310,7 @@ defmodule TuistWeb.Router do
     live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},

@@ -1433,7 +1433,7 @@ msgstr ""
 msgid "Copy as Markdown"
 msgstr ""
 
-#: lib/tuist_web/live/ops_database_live.ex:202
+#: lib/tuist_web/live/ops_database_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
@@ -1556,7 +1556,7 @@ msgstr ""
 msgid "Mode"
 msgstr ""
 
-#: lib/tuist_web/live/ops_database_live.ex:195
+#: lib/tuist_web/live/ops_database_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "No CNPG cluster wired to this server (dev, or Postgres still on the external provider). Base backups appear once the server runs against the in-cluster cluster."
 msgstr ""
@@ -1611,7 +1611,7 @@ msgstr ""
 msgid "No unused indexes"
 msgstr ""
 
-#: lib/tuist_web/live/ops_database_live.ex:177
+#: lib/tuist_web/live/ops_database_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "Not configured"
 msgstr ""
@@ -1774,7 +1774,7 @@ msgstr ""
 msgid "Tables"
 msgstr ""
 
-#: lib/tuist_web/live/ops_database_live.ex:207
+#: lib/tuist_web/live/ops_database_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "The cluster has not produced any base backups yet."
 msgstr ""

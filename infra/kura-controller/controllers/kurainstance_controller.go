@@ -218,7 +218,6 @@ type runtimeStatus struct {
 	WriterLockOwned            bool   `json:"writer_lock_owned"`
 	Generation                 uint64 `json:"generation"`
 	BackfillingPeers           int64  `json:"backfill_backfilling_peers"`
-	OutboxMessages             int64  `json:"outbox_messages"`
 	MemoryPressureState        int64  `json:"memory_pressure_state"`
 	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
 	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
@@ -290,8 +289,20 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // pointed at a Secret without a leaf, or at one whose leaf does not span the
 // host, makes ingress-nginx serve its self-signed default. Coverage is checked
 // rather than presence because an ACME wildcard matches exactly one label.
+//
+// A private gateway is asked the same question about its own hostname. Minting
+// a certificate per instance spends the ACME per-registered-domain allowance,
+// which is shared across everything under tuist.dev and is what stranded six
+// instances for a day when eleven were ordered at once; a host the wildcard
+// already spans needs no certificate of its own. A private host the wildcard
+// does not span still gets one, which is the only way to serve a hostname
+// outside the zone.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	if instance.Spec.Private || r.PublicTLSSecretName == "" || instance.Spec.PublicHost == "" {
+	host := instance.Spec.PublicHost
+	if instance.Spec.Private {
+		host = instance.Spec.PrivateHost
+	}
+	if r.PublicTLSSecretName == "" || host == "" {
 		return false
 	}
 	secret := &corev1.Secret{}
@@ -306,7 +317,7 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	return leaf.VerifyHostname(instance.Spec.PublicHost) == nil
+	return leaf.VerifyHostname(host) == nil
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
@@ -2324,7 +2335,6 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		if sample.status.BackfillInitialCycle == backfillCycleDegraded {
 			backfillDegraded = true
 		}
-		health.OutboxMessages += sample.status.OutboxMessages
 		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
 		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
 		if sample.status.MemoryPressureState > health.MemoryPressureState {

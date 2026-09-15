@@ -15,7 +15,7 @@ defmodule TuistWeb.Components.BuildTimeline do
 
   def build_timeline_section(assigns) do
     ~H"""
-    <.async_result :let={timeline} assign={@timeline}>
+    <.async_result assign={@timeline}>
       <:loading>
         <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
           <.card_section data-part="timeline-skeleton" aria-busy="true">
@@ -28,24 +28,6 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <p
-        :if={@source == "bazel" and timeline.coverage != "trace_profile"}
-        data-part="timeline-coverage"
-      >
-        {dgettext(
-          "dashboard_builds",
-          "The trace profile is not available yet. This timeline shows the recorded build summary; profile delivery and processing may still be in progress."
-        )}
-      </p>
-      <p
-        :if={@source == "gradle" and timeline.time_origin == "first_recorded_timestamp"}
-        data-part="timeline-coverage"
-      >
-        {dgettext(
-          "dashboard_builds",
-          "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
-        )}
-      </p>
       <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
     </.async_result>
     """
@@ -288,9 +270,6 @@ defmodule TuistWeb.Components.BuildTimeline do
             </aside>
           </div>
           <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
-          <p data-part="no-recorded-steps" hidden>
-            {dgettext("dashboard_builds", "No steps were recorded for this build.")}
-          </p>
           <p data-part="no-matches" hidden>
             {dgettext("dashboard_builds", "No steps in this time range match your filters.")}
           </p>

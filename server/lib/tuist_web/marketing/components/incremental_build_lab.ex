@@ -28,10 +28,22 @@ defmodule TuistWeb.Marketing.Components.IncrementalBuildLab do
   def render(assigns) do
     ~H"""
     <script :type={Phoenix.LiveView.ColocatedHook} name=".IncrementalBuildGraph">
-      import cytoscape from "cytoscape";
-      import dagre from "cytoscape-dagre";
-
-      cytoscape.use(dagre);
+      // cytoscape and its dagre layout (~480 KB minified) are loaded on demand
+      // when the lab mounts, so only this blog post pays for them; the
+      // dynamic imports become their own chunk of the marketing bundle.
+      let cytoscapeReady = null;
+      function loadCytoscape() {
+        if (!cytoscapeReady) {
+          cytoscapeReady = Promise.all([import("cytoscape"), import("cytoscape-dagre")]).then(
+            ([cytoscapeModule, dagreModule]) => {
+              const cytoscape = cytoscapeModule.default;
+              cytoscape.use(dagreModule.default);
+              return cytoscape;
+            },
+          );
+        }
+        return cytoscapeReady;
+      }
 
       const elements = [
         { data: { id: "shared", label: "shared API" } },
@@ -88,12 +100,19 @@ defmodule TuistWeb.Marketing.Components.IncrementalBuildLab do
       const IncrementalBuildGraph = {
         mounted() {
           this.timers = [];
-          this.createGraph();
-          this.run = this.el.dataset.run;
-          this.updateGraph();
+          loadCytoscape().then((cytoscape) => {
+            if (!this.el.isConnected) return;
+            this.cytoscape = cytoscape;
+            this.createGraph();
+            this.run = this.el.dataset.run;
+            this.updateGraph();
+          });
         },
 
         updated() {
+          // Still loading: mounted() picks up the current run once it lands.
+          if (!this.cytoscape) return;
+
           if (!this.el.querySelector("canvas")) {
             this.graph?.destroy();
             this.createGraph();
@@ -126,7 +145,7 @@ defmodule TuistWeb.Marketing.Components.IncrementalBuildLab do
             label: colorToken(this.el, "--noora-surface-label-primary"),
           };
 
-          this.graph = cytoscape({
+          this.graph = this.cytoscape({
             container: this.el,
             elements,
             userZoomingEnabled: false,

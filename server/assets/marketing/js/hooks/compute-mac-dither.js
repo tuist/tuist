@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * "Powerful compute, ready" card: the dot field trailing off the Mac's
  * flank. The comp bakes ~1900 dots into an SVG; here the field is
@@ -93,10 +94,20 @@ export const ComputeMacDither = {
       this.lastNow = now;
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.lastTick = -1;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();

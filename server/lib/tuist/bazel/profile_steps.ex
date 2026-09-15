@@ -52,6 +52,8 @@ defmodule Tuist.Bazel.ProfileSteps do
     end)
   end
 
+  def available?(invocation, version), do: ClickHouseRepo.exists?(query(invocation, version))
+
   def events(invocation, version) do
     invocation
     |> outcomes(version)

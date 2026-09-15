@@ -37,7 +37,8 @@ export const MobileMenu = {
     }
 
     if (this.isOpen) {
-      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.touchAction = "";
       this.isOpen = false;
     }
   },
@@ -49,9 +50,10 @@ export const MobileMenu = {
     const isOpen = this.isOpen || false;
     navbar.dataset.mobileMenuOpen = isOpen ? "true" : "false";
     this.el.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    // Drives the NooraIconTransition morph (menu <-> close).
+    // Drives the CSS hamburger <-> X animation (navbar.css).
     this.el.dataset.state = isOpen ? "open" : "closed";
-    document.body.style.overflow = isOpen ? "hidden" : "";
+    document.documentElement.style.overflow = isOpen ? "hidden" : "";
+    document.body.style.touchAction = isOpen ? "none" : "";
   },
 
   initMenu() {
@@ -70,13 +72,64 @@ export const MobileMenu = {
       this.listeners.push({ element, event, handler });
     };
 
+    // Prefetch the menu's own pages the first time it opens, through a
+    // speculation rule inserted at runtime, so a tap lands on a page that is
+    // already fetched. Desktop gets the same from the layout's hover rule;
+    // phones have no hover, so without this every tap starts from zero.
+    // Same-origin, same-tab links only; skipped under Save-Data. Browsers
+    // without speculation rules (Safari) ignore the script.
+    const prefetchMenuLinks = () => {
+      if (this.prefetched) return;
+      this.prefetched = true;
+      if (!HTMLScriptElement.supports || !HTMLScriptElement.supports("speculationrules")) return;
+      if (navigator.connection && navigator.connection.saveData) return;
+      const urls = new Set();
+      for (const link of navbar.querySelectorAll('[data-part="mobile-menus"] a[href]')) {
+        if (link.origin !== location.origin) continue;
+        if (link.target && link.target !== "_self") continue;
+        if (link.hasAttribute("download")) continue;
+        if (link.pathname === location.pathname) continue;
+        urls.add(link.pathname + link.search);
+      }
+      if (!urls.size) return;
+      const script = document.createElement("script");
+      script.type = "speculationrules";
+      const nonce = document.querySelector("meta[name='csp-nonce']");
+      if (nonce) script.nonce = nonce.getAttribute("content");
+      script.textContent = JSON.stringify({ prefetch: [{ urls: [...urls] }] });
+      document.head.appendChild(script);
+    };
+
     const setOpenState = (state) => {
       this.isOpen = state;
+      if (state) prefetchMenuLinks();
+      // The panel is a fixed overlay that starts under the bar (navbar.css).
+      if (state) {
+        navbar.style.setProperty("--marketing-navbar-height", `${navbar.offsetHeight}px`);
+        // The panel stays in the tree while closed (so closing animates),
+        // which also keeps its scroll offset; reopen from the top.
+        const panel = navbar.querySelector('[data-part="mobile-menus"]');
+        if (panel) panel.scrollTop = 0;
+      }
       navbar.dataset.mobileMenuOpen = state ? "true" : "false";
       button.setAttribute("aria-expanded", state ? "true" : "false");
-      // Drives the NooraIconTransition morph (menu <-> close).
+      // Drives the CSS hamburger <-> X animation (navbar.css).
       button.dataset.state = state ? "open" : "closed";
-      document.body.style.overflow = state ? "hidden" : "";
+      lockScroll(state);
+    };
+
+    // Scroll lock. overflow: hidden goes on <html>, never on <body>: the
+    // stylesheet gives <html> overflow-x: clip, so a body value no longer
+    // propagates to the viewport — it would make <body> its own scroll
+    // container and the sticky navbar would scroll away with the page. iOS
+    // Safari keeps touch-scrolling the document through overflow: hidden
+    // anyway, so touch-action: none on the body stops document panning;
+    // touches inside the panel are governed by the panel itself (its own
+    // scroll container), so it still scrolls, and its overscroll-behavior
+    // keeps that from chaining out.
+    const lockScroll = (locked) => {
+      document.documentElement.style.overflow = locked ? "hidden" : "";
+      document.body.style.touchAction = locked ? "none" : "";
     };
 
     const toggleMenu = (e) => {

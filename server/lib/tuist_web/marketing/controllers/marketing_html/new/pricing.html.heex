@@ -299,127 +299,140 @@ features = [
           </p>
         </div>
         <%!-- Tab/mobile collapse the table to a single plan column, picked
-        here. Renders as a bottom tray with a modal scrim on phones, same
-        pattern as the blog and customers filters (see pricing.css).
-
-        The markup mirrors Noora's dropdown but is hand-rolled: the Noora
-        component teleports its label and menu with LiveView portals, which
-        only mount inside connected LiveViews — on this dead view the
-        trigger rendered empty. Open state lives in data-state on the
-        trigger, which Noora's CSS already keys on. --%>
-        <div
-          id="pricing-plan-select"
-          class="noora-dropdown"
-          data-part="plan-select"
-          data-size="large"
-          phx-hook="PricingPlanSelect"
-          phx-update="ignore"
-        >
-          <button type="button" data-part="trigger" data-state="closed" aria-expanded="false">
-            <div data-part="label-wrapper">
-              <span data-part="label">
-                <span id="pricing-plan-select-label-target">{dgettext("marketing", "Air")}</span>
+        with this button group (hidden on desktop, see pricing.css). The
+        picker box sticks under the navbar while the table scrolls, so the
+        plan can be switched from anywhere in the table. The box also
+        renders the table's header row (blank corner + plan name) itself,
+        so the header stays stuck beneath the switcher as one element; the
+        table's own header row is hidden on tab/mobile. The
+        PricingPlanSelect hook swaps the .active plan in both, and measures
+        the navbar height for the sticky offset. --%>
+        <%!-- The stack is the picker box's sticky containing block, so the
+        box lets go at the table's end instead of riding on over the FAQ;
+        its bottom margin (the CTA row's measured height) makes it let go
+        one row early, so the CTA row is never covered. --%>
+        <div data-part="table-stack">
+          <div data-part="plan-picker">
+            <div data-part="plan-picker-controls">
+              <.button_group
+                size="large"
+                id="pricing-plan-select"
+                data-part="plan-select"
+                phx-hook="PricingPlanSelect"
+                phx-update="ignore"
+                role="group"
+                aria-label={dgettext("marketing", "Plan")}
+              >
+                <.button_group_item
+                  :for={{plan, index} <- Enum.with_index(plans)}
+                  label={plan.name}
+                  data-plan-option={index}
+                  data-selected={index == 0}
+                  aria-pressed={if index == 0, do: "true", else: "false"}
+                />
+              </.button_group>
+            </div>
+            <div data-part="plan-picker-head" aria-hidden="true">
+              <span data-part="plan-picker-blank"></span>
+              <span
+                :for={{plan, index} <- Enum.with_index(plans)}
+                data-part="plan-picker-plan"
+                data-plan-index={index}
+                class={if index == 0, do: "active"}
+              >
+                {plan.name}
               </span>
             </div>
-            <div data-part="indicator">
-              <div data-part="indicator-down"><.chevron_down /></div>
-              <div data-part="indicator-up"><.chevron_up /></div>
-            </div>
-          </button>
-          <div data-part="positioner">
-            <div class="noora-dropdown-content" data-part="content">
-              <.dropdown_item :for={plan <- plans} value={plan.id} label={plan.name} />
-            </div>
           </div>
-        </div>
-        <div data-part="table-frame">
-          <table data-part="table">
-            <thead data-part="head">
-              <tr data-part="row">
-                <td data-part="cell-blank"></td>
-                <th
-                  :for={{plan, index} <- Enum.with_index(plans)}
-                  data-part="cell-plan"
-                  data-popular={plan.popular}
-                  data-plan-index={index}
-                  class={if index == 0, do: "active"}
-                  scope="col"
-                >
-                  {plan.name}
-                </th>
-              </tr>
-            </thead>
-            <tbody data-part="body">
-              <tr :for={feature <- features} data-part="row">
-                <th data-part="cell-feature" scope="row">
-                  <div data-part="feature-name">{feature.name}</div>
-                  <div :if={feature.description} data-part="feature-description">
-                    {feature.description}
-                  </div>
-                  <.tooltip
-                    :if={not is_nil(feature.hint) and not is_nil(feature[:hint_text])}
-                    id={"#{feature.name}-hint"}
-                    size="large"
-                    description={feature.hint_text}
-                    title={dgettext("marketing", "Hint")}
+          <div data-part="table-frame">
+            <table data-part="table">
+              <thead data-part="head">
+                <tr data-part="row">
+                  <td data-part="cell-blank"></td>
+                  <th
+                    :for={{plan, index} <- Enum.with_index(plans)}
+                    data-part="cell-plan"
+                    data-popular={plan.popular}
+                    data-plan-index={index}
+                    class={if index == 0, do: "active"}
+                    scope="col"
                   >
-                    <:trigger :let={attrs}>
-                      <span {attrs}>
-                        <.hint_text label={feature.hint} />
-                      </span>
-                    </:trigger>
-                  </.tooltip>
-                </th>
-                <td
-                  :for={{value, index} <- Enum.with_index(feature.values)}
-                  data-part="cell-value"
-                  data-plan-index={index}
-                  class={if index == 0, do: "active"}
-                  data-available={
-                    cond do
-                      value == :available -> true
-                      value == :unavailable -> false
-                      true -> nil
-                    end
-                  }
-                >
-                  <%= cond do %>
-                    <% value == :available -> %>
-                      <.system_check />
-                    <% value == :unavailable -> %>
-                      <.math_x />
-                    <% is_map(value) and Map.has_key?(value, :price) -> %>
-                      <div data-part="value">{value.price}</div>
-                      <div data-part="description">{value.description}</div>
-                    <% is_map(value) and Map.has_key?(value, :value) -> %>
-                      <div data-part="value">{value.value}</div>
-                      <div data-part="description">{value.description}</div>
-                    <% is_map(value) and Map.has_key?(value, :level) -> %>
-                      <div data-part="value">{value.level}</div>
-                      <div data-part="description">{value.description}</div>
-                    <% true -> %>
-                      {value}
-                  <% end %>
-                </td>
-              </tr>
-              <tr data-part="row">
-                <td data-part="cell-feature"></td>
-                <td
-                  :for={{plan, index} <- Enum.with_index(plans)}
-                  data-part="cell-cta"
-                  data-plan-index={index}
-                  class={if index == 0, do: "active"}
-                >
-                  <.button
-                    variant={plan.cta_variant}
-                    size="large"
-                    label={plan.cta_label}
-                    href={plan.cta_href}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    {plan.name}
+                  </th>
+                </tr>
+              </thead>
+              <tbody data-part="body">
+                <tr :for={feature <- features} data-part="row">
+                  <th data-part="cell-feature" scope="row">
+                    <div data-part="feature-name">{feature.name}</div>
+                    <div :if={feature.description} data-part="feature-description">
+                      {feature.description}
+                    </div>
+                    <.tooltip
+                      :if={not is_nil(feature.hint) and not is_nil(feature[:hint_text])}
+                      id={"#{feature.name}-hint"}
+                      size="large"
+                      description={feature.hint_text}
+                      title={dgettext("marketing", "Hint")}
+                    >
+                      <:trigger :let={attrs}>
+                        <span {attrs}>
+                          <.hint_text label={feature.hint} />
+                        </span>
+                      </:trigger>
+                    </.tooltip>
+                  </th>
+                  <td
+                    :for={{value, index} <- Enum.with_index(feature.values)}
+                    data-part="cell-value"
+                    data-plan-index={index}
+                    class={if index == 0, do: "active"}
+                    data-available={
+                      cond do
+                        value == :available -> true
+                        value == :unavailable -> false
+                        true -> nil
+                      end
+                    }
+                  >
+                    <%= cond do %>
+                      <% value == :available -> %>
+                        <.system_check />
+                      <% value == :unavailable -> %>
+                        <.math_x />
+                      <% is_map(value) and Map.has_key?(value, :price) -> %>
+                        <div data-part="value">{value.price}</div>
+                        <div data-part="description">{value.description}</div>
+                      <% is_map(value) and Map.has_key?(value, :value) -> %>
+                        <div data-part="value">{value.value}</div>
+                        <div data-part="description">{value.description}</div>
+                      <% is_map(value) and Map.has_key?(value, :level) -> %>
+                        <div data-part="value">{value.level}</div>
+                        <div data-part="description">{value.description}</div>
+                      <% true -> %>
+                        {value}
+                    <% end %>
+                  </td>
+                </tr>
+                <tr data-part="row">
+                  <td data-part="cell-feature"></td>
+                  <td
+                    :for={{plan, index} <- Enum.with_index(plans)}
+                    data-part="cell-cta"
+                    data-plan-index={index}
+                    class={if index == 0, do: "active"}
+                  >
+                    <.button
+                      variant={plan.cta_variant}
+                      size="large"
+                      label={plan.cta_label}
+                      href={plan.cta_href}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

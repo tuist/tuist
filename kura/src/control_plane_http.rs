@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-const CONNECT_TIMEOUT_SECS: u64 = 3;
-const REQUEST_TIMEOUT_SECS: u64 = 5;
+pub(crate) const CONNECT_TIMEOUT_SECS: u64 = 3;
+pub(crate) const REQUEST_TIMEOUT_SECS: u64 = 5;
 const _: () = assert!(CONNECT_TIMEOUT_SECS < REQUEST_TIMEOUT_SECS);
 
 pub(crate) fn client_builder() -> reqwest::ClientBuilder {
