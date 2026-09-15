@@ -4,8 +4,10 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
 
   alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Plugs.PublicPageChallengePlug
+  alias TuistWeb.RateLimit
 
   setup %{conn: conn} do
     stub(FeatureFlags, :public_page_challenge_enabled?, fn -> true end)
@@ -94,6 +96,26 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
     test "false for a non-integer value (defensive against a session dump)" do
       session = %{PublicPageChallengePlug.session_key() => "totally-not-a-timestamp"}
       refute PublicPageChallengePlug.verified_within_freshness?(session)
+    end
+  end
+
+  describe "public project routes" do
+    test "challenges anonymous test detail visits before loading the requested run", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(RateLimit, :hit, fn _key, _opts -> {:allow, 1} end)
+      project = ProjectsFixtures.project_fixture(visibility: :public)
+      run_id = UUIDv7.generate()
+
+      for suffix <- ["tests/test-cases/runs/#{run_id}", "tests/test-runs/#{run_id}"] do
+        path = "/#{project.account.name}/#{project.name}/#{suffix}?tab=overview"
+        response = get(conn, path)
+
+        assert redirected_to(response) == PublicPageChallengePlug.challenge_path()
+        assert get_session(response, PublicPageChallengePlug.return_to_key()) == path
+        assert get_resp_header(response, "x-robots-tag") == ["noindex, nofollow"]
+        assert get_resp_header(response, "x-tuist-public") == ["1"]
+      end
     end
   end
 end

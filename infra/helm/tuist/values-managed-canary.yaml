@@ -64,6 +64,8 @@ server:
   # production runs.
   turnstile:
     enabled: true
+  publicPageChallenge:
+    enabled: true
 
   appUrl: https://canary.tuist.dev
 

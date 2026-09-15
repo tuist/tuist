@@ -35,6 +35,61 @@ builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
 does not appear in the rendered manifest. The Secret value for `password`
 should be URL-safe because it is interpolated into a database URL.
 
+## Public dashboard crawler protection
+
+Managed staging, canary, and production enable
+`server.publicPageChallenge.enabled`. The chart sets
+`TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` explicitly; the default is false for
+self-hosted installations. Anonymous account, project, and preview dashboard
+visitors must complete Turnstile before the server renders the page or mounts
+its LiveView. Signed-in visitors and sessions verified within the four-hour
+freshness window pass through. Marketing, docs, APIs, and native preview
+downloads remain outside this application gate.
+
+The dashboard gate is independent of `server.turnstile.enabled`, which controls
+signup verification. Either gate retains the shared Turnstile keys in the
+server's ExternalSecret when `server.turnstile.secretsFrom` is `eso`. Managed
+environments already use a real widget whose hostname allowlist includes
+staging.tuist.dev, canary.tuist.dev, and tuist.dev. Do not use always-passing
+test keys for the managed dashboard gate.
+
+Public visibility sets `x-tuist-public: 1` for edge rate limiting, but does not
+enable indexing. Dashboard responses retain `X-Robots-Tag: noindex, nofollow`,
+consistent with the router-derived robots.txt disallow entries. The legacy
+Cloudflare rule in `infra/flux/cloudflare-config/custom-firewall-rules.yaml`
+covers selected Tuist projects, including `/tuist/kura`; keep it enabled until
+the general application gate has been verified in production.
+
+### Rollout and verification
+
+1. Rehearse on staging, then use the normal canary/acceptance/production deploy
+   sequence. Verify that the server Deployment renders
+   `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED=1` and the Turnstile ExternalSecret is
+   ready. Check that `public_page_challenge_kill_switch` is not enabled.
+2. In a fresh browser session, open a public project's test-detail URL and a
+   public account dashboard. Both must redirect to `/turnstile-challenge`
+   before rendering dashboard data. Solve the widget and confirm that the
+   original path and query string are restored. Confirm signed-in access and
+   subsequent verified navigation still work.
+3. Check `X-Robots-Tag: noindex, nofollow` on both challenged and successfully
+   rendered dashboards, plus `x-tuist-public: 1` for public pages. Check that
+   marketing/docs remain indexable and native preview downloads do not receive
+   a challenge. The focused server suites cover the HTTP and LiveView gates.
+4. Check the `public-dashboard-bot-protection` CloudflareCustomRule in the
+   management cluster: its observed generation must be current and `Ready`
+   true. Flux readiness alone does not prove the edge rule was reconciled.
+5. Inspect fresh Faro measurements for the Chrome 145 / 1366×1366 crawl and
+   the Linux / 1919×992 cohort. Previously ingested measurements remain in the
+   six-hour and 24-hour alert windows until they expire.
+
+For an immediate application rollback, enable the existing
+`public_page_challenge_kill_switch` runtime flag; persist a rollback by setting
+`server.publicPageChallenge.enabled: false` in the affected managed values and
+redeploying. This leaves signup verification, noindex headers, and the legacy
+edge protection in place. Revert the Kura path addition in git if the edge
+change itself needs rollback; dashboard edits in Cloudflare are reconciled
+back to the declared rule.
+
 ## Artifact retention
 
 Artifact cleanup is disabled by default. Opt in by setting positive retention

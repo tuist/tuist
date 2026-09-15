@@ -30,6 +30,9 @@ This node covers Helm assets under `infra/helm/`.
   internal address and existing webhook signing key to the shared runtime
   Secret. Keep its key source and trimming aligned with the server config.
   Receiving Bazel build events alone does not enable analytics delivery.
+- Managed dashboard challenges use `server.publicPageChallenge.enabled`,
+  independently of the signup gate. Either gate keeps the shared Turnstile
+  keys in the server's ExternalSecret; self-hosted defaults remain disabled.
 
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`

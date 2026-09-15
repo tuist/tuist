@@ -75,7 +75,7 @@ defmodule TuistWeb.PublicPageChallengeController do
         conn
         |> no_store()
         |> render(:show,
-          turnstile_required?: Turnstile.required?(),
+          turnstile_required?: FeatureFlags.public_page_challenge_enabled?(),
           turnstile_site_key: Turnstile.site_key(),
           expected_action: @expected_action,
           verify_path: @verify_path,
@@ -129,7 +129,7 @@ defmodule TuistWeb.PublicPageChallengeController do
         |> put_status(:too_many_requests)
         |> no_store()
         |> render(:show,
-          turnstile_required?: Turnstile.required?(),
+          turnstile_required?: FeatureFlags.public_page_challenge_enabled?(),
           turnstile_site_key: Turnstile.site_key(),
           expected_action: @expected_action,
           verify_path: @verify_path,
@@ -144,7 +144,7 @@ defmodule TuistWeb.PublicPageChallengeController do
         |> put_status(:bad_request)
         |> no_store()
         |> render(:show,
-          turnstile_required?: Turnstile.required?(),
+          turnstile_required?: FeatureFlags.public_page_challenge_enabled?(),
           turnstile_site_key: Turnstile.site_key(),
           expected_action: @expected_action,
           verify_path: @verify_path,

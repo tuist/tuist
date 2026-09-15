@@ -18,6 +18,18 @@ defmodule TuistWeb.PublicPageChallengeControllerTest do
   end
 
   describe "GET /turnstile-challenge" do
+    test "renders the dashboard widget even when signup verification is disabled", %{conn: conn} do
+      stub(Turnstile, :required?, fn -> false end)
+
+      conn = get(conn, "/turnstile-challenge")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="turnstile-widget")
+      assert html =~ ~s(data-sitekey="test-site-key")
+      assert html =~ ~s(data-action="public_page_challenge")
+      refute html =~ "Turnstile is unavailable"
+    end
+
     test "renders the challenge page when anonymous and unverified", %{conn: conn} do
       conn =
         conn

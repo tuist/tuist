@@ -484,6 +484,11 @@ server:
   turnstile:
     enabled: false
     secretsFrom: eso
+  # Challenge anonymous dashboard visitors before rendering account, project,
+  # or preview pages. Uses the Turnstile keys above, independently of signup.
+  # Hosted deployments only; leave disabled for self-hosted installations.
+  publicPageChallenge:
+    enabled: false
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and

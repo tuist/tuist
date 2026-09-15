@@ -72,6 +72,8 @@ server:
   # verification entirely.
   turnstile:
     enabled: true
+  publicPageChallenge:
+    enabled: true
 
   kuraCapacityAdmission:
     enabled: true
