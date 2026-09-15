@@ -454,6 +454,35 @@ defmodule Tuist.Automations do
     where(query, [event], fragment("? IN (?)", event.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})))
   end
 
+  @doc """
+  Returns a page of the test cases an alert has matched and that haven't
+  recovered yet, most recently matched first, along with their total count.
+  """
+  def list_matched_test_cases(%Alert{} = alert, opts \\ []) do
+    active_events = subquery(active_alert_events_query(alert.id, Alert.event_generation(alert), nil))
+
+    page_query =
+      from(event in active_events,
+        order_by: [desc: event.triggered_at, asc: event.test_case_id],
+        limit: ^Keyword.get(opts, :limit, 20),
+        offset: ^Keyword.get(opts, :offset, 0)
+      )
+
+    events = ClickHouseRepo.all(page_query)
+    total_count = ClickHouseRepo.one(from(event in active_events, select: count()))
+    identities = Tests.get_test_case_identities(alert.project_id, Enum.map(events, & &1.test_case_id))
+
+    test_cases =
+      Enum.flat_map(events, fn event ->
+        case Map.get(identities, event.test_case_id) do
+          nil -> []
+          identity -> [Map.put(identity, :matched_at, event.triggered_at)]
+        end
+      end)
+
+    {test_cases, total_count}
+  end
+
   def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok
 
   def enqueue_flaky_alert_evaluations(project_id, test_case_ids) do
@@ -572,9 +601,8 @@ defmodule Tuist.Automations do
   enumeration and a second publisher to serialize against this one.
 
   The backlog pass checks the attempt before each test case's actions, so an
-  edit stops the remaining work. It sends Slack notifications, publishes events,
-  and checkpoints once per group of matches, which lets Slack list the group in
-  one message. An interrupted group runs its test case actions again on retry.
+  edit stops the remaining work. Its Slack actions run once, as a summary of
+  every test case it triggered, right before the pass commits.
   """
   def establish_alert_baseline(%Alert{} = alert, evaluate_batch, apply_actions? \\ false)
       when is_function(evaluate_batch, 1) do
@@ -926,6 +954,7 @@ defmodule Tuist.Automations do
 
     case test_case_ids do
       [] ->
+        notify_baseline_matches(attempt)
         commit_alert_baseline(attempt)
 
       test_case_ids ->
@@ -933,7 +962,15 @@ defmodule Tuist.Automations do
         # bounded batches before applying actions to the saved matching set.
         matching_ids = MapSet.new(evaluate_batch.(test_case_ids))
 
-        case apply_and_publish_baseline_matches(attempt, test_case_ids, matching_ids) do
+        result =
+          Enum.reduce_while(test_case_ids, {:ok, attempt}, fn test_case_id, {:ok, attempt} ->
+            case apply_and_publish_baseline_match(attempt, test_case_id, matching_ids) do
+              {:ok, next_attempt} -> {:cont, {:ok, next_attempt}}
+              {:error, :stale} -> {:halt, {:error, :stale}}
+            end
+          end)
+
+        case result do
           {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, evaluate_batch, true)
           {:error, :stale} -> :ok
         end
@@ -978,80 +1015,18 @@ defmodule Tuist.Automations do
     end)
   end
 
-  defp apply_and_publish_baseline_matches(attempt, test_case_ids, matching_ids) do
-    group_size = ActionExecutor.notification_group_size()
+  defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids) do
+    case prepare_baseline_match(attempt, test_case_id) do
+      {:ok, {:ready, alert, current_attempt}} ->
+        maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids)
+        checkpoint_baseline_match(current_attempt, test_case_id)
 
-    result =
-      Enum.reduce_while(test_case_ids, {:ok, new_baseline_group(attempt)}, fn test_case_id, {:ok, group} ->
-        case prepare_baseline_match(group.attempt, test_case_id) do
-          {:ok, {:ready, alert, _current_attempt}} ->
-            group =
-              maybe_apply_baseline_match(
-                %{group | alert: alert, last_test_case_id: test_case_id},
-                test_case_id,
-                matching_ids
-              )
+      {:ok, {:already_published, current_attempt}} ->
+        {:ok, current_attempt}
 
-            if length(group.results) < group_size do
-              {:cont, {:ok, group}}
-            else
-              {:ok, next_attempt} = publish_baseline_group(group)
-              {:cont, {:ok, new_baseline_group(next_attempt)}}
-            end
-
-          {:ok, {:already_published, _current_attempt}} ->
-            {:cont, {:ok, group}}
-
-          {:error, :stale} ->
-            {:halt, {:error, :stale, group}}
-        end
-      end)
-
-    case result do
-      {:ok, group} ->
-        publish_baseline_group(group)
-
-      {:error, :stale, group} ->
-        {:ok, _attempt} = publish_baseline_group(group)
+      {:error, :stale} ->
         {:error, :stale}
     end
-  end
-
-  defp new_baseline_group(attempt) do
-    %{attempt: attempt, alert: nil, results: [], last_test_case_id: nil}
-  end
-
-  defp maybe_apply_baseline_match(%{alert: alert} = group, test_case_id, matching_ids) do
-    if MapSet.member?(matching_ids, test_case_id) do
-      entity = %{type: :test_case, id: test_case_id}
-      result = ActionExecutor.execute_actions_without_notifications(alert.trigger_actions, alert, entity)
-      %{group | results: [{test_case_id, result} | group.results]}
-    else
-      group
-    end
-  end
-
-  defp publish_baseline_group(%{last_test_case_id: nil, attempt: attempt}), do: {:ok, attempt}
-
-  defp publish_baseline_group(%{alert: alert, attempt: attempt} = group) do
-    results =
-      ActionExecutor.send_grouped_notifications(alert.trigger_actions, alert, Enum.reverse(group.results), :trigger)
-
-    published_ids =
-      Enum.flat_map(results, fn
-        {test_case_id, :ok} ->
-          [test_case_id]
-
-        {test_case_id, {:error, reason}} ->
-          Logger.error("Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}")
-          []
-      end)
-
-    if published_ids != [] do
-      publish_alert_baseline_events(attempt, published_ids, Alert.event_generation(alert), NaiveDateTime.utc_now())
-    end
-
-    checkpoint_baseline_match(attempt, group.last_test_case_id)
   end
 
   defp prepare_baseline_match(attempt, test_case_id) do
@@ -1071,13 +1046,58 @@ defmodule Tuist.Automations do
   end
 
   defp checkpoint_baseline_match(attempt, test_case_id) do
-    # An edit may have cancelled this generation while actions were in flight.
-    # Record the completed group; the next preflight stops any remaining work.
+    # An edit may have cancelled this generation while its action was in flight.
+    # Record the completed action; the next preflight stops any remaining work.
     with_locked_alert_baseline_attempt(attempt, fn _alert, current_attempt ->
       current_attempt
       |> BaselineAttempt.changeset(%{last_published_test_case_id: test_case_id})
       |> Repo.update!()
     end)
+  end
+
+  defp maybe_apply_baseline_match(alert, attempt, test_case_id, matching_ids) do
+    if MapSet.member?(matching_ids, test_case_id) do
+      entity = %{type: :test_case, id: test_case_id}
+
+      case ActionExecutor.execute_actions_without_notifications(alert.trigger_actions, alert, entity) do
+        :ok ->
+          publish_alert_baseline_events(attempt, [test_case_id], Alert.event_generation(alert), NaiveDateTime.utc_now())
+
+        {:error, reason} ->
+          Logger.error("Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # A backlog can span several jobs, so its Slack actions run once, as a summary
+  # of every test case the pass triggered. Scheduled triggers and recoveries are
+  # suspended until the commit, so the alert's active events triggered since the
+  # attempt began are exactly those test cases. An interruption between the
+  # message and the commit sends the message again.
+  defp notify_baseline_matches(attempt) do
+    alert = Repo.get!(Alert, attempt.alert_id)
+
+    if alert.enabled and not stale_alert_baseline_attempt?(alert, attempt) do
+      results =
+        alert
+        |> baseline_triggered_test_case_ids(attempt)
+        |> Enum.map(&{&1, :ok})
+
+      ActionExecutor.send_grouped_notifications(alert.trigger_actions, alert, results, :trigger)
+    end
+  end
+
+  defp baseline_triggered_test_case_ids(alert, attempt) do
+    since = DateTime.to_unix(attempt.cursor, :microsecond)
+
+    query =
+      from(event in subquery(active_alert_events_query(alert.id, Alert.event_generation(alert), nil)),
+        where: fragment("toUnixTimestamp64Micro(?) >= ?", event.triggered_at, type(^since, :integer)),
+        order_by: [asc: event.triggered_at, asc: event.test_case_id],
+        select: event.test_case_id
+      )
+
+    ClickHouseRepo.all(query)
   end
 
   defp list_unpublished_baseline_results(attempt) do

@@ -61,6 +61,65 @@
   </.card>
 
   <.card
+    :if={@show_matched_tests?}
+    id="matched-tests"
+    icon="subtask"
+    title={dgettext("dashboard_projects", "Matched tests")}
+    data-part="matched-tests-card"
+  >
+    <.card_section data-part="matched-tests-card-section">
+      <p data-part="matched-tests-description">
+        {dgettext(
+          "dashboard_projects",
+          "Tests this automation matched that haven't recovered yet, most recently matched first."
+        )}
+      </p>
+
+      <.table
+        id="matched-tests-table"
+        rows={@matched_test_cases}
+        row_navigate={
+          fn test_case ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
+          end
+        }
+      >
+        <:col :let={test_case} label={dgettext("dashboard_projects", "Test")}>
+          <.text_and_description_cell label={test_case.name} description={test_case.suite_name} />
+        </:col>
+        <:col :let={test_case} label={dgettext("dashboard_projects", "Module")}>
+          <.text_cell label={test_case.module_name} />
+        </:col>
+        <:col :let={test_case} label={dgettext("dashboard_projects", "Matched")}>
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.matched_at)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="subtask"
+            title={dgettext("dashboard_projects", "No matched tests")}
+            subtitle={
+              dgettext("dashboard_projects", "Tests that match this automation will appear here.")
+            }
+          />
+        </:empty_state>
+      </.table>
+
+      <div
+        :if={length(@matched_test_cases) < @matched_test_cases_count}
+        data-part="matched-tests-load-more"
+      >
+        <.button
+          id="show-more-matched-tests"
+          label={dgettext("dashboard_projects", "Show more")}
+          variant="secondary"
+          size="medium"
+          phx-click="show_more_matched_tests"
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
     icon="history"
     title={dgettext("dashboard_projects", "Edit history")}
     data-part="history-card"

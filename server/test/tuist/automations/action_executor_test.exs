@@ -250,12 +250,11 @@ defmodule Tuist.Automations.ActionExecutorTest do
       assert ActionExecutor.execute_grouped_actions([action], automation(), [id], :recovery) == [{id, :ok}]
     end
 
-    test "lists at most 50 test cases per Slack message" do
+    test "sends a single Slack message however many test cases there are" do
       ids = Enum.map(1..51, fn _ -> Ecto.UUID.generate() end)
-      {first_group, [last]} = Enum.split(ids, 50)
       action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
-      expect(SendSlackAction, :execute_group, fn _automation, ^first_group, ^action, :recovery -> :ok end)
-      expect(SendSlackAction, :execute, fn _automation, %{id: ^last}, ^action -> :ok end)
+      reject(&SendSlackAction.execute/3)
+      expect(SendSlackAction, :execute_group, fn _automation, ^ids, ^action, :recovery -> :ok end)
 
       assert ActionExecutor.execute_grouped_actions([action], automation(), ids, :recovery) ==
                Enum.map(ids, &{&1, :ok})

@@ -10,9 +10,10 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
   require Logger
 
-  # Slack rejects section text longer than 3,000 characters. Truncated names
-  # keep every listed test case to a small share of a section, so a group of
-  # 50 test cases stays well below Slack's 50-block message limit.
+  # A group message previews a few test cases and links to the automation for
+  # the rest. Slack rejects section text longer than 3,000 characters, so names
+  # are truncated and the lines are packed into as many sections as they need.
+  @max_listed_test_cases 10
   @max_section_length 3000
   @max_listed_name_length 150
   @max_listed_module_name_length 60
@@ -37,8 +38,8 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
     end
   end
 
-  # The message template describes a single test case, so a group lists its
-  # test cases instead of repeating the template for each of them.
+  # The message template describes a single test case, so a group summarizes
+  # its test cases instead of repeating the template for each of them.
   def execute_group(automation, test_case_ids, action, phase) do
     case Projects.get_project_by_id(automation.project_id) do
       nil ->
@@ -48,16 +49,18 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
       project ->
         project = Repo.preload(project, account: :slack_installation)
-        identities = Tests.get_test_case_identities(project.id, test_case_ids)
+        listed_ids = Enum.take(test_case_ids, @max_listed_test_cases)
+        identities = Tests.get_test_case_identities(project.id, listed_ids)
 
-        case test_case_ids |> Enum.map(&Map.get(identities, &1)) |> Enum.reject(&is_nil/1) do
+        case listed_ids |> Enum.map(&Map.get(identities, &1)) |> Enum.reject(&is_nil/1) do
           [] ->
-            Logger.warning("Automation #{automation.id} send_slack skipped: none of the grouped test cases were found")
+            Logger.warning("Automation #{automation.id} send_slack skipped: none of the listed test cases were found")
 
             :ok
 
-          test_cases ->
-            deliver(action, project, build_group_blocks(automation, project, test_cases, phase), automation)
+          listed_test_cases ->
+            blocks = build_group_blocks(automation, project, listed_test_cases, length(test_case_ids), phase)
+            deliver(action, project, blocks, automation)
         end
     end
   end
@@ -110,7 +113,15 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
   end
 
   defp test_case_url(project, test_case) do
-    "#{Environment.app_url()}/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case.id}"
+    "#{project_url(project)}/tests/test-cases/#{test_case.id}"
+  end
+
+  defp automation_url(project, automation) do
+    "#{project_url(project)}/settings/automations/#{automation.id}"
+  end
+
+  defp project_url(project) do
+    "#{Environment.app_url()}/#{project.account.name}/#{project.name}"
   end
 
   # Escape `&`, `<`, `>` per Slack mrkdwn rules so user-controlled test-case
@@ -126,8 +137,14 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
     |> String.replace(">", "&gt;")
   end
 
-  defp build_group_blocks(automation, project, test_cases, phase) do
-    lines = [group_summary(length(test_cases), phase) | Enum.map(test_cases, &group_line(&1, project))]
+  defp build_group_blocks(automation, project, listed_test_cases, total_count, phase) do
+    unlisted_count = total_count - length(listed_test_cases)
+
+    lines =
+      [group_summary(total_count, phase)] ++
+        Enum.map(listed_test_cases, &group_line(&1, project)) ++
+        unlisted_line(unlisted_count, automation, project, phase)
+
     [header_block(automation) | Enum.map(section_texts(lines), &section_block/1)]
   end
 
@@ -141,6 +158,16 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
     module_name = test_case.module_name |> truncate(@max_listed_module_name_length) |> escape_mrkdwn()
 
     "• <#{test_case_url(project, test_case)}|#{name}> in `#{module_name}`"
+  end
+
+  defp unlisted_line(0, _automation, _project, _phase), do: []
+
+  defp unlisted_line(count, automation, project, :trigger) do
+    ["…and #{count} more. <#{automation_url(project, automation)}#matched-tests|View all matched tests>"]
+  end
+
+  defp unlisted_line(count, automation, project, :recovery) do
+    ["…and #{count} more. <#{automation_url(project, automation)}|View automation>"]
   end
 
   defp truncate(nil, _max_length), do: nil

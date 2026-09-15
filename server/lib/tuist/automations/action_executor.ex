@@ -16,16 +16,12 @@ defmodule Tuist.Automations.ActionExecutor do
 
   Test cases that match or recover together run their actions through
   `execute_grouped_actions/4`. Changes still apply to one test case at a time,
-  but each Slack action posts one message per group of up to 50 test cases.
+  but each Slack action posts a single message for all of them.
   """
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Tests
 
   require Logger
-
-  @notification_group_size 50
-
-  def notification_group_size, do: @notification_group_size
 
   def execute_actions([], _automation, _entity), do: :ok
 
@@ -67,10 +63,10 @@ defmodule Tuist.Automations.ActionExecutor do
   end
 
   @doc """
-  Sends each Slack action once per group of up to 50 test cases whose earlier
-  actions succeeded. A group with a single test case uses the message template.
-  A failed delivery fails every test case in its group, and later actions skip
-  them, as they would for a single test case.
+  Sends each Slack action once for all test cases whose earlier actions
+  succeeded. A single test case uses the message template. A failed delivery
+  fails every test case in the message, and later actions skip them, as they
+  would for a single test case.
   """
   def send_grouped_notifications(actions, automation, results, phase) when phase in [:trigger, :recovery] do
     actions
@@ -78,35 +74,33 @@ defmodule Tuist.Automations.ActionExecutor do
     |> Enum.reduce(results, fn action, results ->
       notifiable_ids = for {test_case_id, :ok} <- results, do: test_case_id
 
-      failures =
-        notifiable_ids
-        |> Enum.chunk_every(@notification_group_size)
-        |> Enum.flat_map(&notify_group(action, automation, &1, phase))
-        |> Map.new()
-
-      Enum.map(results, fn {test_case_id, result} -> {test_case_id, Map.get(failures, test_case_id, result)} end)
+      case notify(action, automation, notifiable_ids, phase) do
+        :ok -> results
+        {:error, reason} -> Enum.map(results, &fail_notified_result(&1, reason))
+      end
     end)
   end
 
-  defp notify_group(action, automation, test_case_ids, phase) do
+  defp notify(_action, _automation, [], _phase), do: :ok
+
+  defp notify(action, automation, test_case_ids, phase) do
     result =
       case test_case_ids do
         [test_case_id] -> SendSlackAction.execute(automation, %{type: :test_case, id: test_case_id}, action)
         test_case_ids -> SendSlackAction.execute_group(automation, test_case_ids, action, phase)
       end
 
-    case result do
-      :ok ->
-        []
+    with {:error, reason} <- result do
+      Logger.warning(
+        "Automation action #{action["type"]} failed for #{length(test_case_ids)} test cases: #{inspect(reason)}"
+      )
 
-      {:error, reason} ->
-        Logger.warning(
-          "Automation action #{action["type"]} failed for test cases #{Enum.join(test_case_ids, ", ")}: #{inspect(reason)}"
-        )
-
-        Enum.map(test_case_ids, &{&1, {:error, reason}})
+      result
     end
   end
+
+  defp fail_notified_result({test_case_id, :ok}, reason), do: {test_case_id, {:error, reason}}
+  defp fail_notified_result(result, _reason), do: result
 
   defp notification?(%{"type" => "send_slack"}), do: true
   defp notification?(_action), do: false

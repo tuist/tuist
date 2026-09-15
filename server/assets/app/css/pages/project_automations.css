@@ -579,6 +579,23 @@
     }
   }
 
+  & [data-part="matched-tests-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="matched-tests-description"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="matched-tests-load-more"] {
+      display: flex;
+      justify-content: center;
+    }
+  }
+
   @media (max-width: 768px) {
     & > [data-part="detail-header"] {
       flex-direction: column;

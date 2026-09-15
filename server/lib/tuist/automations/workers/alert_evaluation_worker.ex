@@ -249,7 +249,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   # Transitions from every evaluated range run together, so test cases that
-  # match or recover in the same evaluation share their Slack messages.
+  # match or recover in the same evaluation share one Slack message.
   defp execute_transitions(transitions) do
     transitions
     |> Enum.group_by(& &1.alert.id)

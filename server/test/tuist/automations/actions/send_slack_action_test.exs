@@ -173,6 +173,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
         assert text =~ "*2 tests* matched this automation:"
         assert text =~ "/#{account.name}/#{project.name}/tests/test-cases/#{first.id}|testFoo> in `MyModule`"
         assert text =~ "/tests/test-cases/#{second.id}|test&lt;Bar&gt;> in `Other&amp;Module`"
+        refute text =~ "more."
         :ok
       end)
 
@@ -181,29 +182,62 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       assert :ok = SendSlackAction.execute_group(automation, [first.id, second.id], action, :trigger)
     end
 
-    test "keeps long lists within Slack's block limits", %{project: project, account: account} do
+    test "lists the first 10 test cases and links to the automation's matched tests", %{
+      project: project,
+      account: account
+    } do
       installation = SlackFixtures.slack_installation_fixture(account_id: account.id)
-      automation = %{id: Ecto.UUID.generate(), name: "Recover", project_id: project.id}
-
-      test_cases =
-        Enum.map(1..50, fn index -> %{test_case(project.id) | name: String.duplicate("a", 200) <> "#{index}"} end)
-
+      automation = %{id: Ecto.UUID.generate(), name: "Quarantine", project_id: project.id}
+      test_cases = Enum.map(1..25, fn index -> %{test_case(project.id) | name: "test#{index}"} end)
       ids = Enum.map(test_cases, & &1.id)
-      expect(Tests, :get_test_case_identities, fn _project_id, ^ids -> Map.new(test_cases, &{&1.id, &1}) end)
+      listed_ids = Enum.take(ids, 10)
 
-      expect(Client, :post_message, fn token, "C1", [_header, summary | _] = blocks ->
+      expect(Tests, :get_test_case_identities, fn _project_id, ^listed_ids ->
+        test_cases |> Enum.take(10) |> Map.new(&{&1.id, &1})
+      end)
+
+      automation_url =
+        "#{Tuist.Environment.app_url()}/#{account.name}/#{project.name}/settings/automations/#{automation.id}"
+
+      expect(Client, :post_message, fn token, "C1", [_header | sections] ->
         assert token == installation.access_token
-        assert length(blocks) <= 50
-        sections = tl(blocks)
-        assert Enum.all?(sections, &(String.length(&1.text.text) <= 3000))
-        assert summary.text.text =~ "*50 tests* recovered:"
         text = Enum.map_join(sections, "\n", & &1.text.text)
-        assert text =~ String.duplicate("a", 149) <> "…"
-        refute text =~ String.duplicate("a", 150)
+        assert text =~ "*25 tests* matched this automation:"
+        assert text =~ "|test10> in `MyModule`"
+        refute text =~ "|test11>"
+        assert text =~ "…and 15 more. <#{automation_url}#matched-tests|View all matched tests>"
         :ok
       end)
 
       action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+      assert :ok = SendSlackAction.execute_group(automation, ids, action, :trigger)
+    end
+
+    test "truncates long names and links recoveries to the automation", %{project: project, account: account} do
+      automation = %{id: Ecto.UUID.generate(), name: "Recover", project_id: project.id}
+      webhook_url = "https://hooks.slack.com/services/T0/B0/abc"
+      {:ok, encrypted} = Slack.encrypt_webhook_url(webhook_url)
+
+      test_cases =
+        Enum.map(1..12, fn index -> %{test_case(project.id) | name: String.duplicate("a", 5000) <> "#{index}"} end)
+
+      ids = Enum.map(test_cases, & &1.id)
+      expect(Tests, :get_test_case_identities, fn _project_id, _ids -> Map.new(test_cases, &{&1.id, &1}) end)
+
+      automation_url =
+        "#{Tuist.Environment.app_url()}/#{account.name}/#{project.name}/settings/automations/#{automation.id}"
+
+      expect(Client, :post_to_webhook, fn ^webhook_url, [_header | sections] ->
+        assert Enum.all?(sections, &(String.length(&1.text.text) <= 3000))
+        text = Enum.map_join(sections, "\n", & &1.text.text)
+        assert text =~ "*12 tests* recovered:"
+        assert text =~ String.duplicate("a", 149) <> "…"
+        refute text =~ String.duplicate("a", 150)
+        assert text =~ "…and 2 more. <#{automation_url}|View automation>"
+        :ok
+      end)
+
+      action = %{"type" => "send_slack", "webhook_url_encrypted" => encrypted, "message" => "hi"}
       assert :ok = SendSlackAction.execute_group(automation, ids, action, :recovery)
     end
 

@@ -221,43 +221,7 @@ defmodule Tuist.Automations.BaselineTest do
              )
   end
 
-  test "applies existing matches once and resumes after the last completed group" do
-    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
-    ids = Enum.sort(Enum.map(1..51, fn _ -> Ecto.UUID.generate() end))
-    {first_group, [last]} = Enum.split(ids, 50)
-    attempt = publishing_attempt(alert, ids)
-    test_process = self()
-
-    stub(ActionExecutor, :execute_actions_without_notifications, fn _actions, _alert, %{id: id} ->
-      if id == last, do: raise("simulated interruption")
-      send(test_process, {:applied, id})
-      :ok
-    end)
-
-    assert_raise RuntimeError, "simulated interruption", fn ->
-      Automations.establish_alert_baseline(alert, & &1, true)
-    end
-
-    for id <- first_group, do: assert_received({:applied, ^id})
-    assert Repo.reload!(attempt).last_published_test_case_id == List.last(first_group)
-    assert Repo.reload!(alert).baseline_established_at == nil
-
-    stub(ActionExecutor, :execute_actions_without_notifications, fn _actions, _alert, %{id: id} ->
-      send(test_process, {:applied, id})
-      :ok
-    end)
-
-    assert :ok = Automations.establish_alert_baseline(alert, & &1, true)
-    assert_received {:applied, ^last}
-    refute_received {:applied, _}
-    assert Repo.reload!(attempt).state == "committed"
-    assert Enum.sort(Enum.map(Automations.list_active_alert_events(alert.id), & &1.test_case_id)) == ids
-
-    stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, _ -> flunk("already applied") end)
-    assert :ok = Automations.establish_alert_baseline(alert, fn _ -> flunk("already evaluated") end, true)
-  end
-
-  test "an interrupted group runs its earlier actions again on retry" do
+  test "applies existing matches once and resumes after the last completed action" do
     alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
     [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
     attempt = publishing_attempt(alert, [first, second])
@@ -274,8 +238,8 @@ defmodule Tuist.Automations.BaselineTest do
     end
 
     assert_received {:applied, ^first}
-    assert Repo.reload!(attempt).last_published_test_case_id == nil
-    assert Automations.list_active_alert_events(alert.id) == []
+    assert Repo.reload!(attempt).last_published_test_case_id == first
+    assert Repo.reload!(alert).baseline_established_at == nil
 
     stub(ActionExecutor, :execute_actions_without_notifications, fn _actions, _alert, %{id: id} ->
       send(test_process, {:applied, id})
@@ -283,34 +247,57 @@ defmodule Tuist.Automations.BaselineTest do
     end)
 
     assert :ok = Automations.establish_alert_baseline(alert, & &1, true)
-    assert_received {:applied, ^first}
     assert_received {:applied, ^second}
+    refute_received {:applied, ^first}
     assert Repo.reload!(attempt).state == "committed"
+    assert Enum.sort(Enum.map(Automations.list_active_alert_events(alert.id), & &1.test_case_id)) == [first, second]
+
+    stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, _ -> flunk("already applied") end)
+    assert :ok = Automations.establish_alert_baseline(alert, fn _ -> flunk("already evaluated") end, true)
   end
 
-  test "sends one Slack message per group of existing matches" do
+  test "sends one Slack summary for the whole backlog once it finishes" do
     action = %{"type" => "send_slack", "channel" => "C1", "message" => "{{test_case.name}} matched"}
     alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil, trigger_actions: [action])
-    ids = Enum.sort(Enum.map(1..52, fn _ -> Ecto.UUID.generate() end))
-    {first_group, second_group} = Enum.split(ids, 50)
+    earlier_match = Ecto.UUID.generate()
+
+    Automations.create_alert_event(%{
+      alert_id: alert.id,
+      baseline_generation: alert.baseline_generation,
+      test_case_id: earlier_match,
+      status: "triggered",
+      triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+    })
+
+    [first, second, third] = ids = Enum.sort(Enum.map(1..3, fn _ -> Ecto.UUID.generate() end))
     publishing_attempt(alert, ids)
     test_process = self()
+    reject(&SendSlackAction.execute/3)
 
-    expect(SendSlackAction, :execute_group, 2, fn _alert, group_ids, ^action, :trigger ->
-      send(test_process, {:notified, group_ids})
+    stub(SendSlackAction, :execute_group, fn _alert, notified_ids, ^action, :trigger ->
+      send(test_process, {:notified, notified_ids})
       :ok
     end)
 
-    reject(&SendSlackAction.execute/3)
+    stub(ActionExecutor, :execute_actions_without_notifications, fn _actions, _alert, %{id: id} ->
+      if id == third, do: raise("simulated interruption")
+      :ok
+    end)
 
+    assert_raise RuntimeError, "simulated interruption", fn ->
+      Automations.establish_alert_baseline(alert, & &1, true)
+    end
+
+    refute_received {:notified, _}
+
+    stub(ActionExecutor, :execute_actions_without_notifications, fn _, _, _ -> :ok end)
     assert :ok = Automations.establish_alert_baseline(alert, & &1, true)
-    assert_received {:notified, ^first_group}
-    assert_received {:notified, ^second_group}
+    assert_received {:notified, [^first, ^second, ^third]}
+    refute_received {:notified, _}
     assert Repo.reload!(alert).baseline_established_at
-    assert length(Automations.list_active_alert_events(alert.id)) == 52
   end
 
-  test "a failed group notification completes the baseline without triggering the group" do
+  test "a failed Slack summary still completes the baseline" do
     action = %{"type" => "send_slack", "channel" => "archived-channel", "message" => "Matching test"}
     alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil, trigger_actions: [action])
     [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
@@ -323,7 +310,7 @@ defmodule Tuist.Automations.BaselineTest do
     assert :ok = Automations.establish_alert_baseline(alert, & &1, true)
     assert Repo.reload!(attempt).state == "committed"
     assert Repo.reload!(alert).baseline_established_at
-    assert Automations.list_active_alert_events(alert.id) == []
+    assert Enum.sort(Enum.map(Automations.list_active_alert_events(alert.id), & &1.test_case_id)) == [first, second]
   end
 
   test "a returned action error does not block other matches or baseline completion" do

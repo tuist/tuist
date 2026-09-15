@@ -8,8 +8,10 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.Alerts.Revision
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Errors.NotFoundError
 
   defp open(conn, organization, project, automation) do
@@ -106,6 +108,76 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     {:ok, live_view, _html} = open(conn, organization, project, automation)
     refute has_element?(live_view, "[data-part='configuration-card']", "Requested actions for existing matches")
     assert has_element?(live_view, "[data-part='history-card']", "Requested actions for existing matches")
+  end
+
+  test "lists the tests the automation matched, most recently matched first", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    automation = AutomationsFixtures.automation_alert_fixture(project: project)
+    matched_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+    test_cases =
+      Enum.map(1..23, fn index ->
+        name = "testMatched#{String.pad_leading(Integer.to_string(index), 2, "0")}"
+
+        IngestRepo.insert!(
+          RunsFixtures.test_case_fixture(project_id: project.id, name: name, module_name: "MatchedTests")
+        )
+      end)
+
+    Enum.with_index(test_cases, fn test_case, index ->
+      Automations.create_alert_event(%{
+        alert_id: automation.id,
+        baseline_generation: automation.baseline_generation,
+        test_case_id: test_case.id,
+        status: "triggered",
+        triggered_at: NaiveDateTime.add(matched_at, index, :second)
+      })
+    end)
+
+    now = NaiveDateTime.utc_now()
+
+    Automations.create_alert_event(%{
+      alert_id: automation.id,
+      baseline_generation: automation.baseline_generation,
+      test_case_id: hd(test_cases).id,
+      status: "recovered",
+      triggered_at: now,
+      recovered_at: now
+    })
+
+    {:ok, live_view, _html} = open(conn, organization, project, automation)
+
+    assert has_element?(live_view, "#matched-tests-table", "testMatched23")
+    assert has_element?(live_view, "#matched-tests-table", "MatchedTests")
+    refute has_element?(live_view, "#matched-tests-table", "testMatched03")
+    refute has_element?(live_view, "#matched-tests-table", "testMatched01")
+
+    live_view |> element("#show-more-matched-tests") |> render_click()
+
+    assert has_element?(live_view, "#matched-tests-table", "testMatched03")
+    assert has_element?(live_view, "#matched-tests-table", "testMatched02")
+    refute has_element?(live_view, "#matched-tests-table", "testMatched01")
+    refute has_element?(live_view, "#show-more-matched-tests")
+  end
+
+  test "does not list matched tests for event-driven automations", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]}
+      )
+
+    {:ok, live_view, _html} = open(conn, organization, project, automation)
+
+    refute has_element?(live_view, "#matched-tests")
   end
 
   test "raises not found when the automation does not belong to the project", %{

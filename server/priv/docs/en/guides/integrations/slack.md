@@ -85,9 +85,9 @@ When a test becomes flaky and meets your threshold, you'll receive a notificatio
 
 Automations under your project's **Settings → Automations** can send a Slack message when a test matches their condition or recovers. You pick the channel and write the message template in the automation's actions.
 
-When several tests match or recover in the same evaluation, Tuist sends one message that links to each of them instead of one message per test. Each message lists up to 50 tests, so larger groups are split across several messages. Grouped messages list the name and module of each test instead of using your template.
+When several tests match or recover in the same evaluation, Tuist sends one message instead of one message per test. The message lists up to 10 tests by name and module instead of using your template, and links to the automation for the rest. The automation's page lists every test it has matched that hasn't recovered yet.
 
-Tests that already match when you save an automation with **Apply to existing matches** selected are grouped the same way.
+When you save an automation with **Apply to existing matches** selected, Tuist sends a single message for all the tests that already matched once it has applied the actions to them.
 
 ## Disconnecting the integration {#disconnect}
 
