@@ -55,10 +55,9 @@ test keys for the managed dashboard gate.
 
 Public visibility sets `x-tuist-public: 1` for edge rate limiting, but does not
 enable indexing. Dashboard responses retain `X-Robots-Tag: noindex, nofollow`,
-consistent with the router-derived robots.txt disallow entries. The legacy
-Cloudflare rule in `infra/flux/cloudflare-config/custom-firewall-rules.yaml`
-covers selected Tuist projects, including `/tuist/kura`; keep it enabled until
-the general application gate has been verified in production.
+consistent with the router-derived robots.txt disallow entries. The general
+application gate covers every public project without adding project-specific
+paths to Cloudflare rules.
 
 ### Rollout and verification
 
@@ -75,10 +74,7 @@ the general application gate has been verified in production.
    rendered dashboards, plus `x-tuist-public: 1` for public pages. Check that
    marketing/docs remain indexable and native preview downloads do not receive
    a challenge. The focused server suites cover the HTTP and LiveView gates.
-4. Check the `public-dashboard-bot-protection` CloudflareCustomRule in the
-   management cluster: its observed generation must be current and `Ready`
-   true. Flux readiness alone does not prove the edge rule was reconciled.
-5. Inspect fresh Faro measurements for the Chrome 145 / 1366×1366 crawl and
+4. Inspect fresh Faro measurements for the Chrome 145 / 1366×1366 crawl and
    the Linux / 1919×992 cohort. Previously ingested measurements remain in the
    six-hour and 24-hour alert windows until they expire.
 
@@ -86,9 +82,7 @@ For an immediate application rollback, enable the existing
 `public_page_challenge_kill_switch` runtime flag; persist a rollback by setting
 `server.publicPageChallenge.enabled: false` in the affected managed values and
 redeploying. This leaves signup verification, noindex headers, and the legacy
-edge protection in place. Revert the Kura path addition in git if the edge
-change itself needs rollback; dashboard edits in Cloudflare are reconciled
-back to the declared rule.
+edge protection in place.
 
 ## Artifact retention
 

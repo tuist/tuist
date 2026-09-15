@@ -83,10 +83,9 @@ public page access remains governed by the separate crawler rules. Rollout
 checks and the distinction between verified bots and unrecognized automation
 are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
 Public-dashboard access is separately gated by the server's Turnstile challenge
-(`server.publicPageChallenge.enabled` in managed Helm values). The legacy edge
-rule covers selected Tuist projects, including Kura, and stays enabled until
-the general application gate is verified in production. See
-`helm/tuist/README.md` for rollout checks and rollback.
+(`server.publicPageChallenge.enabled` in managed Helm values). This general
+application gate covers public projects without enumerating their names in
+an edge rule. See `helm/tuist/README.md` for rollout checks and rollback.
 
 ### `kura-controller/` — Kura endpoint controller
 
