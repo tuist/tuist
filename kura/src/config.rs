@@ -37,6 +37,7 @@ const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+const KURA_GATEWAY_GRPC_PORT: &str = "KURA_GATEWAY_GRPC_PORT";
 const KURA_ACCELERATED_FILE_SERVING_ENABLED: &str = "KURA_ACCELERATED_FILE_SERVING_ENABLED";
 const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
 const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
@@ -176,6 +177,10 @@ pub struct Config {
     pub public_tls: Option<PublicTlsConfig>,
     /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
+    /// Plaintext h2c port serving only the REAPI gRPC services, bound when set.
+    /// A reverse proxy that pools upstream connections by address sends gRPC
+    /// here so its gRPC and HTTP/1.1 connections to the pod never share a pool.
+    pub gateway_grpc_port: Option<u16>,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
     /// When true, evicting a CAS blob cascades: the action-cache entries that
     /// reference it are removed in the same atomic batch, so an entry never
@@ -876,6 +881,12 @@ impl Config {
                     .map_err(|_| format!("{KURA_HTTPS_PORT} must be a valid u16"))
             })
             .unwrap_or(DEFAULT_HTTPS_PORT);
+        let gateway_grpc_port =
+            optional_parsed_value(&mut lookup, KURA_GATEWAY_GRPC_PORT, &mut invalid, |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| format!("{KURA_GATEWAY_GRPC_PORT} must be a valid u16"))
+            });
         let file_descriptor_pool_size = optional_parsed_value(
             &mut lookup,
             KURA_FILE_DESCRIPTOR_POOL_SIZE,
@@ -1733,6 +1744,23 @@ impl Config {
                     ));
                 }
             }
+            if let Some(gateway_grpc_port) = gateway_grpc_port {
+                if gateway_grpc_port == port {
+                    invalid.push(format!(
+                        "{KURA_GATEWAY_GRPC_PORT} must differ from {KURA_PORT}"
+                    ));
+                }
+                if gateway_grpc_port == internal_port {
+                    invalid.push(format!(
+                        "{KURA_GATEWAY_GRPC_PORT} must differ from {KURA_INTERNAL_PORT}"
+                    ));
+                }
+                if public_tls.is_some() && gateway_grpc_port == https_port {
+                    invalid.push(format!(
+                        "{KURA_GATEWAY_GRPC_PORT} must differ from {KURA_HTTPS_PORT}"
+                    ));
+                }
+            }
         }
 
         if let (Some(node_url), Some(internal_port)) = (node_url.as_ref(), internal_port) {
@@ -1871,6 +1899,7 @@ impl Config {
             peer_tls,
             public_tls,
             https_port,
+            gateway_grpc_port,
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
@@ -3585,6 +3614,120 @@ mod tests {
 
         assert!(config.public_tls.is_none());
         assert_eq!(config.https_port, DEFAULT_HTTPS_PORT);
+    }
+
+    #[test]
+    fn from_lookup_leaves_gateway_grpc_port_unset_by_default() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected config without a gateway gRPC port to parse");
+
+        assert_eq!(config.gateway_grpc_port, None);
+    }
+
+    #[test]
+    fn from_lookup_parses_gateway_grpc_port() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_GATEWAY_GRPC_PORT, "4501"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected config with a gateway gRPC port to parse");
+
+        assert_eq!(config.gateway_grpc_port, Some(4501));
+    }
+
+    #[test]
+    fn from_lookup_rejects_gateway_grpc_port_colliding_with_other_ports() {
+        let error = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_GATEWAY_GRPC_PORT, "4500"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect_err("expected a gateway gRPC port colliding with KURA_PORT to fail");
+
+        assert!(error.contains(KURA_GATEWAY_GRPC_PORT));
+        assert!(error.contains(KURA_PORT));
+
+        let error = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_GATEWAY_GRPC_PORT, "7443"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect_err("expected a gateway gRPC port colliding with KURA_INTERNAL_PORT to fail");
+
+        assert!(error.contains(KURA_GATEWAY_GRPC_PORT));
+        assert!(error.contains(KURA_INTERNAL_PORT));
     }
 
     #[test]

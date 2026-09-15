@@ -448,6 +448,15 @@ defmodule Tuist.SCIM do
   defp ops_to_attrs([_op | rest], acc), do: ops_to_attrs(rest, acc)
 
   defp put_patch_attr("replace", "active", value, acc) when is_boolean(value), do: Map.put(acc, :active, value)
+
+  defp put_patch_attr("replace", "active", value, acc) when is_binary(value) do
+    case String.downcase(value) do
+      "true" -> Map.put(acc, :active, true)
+      "false" -> Map.put(acc, :active, false)
+      _ -> acc
+    end
+  end
+
   defp put_patch_attr("replace", "username", value, acc) when is_binary(value), do: Map.put(acc, :user_name, value)
 
   defp put_patch_attr(op, "roles", value, acc) when op in ["add", "replace"] do
@@ -459,11 +468,18 @@ defmodule Tuist.SCIM do
 
   defp put_patch_attr(_op, _path, _value, acc), do: acc
 
-  defp extract_role(value) when is_binary(value), do: normalize_role_string(value)
-  defp extract_role([%{"value" => v} | _]) when is_binary(v), do: normalize_role_string(v)
-  defp extract_role([v | _]) when is_binary(v), do: normalize_role_string(v)
-  defp extract_role(%{"value" => v}) when is_binary(v), do: normalize_role_string(v)
+  defp extract_role(value) when is_binary(value), do: value |> unwrap_app_role_assignment() |> normalize_role_string()
+  defp extract_role([%{"value" => v} | _]) when is_binary(v), do: extract_role(v)
+  defp extract_role([v | _]) when is_binary(v), do: extract_role(v)
+  defp extract_role(%{"value" => v}) when is_binary(v), do: extract_role(v)
   defp extract_role(_), do: nil
+
+  defp unwrap_app_role_assignment(value) do
+    case JSON.decode(value) do
+      {:ok, %{"value" => role}} when is_binary(role) -> role
+      _ -> value
+    end
+  end
 
   defp normalize_role_string(s) do
     case String.downcase(s) do

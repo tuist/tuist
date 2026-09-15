@@ -141,6 +141,15 @@ defmodule Tuist.Kura.Demand do
   end
 
   @doc """
+  True when an instance of the account was reclaimed for never storing anything
+  and has not been returned since. Only cache demand recorded after that
+  archival returns it.
+  """
+  def unused_hold?(%Account{id: account_id}) do
+    Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id and l.drain_reason == :unused))
+  end
+
+  @doc """
   Whether a Kura instance is expected to start serving for this account
   shortly, so a client should treat an endpoint answer as short-lived.
 

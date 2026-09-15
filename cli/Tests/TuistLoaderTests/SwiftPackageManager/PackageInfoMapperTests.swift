@@ -5735,55 +5735,44 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory,
-        .withMockedSwiftVersionProvider
-    ) func map_whenEnabledExternalLocalPackageTestDependsOnExternalProduct_throwsConcreteError() async throws {
-        // Given
+        .withMockedSwiftVersionProvider,
+        arguments: [false, true]
+    ) func map_whenEnabledExternalLocalPackageTestDependsOnExternalProduct_includesDependency(
+        usesByName: Bool
+    ) async throws {
+        let dependency: PackageInfo.Target.Dependency = usesByName
+            ? .byName(name: "TestSupport", condition: nil)
+            : .product(name: "TestSupport", package: "TestSupportPackage", moduleAliases: nil, condition: nil)
         let basePath = try #require(FileSystem.temporaryTestDirectory)
-        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try await fileSystem.makeDirectory(at: sourcesPath)
-        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try await fileSystem.makeDirectory(at: testsPath)
+        try await fileSystem.makeDirectory(at: basePath.appending(components: "Package", "Sources", "Target"))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: "Package", "Tests", "TargetTests"))
 
-        // When / Then
-        await #expect(
-            throws: PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
-                package: "Package",
-                target: "TargetTests",
-                product: "TestSupport"
-            )
-        ) {
-            _ = try await subject.map(
-                package: "Package",
-                basePath: basePath,
-                packageType: .external(origin: .local, artifactPaths: [:]),
-                packageInfos: [
-                    "Package": .test(
-                        name: "Package",
-                        products: [
-                            .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
-                        ],
-                        targets: [
-                            .test(name: "Target"),
-                            .test(
-                                name: "TargetTests",
-                                type: .test,
-                                dependencies: [
-                                    .target(name: "Target", condition: nil),
-                                    .product(
-                                        name: "TestSupport",
-                                        package: "TestSupportPackage",
-                                        moduleAliases: nil,
-                                        condition: nil
-                                    ),
-                                ]
-                            ),
-                        ],
-                        platforms: [.ios]
-                    ),
-                ],
-                packageSettings: .test(includeLocalPackageTestTargets: true)
-            )
-        }
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .local, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [.init(name: "Product", type: .library(.automatic), targets: ["Target"])],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil), dependency]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let testTarget = try #require(project?.targets.first(where: { $0.name == "TargetTests" }))
+        #expect(testTarget.product == .unitTests)
+        #expect(testTarget.metadata.tags.contains(TargetTags.localSwiftPackageTest))
+        #expect(testTarget.dependencies == [.target(name: "Target"), .external(name: "TestSupport")])
     }
 
     @Test(
