@@ -21,13 +21,13 @@ function loadGoogleIdentity() {
 
 export const GoogleOneTap = {
   async mounted() {
-    if (!window.isSecureContext || !("IdentityCredential" in window) || window.top !== window.self) return;
-
-    this.abortController = new AbortController();
-    this.onPageHide = () => this.destroyed();
-    window.addEventListener("pagehide", this.onPageHide, { once: true });
-
     try {
+      if (!window.isSecureContext || !("IdentityCredential" in window) || window.top !== window.self) return;
+
+      this.abortController = new AbortController();
+      this.onPageHide = () => this.destroyed();
+      window.addEventListener("pagehide", this.onPageHide, { once: true });
+
       const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const response = await fetch(this.el.dataset.startUrl, {
         method: "POST",
@@ -49,10 +49,21 @@ export const GoogleOneTap = {
         auto_select: false,
         // Older Google clients require this opt-in; current clients use the browser by default.
         use_fedcm_for_prompt: true,
-        callback: ({ credential }) => {
-          if (!credential || this.abortController.signal.aborted || !form.isConnected) return;
-          form.elements.credential.value = credential;
-          form.requestSubmit();
+        callback: (response) => {
+          try {
+            const credential = response?.credential;
+            if (
+              typeof credential !== "string" ||
+              !credential ||
+              this.abortController.signal.aborted ||
+              !form?.isConnected
+            )
+              return;
+            form.elements.credential.value = credential;
+            form.requestSubmit();
+          } catch {
+            // Google invokes this after mounted returns, outside its error handler.
+          }
         },
       });
       this.prompted = true;
@@ -63,11 +74,14 @@ export const GoogleOneTap = {
   },
 
   destroyed() {
-    this.abortController?.abort();
-    window.removeEventListener("pagehide", this.onPageHide);
-    if (this.prompted) {
-      google.accounts.id.cancel();
-      this.prompted = false;
+    const prompted = this.prompted;
+    this.prompted = false;
+    try {
+      this.abortController?.abort();
+      window.removeEventListener("pagehide", this.onPageHide);
+      if (prompted) window.google?.accounts?.id?.cancel?.();
+    } catch {
+      // A third-party cleanup error must not interrupt LiveView navigation.
     }
   },
 };
