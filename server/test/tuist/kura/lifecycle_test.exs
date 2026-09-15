@@ -15,6 +15,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1007,6 +1008,199 @@ defmodule Tuist.Kura.LifecycleTest do
         "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
       }
     }
+  end
+
+  describe "never-used instances" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    test "drains an instance that has stored nothing since it was created, once the unused window has passed" do
+      account = account()
+      server = unused_instance(account)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :drain_pending]])
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert_received {[:tuist, :kura, :lifecycle, :drain_pending], ^ref, %{count: 1}, %{reason: "unused"}}
+    end
+
+    test "leaves a never-used instance alone inside the unused window" do
+      account = account()
+      server = active_instance(account, age_days: 5)
+      with_demand(account, 1)
+      storage_rollups(account, 0..5)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone once it has stored bytes" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 1)
+      storage_rollups(account, Enum.reject(0..30, &(&1 == 12)))
+      storage_rollups(account, [12], max_live_segment_bytes: @gib, max_occupancy_percent: 20)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when it has no storage telemetry" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when its telemetry starts after it was created" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 1)
+      storage_rollups(account, 0..10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone when its telemetry has stopped arriving" do
+      account = account()
+      server = active_instance(account, age_days: 10)
+      with_demand(account, 1)
+      storage_rollups(account, 4..10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "measures the window from the instance's return from archive" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+
+      account
+      |> with_demand(1)
+      |> Ecto.Changeset.change(%{last_returned_at: ago(3)})
+      |> Repo.update!()
+
+      storage_rollups(account, 0..30)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "never drains a keep-warm or Enterprise instance for going unused" do
+      keep_warm = account()
+      keep_warm_server = unused_instance(keep_warm)
+      {:ok, _} = Demand.set_keep_warm(keep_warm.id, @region, true)
+
+      enterprise = account(plan: :enterprise, region: :usa)
+      enterprise_server = unused_instance(enterprise)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(keep_warm_server).status == :active
+      assert reload(enterprise_server).status == :active
+    end
+
+    test "never considers an instance with no lifecycle row" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      storage_rollups(account, 0..8)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "archives a draining never-used instance even when the account asks for its cache mid-drain" do
+      account = account()
+      server = unused_instance(account)
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+
+      elapse_drain(account)
+      Demand.record(account.id)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :archived]])
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+      assert_received {[:tuist, :kura, :lifecycle, :archived], ^ref, %{count: 1}, %{reason: "unused"}}
+    end
+
+    test "does not return an archived never-used instance on the demand it already had" do
+      account = account()
+      server = archive_unused(account)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "returns an archived never-used instance when the account asks for its cache" do
+      account = account()
+      server = archive_unused(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    defp unused_instance(account) do
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, 0..8)
+      server
+    end
+
+    defp archive_unused(account) do
+      server = unused_instance(account)
+      assert :ok = Lifecycle.sweep()
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+      |> Repo.update!()
+
+      server
+    end
+
+    defp storage_rollups(account, days_ago, attrs \\ []) do
+      for days <- days_ago do
+        StorageRollup
+        |> struct!(
+          Keyword.merge(
+            [
+              account_id: account.id,
+              region: @region,
+              date: Date.add(Date.utc_today(), -days),
+              snapshot_count: 96,
+              max_occupancy_percent: 0,
+              max_live_segment_bytes: 0
+            ],
+            attrs
+          )
+        )
+        |> Repo.insert!()
+      end
+    end
   end
 
   describe "placement retirements" do
