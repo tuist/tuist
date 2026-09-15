@@ -228,7 +228,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@coverage_enabled and @run.coverage_executable_lines > 0}
+      :if={@coverage_summary}
       label={dgettext("dashboard_tests", "Coverage")}
       selected={@selected_tab == "coverage"}
       patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
@@ -2223,7 +2223,7 @@
   </.card>
 
   <div
-    :if={@selected_tab == "coverage" and @coverage_enabled and @run.coverage_executable_lines > 0}
+    :if={@selected_tab == "coverage" and @coverage_summary}
     data-part="coverage"
   >
     <.card
@@ -2233,7 +2233,7 @@
     >
       <.card_section data-part="coverage-summary-section">
         <.alert
-          :if={@run.coverage_partial}
+          :if={@coverage_summary.partial}
           id="coverage-partial-run"
           status="information"
           type="secondary"
@@ -2254,7 +2254,7 @@
                 "Share of executable lines the tests ran at least once, counting each source file once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@run.coverage_covered_lines, @run.coverage_executable_lines)}%"}
+            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
             id="widget-coverage-percentage"
           />
           <.widget
@@ -2262,7 +2262,7 @@
             description={
               dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
             }
-            value={format_number(@run.coverage_covered_lines)}
+            value={format_number(@coverage_summary.covered_lines)}
             id="widget-coverage-covered-lines"
           />
           <.widget
@@ -2270,7 +2270,7 @@
             description={
               dgettext("dashboard_tests", "Lines the compiler instrumented for coverage.")
             }
-            value={format_number(@run.coverage_executable_lines)}
+            value={format_number(@coverage_summary.executable_lines)}
             id="widget-coverage-executable-lines"
           />
         </div>

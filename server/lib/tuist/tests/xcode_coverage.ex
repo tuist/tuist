@@ -9,16 +9,24 @@ defmodule Tuist.Tests.XcodeCoverage do
   bundle itself. The client ties the files to the repository with the Git blob
   each had, which only the checkout knows.
 
-  Every file the run covered is stored in `xcode_coverage_files` with its line
-  data, and `test_runs` carries the totals. Test code (files only `.xctest`
-  bundles compiled) is stored but left out of every figure: a test that runs
-  covers its own body, which says nothing about the product. A run that left tests out on purpose
-  (selective testing, `-only-testing`) is marked partial: its coverage describes
-  the tests that ran and nothing else, so it stays out of the coverage trend.
+  Every file a report covered is stored in `xcode_coverage_files` with its line
+  data. Test code (files only `.xctest` bundles compiled) is stored but left
+  out of every figure: a test that runs covers its own body, which says nothing
+  about the product. A run that left tests out on purpose (selective testing,
+  `-only-testing`) is marked partial: its coverage describes the tests that ran
+  and nothing else, so it stays out of the coverage trend.
 
-  A sharded run has rows per shard. Readers merge the rows of a path: the
+  A sharded run gets a report per shard. A report's rows share `inserted_at`
+  and only each shard's latest report is read, so a retried or reprocessed
+  shard replaces what it sent before. Readers merge the reports of a path: the
   executable and covered lines are the union across shards, since shards run
   disjoint tests over the same sources.
+
+  Shards report concurrently, so no report can safely rewrite totals another
+  one computed. The run page derives the totals from the reports, and the
+  coverage trend reads `xcode_coverage_runs`, where every report publishes the
+  totals over the shards reported so far and the most complete computation
+  wins, whatever order the reports land in.
   """
 
   import Ecto.Query
@@ -29,8 +37,13 @@ defmodule Tuist.Tests.XcodeCoverage do
   alias Tuist.Projects
   alias Tuist.Tests.Test
   alias Tuist.Tests.XcodeCoverageFile
+  alias Tuist.Tests.XcodeCoverageRun
 
   @insert_chunk_size 2_000
+
+  # A published version ranks the shards a computation included above the
+  # newest report it saw, in microseconds, which stay below 2^51 until 2041.
+  @shard_count_weight 2 ** 51
 
   @doc """
   The rows to store for the `xcode_coverage` block reported with a run, or nil
@@ -54,47 +67,165 @@ defmodule Tuist.Tests.XcodeCoverage do
   end
 
   @doc """
-  The `test_runs` coverage columns for an unsharded run.
+  Stores one report's files and publishes the run's totals over every shard
+  reported so far. `shard_index` is nil for an unsharded run.
   """
-  def run_attrs(nil), do: %{}
+  def publish(%Test{}, nil, _shard_index), do: :ok
 
-  def run_attrs(%{partial: partial, files: files}) do
-    {covered, executable} = files |> Enum.reject(& &1.is_test) |> union_totals()
-    %{coverage_covered_lines: covered, coverage_executable_lines: executable, coverage_partial: partial}
+  def publish(%Test{} = test, coverage, shard_index) do
+    shard_index = shard_index || 0
+    reported_at = NaiveDateTime.utc_now()
+    insert_files(test, coverage, shard_index, reported_at)
+    publish_totals(test, coverage, shard_index, reported_at)
   end
 
-  @doc """
-  Folds a shard's coverage into the merged run, after its rows are stored. The
-  totals are aggregated in ClickHouse over every shard's rows, read with
-  sequential consistency since a plain read can miss rows another request
-  inserted moments ago, and never drop below what the run already carries: two
-  shards that report at the same time each see the other's rows or not, and the
-  one that writes last must not shrink the run. The run is partial when any
-  shard was.
-  """
-  def merge_run_attrs(%Test{}, nil), do: %{}
-
-  def merge_run_attrs(%Test{} = existing, %{partial: partial}) do
-    totals = stored_totals(existing.project_id, existing.id)
-
-    %{
-      coverage_covered_lines: max(totals.covered_lines, existing.coverage_covered_lines || 0),
-      coverage_executable_lines: max(totals.executable_lines, existing.coverage_executable_lines || 0),
-      coverage_partial: partial or existing.coverage_partial == true
-    }
-  end
-
-  def insert_files(%Test{}, nil), do: :ok
-
-  def insert_files(%Test{id: test_run_id, project_id: project_id}, %{files: files}) do
-    now = NaiveDateTime.utc_now()
-
-    files
+  defp insert_files(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at) do
+    coverage.files
     |> Enum.map(
-      &Map.merge(&1, %{id: UUIDv7.generate(), test_run_id: test_run_id, project_id: project_id, inserted_at: now})
+      &Map.merge(&1, %{
+        id: UUIDv7.generate(),
+        test_run_id: test_run_id,
+        project_id: project_id,
+        shard_index: shard_index,
+        partial: coverage.partial,
+        inserted_at: reported_at
+      })
     )
     |> Enum.chunk_every(@insert_chunk_size)
     |> Enum.each(&IngestRepo.insert_all(XcodeCoverageFile, &1))
+  end
+
+  # The report's own files are merged from memory, since rows inserted moments
+  # ago are not reliably read back within the same request; the other shards'
+  # latest reports come from ClickHouse.
+  defp publish_totals(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at) do
+    others = other_shards(project_id, test_run_id, shard_index)
+
+    {covered, executable} =
+      coverage.files
+      |> Enum.reject(& &1.is_test)
+      |> Enum.map(&{&1.path, file_evidence(&1)})
+      |> Kernel.++(others.files)
+      |> merged_totals()
+
+    newest_report_at = Enum.max([reported_at, others.newest_report_at], NaiveDateTime)
+
+    IngestRepo.insert_all(XcodeCoverageRun, [
+      %{
+        project_id: project_id,
+        test_run_id: test_run_id,
+        covered_lines: covered,
+        executable_lines: executable,
+        partial: coverage.partial or others.partial,
+        version:
+          (others.shards_count + 1) * @shard_count_weight +
+            NaiveDateTime.diff(newest_report_at, ~N[1970-01-01 00:00:00], :microsecond),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    ])
+
+    :ok
+  end
+
+  defp other_shards(project_id, test_run_id, shard_index) do
+    reports = from(f in report_files(project_id, test_run_id), where: f.shard_index != ^shard_index)
+
+    files =
+      from(f in reports,
+        where: not f.is_test,
+        group_by: f.path,
+        select: {
+          f.path,
+          fragment("max(length(?))", f.line_numbers),
+          max(f.covered_lines),
+          max(f.executable_lines),
+          fragment("groupUniqArrayArray(?)", f.line_numbers),
+          fragment("groupUniqArrayArray(arrayFilter((l, c) -> c > 0, ?, ?))", f.line_numbers, f.execution_counts)
+        }
+      )
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> Enum.map(fn
+        {path, 0, covered, executable, _lines, _covered_lines} -> {path, {:counts, covered, executable}}
+        {path, _, _, _, lines, covered_lines} -> {path, {:lines, MapSet.new(lines), MapSet.new(covered_lines)}}
+      end)
+
+    summary =
+      ClickHouseRepo.one(
+        from(f in reports,
+          select: %{
+            shards_count: fragment("uniqExact(?)", f.shard_index),
+            partial_rows: fragment("countIf(?)", f.partial),
+            newest_report_at: max(f.inserted_at)
+          }
+        ), settings: [select_sequential_consistency: 1])
+
+    %{
+      files: files,
+      shards_count: summary.shards_count,
+      partial: summary.partial_rows > 0,
+      newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00]
+    }
+  end
+
+  defp file_evidence(%{line_numbers: [], covered_lines: covered, executable_lines: executable}),
+    do: {:counts, covered, executable}
+
+  defp file_evidence(file) do
+    covered =
+      file.line_numbers
+      |> Enum.zip(file.execution_counts)
+      |> Enum.flat_map(fn {line, count} -> if count > 0, do: [line], else: [] end)
+
+    {:lines, MapSet.new(file.line_numbers), MapSet.new(covered)}
+  end
+
+  defp merged_totals(entries) do
+    entries
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.reduce({0, 0}, fn {_path, evidence}, {covered, executable} ->
+      {path_covered, path_executable} = merge_evidence(evidence)
+      {covered + path_covered, executable + path_executable}
+    end)
+  end
+
+  # As `merged_files_query/2`: the lines are the union across reports, and a
+  # path no report has lines for keeps the largest counts.
+  defp merge_evidence(evidence) do
+    case for({:lines, lines, covered} <- evidence, do: {lines, covered}) do
+      [] ->
+        counts = for {:counts, covered, executable} <- evidence, do: {covered, executable}
+        {counts |> Enum.map(&elem(&1, 0)) |> Enum.max(), counts |> Enum.map(&elem(&1, 1)) |> Enum.max()}
+
+      line_sets ->
+        {
+          line_sets |> Enum.map(&elem(&1, 1)) |> Enum.reduce(&MapSet.union/2) |> MapSet.size(),
+          line_sets |> Enum.map(&elem(&1, 0)) |> Enum.reduce(&MapSet.union/2) |> MapSet.size()
+        }
+    end
+  end
+
+  @doc """
+  The run's totals merged across its shards, and whether any shard left tests
+  out on purpose. Nil when the run has no coverage of product code.
+  """
+  def run_summary(project_id, test_run_id) do
+    totals =
+      ClickHouseRepo.one(
+        from(f in subquery(merged_files_query(project_id, test_run_id)),
+          select: %{covered_lines: sum(f.covered_lines), executable_lines: sum(f.executable_lines)}
+        )
+      )
+
+    case totals do
+      %{executable_lines: executable} when is_integer(executable) and executable > 0 ->
+        partial_rows =
+          ClickHouseRepo.one(from(f in report_files(project_id, test_run_id), select: fragment("countIf(?)", f.partial)))
+
+        Map.put(totals, :partial, (partial_rows || 0) > 0)
+
+      _ ->
+        nil
+    end
   end
 
   @doc """
@@ -149,8 +280,8 @@ defmodule Tuist.Tests.XcodeCoverage do
   coverage for the path.
   """
   def file_detail(project_id, test_run_id, path) do
-    from(f in XcodeCoverageFile,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.path == ^path and not f.is_test,
+    from(f in report_files(project_id, test_run_id),
+      where: f.path == ^path and not f.is_test,
       order_by: [desc: f.inserted_at]
     )
     |> ClickHouseRepo.all()
@@ -218,12 +349,28 @@ defmodule Tuist.Tests.XcodeCoverage do
     |> Enum.sort_by(&{&1.line_number, &1.name})
   end
 
-  # One row per path, its shards' rows merged: the lines are the union across
-  # shards. A file whose archive entry was missing keeps the counts the report
-  # gave it, since there are no lines to merge.
-  defp merged_files_query(project_id, test_run_id) do
+  # The rows of each shard's latest report.
+  defp report_files(project_id, test_run_id) do
+    latest_reports =
+      from(f in XcodeCoverageFile,
+        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
+        group_by: f.shard_index,
+        select: %{shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+      )
+
     from(f in XcodeCoverageFile,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and not f.is_test,
+      join: r in subquery(latest_reports),
+      on: r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
+      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id
+    )
+  end
+
+  # One row per path, its shards' reports merged: the lines are the union
+  # across shards. A file whose archive entry was missing keeps the counts the
+  # report gave it, since there are no lines to merge.
+  defp merged_files_query(project_id, test_run_id) do
+    from(f in report_files(project_id, test_run_id),
+      where: not f.is_test,
       group_by: f.path,
       select: %{
         path: f.path,
@@ -248,17 +395,6 @@ defmodule Tuist.Tests.XcodeCoverage do
     )
   end
 
-  defp stored_totals(project_id, test_run_id) do
-    from(f in subquery(merged_files_query(project_id, test_run_id)),
-      select: %{covered_lines: sum(f.covered_lines), executable_lines: sum(f.executable_lines)}
-    )
-    |> ClickHouseRepo.one(settings: [select_sequential_consistency: 1])
-    |> case do
-      nil -> %{covered_lines: 0, executable_lines: 0}
-      totals -> Map.new(totals, fn {key, value} -> {key, value || 0} end)
-    end
-  end
-
   defp file_row(file) do
     functions = value(file, :functions, [])
 
@@ -280,29 +416,4 @@ defmodule Tuist.Tests.XcodeCoverage do
   end
 
   defp value(map, key, default), do: Map.get(map, key) || default
-
-  # Per path, the union of its rows' lines, as the merged query computes it: a
-  # client reporting one file twice must not count it twice.
-  defp union_totals(files) do
-    files
-    |> Enum.group_by(& &1.path)
-    |> Enum.reduce({0, 0}, fn {_path, rows}, {covered, executable} ->
-      {path_covered, path_executable} = union_counts(rows)
-      {covered + path_covered, executable + path_executable}
-    end)
-  end
-
-  defp union_counts(rows) do
-    if Enum.all?(rows, &(&1.line_numbers == [])) do
-      {rows |> Enum.map(& &1.covered_lines) |> Enum.max(), rows |> Enum.map(& &1.executable_lines) |> Enum.max()}
-    else
-      covered =
-        rows
-        |> Enum.flat_map(&Enum.zip(&1.line_numbers, &1.execution_counts))
-        |> Enum.flat_map(fn {line, count} -> if count > 0, do: [line], else: [] end)
-        |> MapSet.new()
-
-      {MapSet.size(covered), rows |> Enum.flat_map(& &1.line_numbers) |> MapSet.new() |> MapSet.size()}
-    end
-  end
 end

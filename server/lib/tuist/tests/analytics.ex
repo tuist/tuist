@@ -17,6 +17,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
   alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.XcodeCoverageRun
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
@@ -91,26 +92,35 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  # `test_runs` is append-only: the xcresult worker and every shard rewrite a
-  # run's row, so only the latest version of each run may count.
+  # A run's totals are published once per shard report; the highest version is
+  # the computation that included the most shards.
   defp latest_coverage_rows(project_id, start_datetime, end_datetime, opts) do
-    apply_test_run_filters(
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        where: t.ran_at >= ^start_datetime,
-        where: t.ran_at <= ^end_datetime,
-        where: t.coverage_executable_lines > 0,
-        group_by: t.id,
-        # Every shard rewrites the row, so only the latest version says whether the run is partial.
-        having: fragment("argMax(?, ?)", t.coverage_partial, t.inserted_at) == false,
-        select: %{
-          id: t.id,
-          ran_at: min(t.ran_at),
-          covered_lines: fragment("argMax(?, ?)", t.coverage_covered_lines, t.inserted_at),
-          executable_lines: fragment("argMax(?, ?)", t.coverage_executable_lines, t.inserted_at)
-        }
-      ),
-      opts
+    runs =
+      apply_test_run_filters(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          where: t.ran_at >= ^start_datetime,
+          where: t.ran_at <= ^end_datetime,
+          group_by: t.id,
+          select: %{id: t.id, ran_at: min(t.ran_at)}
+        ),
+        opts
+      )
+
+    from(c in XcodeCoverageRun,
+      join: t in subquery(runs),
+      on: t.id == c.test_run_id,
+      where: c.project_id == ^project_id,
+      group_by: c.test_run_id,
+      having:
+        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 and
+          fragment("argMax(?, ?)", c.partial, c.version) == false,
+      select: %{
+        id: c.test_run_id,
+        ran_at: fragment("any(?)", t.ran_at),
+        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version)
+      }
     )
   end
 

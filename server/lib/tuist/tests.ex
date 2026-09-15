@@ -518,10 +518,7 @@ defmodule Tuist.Tests do
         attrs
       end
 
-    attrs =
-      attrs
-      |> Map.merge(StressNewTests.run_attrs(stress_new_tests))
-      |> Map.merge(XcodeCoverage.run_attrs(xcode_coverage))
+    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
 
     case %Test{}
          |> Test.create_changeset(attrs)
@@ -530,7 +527,7 @@ defmodule Tuist.Tests do
         create_run_destinations(test, Map.get(attrs, :run_destinations, []))
         create_run_errors(test, Map.get(attrs, :run_errors, []))
         StressNewTests.insert_candidates(test, stress_new_tests)
-        XcodeCoverage.insert_files(test, xcode_coverage)
+        XcodeCoverage.publish(test, xcode_coverage, shard_index)
 
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -733,15 +730,13 @@ defmodule Tuist.Tests do
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
           xcode_coverage = XcodeCoverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          XcodeCoverage.insert_files(existing_test, xcode_coverage)
-          coverage_attrs = XcodeCoverage.merge_run_attrs(existing_test, xcode_coverage)
+          XcodeCoverage.publish(existing_test, xcode_coverage, shard_index)
 
           updated_test =
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
             |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
-            |> Map.merge(coverage_attrs)
 
           update_attrs =
             updated_test

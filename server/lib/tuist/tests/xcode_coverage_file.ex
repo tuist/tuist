@@ -7,7 +7,10 @@ defmodule Tuist.Tests.XcodeCoverageFile do
   `line_numbers` lists the file's executable lines, ascending, and
   `execution_counts` how many times each ran. The `function_*` arrays describe
   the file's functions, index by index. A sharded run has a row per shard that
-  compiled the file; readers merge them.
+  compiled the file; readers merge them. Rows written by one report share
+  `inserted_at`, and only each shard's latest report counts, so a retried or
+  reprocessed shard replaces what it reported before. `partial` is whether the
+  shard left tests out on purpose.
   """
   use Ecto.Schema
 
@@ -15,6 +18,8 @@ defmodule Tuist.Tests.XcodeCoverageFile do
   schema "xcode_coverage_files" do
     field :test_run_id, Ecto.UUID
     field :project_id, Ch, type: "Int64"
+    field :shard_index, Ch, type: "UInt32", default: 0
+    field :partial, :boolean, default: false
     field :path, Ch, type: "String"
     field :git_blob_id, Ch, type: "String"
     field :targets, Ch, type: "Array(LowCardinality(String))"

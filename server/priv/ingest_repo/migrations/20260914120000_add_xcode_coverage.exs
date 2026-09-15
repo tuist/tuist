@@ -5,18 +5,16 @@ defmodule Tuist.IngestRepo.Migrations.AddXcodeCoverage do
   @disable_migration_lock true
 
   def up do
-    alter table(:test_runs) do
-      add :coverage_covered_lines, :UInt32, default: 0
-      add :coverage_executable_lines, :UInt32, default: 0
-      add :coverage_partial, :Bool, default: false
-    end
-
+    # A report's rows share `inserted_at`, and a shard's retry replaces its earlier
+    # report under the same key.
     execute("""
     CREATE TABLE IF NOT EXISTS xcode_coverage_files
     (
       `id` UUID,
       `test_run_id` UUID,
       `project_id` Int64,
+      `shard_index` UInt32 DEFAULT 0,
+      `partial` Bool DEFAULT false,
       `path` String,
       `git_blob_id` String,
       `targets` Array(LowCardinality(String)),
@@ -32,19 +30,29 @@ defmodule Tuist.IngestRepo.Migrations.AddXcodeCoverage do
       `function_executable_lines` Array(UInt32),
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = MergeTree()
+    ENGINE = ReplacingMergeTree(inserted_at)
     PARTITION BY toYYYYMM(inserted_at)
-    ORDER BY (project_id, test_run_id, path)
+    ORDER BY (project_id, test_run_id, shard_index, path)
+    """)
+
+    execute("""
+    CREATE TABLE IF NOT EXISTS xcode_coverage_runs
+    (
+      `project_id` Int64,
+      `test_run_id` UUID,
+      `covered_lines` UInt64,
+      `executable_lines` UInt64,
+      `partial` Bool DEFAULT false,
+      `version` UInt64,
+      `inserted_at` DateTime64(6) DEFAULT now()
+    )
+    ENGINE = ReplacingMergeTree(version)
+    ORDER BY (project_id, test_run_id)
     """)
   end
 
   def down do
+    drop table(:xcode_coverage_runs)
     drop table(:xcode_coverage_files)
-
-    alter table(:test_runs) do
-      remove :coverage_covered_lines
-      remove :coverage_executable_lines
-      remove :coverage_partial
-    end
   end
 end

@@ -63,7 +63,11 @@ defmodule TuistWeb.TestRunLive do
     end
 
     slug = Projects.get_project_slug_from_id(project.id)
-    socket = assign(socket, :coverage_enabled, FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account))
+
+    socket =
+      socket
+      |> assign(:coverage_enabled, FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account))
+      |> assign_coverage_summary(run)
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
@@ -468,6 +472,12 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
+  defp assign_coverage_summary(%{assigns: %{coverage_enabled: true}} = socket, run) do
+    assign(socket, :coverage_summary, XcodeCoverage.run_summary(run.project_id, run.id))
+  end
+
+  defp assign_coverage_summary(socket, _run), do: assign(socket, :coverage_summary, nil)
+
   defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
     case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
@@ -478,6 +488,7 @@ defmodule TuistWeb.TestRunLive do
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign_coverage_summary(refreshed_run)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
