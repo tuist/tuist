@@ -74,15 +74,16 @@ public struct Tuist: Codable, Equatable, Sendable {
         /// Set to `false` for read-only mode (downloads only, no uploads).
         public let upload: Bool
 
-        /// The size the project's local compilation cache stores are kept within. When no build is running,
-        /// the oldest part of a store that occupies more than this size is deleted until the store fits. When
+        /// The size the project's local compilation cache stores settle at. When no build is running, a store that
+        /// occupies more than this size has its oldest cached outputs pruned, and a store can be larger than this
+        /// size while builds run. When several projects share a store, the smallest of their limits applies. When
         /// `nil` (default), stores aren't pruned.
         public let storeSizeLimit: Size?
 
         /// Creates Xcode Cache options.
         /// - Parameters:
         ///   - upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
-        ///   - storeSizeLimit: The size the project's local compilation cache stores are kept within. Defaults to
+        ///   - storeSizeLimit: The size the project's local compilation cache stores settle at. Defaults to
         ///     `nil`, which doesn't prune them.
         public static func xcodeCache(upload: Bool = true, storeSizeLimit: Size? = nil) -> Self {
             XcodeCache(upload: upload, storeSizeLimit: storeSizeLimit)
