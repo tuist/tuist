@@ -25,6 +25,7 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.RemoteURL
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -354,6 +355,7 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
+    |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end

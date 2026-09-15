@@ -163,6 +163,7 @@ defmodule Tuist do
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
       VCS.GitHubAppInstallation,
+      VCS.RemoteURL,
       Alerts,
       Alerts.Alert,
       Alerts.AlertRule,

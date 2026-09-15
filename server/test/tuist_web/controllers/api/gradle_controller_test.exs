@@ -330,7 +330,7 @@ defmodule TuistWeb.API.GradleControllerTest do
         status: "success",
         git_commit_sha: "abc123",
         git_ref: "refs/pull/42/merge",
-        git_remote_url_origin: "https://github.com/tuist/tuist.git",
+        git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
         tasks: []
       }
 
