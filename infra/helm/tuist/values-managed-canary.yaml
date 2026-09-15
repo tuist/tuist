@@ -328,19 +328,13 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # Step 6a: the full parity gate, before reads move.
-    #
-    # Compares every copied table over the whole dataset, schemas included,
-    # unlike the hourly worker's two-hour window. What it relies on: the repair
-    # backfill has copied up to 2026-09-11T12:00:00Z, the dead rebuild tables are
-    # gone from both servers (dropped here by hand, since destructive DDL is not
-    # mirrored during the soak), and the mirror has recorded no error, retried or
-    # dropped write since that cutoff.
-    #
-    # It raises, and under `--atomic` a failure rolls canary back. If it fails,
-    # read the Job and disarm this rather than redeploying into it.
+    # Step 6a, the full parity gate, is disarmed. Its last run found five copied
+    # tables differing from the system of record across the whole dataset:
+    # shard_plans, xcode_targets, command_events and cacheable_tasks short of
+    # rows, and test_runs with a differing duration. Reads stay where they are
+    # until those are explained and repaired.
     migration:
-      enabled: true
+      enabled: false
       name: parity
       task: Tuist.Release.check_clickhouse_parity
 
