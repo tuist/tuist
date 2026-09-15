@@ -702,8 +702,8 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
-    /// source and Feature builds it. Its Swift dependency scan resolves the package's clang module only when
-    /// the warm scheme builds it directly.
+    /// source and Feature, from another project, builds it as a dependency. Built that way, its Swift dependency
+    /// scan receives the module map of the package's clang target only when the warm scheme lists it.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
