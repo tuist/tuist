@@ -247,16 +247,6 @@ When this environment variable is set, Tuist leaves the directory and its conten
 
 Tuist rejects a caller-owned scratch directory when a foreign build target needs to be warmed. Foreign build scripts control their own output locations, so Tuist cannot guarantee that those outputs stay inside the scratch directory.
 
-### Compilation cache store {#compilation-cache-store}
-
-`tuist cache` passes `COMPILATION_CACHE_CAS_PATH` to the builds it runs, using the first of these locations:
-
-1. `TUIST_COMPILATION_CACHE_CAS_PATH`, when it's set to an absolute path.
-2. `CompilationCache.noindex` inside `TUIST_CACHE_WARM_SCRATCH_DIRECTORY`, when it's set.
-3. `CompilationCache.noindex` inside the default derived data directory.
-
-See <.localized_link href="/guides/features/cache/xcode-cache#compilation-cache-store-on-ci">compilation cache store on CI</.localized_link> for ephemeral and stateful store setups.
-
 ## Troubleshooting {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
