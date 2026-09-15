@@ -55,7 +55,10 @@ const (
 	// httpPort is the single cache port: Kura co-hosts the HTTP cache API
 	// and REAPI gRPC (h2c) on one listener (KURA_PORT).
 	httpPort int32 = 4000
-	peerPort int32 = 7443
+	// gatewayGRPCPort serves only REAPI gRPC (KURA_GATEWAY_GRPC_PORT). The
+	// regional ingress routes gRPC here; direct clients keep httpPort.
+	gatewayGRPCPort int32 = 4001
+	peerPort        int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -1803,15 +1806,15 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Annotations = clientIngressAnnotations(instance, grpcIngressAnnotations())
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
-		// The backend is the same co-hosted cache port that serves HTTP;
-		// this Ingress only exists so ingress-nginx renders these paths
-		// with grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
+		// This Ingress exists so ingress-nginx renders these paths with
+		// grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
+		servicePort := grpcIngressServicePort(instance)
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcPublicPathPrefixes))
 		for _, prefix := range grpcPublicPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
 				Path:     prefix,
 				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
-				Backend:  ingressBackend(instance.Name, "http"),
+				Backend:  ingressBackend(instance.Name, servicePort),
 			})
 		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
@@ -1823,6 +1826,71 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		return nil
 	})
 	return err
+}
+
+// gatewayGRPCMinimumVersion is the first Kura release that binds
+// KURA_GATEWAY_GRPC_PORT.
+var gatewayGRPCMinimumVersion = [3]int{0, 47, 0}
+
+// grpcIngressServicePort routes gRPC to the gRPC-only port once both the
+// requested and the running image bind it, and to the co-hosted port otherwise.
+// ingress-nginx reuses pooled upstream connections by address alone, so gRPC and
+// HTTP/1.1 sent to one pod port would be handed each other's connections.
+// Requiring the running image keeps gRPC on the co-hosted port until a rollout
+// onto a new image completes, and a rollback moves it back immediately.
+func grpcIngressServicePort(instance *kurav1alpha1.KuraInstance) string {
+	if imageServesGatewayGRPC(instance.Spec.Image) && imageServesGatewayGRPC(instance.Status.ObservedImage) {
+		return "grpc"
+	}
+	return "http"
+}
+
+// imageServesGatewayGRPC reports whether a Kura image binds the gateway gRPC
+// port. A tag that is not a release version, such as the sha- builds staging
+// deploys from main, counts as current.
+func imageServesGatewayGRPC(image string) bool {
+	if image == "" {
+		return false
+	}
+	version, ok := kuraImageVersion(image)
+	if !ok {
+		return true
+	}
+	for i := range version {
+		if version[i] != gatewayGRPCMinimumVersion[i] {
+			return version[i] > gatewayGRPCMinimumVersion[i]
+		}
+	}
+	return true
+}
+
+// kuraImageVersion parses the major.minor.patch release version from an image
+// reference's tag, ignoring any digest, leading v, and pre-release suffix.
+func kuraImageVersion(image string) ([3]int, bool) {
+	if at := strings.Index(image, "@"); at >= 0 {
+		image = image[:at]
+	}
+	colon := strings.LastIndex(image, ":")
+	if colon < 0 || strings.Contains(image[colon:], "/") {
+		return [3]int{}, false
+	}
+	tag := strings.TrimPrefix(image[colon+1:], "v")
+	if suffix := strings.IndexAny(tag, "-+"); suffix >= 0 {
+		tag = tag[:suffix]
+	}
+	parts := strings.Split(tag, ".")
+	if len(parts) != 3 {
+		return [3]int{}, false
+	}
+	var version [3]int
+	for i, part := range parts {
+		number, err := strconv.Atoi(part)
+		if err != nil || number < 0 {
+			return [3]int{}, false
+		}
+		version[i] = number
+	}
+	return version, true
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -4097,6 +4165,7 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
+					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
 		}
@@ -4278,6 +4347,9 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if len(instance.Spec.MeshExternalPeers) > 0 {
 		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
+	if imageServesGatewayGRPC(instance.Spec.Image) {
+		env = append(env, corev1.EnvVar{Name: "KURA_GATEWAY_GRPC_PORT", Value: fmt.Sprintf("%d", gatewayGRPCPort)})
+	}
 	return env
 }
 
@@ -4298,14 +4370,19 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// containerPorts exposes only the plain co-hosted cache port (HTTP + h2c
-// gRPC) and the internal mTLS peer port. Customer-facing TLS terminates at
-// the regional Kura ingress, not inside each Kura runtime pod.
+// containerPorts exposes the plain co-hosted cache port (HTTP + h2c gRPC), the
+// internal mTLS peer port, and the gRPC-only gateway port on images that bind
+// it. Customer-facing TLS terminates at the regional Kura ingress, not inside
+// each Kura runtime pod.
 func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
-	return []corev1.ContainerPort{
+	ports := []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
+	if imageServesGatewayGRPC(instance.Spec.Image) {
+		ports = append(ports, corev1.ContainerPort{Name: "grpc", ContainerPort: gatewayGRPCPort})
+	}
+	return ports
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
@@ -4375,6 +4452,7 @@ func ports() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+		{Name: "grpc", Port: gatewayGRPCPort, TargetPort: intstr.FromString("grpc")},
 	}
 }
 

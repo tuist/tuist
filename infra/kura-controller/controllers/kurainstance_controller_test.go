@@ -274,14 +274,17 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != "" {
 		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := len(service.Spec.Ports); got != 2 {
-		t.Fatalf("expected backend service to expose the co-hosted cache and peer ports, got %d", got)
+	if got := len(service.Spec.Ports); got != 3 {
+		t.Fatalf("expected backend service to expose the co-hosted cache, peer and gateway gRPC ports, got %d", got)
 	}
 	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
 		t.Fatalf("expected public ingress backend service to target the co-hosted cache port, got %q", got)
 	}
 	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected backend service to expose peer, got %q", got)
+	}
+	if got := service.Spec.Ports[2]; got.Name != "grpc" || got.Port != gatewayGRPCPort || got.TargetPort.StrVal != "grpc" {
+		t.Fatalf("expected backend service to expose the gateway gRPC port, got %#v", got)
 	}
 	if len(service.Annotations) != 0 {
 		t.Fatalf("expected no per-customer LoadBalancer annotations on backend service, got %v", service.Annotations)
@@ -595,11 +598,14 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if len(policy.Spec.Ingress[2].From) != 1 || policy.Spec.Ingress[2].From[0].NamespaceSelector == nil {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to allow cluster namespaces, got %v", policy.Spec.Ingress[2].From)
 	}
-	if len(ingressPorts) != 1 {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose only the co-hosted cache port, got %d ports", len(ingressPorts))
+	if len(ingressPorts) != 2 {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose the co-hosted cache and gateway gRPC ports, got %d ports", len(ingressPorts))
 	}
 	if got := ingressPorts[0].Port.StrVal; got != "http" {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose http, got %q", got)
+	}
+	if got := ingressPorts[1].Port.StrVal; got != "grpc" {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose grpc, got %q", got)
 	}
 }
 
@@ -4493,5 +4499,82 @@ func TestKuraInstanceReconcileFailsBackWhenWildcardSecretDisappears(t *testing.T
 	cert.SetGroupVersionKind(certificateGVK())
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
 		t.Fatalf("expected the per-instance Certificate to be recreated over the retained Secret: %v", err)
+	}
+}
+
+func TestImageServesGatewayGRPC(t *testing.T) {
+	cases := map[string]bool{
+		"":                                    false,
+		"ghcr.io/tuist/kura:0.46.0":           false,
+		"ghcr.io/tuist/kura:0.5.2":            false,
+		"ghcr.io/tuist/kura:0.47.0":           true,
+		"ghcr.io/tuist/kura:v0.47.1":          true,
+		"ghcr.io/tuist/kura:0.47.0-rc.1":      true,
+		"ghcr.io/tuist/kura:1.0.0":            true,
+		"ghcr.io/tuist/kura:0.47.0@sha256:ab": true,
+		"ghcr.io/tuist/kura:sha-4fbea0289708": true,
+		"ghcr.io/tuist/kura":                  true,
+		"localhost:5000/kura":                 true,
+	}
+	for image, want := range cases {
+		if got := imageServesGatewayGRPC(image); got != want {
+			t.Errorf("imageServesGatewayGRPC(%q) = %t, want %t", image, got, want)
+		}
+	}
+}
+
+func TestGRPCIngressServicePortFollowsRequestedAndRunningImage(t *testing.T) {
+	cases := []struct {
+		name     string
+		image    string
+		observed string
+		want     string
+	}{
+		{name: "not yet rolled out", image: "ghcr.io/tuist/kura:0.47.0", observed: "", want: "http"},
+		{name: "rolling onto a gateway image", image: "ghcr.io/tuist/kura:0.47.0", observed: "ghcr.io/tuist/kura:0.46.0", want: "http"},
+		{name: "running a gateway image", image: "ghcr.io/tuist/kura:0.47.0", observed: "ghcr.io/tuist/kura:0.47.0", want: "grpc"},
+		{name: "rolling back", image: "ghcr.io/tuist/kura:0.46.0", observed: "ghcr.io/tuist/kura:0.47.0", want: "http"},
+		{name: "staging build", image: "ghcr.io/tuist/kura:sha-4fbea0289708", observed: "ghcr.io/tuist/kura:sha-4fbea0289708", want: "grpc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := &kurav1alpha1.KuraInstance{
+				Spec:   kurav1alpha1.KuraInstanceSpec{Image: tc.image},
+				Status: kurav1alpha1.KuraInstanceStatus{ObservedImage: tc.observed},
+			}
+			if got := grpcIngressServicePort(instance); got != tc.want {
+				t.Fatalf("grpcIngressServicePort() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGatewayGRPCPortPodWiringGatesOnRequestedImage(t *testing.T) {
+	for image, want := range map[string]bool{
+		"ghcr.io/tuist/kura:0.46.0": false,
+		"ghcr.io/tuist/kura:0.47.0": true,
+	} {
+		instance := &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+			Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "tuist", TenantID: "tuist", Region: "eu", Image: image},
+		}
+		hasPort := false
+		for _, port := range containerPorts(instance) {
+			if port.Name == "grpc" && port.ContainerPort == gatewayGRPCPort {
+				hasPort = true
+			}
+		}
+		if hasPort != want {
+			t.Errorf("containerPorts for %s exposes grpc = %t, want %t", image, hasPort, want)
+		}
+		hasEnv := false
+		for _, env := range baseEnv(instance, "", "") {
+			if env.Name == "KURA_GATEWAY_GRPC_PORT" && env.Value == "4001" {
+				hasEnv = true
+			}
+		}
+		if hasEnv != want {
+			t.Errorf("baseEnv for %s sets KURA_GATEWAY_GRPC_PORT = %t, want %t", image, hasEnv, want)
+		}
 	}
 }

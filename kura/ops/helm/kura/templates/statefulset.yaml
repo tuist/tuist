@@ -52,6 +52,11 @@ spec:
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
               protocol: TCP
+            {{- if gt (int .Values.service.gatewayGrpcPort) 0 }}
+            - name: grpc
+              containerPort: {{ .Values.service.gatewayGrpcPort }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
@@ -63,6 +68,10 @@ spec:
                   fieldPath: metadata.namespace
             - name: KURA_PORT
               value: {{ printf "%d" (int .Values.service.httpPort) | quote }}
+            {{- if gt (int .Values.service.gatewayGrpcPort) 0 }}
+            - name: KURA_GATEWAY_GRPC_PORT
+              value: {{ printf "%d" (int .Values.service.gatewayGrpcPort) | quote }}
+            {{- end }}
             - name: KURA_TENANT_ID
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION
