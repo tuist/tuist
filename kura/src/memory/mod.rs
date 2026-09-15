@@ -424,6 +424,11 @@ impl MemoryController {
         self.inner.pools.elastic_transient_capacity_bytes() as u64
     }
 
+    /// How much of the elastic pool upload staging may hold at once.
+    pub fn upload_elastic_transient_capacity_bytes(&self) -> u64 {
+        self.inner.pools.upload_elastic_transient_capacity_bytes() as u64
+    }
+
     pub fn elastic_transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.elastic_transient_reserved_bytes() as u64
     }
@@ -749,7 +754,25 @@ impl MemoryController {
         .map(ForegroundMemoryReservation::new)
     }
 
-    /// Upload staging admission. Borrows ceiling headroom before queueing: a
+    /// Upload staging's immediate admission: the floor-derived pool, then at
+    /// most upload staging's share of the ceiling headroom.
+    pub(crate) fn try_reserve_upload_foreground_memory(
+        &self,
+        requested_bytes: u64,
+    ) -> Result<ForegroundMemoryReservation, ()> {
+        if requested_bytes > 0 && self.inner.foreground_waiters.load(Ordering::Acquire) > 0 {
+            return Err(());
+        }
+        self.try_reserve_transient_with(
+            requested_bytes,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowUploadShare,
+        )
+        .map(ForegroundMemoryReservation::new)
+    }
+
+    /// Upload staging admission. Borrows its share of ceiling headroom before
+    /// queueing: a
     /// refused upload is dropped rather than retried by the client, and a queue
     /// behind a full floor used to shed uploads while the headroom sat idle.
     /// Unlike a materialized response, the reservation covers the staging
@@ -759,7 +782,7 @@ impl MemoryController {
         &self,
         requested_bytes: u64,
     ) -> Result<(ForegroundMemoryReservation, bool), ForegroundAdmissionTimeout> {
-        match self.try_reserve_elastic_foreground_memory(requested_bytes) {
+        match self.try_reserve_upload_foreground_memory(requested_bytes) {
             Ok(reservation) => Ok((reservation, false)),
             Err(()) => {
                 self.inner
@@ -1101,6 +1124,7 @@ impl MemoryController {
                     controller: self.clone(),
                     permit: Some(permit),
                     elastic_permit: None,
+                    upload_share_permit: None,
                     elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
@@ -1114,6 +1138,7 @@ impl MemoryController {
             controller: self.clone(),
             permit: None,
             elastic_permit: None,
+            upload_share_permit: None,
             elasticity,
             bytes: 0,
         }
@@ -1136,11 +1161,14 @@ impl MemoryController {
         if requested_bytes == 0 {
             return Ok(self.empty_transient(elasticity));
         }
-        let borrows = elasticity == TransientElasticity::MayBorrowCeilingHeadroom;
-        let capacity_bytes = if borrows {
-            self.foreground_transient_capacity_bytes()
-        } else {
-            self.transient_capacity_bytes()
+        let capacity_bytes = match elasticity {
+            TransientElasticity::Fixed => self.transient_capacity_bytes(),
+            TransientElasticity::MayBorrowCeilingHeadroom => {
+                self.foreground_transient_capacity_bytes()
+            }
+            TransientElasticity::MayBorrowUploadShare => self
+                .transient_capacity_bytes()
+                .saturating_add(self.upload_elastic_transient_capacity_bytes()),
         };
         if !self.allow_transient_admission(class) || requested_bytes > capacity_bytes {
             return Err(());
@@ -1149,7 +1177,14 @@ impl MemoryController {
         let mut reservation = self.empty_transient(elasticity);
         match self.inner.pools.try_acquire_transient(permits) {
             Ok(permit) => reservation.permit = Some(permit),
-            Err(()) if borrows => {
+            Err(()) if elasticity != TransientElasticity::Fixed => {
+                if elasticity == TransientElasticity::MayBorrowUploadShare {
+                    reservation.upload_share_permit = Some(
+                        self.inner
+                            .pools
+                            .try_acquire_upload_elastic_transient(permits)?,
+                    );
+                }
                 reservation.elastic_permit = Some(self.try_acquire_elastic_transient(permits)?)
             }
             Err(()) => return Err(()),
@@ -2751,5 +2786,69 @@ mod tests {
             .expect("the older reservation should still be held");
         older.await.expect("the older task should finish");
         younger.await.expect("the younger task should finish");
+    }
+
+    #[test]
+    fn upload_staging_borrows_at_most_its_share_of_the_elastic_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let elastic = controller.elastic_transient_capacity_bytes();
+        let share = controller.upload_elastic_transient_capacity_bytes();
+        assert_eq!(share, elastic / 2);
+        let floor = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+
+        let uploads = controller
+            .try_reserve_upload_foreground_memory(share)
+            .expect("the share admits");
+        assert!(
+            controller
+                .try_reserve_upload_foreground_memory(1024 * 1024)
+                .is_err(),
+            "uploads cannot borrow past their share"
+        );
+
+        // Write decoding still reaches the half upload staging cannot hold.
+        let mut decode = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        assert!(decode.try_resize(elastic - share).is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), elastic);
+
+        drop(uploads);
+        assert!(
+            controller
+                .try_reserve_upload_foreground_memory(share)
+                .is_ok(),
+            "releasing an upload returns its share"
+        );
+        drop(decode);
+        drop(floor);
+    }
+
+    #[test]
+    fn shrinking_an_upload_reservation_returns_its_share_with_the_headroom() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let share = controller.upload_elastic_transient_capacity_bytes();
+        let floor = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut upload = controller
+            .try_reserve_upload_foreground_memory(share)
+            .unwrap();
+
+        assert!(upload.try_resize(share / 2).is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), share / 2);
+        let rest = controller
+            .try_reserve_upload_foreground_memory(share - share / 2)
+            .expect("the returned share is available again");
+        assert!(
+            controller
+                .try_reserve_upload_foreground_memory(1024 * 1024)
+                .is_err()
+        );
+
+        drop(rest);
+        drop(upload);
+        drop(floor);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
     }
 }

@@ -26,9 +26,11 @@ const DEGRADED_FILE_RESPONSE_STREAM_RESERVATION_BYTES: usize =
 pub(super) struct MemoryPools {
     transient: Arc<Semaphore>,
     elastic_transient: Arc<Semaphore>,
+    upload_elastic_transient: Arc<Semaphore>,
     mmap_serving: Arc<Semaphore>,
     transient_capacity_bytes: usize,
     elastic_transient_capacity_bytes: usize,
+    upload_elastic_transient_capacity_bytes: usize,
     reapi_materialization_limit_bytes: usize,
     foreground_response_streaming: Arc<Semaphore>,
     elastic_foreground_response_streaming: Arc<Semaphore>,
@@ -74,6 +76,11 @@ impl MemoryPools {
         // before the kernel is left with the OOM killer as its only remedy.
         let elastic_transient_capacity_bytes =
             semaphore_capacity(headroom_bytes).saturating_sub(transient_capacity_bytes);
+        // Upload staging may hold only half of it. The pool is shared with
+        // remote-execution write decoding, which answers RESOURCE_EXHAUSTED
+        // instead of waiting, and an upload burst borrowing the whole pool
+        // starved it.
+        let upload_elastic_transient_capacity_bytes = elastic_transient_capacity_bytes / 2;
         let reapi_materialization_limit_bytes =
             reapi_materialization_limit_bytes(transient_capacity_bytes);
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);
@@ -109,9 +116,13 @@ impl MemoryPools {
         Self {
             transient: Arc::new(Semaphore::new(transient_capacity_bytes)),
             elastic_transient: Arc::new(Semaphore::new(elastic_transient_capacity_bytes)),
+            upload_elastic_transient: Arc::new(Semaphore::new(
+                upload_elastic_transient_capacity_bytes,
+            )),
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
             transient_capacity_bytes,
             elastic_transient_capacity_bytes,
+            upload_elastic_transient_capacity_bytes,
             reapi_materialization_limit_bytes,
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
@@ -196,6 +207,20 @@ impl MemoryPools {
         permits: u32,
     ) -> Result<OwnedSemaphorePermit, ()> {
         self.elastic_transient
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map_err(|_| ())
+    }
+
+    pub(super) fn upload_elastic_transient_capacity_bytes(&self) -> usize {
+        self.upload_elastic_transient_capacity_bytes
+    }
+
+    pub(super) fn try_acquire_upload_elastic_transient(
+        &self,
+        permits: u32,
+    ) -> Result<OwnedSemaphorePermit, ()> {
+        self.upload_elastic_transient
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())

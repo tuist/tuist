@@ -117,6 +117,7 @@ impl Drop for ResponseStreamMemoryPermit {
         if let Some(transient) = transient.as_mut() {
             drop(transient.permit.take());
             drop(transient.elastic_permit.take());
+            drop(transient.upload_share_permit.take());
             let has_waiters = transient
                 .controller
                 .inner
@@ -165,6 +166,9 @@ pub struct TransientMemoryReservation {
     /// `OwnedSemaphorePermit::merge` panics across semaphores. Released before
     /// `permit` on the way down, so borrowed ceiling headroom goes back first.
     pub(super) elastic_permit: Option<OwnedSemaphorePermit>,
+    /// The bytes of `elastic_permit` charged against upload staging's share of
+    /// the elastic pool, the same size as `elastic_permit` whenever present.
+    pub(super) upload_share_permit: Option<OwnedSemaphorePermit>,
     pub(super) elasticity: TransientElasticity,
     pub(super) bytes: u64,
 }
@@ -172,12 +176,16 @@ pub struct TransientMemoryReservation {
 /// Whether a reservation may draw on ceiling headroom above the floor-derived
 /// pool. Opt-in per reservation rather than per admission class: the callers
 /// that shed on the floor differ in what a refusal costs them. Write decoding
-/// and upload staging borrow; response materialization, whose permit outlives
-/// any server-side deadline, does not.
+/// borrows the whole pool and upload staging at most its share; response
+/// materialization, whose permit outlives any server-side deadline, does not
+/// borrow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TransientElasticity {
     Fixed,
     MayBorrowCeilingHeadroom,
+    /// Borrows like `MayBorrowCeilingHeadroom`, but only up to upload staging's
+    /// share of the pool.
+    MayBorrowUploadShare,
 }
 
 pub struct ForegroundMemoryReservation {
@@ -300,10 +308,17 @@ impl TransientMemoryReservation {
                     None => self.permit = Some(additional),
                 },
                 Err(()) => {
+                    let share = self.try_acquire_upload_share(additional_permits)?;
                     let additional = self.try_acquire_elastic(additional_permits)?;
                     match self.elastic_permit.as_mut() {
                         Some(permit) => permit.merge(additional),
                         None => self.elastic_permit = Some(additional),
+                    }
+                    if let Some(share) = share {
+                        match self.upload_share_permit.as_mut() {
+                            Some(permit) => permit.merge(share),
+                            None => self.upload_share_permit = Some(share),
+                        }
                     }
                 }
             }
@@ -327,10 +342,21 @@ impl TransientMemoryReservation {
     }
 
     fn try_acquire_elastic(&self, permits: u32) -> Result<OwnedSemaphorePermit, ()> {
-        if self.elasticity != TransientElasticity::MayBorrowCeilingHeadroom {
+        if self.elasticity == TransientElasticity::Fixed {
             return Err(());
         }
         self.controller.try_acquire_elastic_transient(permits)
+    }
+
+    fn try_acquire_upload_share(&self, permits: u32) -> Result<Option<OwnedSemaphorePermit>, ()> {
+        if self.elasticity != TransientElasticity::MayBorrowUploadShare {
+            return Ok(None);
+        }
+        self.controller
+            .inner
+            .pools
+            .try_acquire_upload_elastic_transient(permits)
+            .map(Some)
     }
 
     /// Gives back up to `released_bytes` of borrowed headroom, returning what
@@ -345,6 +371,13 @@ impl TransientMemoryReservation {
             self.elastic_permit = None;
         } else if released > 0 {
             drop(permit.split(released).ok_or(())?);
+        }
+        if let Some(share) = self.upload_share_permit.as_mut() {
+            if released >= share.num_permits() {
+                self.upload_share_permit = None;
+            } else if released > 0 {
+                drop(share.split(released).ok_or(())?);
+            }
         }
         Ok(released_bytes - released)
     }

@@ -3393,9 +3393,9 @@ limit in the summary, which is what the on-call needs to pick the lever:
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
-  - `upload_memory` borrows the elastic ceiling headroom before it queues, so
-    on current versions it means an upload waited 30 seconds with the floor
-    and that headroom both spent, or with pressure above normal closing the
+  - `upload_memory` borrows up to half of the elastic ceiling headroom before
+    it queues, so on current versions it means an upload waited 30 seconds
+    with the floor and upload staging's half of that headroom both spent, or with pressure above normal closing the
     borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
     below. Older versions queued on the floor alone, so a shed there can come
