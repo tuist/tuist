@@ -1084,6 +1084,29 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :active
     end
 
+    test "leaves an instance alone when its telemetry has a gap" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, [0, 1, 2, 6, 7, 8])
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "leaves an instance alone once it has evicted content" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 1)
+      storage_rollups(account, Enum.reject(0..8, &(&1 == 3)))
+      storage_rollups(account, [3], eviction_count: 2, evicted_bytes: @gib, evicted_artifact_count: 10)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
     test "measures the window from the instance's return from archive" do
       account = account()
       server = active_instance(account, age_days: 30)

@@ -549,9 +549,9 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   # Instances that have stored nothing since they entered service. Only
-  # snapshots covering the whole service life count as evidence: none at all,
-  # ones that start after the instance came up, or ones that stopped arriving
-  # say nothing about what it holds.
+  # snapshots on every full day of the service life count as evidence: a pod
+  # restart empties a ring without an eviction, so a day without snapshots
+  # could hide use. An eviction on any day is use.
   defp unused_candidates(region_id, now, tracking_cutoff) do
     unused_cutoff = DateTime.add(now, -Environment.kura_unused_days() * 86_400, :second)
     today = DateTime.to_date(now)
@@ -615,12 +615,22 @@ defmodule Tuist.Kura.Lifecycle do
   defp never_stored?(rollups, started_at, today) do
     started_on = DateTime.to_date(started_at)
     in_service = Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt))
-    snapshot_dates = for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date
+    snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
 
-    snapshot_dates != [] and
-      Date.diff(Enum.min(snapshot_dates, Date), started_on) <= 1 and
-      Date.diff(today, Enum.max(snapshot_dates, Date)) <= 1 and
-      not Enum.any?(in_service, &((&1.max_live_segment_bytes || 0) > 0))
+    MapSet.size(snapshot_dates) > 0 and
+      Enum.all?(full_days_in_service(started_on, today), &MapSet.member?(snapshot_dates, &1)) and
+      not Enum.any?(in_service, &stored?/1)
+  end
+
+  defp full_days_in_service(started_on, today) do
+    first = Date.add(started_on, 1)
+    last = Date.add(today, -1)
+
+    if Date.after?(first, last), do: [], else: Date.range(first, last)
+  end
+
+  defp stored?(rollup) do
+    (rollup.max_live_segment_bytes || 0) > 0 or rollup.eviction_count > 0 or rollup.evicted_bytes > 0
   end
 
   # One row per active instance whose account-region has demand tracking older
