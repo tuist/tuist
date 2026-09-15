@@ -922,8 +922,8 @@
     }
 
     & [data-part="coverage-file-link"] {
-      font: var(--noora-font-body-medium);
       color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
       text-decoration: none;
       word-break: break-all;
 
@@ -939,14 +939,14 @@
       margin: 0;
 
       & dt {
-        font: var(--noora-font-body-small);
         color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
       }
 
       & dd {
         margin: 0;
-        font: var(--noora-font-body-medium);
         color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
         word-break: break-all;
 
         & a {
@@ -957,9 +957,9 @@
 
     & [data-part="coverage-cell"] {
       display: flex;
+      flex-grow: 1;
       flex-direction: row;
       align-items: center;
-      flex-grow: 1;
       gap: var(--noora-spacing-3);
       min-width: 160px;
 
@@ -968,9 +968,9 @@
       }
 
       & > [data-part="percentage"] {
-        font: var(--noora-font-body-small);
-        color: var(--noora-surface-label-secondary);
         min-width: 48px;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
         text-align: right;
       }
     }
@@ -1338,5 +1338,4 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
   }
-
 }
