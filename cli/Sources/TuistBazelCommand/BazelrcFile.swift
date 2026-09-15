@@ -16,6 +16,8 @@ enum BazelrcFile {
     static let name = ".bazelrc.tuist"
 
     private static let remoteCacheFlag = "build --remote_cache="
+    private static let remoteDownloaderFlag = "build --experimental_remote_downloader="
+    private static let remoteDownloaderFallbackFlag = "build --experimental_remote_downloader_local_fallback=true"
     private static let remoteCacheCompressionFlag = "build --remote_cache_compression=true"
     private static let remoteCacheCompressionOption = "--remote_cache_compression"
     private static let credentialHelperFlag = "build --credential_helper="
@@ -45,6 +47,7 @@ enum BazelrcFile {
         projectHandle: String,
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
+        remoteDownloader: Bool = false,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
@@ -61,9 +64,12 @@ enum BazelrcFile {
 
         """ : ""
 
+        let downloaderConfiguration = remoteDownloader
+            ? "\(remoteDownloaderFlag)\(endpoint.url)\n\(remoteDownloaderFallbackFlag)\n" : ""
+
         return """
         \(remoteCacheFlag)\(endpoint.url)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        \(downloaderConfiguration)build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
         \(remoteCacheCompressionFlag)
@@ -92,13 +98,16 @@ enum BazelrcFile {
         with endpoint: GRPCEndpoint,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String? {
-        guard remoteCache(in: contents) != nil else { return nil }
+        guard let previousEndpoint = remoteCache(in: contents) else { return nil }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line -> String in
                 if line.hasPrefix(remoteCacheFlag) {
                     return "\(remoteCacheFlag)\(endpoint.url)"
+                }
+                if line == Substring(remoteDownloaderFlag + previousEndpoint) {
+                    return "\(remoteDownloaderFlag)\(endpoint.url)"
                 }
                 if line.hasPrefix(credentialHelperFlag) {
                     // `<host>=<path>`: the path may itself contain `=`, so split once.
