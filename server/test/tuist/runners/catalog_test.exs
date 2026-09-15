@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.CatalogTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Mimic
 
   alias Tuist.Runners.Catalog
@@ -248,6 +248,35 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "xcode_versions/0" do
+    test "lists a stable release ahead of its prerelease channel" do
+      put_xcode_versions(["26.0.1", "27.0-beta", "26.5", "27.0", "26.4.1", "26.6", "26.3"])
+
+      assert xcode_version_names() == ["27.0", "27.0-beta", "26.6", "26.5", "26.4.1", "26.3", "26.0.1"]
+    end
+
+    test "compares version segments numerically" do
+      put_xcode_versions(["26.9", "26.10", "26.2"])
+
+      assert xcode_version_names() == ["26.10", "26.9", "26.2"]
+    end
+
+    test "lists a patch release ahead of its minor release" do
+      put_xcode_versions(["26.4", "26.3", "26.4.1"])
+
+      assert xcode_version_names() == ["26.4.1", "26.4", "26.3"]
+    end
+
+    test "sorts unparseable versions last" do
+      put_xcode_versions(["nightly", "26.5", "26.x", "26.10"])
+
+      names = xcode_version_names()
+
+      assert Enum.take(names, 2) == ["26.10", "26.5"]
+      assert names |> Enum.drop(2) |> Enum.sort() == ["26.x", "nightly"]
+    end
+  end
+
   describe "fleet_on_cluster_network?/1" do
     test "linux fleets are on the cluster network by default" do
       # The unset default is `linux`: kata Pods always ride the CNI,
@@ -286,5 +315,15 @@ defmodule Tuist.Runners.CatalogTest do
     refute is_nil(shape), "the macOS shape catalog needs a non-default shape for this test"
 
     shape
+  end
+
+  defp put_xcode_versions(versions) do
+    previous = Application.get_env(:tuist, :runner_macos_xcode_versions)
+    Application.put_env(:tuist, :runner_macos_xcode_versions, Enum.map(versions, &%{xcode_version: &1}))
+    on_exit(fn -> Application.put_env(:tuist, :runner_macos_xcode_versions, previous) end)
+  end
+
+  defp xcode_version_names do
+    Enum.map(Catalog.xcode_versions(), & &1.xcode_version)
   end
 end

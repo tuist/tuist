@@ -188,7 +188,10 @@ defmodule Tuist.Runners.Catalog do
   @doc """
   All Xcode versions supported on the macOS fleet, deduped and
   sorted descending (newest first — the default preselect renders
-  at the top of the form dropdown). Xcode is macOS-only, so this
+  at the top of the form dropdown). Versions compare numerically
+  (`26.10` above `26.9`), a stable release lists ahead of its
+  prerelease channels (`27.0` above `27.0-beta`), and entries that
+  don't parse as a version sort last. Xcode is macOS-only, so this
   function takes no platform argument.
   """
   def xcode_versions do
@@ -202,7 +205,7 @@ defmodule Tuist.Runners.Catalog do
     |> Enum.map(&normalize_xcode_version/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.xcode_version)
-    |> Enum.sort_by(& &1.xcode_version, :desc)
+    |> Enum.sort_by(&xcode_version_sort_key(&1.xcode_version), :desc)
   end
 
   @doc """
@@ -511,5 +514,32 @@ defmodule Tuist.Runners.Catalog do
   # runner-image release publishes.
   defp xcode_version_tag(version) when is_binary(version) do
     String.replace(version, ".", "-")
+  end
+
+  # `{parseable, [major, minor, patch], stable, prerelease segments}`,
+  # compared descending: `26.10` above `26.9`, `27.0` above `27.0-beta`,
+  # `27.0-beta-10` above `27.0-beta-6`, and unparseable versions last.
+  defp xcode_version_sort_key(version) do
+    case Regex.run(~r/^(\d+(?:\.\d+)*)(?:-(.+))?$/, version) do
+      [_, release] -> {1, release_segments(release), 1, []}
+      [_, release, prerelease] -> {1, release_segments(release), 0, prerelease_segments(prerelease)}
+      nil -> {0, [], 0, [version]}
+    end
+  end
+
+  defp release_segments(release) do
+    segments = release |> String.split(".") |> Enum.map(&String.to_integer/1)
+    segments ++ List.duplicate(0, max(3 - length(segments), 0))
+  end
+
+  defp prerelease_segments(prerelease) do
+    prerelease
+    |> String.split([".", "-"])
+    |> Enum.map(fn segment ->
+      case Integer.parse(segment) do
+        {integer, ""} -> integer
+        _ -> segment
+      end
+    end)
   end
 end
