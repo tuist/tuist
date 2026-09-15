@@ -9,7 +9,8 @@ defmodule Tuist.Kura.ClaimSizing do
   the shedding, the shorter the window, and a tier's window can be bought down
   with the volume the ring cycled in place of elapsed time. The step a reading
   may take scales with the confirmation behind it. A step clamped below its own
-  projection lets the next one confirm on a single day of the resized ring.
+  projection lets the next one confirm on a single day of the resized ring,
+  within each rung's own window of the resize.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -152,19 +153,25 @@ defmodule Tuist.Kura.ClaimSizing do
     end)
   end
 
-  # The capped step's evidence already proved the ring short, so every rung
-  # confirms on one day of the resized ring and takes the one-day bound.
+  # The capped step's evidence already proved the ring short, so a rung
+  # confirms on one day of the resized ring, at the one-day bound, until its
+  # own window could have run since the resize.
   defp capped_resize_verdict(_by_date, _floor_seconds, _current_bytes, %{capped_resize_from: nil}, _policy), do: nil
 
   defp capped_resize_verdict(by_date, floor_seconds, current_bytes, context, policy) do
     previous_bytes = quantity_bytes(context.capped_resize_from)
+    resize_date = DateTime.to_date(context.last_resized_at)
     resized = Map.filter(by_date, fn {_date, rollup} -> resized_ring?(rollup, previous_bytes) end)
-    rungs = Enum.map(policy.grow_windows, &Map.put(&1, :window_days, 1))
 
-    case rung_verdict(rungs, resized, floor_seconds, current_bytes, context, policy) do
-      nil -> nil
-      {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
-    end
+    Enum.find_value(policy.grow_windows, fn rung ->
+      horizon = Date.add(resize_date, rung.window_days)
+      days = Map.filter(resized, fn {date, _rollup} -> Date.compare(date, horizon) != :gt end)
+
+      case rung_verdict([%{rung | window_days: 1}], days, floor_seconds, current_bytes, context, policy) do
+        nil -> nil
+        {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      end
+    end)
   end
 
   # A claim funds a ring smaller than itself, so the day's smallest ring clears

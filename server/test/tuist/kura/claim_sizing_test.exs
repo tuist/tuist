@@ -526,6 +526,20 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context(context, rollups: resized_churn(1, @today))) == :none
     end
 
+    test "a rung fast-tracks only until its own window could have run since the resize" do
+      # 60 hours clears every rung but the fourteen-day one.
+      rollups = resized_churn(1, @today, median_shed_age_seconds: 60 * 3_600, median_ring_span_seconds: 60 * 3_600)
+
+      within = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[14:00:00], "Etc/UTC"))
+
+      assert {:grow, "48Gi", %{"after_capped_resize" => true}} =
+               ClaimSizing.evaluate(context(within, rollups: rollups))
+
+      expired = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -15), ~T[14:00:00], "Etc/UTC"))
+
+      assert ClaimSizing.evaluate(context(expired, rollups: rollups)) == :none
+    end
+
     test "the fast-tracked step keeps the one-day bound and the plan ceiling" do
       # The projection is far past 4x, so only the bound decides where it lands.
       rollups = resized_churn(1, @today, median_shed_age_seconds: 1_800, median_ring_span_seconds: 3_600)
