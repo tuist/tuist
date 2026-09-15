@@ -201,6 +201,11 @@ defmodule Cache.S3Test do
   end
 
   describe "upload/1" do
+    setup do
+      stub(Cache.CacheArtifacts, :content_sha256, fn _key -> nil end)
+      :ok
+    end
+
     test "uploads file to S3 when local file exists" do
       key = "test_account/test_project/xcode/TE/ST/test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -222,6 +227,29 @@ defmodule Cache.S3Test do
       expect(ExAws, :request, fn {:upload_operation, "test-bucket", ^key} ->
         {:ok, %{status_code: 200}}
       end)
+
+      capture_log(fn ->
+        assert :ok = S3.upload(key)
+      end)
+    end
+
+    test "stores the artifact's declared digest as object metadata" do
+      key = "test_account/test_project/module/builds/TE/ST/hash/Module.zip"
+      digest = String.duplicate("cd", 32)
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "Module.zip")
+      File.write!(local_path, "module")
+
+      stub(Cache.CacheArtifacts, :content_sha256, fn ^key -> digest end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+      expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
+
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key, opts ->
+        assert opts[:meta] == [{"tuist-checksum-sha256", digest}]
+        {:upload_operation, "test-bucket", key}
+      end)
+
+      expect(ExAws, :request, fn {:upload_operation, "test-bucket", ^key} -> {:ok, %{status_code: 200}} end)
 
       capture_log(fn ->
         assert :ok = S3.upload(key)
@@ -324,6 +352,38 @@ defmodule Cache.S3Test do
 
       assert File.read!(local_path) == "downloaded content"
       assert File.ls!(tmp_dir) == ["test_hash"]
+    end
+
+    test "restores the digest an object carries onto the artifact it pulls back" do
+      key = "test_account/test_project/module/builds/TE/ST/hash/Module.zip"
+      digest = String.duplicate("ef", 32)
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "Module.zip")
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
+        {:ok, %{status_code: 200, headers: [{"X-Amz-Meta-Tuist-Checksum-Sha256", String.upcase(digest)}]}}
+      end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "module")
+        {:ok, :done}
+      end)
+
+      expect(Cache.CacheArtifacts, :record_content_sha256, fn ^key, ^digest -> :ok end)
+
+      capture_log(fn ->
+        assert {:ok, :hit} = S3.download(key)
+      end)
     end
 
     test "returns {:ok, :miss} when file does not exist in S3" do

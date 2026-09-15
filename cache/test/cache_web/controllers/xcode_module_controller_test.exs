@@ -476,7 +476,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         false
       end)
 
-      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path] ->
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path], nil ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"
@@ -537,7 +537,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         true
       end)
 
-      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, _completed_upload, [^tmp_path] ->
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, _completed_upload, [^tmp_path], nil ->
         :ok
       end)
 
@@ -639,7 +639,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         true
       end)
 
-      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths ->
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths, nil ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"
@@ -665,5 +665,121 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
       assert reason in [:normal, :noproc]
     end
+  end
+
+  describe "content checksum" do
+    setup context do
+      Cache.BufferTestHelpers.setup_cache_artifacts_buffer(context)
+    end
+
+    test "stores a verified digest and serves it on a disk hit", %{conn: conn} do
+      hash = unique_hash()
+      name = "Checksummed.zip"
+      key = XcodeModule.Disk.key("test-account", "test-project", "builds", hash, name)
+      body = "assembled artifact bytes"
+      digest = :sha256 |> :crypto.hash(body) |> Base.encode16(case: :lower)
+      upload_id = start_upload_with_part(hash, name, body)
+      stub_project_access_and_existing_s3_copy()
+
+      # Accepted in any case, stored and served in lowercase.
+      conn = complete_upload(conn, upload_id, %{parts: [1], checksum_sha256: String.upcase(digest)})
+      assert conn.status == 204
+
+      :ok = Cache.CacheArtifactsBuffer.flush()
+      assert CacheArtifacts.content_sha256(key) == digest
+
+      download = download_artifact(hash, name)
+      assert download.status == 200
+      assert get_resp_header(download, "tuist-checksum-sha256") == [digest]
+    end
+
+    test "serves no digest for an upload that declared none", %{conn: conn} do
+      hash = unique_hash()
+      name = "Unverified.zip"
+      upload_id = start_upload_with_part(hash, name, "unverified bytes")
+      stub_project_access_and_existing_s3_copy()
+
+      conn = complete_upload(conn, upload_id, %{parts: [1]})
+      assert conn.status == 204
+
+      download = download_artifact(hash, name)
+      assert download.status == 200
+      assert get_resp_header(download, "tuist-checksum-sha256") == []
+    end
+
+    test "refuses a mismatching assembly and drops the session with its parts", %{conn: conn} do
+      hash = unique_hash()
+      name = "Damaged.zip"
+      upload_id = start_upload_with_part(hash, name, "bytes the server assembled")
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      part_paths = for {_number, %{path: path}} <- upload.parts, do: path
+      stub_project_access_and_existing_s3_copy()
+
+      conn = complete_upload(conn, upload_id, %{parts: [1], checksum_sha256: String.duplicate("0", 64)})
+
+      assert conn.status == 422
+      assert JSON.decode!(conn.resp_body)["message"] =~ "does not match checksum_sha256"
+      assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
+      refute File.exists?(upload.assembly_path)
+      Enum.each(part_paths, &refute(File.exists?(&1)))
+
+      refute File.exists?(
+               Disk.artifact_path(XcodeModule.Disk.key("test-account", "test-project", "builds", hash, name))
+             )
+    end
+
+    test "refuses a malformed checksum before touching the session", %{conn: conn} do
+      upload_id = start_upload_with_part(unique_hash(), "Malformed.zip", "bytes")
+      stub_project_access_and_existing_s3_copy()
+
+      conn = complete_upload(conn, upload_id, %{parts: [1], checksum_sha256: "not-a-digest"})
+
+      assert conn.status == 400
+      assert {:ok, _upload} = MultipartUploads.get_upload(upload_id)
+    end
+  end
+
+  # Assembled artifacts land in the shared test storage directory (its path is
+  # resolved inside `Cache.Disk`, out of the storage_dir stub's reach) and outlive
+  # the run, so a fixed hash would find the previous run's artifact and complete
+  # as "already exists" without recording anything.
+  defp unique_hash, do: "cafe#{:erlang.unique_integer([:positive, :monotonic])}"
+
+  defp start_upload_with_part(hash, name, body) do
+    on_exit(fn ->
+      File.rm(Disk.artifact_path(XcodeModule.Disk.key("test-account", "test-project", "builds", hash, name)))
+    end)
+
+    {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
+    part_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+    File.write!(part_path, body)
+    :ok = MultipartUploads.add_part(upload_id, 1, part_path, byte_size(body))
+    upload_id
+  end
+
+  defp stub_project_access_and_existing_s3_copy do
+    stub(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+      {:ok, "Bearer valid-token"}
+    end)
+
+    stub(S3, :exists?, fn _key, _opts -> true end)
+  end
+
+  defp complete_upload(conn, upload_id, body) do
+    conn
+    |> put_req_header("authorization", "Bearer valid-token")
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
+      JSON.encode!(body)
+    )
+  end
+
+  defp download_artifact(hash, name) do
+    build_conn()
+    |> put_req_header("authorization", "Bearer valid-token")
+    |> get(
+      "/api/cache/module/artifact?account_handle=test-account&project_handle=test-project&hash=#{hash}&name=#{name}"
+    )
   end
 end
