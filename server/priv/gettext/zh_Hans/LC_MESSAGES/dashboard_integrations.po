@@ -6,133 +6,257 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/integrations_live.html.heex:82
+#: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr "添加新的项目连接"
 
-#: lib/tuist_web/live/integrations_live.html.heex:145
+#: lib/tuist_web/live/integrations_live.html.heex:195
+#: lib/tuist_web/live/integrations_live.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
-#: lib/tuist_web/live/integrations_live.html.heex:97
+#: lib/tuist_web/live/integrations_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr "选择 Tuist 项目"
 
-#: lib/tuist_web/live/integrations_live.html.heex:124
+#: lib/tuist_web/live/integrations_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr "选择一个仓库"
 
-#: lib/tuist_web/live/integrations_live.html.heex:75
+#: lib/tuist_web/live/integrations_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr "选择要连接的仓库"
 
-#: lib/tuist_web/live/integrations_live.html.heex:9
+#: lib/tuist_web/live/integrations_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
 msgstr "将您的任意 GitHub 仓库连接到一个项目"
 
-#: lib/tuist_web/live/integrations_live.ex:215
+#: lib/tuist_web/live/integrations_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr "已连接 %{time_ago}"
 
-#: lib/tuist_web/live/integrations_live.ex:217
+#: lib/tuist_web/live/integrations_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr "由 %{name} 于 %{time_ago} 连接"
 
-#: lib/tuist_web/live/integrations_live.html.heex:152
+#: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr "创建连接"
 
-#: lib/tuist_web/live/integrations_live.html.heex:6
+#: lib/tuist_web/live/integrations_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:48
+#: lib/tuist_web/live/integrations_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr "安装 GitHub 应用"
 
-#: lib/tuist_web/live/integrations_live.ex:52
-#: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/integrations_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "集成"
 
-#: lib/tuist_web/live/integrations_live.html.heex:191
+#: lib/tuist_web/live/integrations_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:59
+#: lib/tuist_web/live/integrations_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr "管理集成"
 
-#: lib/tuist_web/live/integrations_live.html.heex:194
+#: lib/tuist_web/live/integrations_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr "移除连接"
 
-#: lib/tuist_web/live/integrations_live.ex:16
+#: lib/tuist_web/live/integrations_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "您无权执行此操作。"
 
-#: lib/tuist_web/live/integrations_live.html.heex:70
+#: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr "您对仓库的访问权限取决于您的 GitHub 和 Tuist 集成设置。"
 
-#: lib/tuist_web/live/integrations_live.ex:255
+#: lib/tuist_web/live/integrations_live.ex:447
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr "无效的 URL"
 
-#: lib/tuist_web/live/integrations_live.ex:287
+#: lib/tuist_web/live/integrations_live.ex:474
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr "无效的组织"
 
-#: lib/tuist_web/live/integrations_live.html.heex:38
+#: lib/tuist_web/live/integrations_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Server URL"
 msgstr "服务器 URL"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
+#: lib/tuist_web/live/integrations_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Enterprise server"
 msgstr "企业服务器"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:213
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "继续"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server"
 msgstr "正在重定向到 GitHub 企业服务器"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:208
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr "正在重定向到 GitHub 企业服务器以注册 Tuist 应用……"
 
-#: lib/tuist_web/live/integrations_live.ex:244
+#: lib/tuist_web/live/integrations_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "必填"
 
-#: lib/tuist_web/live/integrations_live.ex:250
+#: lib/tuist_web/live/integrations_live.ex:423
+#: lib/tuist_web/live/integrations_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr "使用 GitHub 企业服务器的 URL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "No github.com App is configured"
+msgstr "未配置 github.com App"
+
+#: lib/tuist_web/live/integrations_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Read the setup guide"
+msgstr "阅读设置指南"
+
+#: lib/tuist_web/live/integrations_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
+msgstr "此 Tuist 服务器需要在 github.com 上拥有自己的 GitHub App 才能安装。请注册该 App，然后设置 TUIST_GITHUB_APP_NAME、TUIST_GITHUB_APP_CLIENT_ID、TUIST_GITHUB_APP_CLIENT_SECRET 和 TUIST_GITHUB_APP_PRIVATE_KEY_BASE64，并重启服务器。"
+
+#: lib/tuist_web/live/integrations_live.ex:513
+#, elixir-autogen, elixir-format
+msgid "Buildkite"
+msgstr "Buildkite"
+
+#: lib/tuist_web/live/integrations_live.html.heex:445
+#: lib/tuist_web/live/integrations_live.html.heex:510
+#, elixir-autogen, elixir-format
+msgid "Cluster agent token"
+msgstr "集群 Agent 令牌"
+
+#: lib/tuist_web/live/integrations_live.html.heex:291
+#: lib/tuist_web/live/integrations_live.html.heex:326
+#: lib/tuist_web/live/integrations_live.html.heex:481
+#: lib/tuist_web/live/integrations_live.html.heex:534
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr "连接"
+
+#: lib/tuist_web/live/integrations_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Connect Buildkite"
+msgstr "连接 Buildkite"
+
+#: lib/tuist_web/live/integrations_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+msgstr "在 Buildkite 的集群 Agent 令牌下创建一个 Agent 令牌。作业将从以您的 Runner 配置文件命名的自托管队列中获取。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:269
+#: lib/tuist_web/live/integrations_live.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "Disconnect"
+msgstr "断开连接"
+
+#: lib/tuist_web/live/integrations_live.html.heex:499
+#, elixir-autogen, elixir-format
+msgid "Organization slug"
+msgstr "组织别名"
+
+#: lib/tuist_web/live/integrations_live.ex:515
+#, elixir-autogen, elixir-format
+msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+msgstr "在 Tuist Runner 上运行 Buildkite 作业。Tuist 会监控您集群中的自托管队列并运行其中的任务。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:513
+#, elixir-autogen, elixir-format
+msgid "Stored encrypted and never shown again."
+msgstr "加密存储且不再显示。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:435
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "组织"
+
+#: lib/tuist_web/live/integrations_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "Buildkite connection saved."
+msgstr "Buildkite 连接已保存。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:388
+#: lib/tuist_web/live/integrations_live.html.heex:454
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr "保存更改"
+
+#: lib/tuist_web/live/integrations_live.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Connect GitLab CI"
+msgstr "连接 GitLab CI"
+
+#: lib/tuist_web/live/integrations_live.html.heex:359
+#, elixir-autogen, elixir-format
+msgid "Disconnecting: waiting for GitLab to settle queued assignments."
+msgstr "正在断开连接：等待 GitLab 处理完队列中的分配任务。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "GitLab CI"
+msgstr "GitLab CI"
+
+#: lib/tuist_web/live/integrations_live.html.heex:309
+#: lib/tuist_web/live/integrations_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "GitLab URL"
+msgstr "GitLab URL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:318
+#: lib/tuist_web/live/integrations_live.html.heex:380
+#, elixir-autogen, elixir-format
+msgid "Runner authentication token"
+msgstr "Runner 身份验证令牌"
+
+#: lib/tuist_web/live/integrations_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Check the GitLab URL and runner authentication token."
+msgstr "请检查 GitLab URL 和 Runner 身份验证令牌。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:281
+#, elixir-autogen, elixir-format
+msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
+msgstr "使用您的 Tuist 配置文件标签创建一个 GitLab Runner，禁用未标记的作业，并将其令牌粘贴到此处。在您的流水线中使用诸如 [tuist-macos] 的标签选择机器。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
+msgstr "在 Tuist Runner 上运行 GitLab CI 作业。使用流水线标签为每个作业选择机器。"

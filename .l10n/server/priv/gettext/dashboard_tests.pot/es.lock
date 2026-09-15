@@ -1,5 +1,5 @@
 {
-  "hash": "3d2a592a2ca4e2f8c29cfa975fbf4165120f95a220269c3178b3165ea793ff5d",
+  "hash": "076ae42066e77c89ddb06a784988829db826d05978a14e1f5f99f377c2cbdd99",
   "hash_tree": {
     "context": {
       "child": {
@@ -15,9 +15,9 @@
     },
     "source": {
       "file": "server/priv/gettext/dashboard_tests.pot",
-      "hash": "e488389b2a2e7e62facde5cf2e8b51b369a159d629a41c3177a810d860c96212"
+      "hash": "a16eb96eca5d5587d5ae525e7eda8f1e41da69f1812f4b109cd4aedbb5c249b1"
     }
   },
-  "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-05-19T13:44:11.485213Z"
+  "model": "hive:Translator",
+  "translated_at": "2026-09-15T17:26:24.056182Z"
 }

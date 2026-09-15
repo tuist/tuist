@@ -1,0 +1,1394 @@
+msgid ""
+msgstr ""
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:110
+#: lib/tuist_web/live/runner_workflow_live.html.heex:37
+#: lib/tuist_web/live/runner_workflows_live.html.heex:110
+#: lib/tuist_web/live/runners_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "분석"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:98
+#: lib/tuist_web/live/runner_workflows_live.html.heex:98
+#: lib/tuist_web/live/runners_live.html.heex:98
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "적용"
+
+#: lib/tuist_web/live/runner_workflows_live.ex:273
+#: lib/tuist_web/live/runner_workflows_live.html.heex:333
+#: lib/tuist_web/live/runner_workflows_live.html.heex:389
+#, elixir-autogen, elixir-format
+msgid "Avg duration"
+msgstr "평균 소요 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:211
+#: lib/tuist_web/live/runner_workflow_live.html.heex:124
+#: lib/tuist_web/live/runners_live.html.heex:142
+#, elixir-autogen, elixir-format
+msgid "Avg. job duration"
+msgstr "평균 작업 소요 시간"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:162
+#: lib/tuist_web/live/runners_live.html.heex:191
+#, elixir-autogen, elixir-format
+msgid "Avg. workflow duration"
+msgstr "평균 워크플로 소요 시간"
+
+#: lib/tuist/runners/analytics.ex:946
+#: lib/tuist_web/live/runner_job_live.html.heex:177
+#: lib/tuist_web/live/runner_jobs_live.ex:508
+#: lib/tuist_web/live/runner_jobs_live.html.heex:616
+#: lib/tuist_web/live/runner_workflow_live.ex:187
+#: lib/tuist_web/live/runner_workflow_live.html.heex:339
+#: lib/tuist_web/live/runners_live.html.heex:474
+#: lib/tuist_web/live/runners_live.html.heex:649
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "브랜치"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:89
+#: lib/tuist_web/live/runner_profiles_live.html.heex:193
+#: lib/tuist_web/live/runner_profiles_live.html.heex:327
+#: lib/tuist_web/live/runner_workflows_live.html.heex:89
+#: lib/tuist_web/live/runners_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist/runners/analytics.ex:910
+#: lib/tuist_web/live/runner_job_live.ex:164
+#: lib/tuist_web/live/runner_jobs_live.ex:499
+#: lib/tuist_web/live/runner_jobs_live.ex:524
+#: lib/tuist_web/live/runner_workflow_live.ex:178
+#: lib/tuist_web/live/runner_workflow_live.ex:316
+#: lib/tuist_web/live/runners_live.ex:385
+#: lib/tuist_web/live/runners_live.ex:716
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "취소됨"
+
+#: lib/tuist_web/live/runner_job_live.ex:172
+#: lib/tuist_web/live/runner_jobs_live.ex:495
+#: lib/tuist_web/live/runner_jobs_live.ex:517
+#: lib/tuist_web/live/runner_workflow_live.ex:174
+#: lib/tuist_web/live/runner_workflow_live.ex:309
+#: lib/tuist_web/live/runners_live.ex:709
+#, elixir-autogen, elixir-format
+msgid "Claimed"
+msgstr "할당됨"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:627
+#: lib/tuist_web/live/runner_workflow_live.html.heex:350
+#, elixir-autogen, elixir-format
+msgid "Commit"
+msgstr "커밋"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:519
+#: lib/tuist_web/live/runner_workflow_live.ex:311
+#: lib/tuist_web/live/runners_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "Completed"
+msgstr "완료됨"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:290
+#, elixir-autogen, elixir-format
+msgid "Compute minutes"
+msgstr "컴퓨팅 분"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:80
+#: lib/tuist_web/live/runner_workflows_live.html.heex:80
+#: lib/tuist_web/live/runners_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "사용자 정의"
+
+#: lib/tuist/runners/analytics.ex:949
+#: lib/tuist_web/live/runner_jobs_live.ex:585
+#: lib/tuist_web/live/runner_jobs_live.html.heex:551
+#: lib/tuist_web/live/runner_jobs_live.html.heex:639
+#: lib/tuist_web/live/runner_workflow_live.ex:267
+#: lib/tuist_web/live/runner_workflow_live.html.heex:295
+#: lib/tuist_web/live/runner_workflow_live.html.heex:355
+#: lib/tuist_web/live/runners_live.html.heex:485
+#: lib/tuist_web/live/runners_live.html.heex:660
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr "소요 시간"
+
+#: lib/tuist_web/live/runner_job_live.ex:161
+#: lib/tuist_web/live/runner_job_live.ex:378
+#: lib/tuist_web/live/runner_job_live.ex:415
+#: lib/tuist_web/live/runner_job_live.ex:438
+#: lib/tuist_web/live/runner_jobs_live.ex:666
+#: lib/tuist_web/live/runner_jobs_live.html.heex:193
+#: lib/tuist_web/live/runner_workflow_live.html.heex:218
+#: lib/tuist_web/live/runners_live.html.heex:396
+#: lib/tuist_web/live/runners_live.html.heex:555
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/runner_workflow_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Failed jobs"
+msgstr "실패한 작업"
+
+#: lib/tuist/runners/analytics.ex:909
+#: lib/tuist_web/live/runner_jobs_live.ex:498
+#: lib/tuist_web/live/runner_jobs_live.ex:523
+#: lib/tuist_web/live/runner_workflow_live.ex:177
+#: lib/tuist_web/live/runner_workflow_live.ex:315
+#: lib/tuist_web/live/runners_live.ex:384
+#: lib/tuist_web/live/runners_live.ex:715
+#, elixir-autogen, elixir-format
+msgid "Failure"
+msgstr "실패"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:516
+#: lib/tuist_web/live/runner_workflow_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr "필터"
+
+#: lib/tuist/runners/analytics.ex:944
+#: lib/tuist_web/components/runs/ci_context_card.ex:47
+#: lib/tuist_web/live/runner_jobs_live.ex:583
+#: lib/tuist_web/live/runner_jobs_live.html.heex:535
+#: lib/tuist_web/live/runner_jobs_live.html.heex:578
+#: lib/tuist_web/live/runner_workflow_live.ex:266
+#: lib/tuist_web/live/runner_workflow_live.html.heex:287
+#: lib/tuist_web/live/runner_workflow_live.html.heex:322
+#: lib/tuist_web/live/runners_live.html.heex:593
+#: lib/tuist_web/live/runners_live.html.heex:619
+#, elixir-autogen, elixir-format
+msgid "Job"
+msgstr "작업"
+
+#: lib/tuist_web/live/runner_job_live.ex:60
+#: lib/tuist_web/live/runner_job_live.html.heex:6
+#: lib/tuist_web/live/runner_jobs_live.ex:44
+#: lib/tuist_web/live/runner_jobs_live.html.heex:465
+#: lib/tuist_web/live/runner_workflow_live.html.heex:179
+#: lib/tuist_web/live/runner_workflow_live.html.heex:248
+#: lib/tuist_web/live/runner_workflows_live.ex:271
+#: lib/tuist_web/live/runner_workflows_live.html.heex:317
+#: lib/tuist_web/live/runner_workflows_live.html.heex:373
+#: lib/tuist_web/live/runners_live.html.heex:263
+#, elixir-autogen, elixir-format
+msgid "Jobs"
+msgstr "작업"
+
+#: lib/tuist_web/live/runner_workflow_live.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Jobs that completed with conclusion=failure in the last 30 days."
+msgstr "지난 30일 동안 실패로 완료된 작업."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:475
+#, elixir-autogen, elixir-format
+msgid "Jobs the runner pool is currently executing."
+msgstr "러너 풀에서 현재 실행 중인 작업."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:491
+#, elixir-autogen, elixir-format
+msgid "Jobs waiting for a runner to pick them up."
+msgstr "러너가 작업을 가져가기를 기다리는 작업."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:77
+#: lib/tuist_web/live/runner_workflows_live.html.heex:77
+#: lib/tuist_web/live/runners_live.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "지난 12개월"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:62
+#: lib/tuist_web/live/runner_workflows_live.html.heex:62
+#: lib/tuist_web/live/runners_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "지난 24시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:72
+#: lib/tuist_web/live/runner_workflows_live.html.heex:72
+#: lib/tuist_web/live/runners_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "지난 30일"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:67
+#: lib/tuist_web/live/runner_workflows_live.html.heex:67
+#: lib/tuist_web/live/runners_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "지난 7일"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:400
+#, elixir-autogen, elixir-format
+msgid "Last run"
+msgstr "마지막 실행"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:348
+#, elixir-autogen, elixir-format
+msgid "Minutes"
+msgstr "분"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:672
+#: lib/tuist_web/live/runner_workflow_live.html.heex:388
+#: lib/tuist_web/live/runner_workflows_live.html.heex:415
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr "다음"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:686
+#: lib/tuist_web/live/runner_workflow_live.html.heex:402
+#, elixir-autogen, elixir-format
+msgid "No jobs match the current filters"
+msgstr "현재 필터와 일치하는 작업이 없습니다"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:684
+#: lib/tuist_web/live/runners_live.ex:731
+#, elixir-autogen, elixir-format
+msgid "No jobs yet"
+msgstr "아직 작업이 없습니다"
+
+#: lib/tuist_web/live/runner_workflow_live.html.heex:400
+#, elixir-autogen, elixir-format
+msgid "No jobs yet for this workflow"
+msgstr "이 워크플로에 아직 작업이 없습니다"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:427
+#, elixir-autogen, elixir-format
+msgid "No workflows yet"
+msgstr "아직 워크플로가 없습니다"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:664
+#: lib/tuist_web/live/runner_workflow_live.html.heex:380
+#: lib/tuist_web/live/runner_workflows_live.html.heex:407
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr "이전"
+
+#: lib/tuist_web/live/runner_job_live.ex:169
+#: lib/tuist_web/live/runner_jobs_live.ex:494
+#: lib/tuist_web/live/runner_jobs_live.ex:516
+#: lib/tuist_web/live/runner_jobs_live.html.heex:489
+#: lib/tuist_web/live/runner_workflow_live.ex:173
+#: lib/tuist_web/live/runner_workflow_live.ex:308
+#: lib/tuist_web/live/runners_live.ex:708
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr "대기 중"
+
+#: lib/tuist_web/live/runners_live.html.heex:530
+#, elixir-autogen, elixir-format
+msgid "Recent jobs"
+msgstr "최근 작업"
+
+#: lib/tuist/runners/analytics.ex:945
+#: lib/tuist_web/live/runner_job_live.html.heex:193
+#: lib/tuist_web/live/runner_jobs_live.html.heex:597
+#: lib/tuist_web/live/runner_workflows_live.html.heex:363
+#: lib/tuist_web/live/runners_live.html.heex:465
+#: lib/tuist_web/live/runners_live.html.heex:630
+#, elixir-autogen, elixir-format
+msgid "Repository"
+msgstr "저장소"
+
+#: lib/tuist_web/live/runners_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Runners"
+msgstr "러너"
+
+#: lib/tuist_web/live/runner_job_live.ex:175
+#: lib/tuist_web/live/runner_jobs_live.ex:496
+#: lib/tuist_web/live/runner_jobs_live.ex:518
+#: lib/tuist_web/live/runner_jobs_live.html.heex:472
+#: lib/tuist_web/live/runner_workflow_live.ex:175
+#: lib/tuist_web/live/runner_workflow_live.ex:310
+#: lib/tuist_web/live/runners_live.ex:710
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "실행 중"
+
+#: lib/tuist/runners/analytics.ex:911
+#: lib/tuist_web/live/runner_job_live.ex:167
+#: lib/tuist_web/live/runner_job_live.ex:441
+#: lib/tuist_web/live/runner_jobs_live.ex:500
+#: lib/tuist_web/live/runner_jobs_live.ex:525
+#: lib/tuist_web/live/runner_workflow_live.ex:179
+#: lib/tuist_web/live/runner_workflow_live.ex:317
+#: lib/tuist_web/live/runners_live.ex:386
+#: lib/tuist_web/live/runners_live.ex:717
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "건너뜀"
+
+#: lib/tuist/runners/analytics.ex:947
+#: lib/tuist_web/live/runner_job_live.html.heex:122
+#: lib/tuist_web/live/runner_jobs_live.ex:490
+#: lib/tuist_web/live/runner_jobs_live.html.heex:364
+#: lib/tuist_web/live/runner_jobs_live.html.heex:415
+#: lib/tuist_web/live/runner_jobs_live.html.heex:605
+#: lib/tuist_web/live/runner_workflow_live.ex:169
+#: lib/tuist_web/live/runner_workflow_live.html.heex:328
+#: lib/tuist_web/live/runners_live.html.heex:468
+#: lib/tuist_web/live/runners_live.html.heex:638
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist/runners/analytics.ex:908
+#: lib/tuist_web/live/runner_jobs_live.ex:497
+#: lib/tuist_web/live/runner_jobs_live.ex:522
+#: lib/tuist_web/live/runner_workflow_live.ex:176
+#: lib/tuist_web/live/runner_workflow_live.ex:314
+#: lib/tuist_web/live/runners_live.ex:383
+#: lib/tuist_web/live/runners_live.ex:714
+#, elixir-autogen, elixir-format
+msgid "Success"
+msgstr "성공"
+
+#: lib/tuist_web/live/runner_workflows_live.ex:272
+#: lib/tuist_web/live/runner_workflows_live.html.heex:325
+#: lib/tuist_web/live/runner_workflows_live.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "Success rate"
+msgstr "성공률"
+
+#: lib/tuist_web/live/runners_live.html.heex:391
+#: lib/tuist_web/live/runners_live.html.heex:550
+#, elixir-autogen, elixir-format
+msgid "Successful"
+msgstr "성공"
+
+#: lib/tuist_web/controllers/runner_job_logs_controller.ex:48
+#: lib/tuist_web/live/runner_job_live.ex:95
+#: lib/tuist_web/live/runner_job_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "The job you are looking for doesn't exist or has been moved."
+msgstr "찾으시는 작업이 존재하지 않거나 이동되었습니다."
+
+#: lib/tuist_web/live/runner_job_live.ex:44
+#: lib/tuist_web/live/runner_jobs_live.ex:33
+#: lib/tuist_web/live/runner_profiles_live.ex:26
+#: lib/tuist_web/live/runner_workflow_live.ex:30
+#: lib/tuist_web/live/runner_workflows_live.ex:25
+#: lib/tuist_web/live/runners_live.ex:35
+#, elixir-autogen, elixir-format
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:215
+#: lib/tuist_web/live/runner_workflow_live.html.heex:128
+#: lib/tuist_web/live/runners_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Time each job takes from start to completion."
+msgstr "각 작업이 시작부터 완료까지 걸리는 시간입니다."
+
+#: lib/tuist_web/live/runner_workflow_live.html.heex:44
+#: lib/tuist_web/live/runners_live.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Total jobs"
+msgstr "총 작업 수"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:166
+#: lib/tuist_web/live/runners_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Total wall-clock time from the first job start to the last job completion in a workflow run."
+msgstr "워크플로 실행에서 첫 번째 작업 시작부터 마지막 작업 완료까지의 총 경과 시간입니다."
+
+#: lib/tuist/runners/analytics.ex:906
+#: lib/tuist/runners/analytics.ex:907
+#: lib/tuist/runners/analytics.ex:953
+#: lib/tuist/runners/analytics.ex:954
+#: lib/tuist_web/components/runs/ci_context_card.ex:100
+#: lib/tuist_web/live/runner_job_live.ex:177
+#: lib/tuist_web/live/runner_job_live.ex:188
+#: lib/tuist_web/live/runner_job_live.ex:192
+#: lib/tuist_web/live/runner_job_live.ex:373
+#: lib/tuist_web/live/runner_job_live.ex:423
+#: lib/tuist_web/live/runner_job_live.ex:443
+#: lib/tuist_web/live/runner_jobs_live.ex:520
+#: lib/tuist_web/live/runner_jobs_live.ex:627
+#: lib/tuist_web/live/runner_jobs_live.ex:631
+#: lib/tuist_web/live/runner_jobs_live.html.heex:592
+#: lib/tuist_web/live/runner_jobs_live.html.heex:600
+#: lib/tuist_web/live/runner_jobs_live.html.heex:621
+#: lib/tuist_web/live/runner_workflow_live.ex:304
+#: lib/tuist_web/live/runner_workflow_live.ex:305
+#: lib/tuist_web/live/runner_workflow_live.ex:312
+#: lib/tuist_web/live/runner_workflow_live.html.heex:344
+#: lib/tuist_web/live/runner_workflows_live.html.heex:358
+#: lib/tuist_web/live/runner_workflows_live.html.heex:366
+#: lib/tuist_web/live/runners_live.ex:387
+#: lib/tuist_web/live/runners_live.ex:712
+#: lib/tuist_web/live/runners_live.html.heex:460
+#: lib/tuist_web/live/runners_live.html.heex:479
+#: lib/tuist_web/live/runners_live.html.heex:625
+#: lib/tuist_web/live/runners_live.html.heex:633
+#: lib/tuist_web/live/runners_live.html.heex:654
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:26
+#: lib/tuist_web/live/runners_live.html.heex:379
+#: lib/tuist_web/live/runners_live.html.heex:538
+#, elixir-autogen, elixir-format
+msgid "View more"
+msgstr "더 보기"
+
+#: lib/tuist/runners/analytics.ex:943
+#: lib/tuist_web/components/runs/ci_context_card.ex:34
+#: lib/tuist_web/live/runner_jobs_live.ex:475
+#: lib/tuist_web/live/runner_jobs_live.ex:584
+#: lib/tuist_web/live/runner_jobs_live.html.heex:543
+#: lib/tuist_web/live/runner_jobs_live.html.heex:586
+#: lib/tuist_web/live/runner_workflows_live.ex:274
+#: lib/tuist_web/live/runner_workflows_live.html.heex:309
+#: lib/tuist_web/live/runner_workflows_live.html.heex:352
+#: lib/tuist_web/live/runners_live.html.heex:457
+#: lib/tuist_web/live/runners_live.html.heex:622
+#, elixir-autogen, elixir-format
+msgid "Workflow"
+msgstr "워크플로"
+
+#: lib/tuist_web/live/runner_workflow_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Workflow jobs enqueued in the last 30 days."
+msgstr "지난 30일 동안 대기열에 추가된 워크플로 작업입니다."
+
+#: lib/tuist_web/live/runners_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Workflow jobs received from GitHub in the selected window."
+msgstr "선택한 기간 동안 GitHub에서 수신된 워크플로 작업입니다."
+
+#: lib/tuist_web/live/runner_workflow_live.ex:37
+#: lib/tuist_web/live/runner_workflow_live.html.heex:3
+#: lib/tuist_web/live/runner_workflows_live.ex:32
+#: lib/tuist_web/live/runner_workflows_live.html.heex:285
+#, elixir-autogen, elixir-format
+msgid "Workflows"
+msgstr "워크플로"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:210
+#: lib/tuist_web/live/runner_workflow_live.html.heex:123
+#: lib/tuist_web/live/runners_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "p50 job duration"
+msgstr "p50 작업 소요 시간"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:161
+#: lib/tuist_web/live/runners_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "p50 workflow duration"
+msgstr "p50 워크플로 소요 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:209
+#: lib/tuist_web/live/runner_workflow_live.html.heex:122
+#: lib/tuist_web/live/runners_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "p90 job duration"
+msgstr "p90 작업 소요 시간"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:160
+#: lib/tuist_web/live/runners_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "p90 workflow duration"
+msgstr "p90 워크플로 소요 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:208
+#: lib/tuist_web/live/runner_workflow_live.html.heex:121
+#: lib/tuist_web/live/runners_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "p99 job duration"
+msgstr "p99 작업 소요 시간"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:159
+#: lib/tuist_web/live/runners_live.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "p99 workflow duration"
+msgstr "p99 워크플로 소요 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:258
+#: lib/tuist_web/live/runner_workflow_live.html.heex:54
+#: lib/tuist_web/live/runner_workflow_live.html.heex:73
+#: lib/tuist_web/live/runner_workflow_live.html.heex:115
+#: lib/tuist_web/live/runner_workflow_live.html.heex:160
+#: lib/tuist_web/live/runner_workflows_live.ex:283
+#: lib/tuist_web/live/runners_live.ex:410
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "지난달 이후"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:257
+#: lib/tuist_web/live/runner_workflows_live.ex:282
+#: lib/tuist_web/live/runners_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "지난 기간 이후"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:255
+#: lib/tuist_web/live/runner_workflows_live.ex:280
+#: lib/tuist_web/live/runners_live.ex:407
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "지난주 이후"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:256
+#: lib/tuist_web/live/runner_workflows_live.ex:281
+#: lib/tuist_web/live/runners_live.ex:408
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "작년 이후"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:254
+#: lib/tuist_web/live/runner_workflows_live.ex:279
+#: lib/tuist_web/live/runners_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "어제 이후"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:253
+#: lib/tuist_web/live/runner_workflow_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Avg. queue time"
+msgstr "평균 대기열 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:257
+#: lib/tuist_web/live/runner_workflow_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Time each job spends waiting before a runner picks it up."
+msgstr "각 작업이 러너에 할당되기 전 대기하는 시간입니다."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:252
+#: lib/tuist_web/live/runner_workflow_live.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "p50 queue time"
+msgstr "p50 대기열 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:251
+#: lib/tuist_web/live/runner_workflow_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "p90 queue time"
+msgstr "p90 대기열 시간"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:250
+#: lib/tuist_web/live/runner_workflow_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "p99 queue time"
+msgstr "p99 대기열 시간"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Distinct workflow runs invoked in the last 30 days."
+msgstr "지난 30일 동안 호출된 고유 워크플로 실행 수입니다."
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:133
+#: lib/tuist_web/live/runner_workflows_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Failed runs"
+msgstr "실패한 실행"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:227
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "실행"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Workflow runs"
+msgstr "워크플로 실행"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:136
+#, elixir-autogen, elixir-format
+msgid "Workflow runs with at least one job that completed with conclusion=failure."
+msgstr "conclusion=failure로 완료된 작업이 하나 이상 포함된 워크플로 실행입니다."
+
+#: lib/tuist_web/live/runner_jobs_live.ex:567
+#: lib/tuist_web/live/runner_jobs_live.ex:581
+#: lib/tuist_web/live/runner_jobs_live.html.heex:10
+#: lib/tuist_web/live/runner_jobs_live.html.heex:40
+#: lib/tuist_web/live/runner_workflows_live.ex:229
+#: lib/tuist_web/live/runner_workflows_live.ex:242
+#: lib/tuist_web/live/runner_workflows_live.html.heex:10
+#: lib/tuist_web/live/runner_workflows_live.html.heex:40
+#: lib/tuist_web/live/runners_live.ex:350
+#: lib/tuist_web/live/runners_live.ex:371
+#: lib/tuist_web/live/runners_live.html.heex:10
+#: lib/tuist_web/live/runners_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr "전체"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:29
+#: lib/tuist_web/live/runner_workflows_live.html.heex:29
+#: lib/tuist_web/live/runners_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Repository:"
+msgstr "저장소:"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:34
+#: lib/tuist_web/live/runner_workflows_live.html.heex:34
+#: lib/tuist_web/live/runners_live.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr "검색..."
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:429
+#, elixir-autogen, elixir-format
+msgid "No workflows match the current search"
+msgstr "현재 검색과 일치하는 워크플로가 없습니다"
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "Search by name..."
+msgstr "이름으로 검색..."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:523
+#: lib/tuist_web/live/runner_workflow_live.html.heex:275
+#: lib/tuist_web/live/runner_workflows_live.html.heex:305
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr "정렬 기준:"
+
+#: lib/tuist_web/live/runners_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "Recent workflows"
+msgstr "최근 워크플로"
+
+#: lib/tuist_web/live/runners_live.html.heex:434
+#, elixir-autogen, elixir-format
+msgid "Workflow run"
+msgstr "워크플로 실행"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:293
+#, elixir-autogen, elixir-format
+msgid "Total compute time consumed by completed jobs in the window."
+msgstr "해당 기간 내 완료된 작업에 소비된 총 컴퓨팅 시간."
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Workflow jobs received in the window, broken down by outcome."
+msgstr "해당 기간 내 수신된 워크플로 작업의 결과별 현황."
+
+#: lib/tuist_web/live/runner_jobs_live.ex:677
+#, elixir-autogen, elixir-format
+msgid "Failed job runs"
+msgstr "실패한 작업 실행"
+
+#: lib/tuist_web/live/runner_job_live.ex:158
+#: lib/tuist_web/live/runner_job_live.ex:387
+#: lib/tuist_web/live/runner_job_live.ex:412
+#: lib/tuist_web/live/runner_job_live.ex:435
+#: lib/tuist_web/live/runner_jobs_live.ex:665
+#: lib/tuist_web/live/runner_jobs_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Passed"
+msgstr "통과"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:676
+#, elixir-autogen, elixir-format
+msgid "Passed job runs"
+msgstr "통과한 작업 실행"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "전체"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:678
+#, elixir-autogen, elixir-format
+msgid "All job runs"
+msgstr "전체 작업 실행"
+
+#: lib/tuist/runners/analytics.ex:926
+#: lib/tuist_web/live/runner_job_live.ex:185
+#: lib/tuist_web/live/runner_jobs_live.ex:580
+#: lib/tuist_web/live/runner_jobs_live.ex:624
+#: lib/tuist_web/live/runner_profiles_live.ex:331
+#: lib/tuist_web/live/runner_profiles_live.ex:348
+#: lib/tuist_web/live/runner_workflows_live.ex:241
+#: lib/tuist_web/live/runners_live.ex:368
+#: lib/tuist_web/live/runners_live.ex:370
+#, elixir-autogen, elixir-format
+msgid "Linux"
+msgstr "Linux"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:164
+#: lib/tuist_web/live/runner_jobs_live.html.heex:181
+#: lib/tuist_web/live/runner_jobs_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "N/A"
+msgstr "N/A"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:6
+#: lib/tuist_web/live/runner_workflows_live.html.heex:6
+#: lib/tuist_web/live/runners_live.html.heex:6
+#: lib/tuist_web/live/runners_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Platform:"
+msgstr "플랫폼:"
+
+#: lib/tuist/runners/analytics.ex:923
+#: lib/tuist_web/live/runner_job_live.ex:182
+#: lib/tuist_web/live/runner_jobs_live.ex:579
+#: lib/tuist_web/live/runner_jobs_live.ex:621
+#: lib/tuist_web/live/runner_profiles_live.ex:332
+#: lib/tuist_web/live/runner_profiles_live.ex:349
+#: lib/tuist_web/live/runner_workflows_live.ex:240
+#: lib/tuist_web/live/runners_live.ex:367
+#: lib/tuist_web/live/runners_live.ex:369
+#, elixir-autogen, elixir-format
+msgid "macOS"
+msgstr "macOS"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:400
+#: lib/tuist_web/live/runner_jobs_live.html.heex:451
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform."
+msgstr "10,000개 항목 제한에 도달하여 %{date}까지만 데이터가 포함됩니다. 날짜 범위, 저장소 또는 플랫폼을 좁혀보세요."
+
+#: lib/tuist/runners/analytics.ex:929
+#: lib/tuist/runners/analytics.ex:933
+#, elixir-autogen, elixir-format
+msgid "Other"
+msgstr "기타"
+
+#: lib/tuist/runners/analytics.ex:948
+#: lib/tuist_web/live/runner_job_live.html.heex:168
+#: lib/tuist_web/live/runner_jobs_live.html.heex:365
+#: lib/tuist_web/live/runner_jobs_live.html.heex:416
+#: lib/tuist_web/live/runner_jobs_live.html.heex:630
+#: lib/tuist_web/live/runner_profiles_live.html.heex:76
+#: lib/tuist_web/live/runner_profiles_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr "플랫폼"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:18
+#: lib/tuist_web/live/runner_job_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "CI Details"
+msgstr "CI 세부 정보"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "CI duration"
+msgstr "CI 소요 시간"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:187
+#, elixir-autogen, elixir-format
+msgid "Commit SHA"
+msgstr "커밋 SHA"
+
+#: lib/tuist_web/live/runner_jobs_live.ex:586
+#: lib/tuist_web/live/runner_jobs_live.html.heex:527
+#: lib/tuist_web/live/runner_jobs_live.html.heex:654
+#: lib/tuist_web/live/runner_workflow_live.ex:268
+#: lib/tuist_web/live/runner_workflow_live.html.heex:279
+#: lib/tuist_web/live/runner_workflow_live.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "Enqueued at"
+msgstr "대기열 추가 시간"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "GitHub"
+msgstr "GitHub"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "없음"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:64
+#: lib/tuist_web/live/runner_job_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Queue time"
+msgstr "대기 시간"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Ran at"
+msgstr "실행 시각"
+
+#: lib/tuist_web/live/runner_jobs_live.html.heex:507
+#: lib/tuist_web/live/runner_workflow_live.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "Search by job name..."
+msgstr "작업 이름으로 검색..."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Create profile"
+msgstr "프로필 생성"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:264
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "삭제"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr "편집"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Label"
+msgstr "레이블"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:21
+#: lib/tuist_web/live/runner_profiles_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "New profile"
+msgstr "새 프로필"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:278
+#, elixir-autogen, elixir-format
+msgid "No profiles yet"
+msgstr "아직 프로필이 없습니다"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:235
+#, elixir-autogen, elixir-format
+msgid "Profile %{name} created."
+msgstr "%{name} 프로필이 생성되었습니다."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:189
+#, elixir-autogen, elixir-format
+msgid "Profile %{name} deleted."
+msgstr "%{name} 프로필이 삭제되었습니다."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Profile %{name} updated."
+msgstr "%{name} 프로필이 업데이트되었습니다."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Profile limit reached (%{max})."
+msgstr "프로필 제한에 도달했습니다(%{max})."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:33
+#: lib/tuist_web/live/runner_profiles_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Profiles"
+msgstr "프로필"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "RAM"
+msgstr "RAM"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Resources"
+msgstr "리소스"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr "변경 사항 저장"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "vCPU"
+msgstr "vCPU"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:280
+#, elixir-autogen, elixir-format
+msgid "Create one to let your workflows reference Tuist runners by name."
+msgstr "워크플로에서 Tuist 러너를 이름으로 참조할 수 있도록 생성해 보세요."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Edit profile"
+msgstr "프로필 편집"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "No resource catalog is configured yet. Contact support."
+msgstr "리소스 카탈로그가 아직 구성되지 않았습니다. 지원팀에 문의해 주세요."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "Select resources"
+msgstr "리소스 선택"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Last used"
+msgstr "마지막 사용"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Never"
+msgstr "없음"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: %{prefix}<name>."
+msgstr "vCPU 및 RAM의 명명된 번들입니다. 워크플로에서 runs-on: %{prefix}<name>으로 참조하세요."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "e.g. \"default\", \"large\", \"ci\""
+msgstr "예: \"default\", \"large\", \"ci\""
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Becomes part of your runs-on label, so it can't be renamed later."
+msgstr "runs-on 라벨의 일부가 되므로 나중에 이름을 변경할 수 없습니다."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Select platform"
+msgstr "플랫폼 선택"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:294
+#: lib/tuist_web/live/runner_profiles_live.html.heex:334
+#, elixir-autogen, elixir-format
+msgid "Delete profile"
+msgstr "프로필 삭제"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:315
+#, elixir-autogen, elixir-format
+msgid "Delete profile %{name}? This can't be undone."
+msgstr "%{name} 프로필을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:307
+#, elixir-autogen, elixir-format
+msgid "Workflows using runs-on: %{label} will fail to dispatch until they're updated."
+msgstr "runs-on: %{label}을(를) 사용하는 워크플로는 업데이트될 때까지 디스패치에 실패합니다."
+
+#: lib/tuist_web/live/runner_profiles_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "This profile is a default and can't be deleted."
+msgstr "이 프로필은 기본값이므로 삭제할 수 없습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:574
+#, elixir-autogen, elixir-format
+msgid "Download logs"
+msgstr "로그 다운로드"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:641
+#, elixir-autogen, elixir-format
+msgid "Load older logs"
+msgstr "이전 로그 불러오기"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:84
+#: lib/tuist_web/live/runner_job_live.html.heex:562
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "로그"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:617
+#, elixir-autogen, elixir-format
+msgid "No log lines match your search."
+msgstr "검색 결과와 일치하는 로그가 없습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:581
+#, elixir-autogen, elixir-format
+msgid "No logs have been captured for this job yet."
+msgstr "아직 이 작업의 로그가 캡처되지 않았습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:547
+#, elixir-autogen, elixir-format
+msgid "No logs were captured for this step."
+msgstr "이 단계에 대한 로그가 캡처되지 않았습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "개요"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:591
+#, elixir-autogen, elixir-format
+msgid "Search logs..."
+msgstr "로그 검색..."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:399
+#, elixir-autogen, elixir-format
+msgid "Steps"
+msgstr "단계"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:420
+#, elixir-autogen, elixir-format
+msgid "Steps will appear here once the job finishes."
+msgstr "작업이 완료되면 여기에 단계가 표시됩니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:410
+#: lib/tuist_web/live/runner_job_live.html.heex:602
+#, elixir-autogen, elixir-format
+msgid "Timestamps"
+msgstr "타임스탬프"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "No Xcode versions are configured yet. Contact support."
+msgstr "Xcode 버전이 아직 구성되지 않았습니다. 지원팀에 문의해 주세요."
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:95
+#: lib/tuist_web/live/runner_profiles_live.html.heex:228
+#, elixir-autogen, elixir-format
+msgid "Operating system"
+msgstr "운영 체제"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:417
+#: lib/tuist_web/live/runner_profiles_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Select Xcode version"
+msgstr "Xcode 버전 선택"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:367
+#, elixir-autogen, elixir-format
+msgid "Ubuntu 22.04 LTS"
+msgstr "Ubuntu 22.04 LTS"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:422
+#, elixir-autogen, elixir-format
+msgid "Xcode %{version}"
+msgstr "Xcode %{version}"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:122
+#, elixir-autogen, elixir-format
+msgid "Xcode version"
+msgstr "Xcode 버전"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:62
+#, elixir-autogen, elixir-format
+msgid "CPU I/O Wait"
+msgstr "CPU I/O 대기"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:53
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:112
+#, elixir-autogen, elixir-format
+msgid "In"
+msgstr "수신"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:668
+#, elixir-autogen, elixir-format
+msgid "Machine metrics will appear here once the job has run on a Tuist runner."
+msgstr "작업이 Tuist 러너에서 실행되면 여기에 머신 메트릭이 표시됩니다."
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
+#: lib/tuist_web/live/runner_job_live.html.heex:89
+#: lib/tuist_web/live/runner_job_live.html.heex:387
+#: lib/tuist_web/live/runner_job_live.html.heex:663
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr "메트릭"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:54
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:113
+#, elixir-autogen, elixir-format
+msgid "Out"
+msgstr "송신"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:70
+#, elixir-autogen, elixir-format
+msgid "Storage"
+msgstr "스토리지"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:36
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:95
+#, elixir-autogen, elixir-format
+msgid "Usage"
+msgstr "사용량"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:44
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:71
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:103
+#, elixir-autogen, elixir-format
+msgid "Used"
+msgstr "사용됨"
+
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:63
+#, elixir-autogen, elixir-format
+msgid "Wait"
+msgstr "대기"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:786
+#, elixir-autogen, elixir-format
+msgid "Start VNC"
+msgstr "VNC 시작"
+
+#: lib/tuist_web/live/runner_job_live.ex:662
+#, elixir-autogen, elixir-format
+msgid "The runner pod is not available for this job."
+msgstr "이 작업에 사용할 수 있는 러너 팟이 없습니다."
+
+#: lib/tuist_web/live/runner_job_live.ex:659
+#, elixir-autogen, elixir-format
+msgid "VNC can be requested while the macOS runner job is claimed or running."
+msgstr "macOS 러너 작업이 할당되었거나 실행 중인 동안에는 VNC를 요청할 수 있습니다."
+
+#: lib/tuist_web/live/runner_job_live.ex:656
+#, elixir-autogen, elixir-format
+msgid "VNC is available for macOS runner jobs."
+msgstr "macOS 러너 작업에는 VNC를 사용할 수 있습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:827
+#, elixir-autogen, elixir-format
+msgid "VNC session idle"
+msgstr "VNC 세션 유휴 상태"
+
+#: lib/tuist_web/live/runner_job_live.ex:653
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to request interactive access."
+msgstr "대화형 액세스를 요청할 권한이 없습니다."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:773
+#, elixir-autogen, elixir-format
+msgid "Exit full screen"
+msgstr "전체 화면 종료"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:768
+#: lib/tuist_web/live/runner_job_live.html.heex:769
+#: lib/tuist_web/live/runner_job_live.html.heex:772
+#, elixir-autogen, elixir-format
+msgid "Full screen"
+msgstr "전체 화면"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:836
+#, elixir-autogen, elixir-format
+msgid "VNC session active"
+msgstr "VNC 세션 활성 상태"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:833
+#, elixir-autogen, elixir-format
+msgid "VNC session ready"
+msgstr "VNC 세션 준비 완료"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:839
+#, elixir-autogen, elixir-format
+msgid "VNC session unavailable"
+msgstr "VNC 세션 사용 불가"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:830
+#, elixir-autogen, elixir-format
+msgid "Waiting for runner relay"
+msgstr "러너 릴레이 대기 중"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:479
+#, elixir-autogen, elixir-format
+msgid "Build"
+msgstr "빌드"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr "빌드"
+
+#: lib/tuist_web/live/runner_job_live.ex:381
+#: lib/tuist_web/live/runner_job_live.ex:421
+#, elixir-autogen, elixir-format
+msgid "Failed processing"
+msgstr "처리 실패"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "Insights"
+msgstr "인사이트"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "Module cache"
+msgstr "모듈 캐시"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "No build runs have reported insights for this runner job yet."
+msgstr "아직 이 러너 작업에 대한 빌드 실행 인사이트가 보고되지 않았습니다."
+
+#: lib/tuist_web/live/runner_job_live.ex:353
+#: lib/tuist_web/live/runner_job_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "No cache data"
+msgstr "캐시 데이터 없음"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:313
+#, elixir-autogen, elixir-format
+msgid "No test runs have reported insights for this runner job yet."
+msgstr "아직 이 러너 작업에 대한 테스트 실행 인사이트가 보고되지 않았습니다."
+
+#: lib/tuist_web/live/runner_job_live.ex:432
+#, elixir-autogen, elixir-format
+msgid "Passed (flaky)"
+msgstr "통과(불안정)"
+
+#: lib/tuist_web/live/runner_job_live.ex:384
+#: lib/tuist_web/live/runner_job_live.ex:418
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr "처리 중"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:336
+#, elixir-autogen, elixir-format
+msgid "Selective testing"
+msgstr "선택적 테스트"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:507
+#, elixir-autogen, elixir-format
+msgid "Test"
+msgstr "테스트"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:308
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr "테스트"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:230
+#: lib/tuist_web/live/runner_job_live.html.heex:323
+#, elixir-autogen, elixir-format
+msgid "Total duration"
+msgstr "총 소요 시간"
+
+#: lib/tuist_web/live/runner_job_live.ex:429
+#, elixir-autogen, elixir-format
+msgid "Unknown scheme"
+msgstr "알 수 없는 스키마"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Xcode cache"
+msgstr "Xcode 캐시"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:71
+#, elixir-autogen, elixir-format
+msgid "CI job duration"
+msgstr "CI 작업 소요 시간"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:113
+#, elixir-autogen, elixir-format
+msgid "Not recorded"
+msgstr "기록되지 않음"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:60
+#, elixir-autogen, elixir-format
+msgid "Profile"
+msgstr "프로필"
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:78
+#, elixir-autogen, elixir-format
+msgid "Step"
+msgstr "단계"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:690
+#, elixir-autogen, elixir-format
+msgid "Start terminal"
+msgstr "터미널 시작"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:95
+#: lib/tuist_web/live/runner_job_live.html.heex:679
+#, elixir-autogen, elixir-format
+msgid "Terminal"
+msgstr "터미널"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:740
+#, elixir-autogen, elixir-format
+msgid "Terminal session active"
+msgstr "터미널 세션 활성 상태"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:731
+#, elixir-autogen, elixir-format
+msgid "Terminal session idle"
+msgstr "터미널 세션 유휴 상태"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:737
+#, elixir-autogen, elixir-format
+msgid "Terminal session ready"
+msgstr "터미널 세션 준비 완료"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:743
+#, elixir-autogen, elixir-format
+msgid "Terminal session unavailable"
+msgstr "터미널 세션 사용 불가"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:101
+#: lib/tuist_web/live/runner_job_live.html.heex:757
+#, elixir-autogen, elixir-format
+msgid "VNC"
+msgstr "VNC"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:734
+#, elixir-autogen, elixir-format
+msgid "Waiting for runner shell"
+msgstr "러너 셸 대기 중"
+
+#: lib/tuist_web/live/runners_live.html.heex:306
+#, elixir-autogen, elixir-format
+msgid "Concurrency"
+msgstr "동시 실행"
+
+#: lib/tuist_web/live/runners_live.ex:540
+#, elixir-autogen, elixir-format
+msgid "%{limit} GB limit"
+msgstr "%{limit}GB 제한"
+
+#: lib/tuist_web/live/runners_live.ex:536
+#, elixir-autogen, elixir-format
+msgid "%{limit} vCPU limit"
+msgstr "%{limit} vCPU 제한"
+
+#: lib/tuist_web/live/runners_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Limit"
+msgstr "제한"
+
+#: lib/tuist_web/live/runners_live.ex:509
+#, elixir-autogen, elixir-format
+msgid "%{platform} memory"
+msgstr "%{platform} 메모리"
+
+#: lib/tuist_web/live/runners_live.ex:502
+#, elixir-autogen, elixir-format
+msgid "%{platform} vCPU"
+msgstr "%{platform} vCPU"
+
+#: lib/tuist_web/live/runners_live.ex:543
+#, elixir-autogen, elixir-format
+msgid "Peak CPU"
+msgstr "최대 CPU"
+
+#: lib/tuist_web/live/runners_live.ex:544
+#, elixir-autogen, elixir-format
+msgid "Peak memory"
+msgstr "최대 메모리"
+
+#: lib/tuist_web/live/runners_live.html.heex:676
+#, elixir-autogen, elixir-format
+msgid "Every recent job was skipped or cancelled"
+msgstr "최근 작업이 모두 건너뛰어졌거나 취소되었습니다"
+
+#: lib/tuist_web/live/runners_live.html.heex:500
+#, elixir-autogen, elixir-format
+msgid "Every recent workflow run was skipped or cancelled"
+msgstr "최근 워크플로 실행이 모두 건너뛰어졌거나 취소되었습니다"
+
+#: lib/tuist_web/live/runner_profiles_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "Tahoe"
+msgstr "Tahoe"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Buildkite"
+msgstr "Buildkite"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "GitLab"
+msgstr "GitLab"
