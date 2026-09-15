@@ -142,6 +142,16 @@ defmodule TuistWeb.Router do
     plug :google_one_tap_content_security_policy
   end
 
+  # Marketing pages are stored by shared caches without Set-Cookie, so the
+  # CSRF token embedded in the HTML belongs to whichever session produced the
+  # cached copy and never validates for the visitors it is served to. The One
+  # Tap start request therefore proves same-origin through browser-set headers
+  # instead and receives a fresh token for the credential form, which stays
+  # fully CSRF-protected.
+  pipeline :google_one_tap_start do
+    plug :skip_csrf_for_same_origin_request
+  end
+
   pipeline :browser_app_image do
     plug :put_request_kind, "page_image"
     plug :accepts, ["svg", "png"]
@@ -1090,8 +1100,12 @@ defmodule TuistWeb.Router do
   end
 
   scope "/auth", TuistWeb do
-    pipe_through [:browser_app]
+    pipe_through [:google_one_tap_start, :browser_app]
     post "/google/one-tap/start", AuthController, :google_one_tap_start
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app]
     post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
@@ -1436,4 +1450,22 @@ defmodule TuistWeb.Router do
   end
 
   defp skip_csrf_for_fun_with_flags_assets(conn, _opts), do: conn
+
+  defp skip_csrf_for_same_origin_request(conn, _opts) do
+    if same_origin_request?(conn) do
+      Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
+    else
+      conn
+    end
+  end
+
+  # Browsers set both headers themselves; scripts cannot forge them.
+  defp same_origin_request?(conn) do
+    case {get_req_header(conn, "sec-fetch-site"), get_req_header(conn, "origin")} do
+      {["same-origin"], _} -> true
+      {[_], _} -> false
+      {[], [origin]} -> URI.parse(origin).host == conn.host
+      _ -> false
+    end
+  end
 end

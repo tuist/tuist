@@ -44,7 +44,7 @@ defmodule TuistWeb.AuthController do
       conn
       |> put_resp_header("cache-control", "private, no-store")
       |> put_session(:google_one_tap, challenges)
-      |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce})
+      |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce, csrf_token: get_csrf_token()})
     else
       send_resp(conn, :no_content, "")
     end
