@@ -24,3 +24,4 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Core domain models: `cli/Sources/TuistCore/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
+- Default generation preserves opted-in local package tests and their transitive dependencies; explicit focus and binary-cache product filters still control their own roots.

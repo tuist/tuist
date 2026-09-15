@@ -12,3 +12,4 @@ This module manages external dependencies (e.g., Swift packages) used by Tuist p
 ## Invariants
 - External projects under SwiftPM scratch-directory checkouts are remapped into derived dependencies directories.
 - Local packages outside SwiftPM scratch-directory checkouts are not remapped.
+- Opted-in local package tests retain their complete dependency closure across package boundaries. Narrow test-only dependencies from the test bundle’s effective destinations before pruning.

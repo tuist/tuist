@@ -20,3 +20,4 @@ This module contains core domain abstractions and shared models used across the 
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 
 - Subhash diagnostics carry optional effective destinations, foreign-build hashes, and UI-test device/runtime inputs. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.
+- External destination traversal can accept additional roots, allowing local package test bundles to propagate their narrowed destinations to test-only dependencies.

@@ -17,7 +17,20 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
             .debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)
-        let orphanExternalTargets = graphTraverser.allOrphanExternalTargets()
+        let localPackageTests = graphTraverser.allExternalTargets().filter {
+            $0.target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+        }
+        let localPackageTestClosure: Set<GraphTarget>
+        if localPackageTests.isEmpty {
+            localPackageTestClosure = []
+        } else {
+            localPackageTestClosure = Set(
+                graphTraverser.externalTargetSupportedDestinations(including: localPackageTests)
+                    .filter { !$0.value.isEmpty }
+                    .map(\.key)
+            )
+        }
+        let orphanExternalTargets = graphTraverser.allOrphanExternalTargets().subtracting(localPackageTestClosure)
 
         var graph = graph
 

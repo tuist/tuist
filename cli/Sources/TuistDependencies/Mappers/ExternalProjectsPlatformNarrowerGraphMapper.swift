@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import Path
 import TuistCore
 import XcodeGraph
 
@@ -33,7 +34,29 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var graph = graph
         let graphTraverser = GraphTraverser(graph: graph)
-        let externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        var externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        let localPackageTests = graphTraverser.allExternalTargets().filter {
+            $0.target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+        }
+        let narrowedTests = Dictionary(uniqueKeysWithValues: localPackageTests.map { test in
+            let target = mapTarget(
+                target: test.target,
+                project: test.project,
+                externalTargetSupportedDestinations: externalTargetSupportedDestinations,
+                projects: graph.projects
+            )
+            return (test, GraphTarget(path: test.path, target: target, project: test.project))
+        })
+        if !narrowedTests.isEmpty {
+            // Infer test platforms from production consumers before using the tests as roots,
+            // so test-only dependencies inherit those platforms without widening the runtime graph.
+            externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations(
+                including: Set(narrowedTests.values)
+            )
+            for (test, narrowedTest) in narrowedTests {
+                externalTargetSupportedDestinations[test] = narrowedTest.target.destinations
+            }
+        }
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -41,7 +64,8 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
                 let mappedTarget = mapTarget(
                     target: target,
                     project: project,
-                    externalTargetSupportedDestinations: externalTargetSupportedDestinations
+                    externalTargetSupportedDestinations: externalTargetSupportedDestinations,
+                    projects: graph.projects
                 )
                 return (mappedTarget.name, mappedTarget)
             })
@@ -54,7 +78,8 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     private func mapTarget(
         target: Target,
         project: Project,
-        externalTargetSupportedDestinations: [GraphTarget: Set<Destination>]
+        externalTargetSupportedDestinations: [GraphTarget: Set<Destination>],
+        projects: [AbsolutePath: Project]
     ) -> Target {
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
@@ -69,11 +94,8 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
            target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
         {
             let linkableDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
-                guard case let .target(name, _, dependencyCondition) = dep,
-                      let depTarget = project.targets[name],
-                      depTarget.isLinkable()
+                guard let (depGraphTarget, dependencyCondition) = linkableDependency(dep, project: project, projects: projects)
                 else { return nil }
-                let depGraphTarget = GraphTarget(path: project.path, target: depTarget, project: project)
                 guard let depDestinations = externalTargetSupportedDestinations[depGraphTarget] else { return nil }
 
                 return orphanTestDependencyDestinations(
@@ -103,6 +125,31 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             )
         }
         return target
+    }
+
+    private func linkableDependency(
+        _ dependency: TargetDependency,
+        project: Project,
+        projects: [AbsolutePath: Project]
+    ) -> (GraphTarget, PlatformCondition?)? {
+        let dependencyProject: Project
+        let name: String
+        let condition: PlatformCondition?
+        switch dependency {
+        case let .target(targetName, _, dependencyCondition):
+            dependencyProject = project
+            name = targetName
+            condition = dependencyCondition
+        case let .project(targetName, path, _, dependencyCondition):
+            guard let resolvedProject = projects[path] else { return nil }
+            dependencyProject = resolvedProject
+            name = targetName
+            condition = dependencyCondition
+        default:
+            return nil
+        }
+        guard let target = dependencyProject.targets[name], target.isLinkable() else { return nil }
+        return (GraphTarget(path: dependencyProject.path, target: target, project: dependencyProject), condition)
     }
 
     private func orphanTestDependencyDestinations(
