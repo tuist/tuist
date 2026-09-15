@@ -65,6 +65,16 @@ defmodule Tuist.Kura.Lifecycle do
     * `keep_warm` holds a named account-region out of archival entirely, for
       the cases where a directory must survive inactivity.
 
+  ## Never-used instances
+
+  An active instance whose storage telemetry shows nothing stored since it
+  entered service is drained once it has been in service for
+  `Tuist.Environment.kura_unused_days/0`, whatever its demand. Only snapshots
+  covering the whole service life count as evidence; an instance with missing
+  telemetry is left to the inactivity window. Demand does not cancel that
+  drain, and once archived the account-region is provisioned again only by
+  demand recorded after the archival.
+
   ## Plans
 
   Enterprise is never archived. Air and Pro follow the 90-day window, and Air
@@ -98,6 +108,7 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
 
@@ -301,7 +312,7 @@ defmodule Tuist.Kura.Lifecycle do
       lifecycle ->
         {:ok, _lifecycle} =
           lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now()})
+          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), drain_reason: :placement_retirement})
           |> Repo.update()
 
         :ok
@@ -392,6 +403,11 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
         where: not exists(destroyed_since_demand_exists),
+        # An instance reclaimed for never storing anything comes back only for
+        # demand recorded after its archival, not for the demand it already had.
+        where:
+          is_nil(l.drain_reason) or l.drain_reason != :unused or is_nil(l.archived_at) or
+            l.last_cache_demand_at > l.archived_at,
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
         limit: ^limit,
         offset: ^offset,
@@ -488,6 +504,7 @@ defmodule Tuist.Kura.Lifecycle do
     |> AccountRegionLifecycle.phase_changeset(%{
       drain_started_at: nil,
       teardown_started_at: nil,
+      drain_reason: nil,
       last_returned_at: now()
     })
     |> Repo.update()
@@ -519,10 +536,101 @@ defmodule Tuist.Kura.Lifecycle do
     pressure_cutoff = DateTime.add(now, -Environment.kura_pressure_inactive_days() * 86_400, :second)
     tracking_cutoff = DateTime.add(now, -Environment.kura_demand_tracking_grace_days() * 86_400, :second)
 
+    unused = unused_candidates(region_id, now, tracking_cutoff)
+    unused_ids = MapSet.new(unused, fn {server, _lifecycle, _plan, _reason} -> server.id end)
+
+    inactive =
+      region_id
+      |> active_instances_with_lifecycle(pressure_cutoff, tracking_cutoff)
+      |> Enum.reject(fn {server, _lifecycle} -> MapSet.member?(unused_ids, server.id) end)
+      |> Enum.flat_map(&classify_candidate(&1, pressure?, default_cutoff))
+
+    take_pressure_candidates(unused ++ inactive, region_id)
+  end
+
+  # Instances that have stored nothing since they entered service. Only
+  # snapshots on every full day of the service life count as evidence: a pod
+  # restart empties a ring without an eviction, so a day without snapshots
+  # could hide use. An eviction on any day is use.
+  defp unused_candidates(region_id, now, tracking_cutoff) do
+    unused_cutoff = DateTime.add(now, -Environment.kura_unused_days() * 86_400, :second)
+    today = DateTime.to_date(now)
+    instances = active_instances_in_service_before(region_id, unused_cutoff, tracking_cutoff)
+    rollups = storage_rollups_by_account(instances, region_id)
+
+    Enum.flat_map(instances, fn {server, lifecycle} ->
+      plan = Billing.effective_plan(server.account)
+      started_at = service_started_at(server, lifecycle)
+
+      if archivable_plan?(plan) and never_stored?(Map.get(rollups, server.account_id, []), started_at, today) do
+        [{server, lifecycle, plan, :unused}]
+      else
+        []
+      end
+    end)
+  end
+
+  # A cold return reuses the server row, so the service life starts at the
+  # return rather than at the row's insertion.
+  defp active_instances_in_service_before(region_id, unused_cutoff, tracking_cutoff) do
+    Repo.all(
+      from(s in Server,
+        join: l in AccountRegionLifecycle,
+        on: l.account_id == s.account_id and l.service_region == s.region,
+        where: s.region == ^region_id,
+        where: s.status == :active,
+        where: s.move_phase == :none,
+        where: l.keep_warm == false,
+        where: s.inserted_at < ^unused_cutoff,
+        where: is_nil(l.last_returned_at) or l.last_returned_at < ^unused_cutoff,
+        where: l.inserted_at < ^tracking_cutoff,
+        order_by: [asc: s.inserted_at],
+        preload: [account: :subscriptions],
+        select: {s, l}
+      )
+    )
+  end
+
+  defp storage_rollups_by_account([], _region_id), do: %{}
+
+  defp storage_rollups_by_account(instances, region_id) do
+    since =
+      instances
+      |> Enum.map(fn {server, lifecycle} -> DateTime.to_date(service_started_at(server, lifecycle)) end)
+      |> Enum.min(Date)
+
+    account_ids = Enum.map(instances, fn {server, _lifecycle} -> server.account_id end)
+
     region_id
-    |> active_instances_with_lifecycle(pressure_cutoff, tracking_cutoff)
-    |> Enum.flat_map(&classify_candidate(&1, pressure?, default_cutoff))
-    |> take_pressure_candidates(region_id)
+    |> StorageRollups.for_region(account_ids, since)
+    |> Enum.group_by(& &1.account_id)
+  end
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: nil}),
+    do: inserted_at
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: returned_at}),
+    do: Enum.max([inserted_at, returned_at], DateTime)
+
+  defp never_stored?(rollups, started_at, today) do
+    started_on = DateTime.to_date(started_at)
+    in_service = Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt))
+    snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
+
+    MapSet.size(snapshot_dates) > 0 and
+      Enum.all?(full_days_in_service(started_on, today), &MapSet.member?(snapshot_dates, &1)) and
+      not Enum.any?(in_service, &stored?/1)
+  end
+
+  defp full_days_in_service(started_on, today) do
+    first = Date.add(started_on, 1)
+    last = Date.add(today, -1)
+
+    if Date.after?(first, last), do: [], else: Date.range(first, last)
+  end
+
+  defp stored?(rollup) do
+    (rollup.max_live_segment_bytes || 0) > 0 or rollup.eviction_count > 0 or rollup.evicted_bytes > 0
   end
 
   # One row per active instance whose account-region has demand tracking older
@@ -612,7 +720,11 @@ defmodule Tuist.Kura.Lifecycle do
            with {:ok, drained} <- Kura.begin_drain(server),
                 {:ok, _lifecycle} <-
                   lifecycle
-                  |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), teardown_started_at: nil})
+                  |> AccountRegionLifecycle.phase_changeset(%{
+                    drain_started_at: now(),
+                    teardown_started_at: nil,
+                    drain_reason: reason
+                  })
                   |> Repo.update() do
              drained
            else
@@ -739,6 +851,10 @@ defmodule Tuist.Kura.Lifecycle do
   # timestamp newer than the drain start can only be a client that came back.
   defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}), do: false
 
+  # A never-used instance holds no cache to keep, so demand does not cancel its
+  # drain. Demand recorded after the archival returns it instead.
+  defp demand_returned?(%AccountRegionLifecycle{drain_reason: :unused}), do: false
+
   defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}) do
     # At-or-after, not strictly after: both clocks are second-resolution, and
     # a request arriving in the same second the drain started is a client that
@@ -758,7 +874,7 @@ defmodule Tuist.Kura.Lifecycle do
       {:ok, _server} ->
         {:ok, _lifecycle} =
           lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: nil, teardown_started_at: nil})
+          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: nil, teardown_started_at: nil, drain_reason: nil})
           |> Repo.update()
 
         Telemetry.archive_cancelled(plan, server.region)
@@ -864,7 +980,7 @@ defmodule Tuist.Kura.Lifecycle do
           })
           |> Repo.update()
 
-        Telemetry.archived(plan, server.region, reclaimed_bytes, drain_duration_ms)
+        Telemetry.archived(plan, server.region, lifecycle.drain_reason || :inactive, reclaimed_bytes, drain_duration_ms)
 
         Logger.info(
           "[Kura.Lifecycle] archived instance #{server.id}: reclaimed #{reclaimed_bytes} bytes after #{drain_duration_ms}ms"

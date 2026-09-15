@@ -1,15 +1,31 @@
 # Imported from the live tuist.dev custom firewall entry-point ruleset on
 # 2026-09-06.
 #
-# `public-dashboard-bot-protection` covers only `/tuist/**` subpaths.
-# The Phoenix `TuistWeb.PublicPageChallengeController` that this same
-# PR introduces replaces it with a uniform, `x-tuist-public: 1`-aware
-# JavaScript challenge that covers every public project on the zone.
-# The Cloudflare rule stays live (`enabled: true`) until the
-# application gate has been flipped on in production
-# (TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED) and verified with real
-# traffic; the follow-up commit flips this to `enabled: false` while
-# keeping name + `adopt.ruleId` so it can be re-armed on rollback.
+# `public-dashboard-bot-protection` is a leftover from the manual
+# response to the crawler-driven ClickHouse OOM incident. Its
+# expression enumerates a specific set of `/tuist/**` subpaths, so it
+# only ever protected a handful of accounts and never covered any
+# other public project on the zone (including future ones).
+#
+# It is superseded by two mechanisms that landed in #13205:
+#   - `CloudflareBotManagement/tuist-dev` sets
+#     `sbfm_definitely_automated: managed_challenge` at the edge for
+#     every host on the zone, without a path allowlist.
+#   - `TuistWeb.PublicPageChallengeController` (armed in production via
+#     `server.publicPageChallenge.enabled` in
+#     `values-managed-production.yaml`) issues a Turnstile challenge in
+#     front of the public dashboard for every public project on any
+#     account, keyed on the visibility flag rather than a path prefix.
+#
+# Both were verified live before this soft-off: `sbfm_definitely_automated`
+# reads `managed_challenge` on the zone, the operator pod runs the
+# post-#13205 image, and `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED=1` is
+# rendered on the production `tuist-tuist-server` deployment.
+#
+# The rule stays in git rather than being deleted, so that a rollback
+# is just flipping `enabled: true` again — `adopt.ruleId` and
+# `retainOnDelete` are preserved so the same Cloudflare rule id gets
+# re-armed without recreating it.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCustomRule
 metadata:
@@ -40,7 +56,7 @@ spec:
       )
     ) and not cf.client.bot
   action: managed_challenge
-  enabled: true
+  enabled: false
   mode: active
   adopt:
     ruleId: 6d023cf1e6b24525af4c727a4ebe730f

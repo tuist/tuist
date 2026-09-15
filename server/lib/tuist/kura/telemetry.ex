@@ -88,11 +88,11 @@ defmodule Tuist.Kura.Telemetry do
     })
   end
 
-  def archived(plan, region, reclaimed_bytes, drain_duration_ms) do
+  def archived(plan, region, reason, reclaimed_bytes, drain_duration_ms) do
     :telemetry.execute(
       event_name_archived(),
       %{count: 1, reclaimed_bytes: reclaimed_bytes, drain_duration_ms: drain_duration_ms},
-      %{plan: to_string(plan), region: region}
+      %{plan: to_string(plan), region: region, reason: to_string(reason)}
     )
   end
 
@@ -106,7 +106,9 @@ defmodule Tuist.Kura.Telemetry do
 
   @doc """
   Counts an account whose cache instance was not seeded ahead of its first
-  cache request, because the region it resolves to is over its pressure line.
+  cache request: `capacity_pressure` when the region it resolves to is over its
+  pressure line, `unused` when the account's instance was reclaimed for never
+  storing anything and has not been asked for since.
 
   Distinct from `resolution_refused`, which is about an account that has no
   region at all. This one has a region and will still be provisioned the

@@ -1630,9 +1630,12 @@ applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
 shed age grows the claim after two consecutive qualifying days when the ring
-cycled about once a day over them, and after five when it did not. A
-two-day rule therefore alerts on a control loop that is mid-confirmation and
-would keep alerting for days while it does its job. A rule at two days was
+cycled about once a day over them, and after five when it did not. The step
+after a resize that landed below its own projection confirms on a single
+qualifying day of the resized ring instead, as long as that day falls within
+the matching rung's own window of the resize. A two-day rule therefore alerts
+on a control loop that is mid-confirmation and would keep alerting for days
+while it does its job. A rule at two days was
 deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
 only on the artifact described below. One day is the tier worth waking
 someone: it means the loop did not keep up, or cannot act at all.
@@ -2917,6 +2920,205 @@ Every probe location must come back as its own series. A single
 
 ## Warning alerts
 
+### CI remote compilation-cache reads slow for an account
+
+Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`).
+This is rule `dfybzqdz5rh1cb` ("Xcode cache - CI remote reads slow for an
+account"), folder `Alerts`, group `Cache client latency`, which evaluates every
+10 minutes.
+
+```sql
+WITH
+recent AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+  GROUP BY id
+),
+base AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 7 DAY AND inserted_at < now() - INTERVAL 1 HOUR AND is_ci
+    AND cityHash64(id) % 20 = 0 AND account_id IN (SELECT acct FROM recent)
+  GROUP BY id
+),
+recent_builds AS (
+  SELECT r.acct AS acct, ct.build_run_id AS build, count() AS reads,
+    countIf(ct.read_duration > 150) AS slow_reads, quantile(0.9)(ct.read_duration) AS p90
+  FROM cacheable_tasks AS ct INNER JOIN recent AS r ON r.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM recent) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct, build
+),
+baseline AS (
+  SELECT b.acct AS acct, count() AS base_reads, countIf(ct.read_duration > 150) / count() AS base_share
+  FROM cacheable_tasks AS ct INNER JOIN base AS b ON b.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM base) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct
+)
+SELECT toString(rb.acct) AS account_id,
+  round(sum(rb.slow_reads) / sum(rb.reads), 3) AS slow_read_share
+FROM recent_builds AS rb INNER JOIN baseline AS bl ON bl.acct = rb.acct
+GROUP BY account_id
+HAVING sum(rb.reads) >= 1000
+  AND count() >= 3
+  AND countIf(rb.p90 > 200 AND rb.reads >= 100) >= 2
+  AND slow_read_share >= 0.1
+  AND any(bl.base_reads) >= 1000
+  AND slow_read_share >= 4 * any(bl.base_share)
+```
+
+- Condition: threshold `C` directly on `A`, `IS ABOVE 0`. No Reduce step: the
+  query returns one numeric column and one string column, which Grafana reads
+  as one series per `account_id`.
+- Pending period: none, keep firing for 30 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Account {{ $labels.account_id }}: {{ $values.A.Value | humanizePercentage }} of CI remote compilation-cache reads took over 150 ms in the last hour`
+
+**Why this reads client data rather than Kura metrics.** On 2026-09-14/15 CI
+builds on one account ran up to about 20 minutes longer. Per-task timings showed
+20-30 minute stretches where even p10 remote read latency was 225-235 ms and
+writes 700-1000 ms, against a normal p90 of 7-30 ms. Kura looked healthy the
+whole time: gRPC in-flight at or below 8, no CPU throttling, and
+`kura_public_request_latency_seconds` p90 under 3.5 ms. That histogram does
+cover gRPC, but it measures from the request reaching Kura to its response
+headers. The latency was added in front of it: the regional ingress returned
+malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
+a far region. No server-side rule can see either. `cacheable_tasks` records what
+Xcode itself waited for.
+
+**Why the account is compared with its own history.** Normal read latency
+differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
+read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
+build and another had a p90 of 200-900 ms in nearly every build. An absolute
+threshold fires on those accounts all day and still has to sit high enough to
+miss the incident's 265-320 ms builds. The slow-read share against the account's
+own 7-day share fires on a change, not on a steady state. The incident account's
+share went from 0.5-1% to 11-22%.
+
+**Why per-build and per-read conditions instead of an hourly p90.** The incident
+was intermittent: slow builds (p90 265-505 ms) were interleaved with normal ones
+(p90 around 20 ms) in the same hour, so an account-wide hourly percentile
+diluted it. Requiring two builds over a 200 ms p90 keeps a single slow build from
+firing, and the minimum of 1000 reads over 3 builds keeps small hours out.
+
+**Writes are not part of the condition.** Normal per-build write p90 ranges from
+30 ms to several seconds across accounts, driven by upload size, and the
+incident's 700-1100 ms writes sit inside that range.
+
+**Validated against production** on 2026-09-15 with the same SQL and `now()`
+replaced by a fixed time:
+
+| Evaluated at (UTC) | Result |
+| --- | --- |
+| 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
+| 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
+| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-03 12:00 | No rows |
+
+Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
+account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
+genuine burst: that account's slow builds read at p90 500-700 ms for about two
+hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+builds moved lane) are skipped.
+
+**Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts
+with `build_run_id`, so `build_run_id IN (recent CI builds)` reads about 3% of
+granules. One evaluation reads about 130M rows (3 GiB) in 4 seconds, most of it
+the sampled 7-day baseline. Do not filter `cacheable_tasks` on `inserted_at`
+alone: that is a full scan. Do not alias an aggregate with the name of a column
+the same query filters on (`any(account_id) AS account_id`): ClickHouse
+resolves the `WHERE` to the alias and rejects the query.
+
+**Runbook.** Look at the account's builds (replace `ACCOUNT`):
+
+```sql
+SELECT br.id, br.ins, round(br.dur / 60000, 1) AS minutes, count() AS reads,
+  round(quantile(0.1)(ct.read_duration)) AS p10,
+  round(quantile(0.5)(ct.read_duration)) AS p50,
+  round(quantile(0.9)(ct.read_duration)) AS p90
+FROM cacheable_tasks AS ct
+INNER JOIN (
+  SELECT id, any(inserted_at) AS ins, any(duration) AS dur FROM build_runs
+  WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  GROUP BY id
+) AS br ON br.id = ct.build_run_id
+WHERE ct.build_run_id IN (
+    SELECT id FROM build_runs
+    WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  )
+  AND ct.status = 'hit_remote' AND ct.read_duration > 0
+GROUP BY br.id, br.ins, minutes
+ORDER BY br.ins
+```
+
+Then check the two known causes:
+
+1. [Kura ingress returning malformed or 502 responses](#kura-ingress-returning-malformed-or-502-responses)
+   for the account's instances.
+2. A CAS proxy endpoint flip. The CLI re-resolves the endpoint every 10 minutes
+   with one latency probe per region, and one failed probe moves it to another
+   region for at least 10 minutes. Those builds show a stretch where even p10
+   sits at the far region's round trip, then an abrupt return.
+
+Limits: only processed builds count, so the rule lags a slow build by its
+duration plus processing time. Hits replayed straight from the local CAS never
+reach `cacheable_tasks`.
+
+### Kura ingress returning malformed or 502 responses
+
+Data source: Loki `grafanacloud-logs`. This is rule `bfybzuvqgyzggc`, folder
+`Alerts`, group `Cache` (5-minute interval).
+
+```logql
+sum by (service_name, upstream) (
+  count_over_time(
+    {service_name=~"kura-.*-ingress-nginx", cluster="tuist-production"}
+      | regexp `^[^ ]+ - - \[[^]]+\] "[A-Z]+ [^"]+" (?P<resp_status>[0-9]{3}) .* \[(?P<upstream>[^\]]+)\] \[[^\]]*\] `
+      | resp_status=~"0..|502"
+    [15m]
+  )
+)
+```
+
+- Condition: threshold `C` on `A`, `IS ABOVE 30`
+- Pending period: 15 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Kura gateway {{ $labels.service_name }} returned {{ $values.A.Value | printf "%.0f" }} malformed or 502 responses in 15 minutes for {{ $labels.upstream }}`
+
+The regional controllers log status `009` (clients see `HTTP/2 000` or
+`HTTP/0.9`) with upstream status 200 when nginx hands an HTTP request a cached
+h2c connection, and `502` when it hands a gRPC call an HTTP/1.1 connection. Both
+Ingresses of a Kura instance point at pod port 4000, and ingress-nginx keeps one
+keepalive pool per upstream address, so this only happens on an instance serving
+both lanes at once. Kura answered correctly in every case, so no Kura metric or
+rule moves. The paired controller error lines are
+`upstream sent no valid HTTP/1.0 header` and
+`no connection data found for keepalive http2 connection`. PR #13227 routes
+gateway gRPC to a dedicated Kura port; until it is deployed, expect this rule to
+fire for accounts that use both lanes.
+
+`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
+identifies the account.
+
+- 503 and 504 are excluded. They come from draining pods, capacity shedding and
+  upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
+  what Kura produces.
+- The pending period is what separates sustained breakage from a burst: one
+  burst stays in the 15-minute window for three 5-minute evaluations and never
+  reaches the fourth.
+- The source is the access log because the controllers were not scraped. Every
+  line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
+  `kura-ingress-nginx` scrape in `values.yaml` now exports
+  `nginx_ingress_controller_requests` for these controllers, so this rule can
+  move to that metric once the scrape is deployed and its `status` values are
+  confirmed.
+
+Backtested over 2026-09-01 to 09-15 with the same expression stepped every 5
+minutes: fires for both of the incident account's instances throughout
+2026-09-14/15, on 2026-09-01, 09-02 and 09-03 for a us-east instance, and a few
+times a week for two us-west instances, all with the same `009`/`502` pairing.
+Single bursts did not fire, including one of 4,287 `502` responses.
+
 ### Kura shedding cache reads under capacity pressure
 
 ```promql
@@ -3191,6 +3393,13 @@ limit in the summary, which is what the on-call needs to pick the lever:
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
+  - `upload_memory` borrows the elastic ceiling headroom before it queues, so
+    on current versions it means an upload waited 30 seconds with the floor
+    and that headroom both spent, or with pressure above normal closing the
+    borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
+    below. Older versions queued on the floor alone, so a shed there can come
+    with pressure normal and the headroom unused.
 - `reapi_write_decode`, `reapi_materialization`: the same budget on the
   remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
   Bazel retries, so this counter is the only place they show, and a
