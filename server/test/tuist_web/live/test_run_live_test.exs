@@ -919,8 +919,7 @@ defmodule TuistWeb.TestRunLiveTest do
       # When - a sibling Xcode build broadcast lands on the same account/project topic
       send(
         lv.pid,
-        {:xcode_build_created,
-         %Tuist.Builds.Build{id: Ecto.UUID.generate(), project_id: project.id}}
+        {:xcode_build_created, %Tuist.Builds.Build{id: Ecto.UUID.generate(), project_id: project.id}}
       )
 
       # And an arbitrary future broadcast
