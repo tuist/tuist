@@ -1,5 +1,8 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
 import XCTest
@@ -175,10 +178,12 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
+}
 
-    func test_binaries_scheme_includes_source_dependencies_of_the_targets_to_cache() async throws {
+struct GenerateCacheableSchemesGraphMapperSourceDependenciesTests {
+    @Test(.inTemporaryDirectory) func binariesSchemeIncludesSourceDependenciesOfTheTargetsToCache() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = directory.appending(component: "App")
 
         let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .staticFramework)
@@ -224,7 +229,9 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: featureDependency, to: macOnlyDependencyDependency): try XCTUnwrap(.when([.macos])),
+                GraphEdge(from: featureDependency, to: macOnlyDependencyDependency): try #require(
+                    PlatformCondition.when([.macos])
+                ),
             ]
         )
 
@@ -232,15 +239,14 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
+        #expect(
             updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
-                "Feature",
-                "Services",
-                "ServicesMockSupport",
-            ]
+                .map(\.name) == [
+                    "Feature",
+                    "Services",
+                    "ServicesMockSupport",
+                ]
         )
     }
 }
