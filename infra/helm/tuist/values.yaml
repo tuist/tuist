@@ -2304,6 +2304,7 @@ runnersFleet:
   # expands. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
+    - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"
