@@ -123,6 +123,8 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED
+              value: {{ .Values.server.publicPageChallenge.enabled | ternary "1" "0" | quote }}
             {{- if .Values.server.turnstile.enabled }}
             - name: TUIST_TURNSTILE_ENABLED
               value: "1"

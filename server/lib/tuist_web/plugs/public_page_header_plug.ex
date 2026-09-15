@@ -22,6 +22,9 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   The header is set purely from the entity's own visibility. Whether the
   current request is signed in is irrelevant: the classification is "this
   URL is public", not "this request was anonymous".
+
+  Public visibility does not grant permission to index dashboards. Preserve
+  the browser pipeline's `noindex, nofollow` header, matching robots.txt.
   """
   import Plug.Conn
 
@@ -38,7 +41,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
         _opts
       ) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
+      %{visibility: :public} -> put_public_header(conn)
       _ -> conn
     end
   end
@@ -47,7 +50,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
 
   def mark_public_account_page(%{path_params: %{"account_handle" => account_handle}} = conn, _opts) do
     case Accounts.get_account_by_handle(account_handle) do
-      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
+      %{visibility: :public} -> put_public_header(conn)
       _ -> conn
     end
   end
@@ -71,12 +74,4 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   def mark_public_preview_page(conn, _opts), do: conn
 
   defp put_public_header(conn), do: put_resp_header(conn, @header, "1")
-
-  defp enable_robot_indexing(conn) do
-    if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      put_resp_header(conn, "x-robots-tag", "index, follow")
-    else
-      conn
-    end
-  end
 end

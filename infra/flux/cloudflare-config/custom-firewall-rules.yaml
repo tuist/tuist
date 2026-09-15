@@ -1,7 +1,7 @@
 # Imported from the live tuist.dev custom firewall entry-point ruleset on
 # 2026-09-06.
 #
-# `public-dashboard-bot-protection` covers only `/tuist/**` subpaths.
+# `public-dashboard-bot-protection` covers selected `/tuist/**` subpaths.
 # The Phoenix `TuistWeb.PublicPageChallengeController` that this same
 # PR introduces replaces it with a uniform, `x-tuist-public: 1`-aware
 # JavaScript challenge that covers every public project on the zone.
@@ -24,6 +24,8 @@ spec:
       starts_with(http.request.uri.path, "/tuist/runners") or
       starts_with(http.request.uri.path, "/tuist/usage") or
       starts_with(http.request.uri.path, "/tuist/tuist") or
+      http.request.uri.path eq "/tuist/kura" or
+      starts_with(http.request.uri.path, "/tuist/kura/") or
       starts_with(http.request.uri.path, "/tuist/gradle-plugin") or
       starts_with(http.request.uri.path, "/tuist/ios_app_with_frameworks") or
       starts_with(http.request.uri.path, "/tuist/android")

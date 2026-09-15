@@ -35,7 +35,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
     end
 
-    test "allows indexing for a public project on the hosted production site", %{conn: conn} do
+    test "preserves noindex for a public project on the hosted production site", %{conn: conn} do
       stub(Tuist.Environment, :prod?, fn -> true end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
@@ -57,7 +57,8 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
         |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
         |> PublicPageHeaderPlug.mark_public_project_page([])
 
-      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
     end
 
     test "does not set the header when the project is private", %{conn: conn} do
@@ -129,6 +130,24 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
   end
 
   describe "mark_public_account_page/2" do
+    test "preserves noindex for a public account on the hosted production site", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      {:ok, _account} = Accounts.update_account_visibility(account, :public)
+
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+        |> PublicPageHeaderPlug.mark_public_account_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+    end
+
     test "sets the header when the account is public", %{conn: conn} do
       %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
       {:ok, _account} = Accounts.update_account_visibility(account, :public)

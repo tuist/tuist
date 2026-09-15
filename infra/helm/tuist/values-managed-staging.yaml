@@ -81,6 +81,8 @@ server:
   # production runs.
   turnstile:
     enabled: true
+  publicPageChallenge:
+    enabled: true
 
   replicaCount: 1
 
