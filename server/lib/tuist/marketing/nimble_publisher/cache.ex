@@ -13,10 +13,10 @@ defmodule Tuist.Marketing.NimblePublisher.Cache do
   end
 
   def entries(key, opts) do
-    # In dev the content is read at runtime rather than compiled in, so nothing
-    # marks the module stale when a source file changes. Keying the cache on the
-    # sources' paths and mtimes makes an edit produce a different key, which
-    # rebuilds instead of serving the copy built at boot.
+    # In dev, browser live reload can request content before ContentFileWatcher
+    # clears the cache after its 100ms delay. Fingerprinting source paths, mtimes,
+    # and sizes lets that request rebuild changed content without waiting for
+    # the watcher, closing the race between browser reload and invalidation.
     ContentCache.get(__MODULE__, {key, fingerprint(opts)}, fn -> Builder.build!(opts) end)
   end
 
