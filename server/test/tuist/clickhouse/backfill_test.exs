@@ -1,7 +1,8 @@
 defmodule Tuist.ClickHouse.BackfillTest do
-  use ExUnit.Case, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.ClickHouse.Backfill
+  alias Tuist.IngestRepo
 
   @cutoff ~U[2026-09-04 07:30:00Z]
 
@@ -101,6 +102,90 @@ defmodule Tuist.ClickHouse.BackfillTest do
       # Every row falls in exactly one bucket, because the modulus covers the
       # whole range of the hash.
       assert length(Enum.uniq(predicates)) == 4
+    end
+  end
+
+  describe "lacking/3" do
+    test "selects the rows the destination lacks, including ones holding a NULL" do
+      # Run against ClickHouse rather than compared as text, because what
+      # matters is how the server evaluates a hash over a NULL. The destination
+      # holds an empty string where the source has NULL, which must still count
+      # as a different row.
+      columns = "id UInt8, description Nullable(String)"
+      source = "values('#{columns}', (1, 'x'), (2, NULL), (3, NULL))"
+      destination = "values('#{columns}', (1, 'x'), (3, ''))"
+      where = Backfill.lacking(["id", "description"], destination, {:hash, "1", 0, 1})
+
+      %{rows: rows} = IngestRepo.query!("SELECT id FROM #{source} WHERE #{where} ORDER BY id")
+
+      assert rows == [[2], [3]]
+    end
+  end
+
+  describe "identity_columns/1" do
+    test "leaves out the columns with a default on a plain MergeTree" do
+      # Each server fills a defaulted column in for itself when a write omits
+      # it, so a row the destination holds could otherwise look missing and be
+      # copied a second time.
+      shape = %{
+        engine: "ReplicatedMergeTree",
+        engine_full: "ReplicatedMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}') ORDER BY (project_id, name)",
+        sorting_key: "project_id, name",
+        columns: [{"id", ""}, {"legacy_id", "DEFAULT"}, {"project_id", ""}, {"name", ""}, {"hit_rate", "DEFAULT"}]
+      }
+
+      assert Backfill.identity_columns(shape) == ["id", "project_id", "name"]
+    end
+
+    test "uses every column when every column has a default" do
+      shape = %{
+        engine: "MergeTree",
+        engine_full: "MergeTree ORDER BY id",
+        sorting_key: "id",
+        columns: [{"id", "DEFAULT"}, {"name", "DEFAULT"}]
+      }
+
+      assert Backfill.identity_columns(shape) == ["id", "name"]
+    end
+
+    test "adds a replicated ReplacingMergeTree's version to its sorting key" do
+      # Without it, a destination holding an older version of a row counts as
+      # holding the row, and the newer version is never copied. The version
+      # column has a default here and is kept regardless, since it is what the
+      # engine itself compares.
+      shape = %{
+        engine: "ReplicatedReplacingMergeTree",
+        engine_full:
+          "ReplicatedReplacingMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}', inserted_at) PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, id)",
+        sorting_key: "project_id, id",
+        columns: [{"id", ""}, {"project_id", ""}, {"duration", ""}, {"inserted_at", "DEFAULT"}]
+      }
+
+      assert Backfill.identity_columns(shape) == ["project_id", "id", "inserted_at"]
+    end
+
+    test "adds the sign and version of a VersionedCollapsingMergeTree" do
+      shape = %{
+        engine: "VersionedCollapsingMergeTree",
+        engine_full: "VersionedCollapsingMergeTree(sign, version) ORDER BY id",
+        sorting_key: "id",
+        columns: [{"id", ""}, {"value", ""}, {"sign", ""}, {"version", ""}]
+      }
+
+      assert Backfill.identity_columns(shape) == ["id", "sign", "version"]
+    end
+
+    test "identifies a SummingMergeTree by its sorting key alone" do
+      # Its arguments are the columns it adds up, which are values rather than
+      # anything that tells one row from another.
+      shape = %{
+        engine: "SummingMergeTree",
+        engine_full: "SummingMergeTree(count) ORDER BY (project_id, day)",
+        sorting_key: "project_id, day",
+        columns: [{"project_id", ""}, {"day", ""}, {"count", ""}]
+      }
+
+      assert Backfill.identity_columns(shape) == ["project_id", "day"]
     end
   end
 

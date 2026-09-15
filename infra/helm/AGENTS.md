@@ -22,6 +22,9 @@ This node covers Helm assets under `infra/helm/`.
 - When filtering metrics, preserve every side of absence-based alerts. The
   macOS PN VLAN check needs both `node_load1` and VLAN transmit series in
   non-production; keeping only liveness falsely reports a missing interface.
+- Keep `tuist_repo_*` counters and duration sums in non-production so the same
+  database pool and mean-query-timing checks work for server and processors.
+  Histogram buckets remain production-only.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
