@@ -1,4 +1,4 @@
-// A Rosalind report of an app bundle such as `.ipa`.
+/// A Rosalind report of an app bundle such as `.ipa`.
 public struct AppBundleReport: Sendable, Codable, Equatable {
     /// The type of app bundle being analyzed.
     public enum BundleType: String, Sendable, Codable, Equatable {

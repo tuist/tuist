@@ -11,8 +11,8 @@ private struct TestCommandRunner: CommandRunning {
 
     func run(
         arguments: [String],
-        environment: [String: String],
-        workingDirectory: Path.AbsolutePath?
+        environment _: [String: String],
+        workingDirectory _: Path.AbsolutePath?
     ) -> AsyncThrowingStream<CommandEvent, any Error> {
         handler(arguments)
     }
@@ -77,7 +77,6 @@ struct AndroidBundleMetadataServiceTests {
         }
         let subject = AndroidBundleMetadataService(commandRunner: commandRunner)
         let path = try AbsolutePath(validating: "/path/to/app.apk")
-
 
         await #expect {
             try await subject.apkMetadata(at: path)

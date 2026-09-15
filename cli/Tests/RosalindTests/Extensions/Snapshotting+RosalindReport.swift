@@ -9,7 +9,7 @@ extension Diffing {
         let jsonDecoder = JSONDecoder()
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        return Diffing<AppBundleReport>.init(toData: { value in
+        return Diffing<AppBundleReport>(toData: { value in
             try! jsonEncoder.encode(value)
         }, fromData: { data in
             try! jsonDecoder.decode(AppBundleReport.self, from: data)
@@ -28,6 +28,6 @@ extension Diffing {
 
 extension Snapshotting {
     static func rosalind() -> Snapshotting<AppBundleReport, AppBundleReport> {
-        Snapshotting<AppBundleReport, AppBundleReport>.init(pathExtension: nil, diffing: .rosalind())
+        Snapshotting<AppBundleReport, AppBundleReport>(pathExtension: nil, diffing: .rosalind())
     }
 }
