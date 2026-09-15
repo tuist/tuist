@@ -148,9 +148,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 60_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{}}
       end)
@@ -539,9 +538,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 5_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{}}
       end)
@@ -580,9 +578,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 30_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{body: content}}
       end)
@@ -618,9 +615,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 30_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:error, {:http_error, 404, %{}}}
       end)
@@ -647,7 +643,11 @@ defmodule Tuist.StorageTest do
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
       expect(ExAws.Config, :new, fn :s3 -> config end)
       expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key, [range: "bytes=0-1"] -> operation end)
-      expect(ExAws, :request, fn ^operation, _opts -> {:ok, %{body: "pb"}} end)
+
+      expect(ExAws, :request, fn ^operation, opts ->
+        assert opts.http_opts == [receive_timeout: 30_000, pool_timeout: 5_000]
+        {:ok, %{body: "pb"}}
+      end)
 
       assert Storage.get_object_range(object_key, 0..1, :test) == {:ok, "pb"}
 
@@ -681,9 +681,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 5_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{body: %{upload_id: upload_id}}}
       end)
@@ -967,8 +966,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^delete_operation, opts ->
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 5_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{status_code: 204}}
       end)
@@ -993,8 +992,8 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^delete_operation, opts ->
-        assert Map.get(opts, :receive_timeout) == 60_000
-        assert Map.get(opts, :pool_timeout) == 2_000
+        assert opts.http_opts[:receive_timeout] == 60_000
+        assert opts.http_opts[:pool_timeout] == 2_000
         assert Map.get(opts, :test) == :config
         {:ok, %{status_code: 204}}
       end)
@@ -1119,6 +1118,7 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request, fn ^operation, config ->
         assert config.access_key_id == "test-access-key"
+        assert config.http_opts == [receive_timeout: 30_000, pool_timeout: 5_000]
         {:ok, %{body: %{contents: []}}}
       end)
 
@@ -1161,9 +1161,8 @@ defmodule Tuist.StorageTest do
       expect(ExAws.S3, :head_object, fn ^bucket_name, ^object_key -> operation end)
 
       expect(ExAws, :request, fn ^operation, opts ->
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
+        assert opts.http_opts[:receive_timeout] == 5_000
+        assert opts.http_opts[:pool_timeout] == 5_000
         assert Map.get(opts, :test) == :config
         {:ok, %{headers: %{"content-length" => ["#{size}"]}}}
       end)
@@ -1655,6 +1654,70 @@ defmodule Tuist.StorageTest do
 
       assert Storage.generate_download_url(object_key, account) == url
     end
+  end
+
+  describe "HTTP client options" do
+    setup do
+      test_pid = self()
+
+      :persistent_term.put(__MODULE__.FakeHttpClient, fn method, _url, _body, _headers, http_opts ->
+        send(test_pid, {:http_request, method, http_opts})
+        {:ok, %{status_code: 200, headers: [{"content-length", "2"}], body: "ok"}}
+      end)
+
+      on_exit(fn -> :persistent_term.erase(__MODULE__.FakeHttpClient) end)
+
+      stub(Environment, :s3_bucket_name, fn -> "bucket" end)
+      stub(Environment, :object_storage_provider, fn -> :s3 end)
+      :ok
+    end
+
+    test "metadata requests reach the HTTP client with the short timeouts" do
+      # Given
+      stub_s3_config(%{})
+
+      # When
+      assert Storage.object_exists?("key", :test)
+
+      # Then
+      assert_received {:http_request, :head, http_opts}
+      assert http_opts == [receive_timeout: 5_000, pool_timeout: 5_000]
+    end
+
+    test "object transfers reach the HTTP client with the longer receive timeout" do
+      # Given
+      stub_s3_config(%{})
+
+      # When
+      assert Storage.get_object("key", :test) == {:ok, "ok"}
+
+      # Then
+      assert_received {:http_request, :get, http_opts}
+      assert http_opts == [receive_timeout: 30_000, pool_timeout: 5_000]
+    end
+
+    test "keeps HTTP options already present in the ExAws config" do
+      # Given
+      stub_s3_config(%{http_opts: [receive_timeout: 1, pool_max_idle_time: 10_000]})
+
+      # When
+      assert Storage.object_exists?("key", :test)
+
+      # Then
+      assert_received {:http_request, :head, http_opts}
+      assert Keyword.fetch!(http_opts, :pool_max_idle_time) == 10_000
+      assert Keyword.fetch!(http_opts, :receive_timeout) == 5_000
+      assert Keyword.fetch!(http_opts, :pool_timeout) == 5_000
+    end
+  end
+
+  defp stub_s3_config(extra) do
+    stub(ExAws.Config, :new, fn :s3 ->
+      ExAws.Config
+      |> Mimic.call_original(:new, [:s3])
+      |> Map.merge(%{http_client: __MODULE__.FakeHttpClient, retries: [max_attempts: 1]})
+      |> Map.merge(extra)
+    end)
   end
 
   defmodule FakeHttpClient do
