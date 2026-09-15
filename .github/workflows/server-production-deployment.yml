@@ -444,11 +444,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       # Best-effort: continue-on-error + `.bazelrc` try-imports `.bazelrc.tuist`, so a failed setup
       # falls back to a cold local build instead of blocking the release.
-      - name: Set up the Tuist remote cache
+      - name: Set up the Tuist remote cache and dependency downloader
         working-directory: kura
         run: |
           tuist auth login
-          tuist bazel setup
+          tuist bazel setup --remote-downloader
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: hashFiles('kura/.bazelrc.tuist') == ''
