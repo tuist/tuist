@@ -252,18 +252,13 @@ Measure the store by its allocated blocks, for example with `du -sh "$CAS_PATH"`
 
 ### Resetting a compilation cache store {#resetting-a-compilation-cache-store}
 
-> [!WARNING]
-> **Tear down the cache before deleting and recreating a store path**
->
-> Deleting a store directory and creating it again at the same path while the Xcode cache is set up on the machine can stall cache lookups for that path. This includes deleting `DerivedData` when the store is in its default location. To reset a store, tear down the cache first:
->
-> ```bash
-> tuist teardown cache
-> rm -rf "$CAS_PATH"
-> tuist setup cache
-> ```
->
-> An ephemeral store uses a new path for every build, so deleting it after the build doesn't recreate a path.
+You can delete a store directory while the Xcode cache is set up, including by deleting `DerivedData` when the store is in its default location. When a build creates the store again at the same path, Tuist reopens it in the background, and cache lookups for that path miss until the store is reopened. To reset a store without that window, tear down the cache first:
+
+```bash
+tuist teardown cache
+rm -rf "$CAS_PATH"
+tuist setup cache
+```
 
 ## Troubleshooting {#troubleshooting}
 
