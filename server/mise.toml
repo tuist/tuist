@@ -26,8 +26,18 @@ TUIST_STRIPE_PRICES = '{"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_
   helm = "3.16.3"
   kubectl = "1.31.3"
   "npm:prettier" = "3.4.2"
-  "asdf:aeons/asdf-minio" = "latest"
   "npm:appium" = "3.0.1"
+
+[tools."github:minio/minio"]
+version = "2025-09-07T16-13-09Z"
+version_prefix = "RELEASE."
+bin = "minio"
+
+[tools."github:minio/minio".platforms]
+macos-arm64 = { asset_pattern = "minio.darwin-arm64.RELEASE.*Z" }
+macos-x64 = { asset_pattern = "minio.darwin-amd64.RELEASE.*Z" }
+linux-x64 = { asset_pattern = "minio.linux-amd64.RELEASE.*Z" }
+linux-arm64 = { asset_pattern = "minio.linux-arm64.RELEASE.*Z" }
 
 [tools."github:ClickHouse/ClickHouse"]
 version = "26.1.2.11-stable"
