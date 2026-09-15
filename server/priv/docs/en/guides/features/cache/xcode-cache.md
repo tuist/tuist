@@ -228,8 +228,6 @@ The compilation cache store is the local directory where Xcode keeps compilation
 
 To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path, and bound its size with a [store size limit](#store-size-limit).
 
-Measure the store by its allocated blocks, for example with `du -sh "$CAS_PATH"`, not by file sizes. The store preallocates sparse files, so file sizes report much more than the store occupies.
-
 ### Resetting a compilation cache store {#resetting-a-compilation-cache-store}
 
 You can delete a store directory while the Xcode cache is set up, including by deleting `DerivedData` when the store is in its default location. When a build creates the store again at the same path, Tuist reopens it in the background, and cache lookups for that path miss until the store is reopened. To reset a store without that window, tear down the cache first:
