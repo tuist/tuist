@@ -369,7 +369,7 @@ defmodule Tuist.StorageTest do
 
       operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
 
-      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path, _opts -> operation end)
       expect(ExAws, :request, fn ^operation, _opts -> {:ok, :done} end)
 
       # When / Then
@@ -388,7 +388,7 @@ defmodule Tuist.StorageTest do
 
       operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
 
-      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path, _opts -> operation end)
 
       # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
       # exits rather than raising, so a stalled chunk would otherwise escape as an
@@ -404,6 +404,51 @@ defmodule Tuist.StorageTest do
       assert {:error, {:timeout, {Task.Supervised, :stream, [60_000]}}} = result
     end
 
+    test "retries a chunk whose ranged GET stalls instead of failing the download" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      content = :crypto.strong_rand_bytes(1024)
+      test_pid = self()
+      {:ok, stalled} = Agent.start_link(fn -> false end)
+
+      http_client = fn
+        :head, _url, _body, _headers, _http_opts ->
+          {:ok, %{status_code: 200, headers: [{"content-length", "#{byte_size(content)}"}], body: ""}}
+
+        :get, _url, _body, _headers, http_opts ->
+          send(test_pid, {:http_opts, http_opts})
+
+          if Agent.get_and_update(stalled, &{&1, true}) do
+            {:ok, %{status_code: 206, headers: [], body: content}}
+          else
+            {:error, %{reason: :timeout}}
+          end
+      end
+
+      stub(Environment, :s3_bucket_name, fn -> "bucket" end)
+
+      stub(ExAws.Config, :new, fn :s3 ->
+        Map.merge(Mimic.call_original(ExAws.Config, :new, [:s3]), %{
+          http_client: __MODULE__.FakeHttpClient,
+          retries: [max_attempts: 3, base_backoff_in_ms: 1, max_backoff_in_ms: 1]
+        })
+      end)
+
+      :persistent_term.put(__MODULE__.FakeHttpClient, http_client)
+      on_exit(fn -> :persistent_term.erase(__MODULE__.FakeHttpClient) end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:ok, :done} = result
+      assert File.read!(file_path) == content
+      assert_received {:http_opts, http_opts}
+      assert Keyword.fetch!(http_opts, :receive_timeout) < to_timeout(minute: 3)
+      File.rm(file_path)
+    end
+
     test "returns :object_not_found when the object is missing" do
       # Given
       object_key = UUIDv7.generate()
@@ -416,7 +461,7 @@ defmodule Tuist.StorageTest do
 
       operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
 
-      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path, _opts -> operation end)
 
       # ExAws.S3.Download sizes the object with `head_object` through
       # `ExAws.request!` and rescues the raised error itself, so the status code
@@ -448,7 +493,7 @@ defmodule Tuist.StorageTest do
 
       operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
 
-      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path, _opts -> operation end)
 
       error = %ExAws.Error{
         message: "ExAws Request Error!\n\n{:error, {:http_error, 500, %{body: \"\", status_code: 500}}}\n"
@@ -1602,6 +1647,16 @@ defmodule Tuist.StorageTest do
       end)
 
       assert Storage.generate_download_url(object_key, account) == url
+    end
+  end
+
+  defmodule FakeHttpClient do
+    @moduledoc false
+    @behaviour ExAws.Request.HttpClient
+
+    @impl true
+    def request(method, url, body, headers, http_opts) do
+      :persistent_term.get(__MODULE__).(method, url, body, headers, http_opts)
     end
   end
 end
