@@ -233,6 +233,27 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert evidence["qualifying_threshold_seconds"] == 28_800
     end
 
+    test "a qualifying reading counts however little the day evicted" do
+      # Seven-hour shedding on a full ring confirms on two days. Today's row is
+      # live and has only evicted a fifth of a ring so far, which is under the
+      # idle line, but an idle gap can only lengthen a shed age: a short one on
+      # a quiet day is still the ring running short.
+      [earlier, later] =
+        2
+        |> churn_at(@today, 7 * 3_600, 12 * 3_600)
+        |> Enum.map(&Map.merge(&1, %{snapshot_count: 96, max_occupancy_percent: 98}))
+
+      ring_bytes = 13 * @gibibyte
+      busy = fn rollup -> Map.put(rollup, :evicted_bytes, round(0.8 * ring_bytes)) end
+      quiet = fn rollup -> Map.put(rollup, :evicted_bytes, round(0.2 * ring_bytes)) end
+
+      assert {:grow, "64Gi", %{"window_days" => 2}} =
+               ClaimSizing.evaluate(context(rollups: [busy.(earlier), quiet.(later)]))
+
+      assert {:grow, "64Gi", %{"window_days" => 2}} =
+               ClaimSizing.evaluate(context(rollups: [quiet.(earlier), busy.(later)]))
+    end
+
     test "an account that stops building keeps its streak only as long as the longest window" do
       # Idle days are passed over, but no more of them than the longest window
       # is long, so an account that stopped building does not keep growing

@@ -14,10 +14,10 @@ defmodule Tuist.Kura.ClaimSizing do
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
   are the mechanism; give any reader a duration.
 
-  A growth window counts the days the account built. It passes over days the
-  account barely wrote to a full ring, and days whose shed age such a gap
-  could have lengthened, instead of letting either break the streak.
-  Shrinking still needs every day in its window.
+  A day that misses a growth threshold because the account was idle does not
+  break the streak: a day the account barely wrote to a full ring, or one
+  with such a day inside its shed age, is passed over. A day that meets the
+  threshold always counts. Shrinking still needs every day in its window.
   """
 
   alias Tuist.Kura.Regions
@@ -190,16 +190,16 @@ defmodule Tuist.Kura.ClaimSizing do
     if rollup != nil and shrink_day?(rollup, policy), do: :qualifies, else: :breaks
   end
 
-  # A busy day after idle days carries the idle time in its shed age, which
-  # can only lengthen it. So a day under the threshold qualifies like any
-  # other, and one over it with an idle day inside its shed age is passed
-  # over: the gap may be all it measured.
+  # Idle time can only lengthen a shed age, so a day under the threshold
+  # qualifies however little it evicted, today's live row included. A day over
+  # it is passed over when it was idle itself or an idle day sits inside its
+  # shed age: the gap may be all it measured.
   defp grow_standing(nil, _idle_dates, _threshold_seconds), do: :breaks
 
   defp grow_standing(rollup, idle_dates, threshold_seconds) do
     cond do
-      MapSet.member?(idle_dates, rollup.date) -> :passed_over
       grow_day?(rollup, threshold_seconds) -> :qualifies
+      MapSet.member?(idle_dates, rollup.date) -> :passed_over
       idle_within_shed_age?(rollup, idle_dates) -> :passed_over
       true -> :breaks
     end
