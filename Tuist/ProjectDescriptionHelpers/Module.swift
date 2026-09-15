@@ -1027,7 +1027,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Command"),
+                    .external(name: "Command", condition: .when([.macos])),
                     .target(name: Module.rosalind.targetName, condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                     .external(name: "Crypto"),
