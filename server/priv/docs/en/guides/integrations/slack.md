@@ -81,6 +81,14 @@ When a test becomes flaky and meets your threshold, you'll receive a notificatio
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
+### Automation actions {#automation-actions}
+
+Automations under your project's **Settings → Automations** can send a Slack message when a test matches their condition or recovers. You pick the channel and write the message template in the automation's actions.
+
+When several tests match or recover in the same evaluation, Tuist sends one message that links to each of them instead of one message per test. Each message lists up to 50 tests, so larger groups are split across several messages. Grouped messages list the name and module of each test instead of using your template.
+
+Tests that already match when you save an automation with **Apply to existing matches** selected are grouped the same way.
+
 ## Disconnecting the integration {#disconnect}
 
 To stop a notification, remove the configured Slack channel from the report, alert rule, or automation action in your Tuist dashboard. To revoke Tuist's access entirely, remove the webhook integration from inside Slack via **Settings & administration → Manage apps**.

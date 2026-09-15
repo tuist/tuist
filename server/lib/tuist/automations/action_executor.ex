@@ -13,21 +13,103 @@ defmodule Tuist.Automations.ActionExecutor do
   re-inserts the full row by reading from ClickHouse first, so dispatching
   them sequentially could revert earlier writes when the read had not yet
   observed them.
+
+  Test cases that match or recover together run their actions through
+  `execute_grouped_actions/4`. Changes still apply to one test case at a time,
+  but each Slack action posts one message per group of up to 50 test cases.
   """
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Tests
 
   require Logger
 
+  @notification_group_size 50
+
+  def notification_group_size, do: @notification_group_size
+
   def execute_actions([], _automation, _entity), do: :ok
 
   def execute_actions(actions, automation, entity) when is_list(actions) do
-    {merged_attrs, remaining_actions} = partition_actions(actions, entity)
+    with :ok <- execute_actions_without_notifications(actions, automation, entity) do
+      actions
+      |> Enum.filter(&notification?/1)
+      |> run_remaining(automation, entity)
+    end
+  end
+
+  @doc """
+  Runs every action except Slack notifications, which
+  `send_grouped_notifications/4` then delivers for a group of test cases.
+  """
+  def execute_actions_without_notifications(actions, automation, entity) do
+    {merged_attrs, remaining_actions} =
+      actions
+      |> Enum.reject(&notification?/1)
+      |> partition_actions(entity)
 
     with :ok <- apply_merged_attrs(entity, merged_attrs, automation) do
       run_remaining(remaining_actions, automation, entity)
     end
   end
+
+  @doc """
+  Runs the actions for test cases that matched or recovered together. Returns
+  `{test_case_id, :ok | {:error, reason}}` for each test case, in order.
+  """
+  def execute_grouped_actions(actions, automation, test_case_ids, phase) when phase in [:trigger, :recovery] do
+    results =
+      Enum.map(test_case_ids, fn test_case_id ->
+        entity = %{type: :test_case, id: test_case_id}
+        {test_case_id, execute_actions_without_notifications(actions, automation, entity)}
+      end)
+
+    send_grouped_notifications(actions, automation, results, phase)
+  end
+
+  @doc """
+  Sends each Slack action once per group of up to 50 test cases whose earlier
+  actions succeeded. A group with a single test case uses the message template.
+  A failed delivery fails every test case in its group, and later actions skip
+  them, as they would for a single test case.
+  """
+  def send_grouped_notifications(actions, automation, results, phase) when phase in [:trigger, :recovery] do
+    actions
+    |> Enum.filter(&notification?/1)
+    |> Enum.reduce(results, fn action, results ->
+      notifiable_ids = for {test_case_id, :ok} <- results, do: test_case_id
+
+      failures =
+        notifiable_ids
+        |> Enum.chunk_every(@notification_group_size)
+        |> Enum.flat_map(&notify_group(action, automation, &1, phase))
+        |> Map.new()
+
+      Enum.map(results, fn {test_case_id, result} -> {test_case_id, Map.get(failures, test_case_id, result)} end)
+    end)
+  end
+
+  defp notify_group(action, automation, test_case_ids, phase) do
+    result =
+      case test_case_ids do
+        [test_case_id] -> SendSlackAction.execute(automation, %{type: :test_case, id: test_case_id}, action)
+        test_case_ids -> SendSlackAction.execute_group(automation, test_case_ids, action, phase)
+      end
+
+    case result do
+      :ok ->
+        []
+
+      {:error, reason} ->
+        Logger.warning(
+          "Automation action #{action["type"]} failed for test cases #{Enum.join(test_case_ids, ", ")}: #{inspect(reason)}"
+        )
+
+        Enum.map(test_case_ids, &{&1, {:error, reason}})
+    end
+  end
+
+  defp notification?(%{"type" => "send_slack"}), do: true
+  defp notification?(_action), do: false
 
   defp partition_actions(actions, %{type: :test_case}) do
     actions

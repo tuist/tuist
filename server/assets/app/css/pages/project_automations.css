@@ -360,6 +360,11 @@
             font-size: 12px;
           }
         }
+
+        & > [data-part="grouping-hint"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
       }
     }
 

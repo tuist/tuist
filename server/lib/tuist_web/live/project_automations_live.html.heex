@@ -600,6 +600,12 @@
                                   <code>{"{{test_case.url}}"}</code>
                                   <code>{"{{automation.name}}"}</code>
                                 </div>
+                                <span data-part="grouping-hint">
+                                  {dgettext(
+                                    "dashboard_projects",
+                                    "When several tests match together, one message lists them instead."
+                                  )}
+                                </span>
                               </div>
                             </div>
                           <% "add_label" -> %>
@@ -983,6 +989,12 @@
                                   <code>{"{{test_case.url}}"}</code>
                                   <code>{"{{automation.name}}"}</code>
                                 </div>
+                                <span data-part="grouping-hint">
+                                  {dgettext(
+                                    "dashboard_projects",
+                                    "When several tests recover together, one message lists them instead."
+                                  )}
+                                </span>
                               </div>
                             </div>
                           <% "add_label" -> %>
@@ -1036,15 +1048,15 @@
                 <span id="apply-existing-matches-description">
                   {dgettext(
                     "dashboard_projects",
-                    "By default, actions run only for new matches."
+                    "By default, actions don't run for tests that already match. Those tests only get actions after they stop matching and then match again."
                   )}
                   <span id="apply-existing-matches-count" aria-live="polite">
                     <%= case @match_count do %>
                       <% {:ok, count} -> %>
                         {dngettext(
                           "dashboard_projects",
-                          "Select to also run them once after saving for %{count} test that currently matches.",
-                          "Select to also run them once after saving for %{count} tests that currently match.",
+                          "Select to run actions once after saving for the %{count} test that currently matches.",
+                          "Select to run actions once after saving for the %{count} tests that currently match.",
                           count
                         )}
                       <% :loading -> %>

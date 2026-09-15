@@ -219,4 +219,77 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert {:ok, %{is_flaky: false, state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
     assert event_types(test_case.id) == []
   end
+
+  describe "execute_grouped_actions/4" do
+    test "changes each test case and sends one Slack message for the group" do
+      [first, second] = Enum.map(1..2, fn _ -> insert_test_case(state: "enabled") end)
+      automation = automation()
+      action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+      reject(&SendSlackAction.execute/3)
+
+      expect(SendSlackAction, :execute_group, fn ^automation, ids, ^action, :trigger ->
+        assert ids == [first.id, second.id]
+        assert Enum.all?(ids, &match?({:ok, %{state: "muted"}}, Tests.get_test_case_by_id(&1)))
+        :ok
+      end)
+
+      assert ActionExecutor.execute_grouped_actions(
+               [action, %{"type" => "change_state", "state" => "muted"}],
+               automation,
+               [first.id, second.id],
+               :trigger
+             ) == [{first.id, :ok}, {second.id, :ok}]
+    end
+
+    test "uses the message template for a single test case" do
+      id = Ecto.UUID.generate()
+      action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+      reject(&SendSlackAction.execute_group/4)
+      expect(SendSlackAction, :execute, fn _automation, %{type: :test_case, id: ^id}, ^action -> :ok end)
+
+      assert ActionExecutor.execute_grouped_actions([action], automation(), [id], :recovery) == [{id, :ok}]
+    end
+
+    test "lists at most 50 test cases per Slack message" do
+      ids = Enum.map(1..51, fn _ -> Ecto.UUID.generate() end)
+      {first_group, [last]} = Enum.split(ids, 50)
+      action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+      expect(SendSlackAction, :execute_group, fn _automation, ^first_group, ^action, :recovery -> :ok end)
+      expect(SendSlackAction, :execute, fn _automation, %{id: ^last}, ^action -> :ok end)
+
+      assert ActionExecutor.execute_grouped_actions([action], automation(), ids, :recovery) ==
+               Enum.map(ids, &{&1, :ok})
+    end
+
+    test "leaves test cases whose changes failed out of the message" do
+      [first, second] = Enum.map(1..2, fn _ -> insert_test_case(state: "enabled") end)
+      missing_id = Ecto.UUID.generate()
+      action = %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+
+      expect(SendSlackAction, :execute_group, fn _automation, ids, ^action, :trigger ->
+        assert ids == [first.id, second.id]
+        :ok
+      end)
+
+      assert ActionExecutor.execute_grouped_actions(
+               [%{"type" => "change_state", "state" => "muted"}, action],
+               automation(),
+               [first.id, missing_id, second.id],
+               :trigger
+             ) == [{first.id, :ok}, {missing_id, {:error, :not_found}}, {second.id, :ok}]
+    end
+
+    test "a failed delivery fails its group and skips later Slack actions for it" do
+      ids = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
+      failing_action = %{"type" => "send_slack", "channel" => "C1", "message" => "first"}
+      later_action = %{"type" => "send_slack", "channel" => "C2", "message" => "second"}
+
+      expect(SendSlackAction, :execute_group, fn _automation, ^ids, ^failing_action, :trigger ->
+        {:error, :channel_not_found}
+      end)
+
+      assert ActionExecutor.execute_grouped_actions([failing_action, later_action], automation(), ids, :trigger) ==
+               Enum.map(ids, &{&1, {:error, :channel_not_found}})
+    end
+  end
 end
