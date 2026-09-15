@@ -20,6 +20,8 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- Application startup and shutdown ordering: `server/lib/tuist/application/AGENTS.md`.
+
 - Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
   `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
   migrate-time processor grants and CNPG fallback SQL in sync; profile upload
@@ -39,8 +41,14 @@ This directory contains the core business logic and domain modules for the serve
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
-- `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
-  so Oban retries them and the final attempt marks the build as `failed_processing`.
+- `Processor.BuildProcessor` maps known archive-corruption errors from
+  `:zip.unzip` (`:bad_eocd`, `:bad_eocd64`, `:bad_central_directory`,
+  `:bad_local_file_header`, and per-entry `:bad_crc`) to
+  `{:error, :corrupt_archive}`. `ProcessBuildWorker` discards those jobs on
+  the first attempt and marks the build as `failed_processing` right away,
+  since the archive is a bad upload and retries won't heal it. Other
+  extraction errors still bubble up as `{:error, reason}` so Oban retries
+  them and the final attempt marks the build as `failed_processing`.
 
 ## Related Context (Downlinks)
 

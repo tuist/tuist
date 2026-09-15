@@ -172,13 +172,21 @@ defmodule Tuist.Accounts do
 
   @doc ~S"""
   Given an id, it returns the organization associated with it.
+
+  The id may be an integer or a string of digits; any other value returns
+  `{:error, :not_found}` rather than raising, so callers exposed to
+  user-controlled input (e.g. the SSO entry point at
+  `/users/auth/okta?organization_id=...`) don't crash on malformed values.
   """
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
-      nil -> {:error, :not_found}
-      %Organization{} = organization -> {:ok, organization}
+    with {:ok, id} when not is_nil(id) <- Ecto.Type.cast(:id, id),
+         %Organization{} = organization <-
+           Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -219,20 +227,48 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id}) do
-    Repo.all(
+  def list_organization_members_with_role(%Organization{id: organization_id}, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    query =
       from(u in User,
-        preload: [:account],
         join: ur in UserRole,
         on: ur.user_id == u.id,
         join: r in Role,
         on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        distinct: u.id,
-        select: [u, r.name]
+        join: a in assoc(u, :account),
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
       )
-    )
+
+    query =
+      case opts |> Keyword.get(:search, "") |> String.trim() do
+        "" ->
+          query
+
+        search ->
+          pattern = "%#{escape_like(search)}%"
+          from([u, _ur, _r, a] in query, where: ilike(u.email, ^pattern) or ilike(a.name, ^pattern))
+      end
+
+    total_count = Repo.one(from([u, ...] in query, select: count(u.id, :distinct)))
+
+    members =
+      Repo.all(
+        from([u, _ur, r, a] in query,
+          distinct: [asc: a.name, asc: u.id],
+          order_by: [asc: a.name, asc: u.id],
+          limit: ^page_size,
+          offset: ^((page - 1) * page_size),
+          preload: [account: a],
+          select: [u, r.name]
+        )
+      )
+
+    {members, total_count}
   end
+
+  defp escape_like(value), do: String.replace(value, ~r/[\\%_]/, "\\\\\\0")
 
   def get_organization_members(%Organization{id: organization_id} = organization, role) do
     stored_members =
@@ -1403,15 +1439,30 @@ defmodule Tuist.Accounts do
     Repo.all(query)
   end
 
-  def list_invitations(organization) do
-    Repo.one(
-      from(o in Organization,
-        join: i in Invitation,
-        on: i.organization_id == o.id,
-        where: o.id == ^organization.id,
-        select: i
+  def list_organization_invitations(%Organization{id: organization_id}, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    query = from(i in Invitation, where: i.organization_id == ^organization_id)
+
+    query =
+      case opts |> Keyword.get(:search, "") |> String.trim() do
+        "" -> query
+        search -> from(i in query, where: ilike(i.invitee_email, ^"%#{escape_like(search)}%"))
+      end
+
+    total_count = Repo.aggregate(query, :count)
+
+    invitations =
+      Repo.all(
+        from(i in query,
+          order_by: [desc: i.created_at, desc: i.id],
+          limit: ^page_size,
+          offset: ^((page - 1) * page_size)
+        )
       )
-    )
+
+    {invitations, total_count}
   end
 
   def invite_user_to_organization(

@@ -55,15 +55,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's Kura nodes replicate by pulling from their peers
-  instead of pushing through the outbox (kura/docs/replication-design.md
-  §5.2). Per account so one mesh can be flipped and watched before the rest:
-  the provisioner renders it into every managed instance's spec and the mesh
-  view publishes it, so managed pods and enrolled self-hosted nodes flip
-  together. Off by default; enabled per actor via /ops/flags.
+  Whether anonymous entry to a public-project or public-account
+  dashboard has to solve a Cloudflare Turnstile challenge before the
+  LiveView mounts. Shape mirrors `turnstile_enabled?`: the env-var
+  toggle `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` decides where the gate
+  is armed at all, and `:public_page_challenge_kill_switch` is a
+  flag-flippable emergency off with no deploy required. Off by default
+  everywhere so a rollout is one env-var change per environment.
   """
-  def kura_replication_pull_enabled?(account) do
-    FunWithFlags.enabled?(:kura_replication_pull, for: account)
+  def public_page_challenge_enabled? do
+    Environment.public_page_challenge_required?() and
+      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
   end
 
   @doc """

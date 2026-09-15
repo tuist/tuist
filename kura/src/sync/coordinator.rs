@@ -85,6 +85,26 @@ impl LinkFrontier {
     }
 }
 
+/// The bootstrap state of the links readiness gates on (design §3.6).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CatchUpSummary {
+    /// Links still bootstrapping: snapshot, backward pass, first forward page.
+    pub in_progress: usize,
+    /// Links that spent their bootstrap budget on real failures and settled
+    /// cold; they keep retrying in the background.
+    pub abandoned: usize,
+    /// Links whose peer does not serve the pull routes — a release that
+    /// predates pull — settled cold until that peer is upgraded. Not a
+    /// failure of this node, so the rollout gate reads them apart.
+    pub unsupported: usize,
+}
+
+impl CatchUpSummary {
+    pub fn settled(self) -> bool {
+        self.in_progress == 0
+    }
+}
+
 /// What a link task last reported about itself.
 #[derive(Clone, Debug)]
 pub struct LinkStatus {
@@ -101,6 +121,11 @@ pub struct LinkStatus {
     pub lag_entries: u64,
     /// Replica links: how far this link lets the serving listing go (D-24).
     pub frontier: LinkFrontier,
+    /// The peer answered 404 or 405 to the route this link pulls through: it
+    /// runs a release that predates pull. The link settles cold at once and
+    /// retries on the longest backoff until the peer is upgraded; whatever
+    /// that peer writes still arrives through the push receivers kept for it.
+    pub unsupported: bool,
 }
 
 /// Shared between a link task and the coordinator.
@@ -212,7 +237,6 @@ impl SyncCoordinator {
         let roles = derive_roles(&RoleInputs {
             own_url: &app.config.node_url,
             own_region: &app.config.region,
-            own_pulling: app.replication_pull(),
             own_serving: app.runtime.is_serving(),
             own_draining: app.runtime.is_draining(),
             peers: &views,
@@ -236,7 +260,6 @@ impl SyncCoordinator {
                 gateway = roles.own_gateway,
                 siblings = ?roles.siblings,
                 remote_gateways = ?roles.remote_gateways,
-                push_targets = roles.push_targets.len(),
                 "replication roles derived"
             );
         }
@@ -396,22 +419,39 @@ impl SyncCoordinator {
 
     /// The readiness term (design §3.6): with a sibling, every replica link
     /// settled; without one — a region of one — every region link settled.
-    /// A node that is not pulling has nothing to settle here.
-    pub fn bootstrap_settled(&self, pulling: bool) -> bool {
-        if !pulling {
-            return true;
-        }
+    pub fn bootstrap_settled(&self) -> bool {
+        self.catch_up().settled()
+    }
+
+    /// The links readiness waits on, as `/status/rollout` reports them.
+    pub fn catch_up(&self) -> CatchUpSummary {
         let links = self.links.lock().unwrap_or_else(PoisonError::into_inner);
-        if !links.replica.is_empty() {
-            return links
+        let gating: Vec<LinkStatus> = if links.replica.is_empty() {
+            links
+                .region
+                .values()
+                .map(|link| link.status.snapshot())
+                .collect()
+        } else {
+            links
                 .replica
                 .values()
-                .all(|link| link.status.snapshot().settled);
+                .map(|link| link.status.snapshot())
+                .collect()
+        };
+        CatchUpSummary {
+            in_progress: gating.iter().filter(|link| !link.settled).count(),
+            abandoned: gating
+                .iter()
+                .filter(|link| {
+                    link.settled && !link.unsupported && link.frontier == LinkFrontier::Abandoned
+                })
+                .count(),
+            unsupported: gating
+                .iter()
+                .filter(|link| link.settled && link.unsupported)
+                .count(),
         }
-        links
-            .region
-            .values()
-            .all(|link| link.status.snapshot().settled)
     }
 
     /// Cancels every link; the drain path calls it so no pass keeps writing
@@ -472,6 +512,7 @@ fn spawn_link(
         last_success: None,
         lag_entries: 0,
         frontier: LinkFrontier::Pending,
+        unsupported: false,
     });
     let task_app = app.clone();
     let task_peer = peer.to_owned();
@@ -520,6 +561,11 @@ pub(crate) fn backoff(attempt: u32) -> Duration {
     let max = crate::constants::BACKFILL_RETRY_BACKOFF_MAX_MS;
     Duration::from_millis(base.saturating_mul(1_u64 << attempt.min(16)).min(max))
 }
+
+/// Error marker for a peer that does not serve a pull route (404 or 405):
+/// a release that predates pull, which no number of retries changes until
+/// it is upgraded.
+pub(crate) const PEER_UNSUPPORTED: &str = "peer does not serve the pull route";
 
 /// The backoff between failed passes (bootstrap retries), the lifecycle's
 /// pass-retry constants.

@@ -10,7 +10,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, oneshot, watch};
+use tokio::sync::{oneshot, watch};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep},
@@ -32,7 +32,7 @@ use crate::{
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
-    replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
+    replication::{spawn_membership_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
     startup::{Bootstrap, Phase, RecoveryError},
     state::{AppState, ReadinessState, SharedState},
@@ -265,7 +265,6 @@ async fn initialize_and_serve(
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
-    let upload_client = peer_client_factory.build_upload()?;
     let internal_tls = match &config.peer_tls {
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
@@ -276,16 +275,12 @@ async fn initialize_and_serve(
         runtime.clone(),
     )
     .map(Arc::new);
-    let notify = Notify::new();
 
     let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
-    let replication_target_cache =
-        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
-    let replication_pull = config.replication_pull;
     let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
         config.sync_peer_bodies_slots_per_peer,
         config.sync_peer_serving_max_inflight,
@@ -304,23 +299,16 @@ async fn initialize_and_serve(
         bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
-        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        replication_target_cache,
         replication_bandwidth_limiter,
-        notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         tmp_staging_budget,
         peer_staging_budget,
-        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
-        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots,
-        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
-        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
+        backfill_claims: crate::backfill::claims::ClaimSet::new(),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
         published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
         sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
@@ -337,7 +325,6 @@ async fn initialize_and_serve(
 
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
-    spawn_outbox_task(state.clone());
     Usage::spawn_tasks(state.clone());
 
     if let Some(registration) =
@@ -362,14 +349,13 @@ async fn initialize_and_serve(
     // heartbeat cadence instead of at certificate renewal). Managed pods don't
     // enroll; they sync the peer view read-only, with serving gated on the
     // first successful fetch so a pod booting blind never accepts writes
-    // without enqueuing replication for peers it cannot see.
+    // before it knows the peers it pulls from.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
-        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -387,6 +373,12 @@ async fn initialize_and_serve(
     info!("Kura HTTP+gRPC service listening on {address}");
     if state.config.public_tls.is_some() {
         info!("Kura HTTP+gRPC service listening on {https_address} (TLS)");
+    }
+    if let Some(port) = state.config.gateway_grpc_port {
+        info!(
+            "Kura gRPC gateway service listening on {}",
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, port))
+        );
     }
     let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
@@ -485,7 +477,8 @@ async fn initialize_and_serve(
         ))
     };
 
-    let router = cohosted_router(state.clone());
+    let reapi_routes = reapi::routes(state.clone());
+    let router = cohosted_router(state.clone(), reapi_routes.clone());
     let public_shutdown_state = state.clone();
     let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
     let mut termination = bootstrap.termination();
@@ -510,7 +503,7 @@ async fn initialize_and_serve(
     // accelerator, so its connections take the hyper path directly.
     let https_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?.get_inner();
-        let https_router = cohosted_router(state.clone());
+        let https_router = cohosted_router(state.clone(), reapi_routes.clone());
         let https_listener = tokio::net::TcpListener::bind(https_address)
             .await
             .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
@@ -527,6 +520,39 @@ async fn initialize_and_serve(
                 .await
                 {
                     tracing::error!("HTTPS server failed: {error}");
+                }
+            }
+            .in_current_span(),
+        ))
+    } else {
+        None
+    };
+
+    // A reverse proxy that pools upstream connections by address sends gRPC
+    // here, so its h2c connections never share a pool with the HTTP/1.1
+    // connections it opens to the co-hosted port.
+    let gateway_grpc_task = if let Some(port) = state.config.gateway_grpc_port {
+        let grpc_listener =
+            tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)))
+                .await
+                .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
+        let grpc_router = gateway_grpc_router(reapi_routes.clone());
+        let grpc_state = state.clone();
+        let grpc_serving_config = gateway_grpc_serving_config(&state.config);
+        let grpc_shutdown_rx = public_shutdown_rx.clone();
+        Some(tokio::spawn(
+            async move {
+                if let Err(error) = accelerated_file_serving::serve_public_http(
+                    grpc_listener,
+                    grpc_router,
+                    grpc_state,
+                    grpc_serving_config,
+                    grpc_shutdown_rx,
+                    configure_http_builder,
+                )
+                .await
+                {
+                    tracing::error!("gateway gRPC server failed: {error}");
                 }
             }
             .in_current_span(),
@@ -603,6 +629,9 @@ async fn initialize_and_serve(
     if let Some(https_task) = https_task {
         wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
     }
+    if let Some(gateway_grpc_task) = gateway_grpc_task {
+        wait_for_task_shutdown(gateway_grpc_task, "gateway gRPC", shutdown_budget).await;
+    }
     // Synchronous clean-shutdown stamp for backfill index staleness detection:
     // after it, any sequence gap the next boot observes means an index-unaware
     // binary wrote in between (the drain/roll-back/roll-forward shape) and the
@@ -620,10 +649,23 @@ async fn initialize_and_serve(
 // would leak onto the plain-HTTP surface (e.g. `/_internal/status` probing must
 // 404). Override it with a protocol-aware fallback: gRPC requests keep the
 // Unimplemented status their clients expect, everything else gets a plain 404.
-fn cohosted_router(state: SharedState) -> axum::Router {
-    http::public_router(state.clone())
-        .merge(reapi::routes(state))
+fn cohosted_router(state: SharedState, reapi_routes: axum::Router) -> axum::Router {
+    http::public_router(state)
+        .merge(reapi_routes)
         .fallback(cohosted_fallback)
+}
+
+// Only the REAPI routes: plain HTTP requests get the co-hosted fallback's 404.
+fn gateway_grpc_router(reapi_routes: axum::Router) -> axum::Router {
+    reapi_routes.fallback(cohosted_fallback)
+}
+
+// gRPC never takes the sendfile fast path, so connections go straight to hyper.
+fn gateway_grpc_serving_config(config: &Config) -> crate::config::AcceleratedFileServingConfig {
+    crate::config::AcceleratedFileServingConfig {
+        enabled: false,
+        ..config.accelerated_file_serving.clone()
+    }
 }
 
 async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::Response {
@@ -719,14 +761,6 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
-                        state.metrics.update_outbox_messages(
-                            snapshot.outbox_messages,
-                            snapshot.outbox_bulk_messages,
-                        );
-                        state
-                            .metrics
-                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
-                        state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state.metrics.update_multipart_uploads(
                             snapshot.multipart_uploads,
                             snapshot.multipart_upload_capacity,
@@ -1091,7 +1125,7 @@ fn spawn_cache_reverse_refs_backfill_task(state: Arc<AppState>) {
 /// maintenance stamp fresh for rollback-window staleness detection. Serving is
 /// never gated on any of this.
 fn spawn_backfill_index_task(state: Arc<AppState>) {
-    // Supervised like the membership/outbox loops: a panic in the maintenance
+    // Supervised like the membership loop: a panic in the maintenance
     // loop restarts the task (counted as background_panic_backfill_index)
     // instead of silently stopping stamping and watermark GC. A restart
     // re-enters the build loop, which is idempotent (a completed build is a
@@ -1297,9 +1331,6 @@ pub(crate) async fn apply_renewed_enrollment(
         .await?;
     let new_client = state.peer_client_factory.build()?;
     state.client.store(Arc::new(new_client));
-    let new_upload_client = state.peer_client_factory.build_upload()?;
-    state.upload_client.store(Arc::new(new_upload_client));
-
     // Inbound: rebuild the internal mTLS server config (preserving the client
     // verifier) and hot-swap the leaf.
     if let (Some(peer_tls), Some(rustls)) = (&state.config.peer_tls, &state.internal_tls) {
@@ -1309,7 +1340,6 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
-    state.rebuild_replication_targets().await;
     Ok(())
 }
 
@@ -1890,7 +1920,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let server = tokio::spawn(accelerated_file_serving::serve_public_http(
             listener,
-            cohosted_router(state.clone()),
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
@@ -1963,6 +1993,70 @@ mod tests {
         assert!(
             capabilities.cache_capabilities.is_some(),
             "REAPI GetCapabilities over the co-hosted port should return cache capabilities"
+        );
+
+        shutdown_tx.send(true).expect("signal shutdown");
+        let _ = server.await;
+    }
+
+    #[tokio::test]
+    async fn gateway_grpc_listener_serves_grpc_and_refuses_http() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind gateway gRPC test listener");
+        let addr = listener
+            .local_addr()
+            .expect("gateway gRPC listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            gateway_grpc_router(crate::reapi::routes(state.clone())),
+            state.clone(),
+            gateway_grpc_serving_config(&state.config),
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        let http = reqwest::Client::new()
+            .get(format!("http://{addr}/up"))
+            .send()
+            .await
+            .expect("gateway gRPC port should answer plain HTTP");
+        assert_eq!(http.status(), reqwest::StatusCode::NOT_FOUND);
+
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+                .expect("valid gRPC endpoint")
+                .connect()
+                .await
+            {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut grpc_client =
+            grpc_client.expect("gateway gRPC port should accept gRPC (h2c) connections");
+        let capabilities = grpc_client
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("gateway gRPC port should answer REAPI GetCapabilities")
+            .into_inner();
+        assert!(
+            capabilities.cache_capabilities.is_some(),
+            "REAPI GetCapabilities over the gateway gRPC port should return cache capabilities"
         );
 
         shutdown_tx.send(true).expect("signal shutdown");
@@ -2082,7 +2176,7 @@ mod tests {
         let state = context.state.clone();
         let server = tokio::spawn(accelerated_file_serving::serve_public_http(
             listener,
-            cohosted_router(state.clone()),
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
@@ -2259,7 +2353,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let server = tokio::spawn(accelerated_file_serving::serve_public_tls(
             listener,
-            cohosted_router(state.clone()),
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             tls_config,
             shutdown_rx,
             configure_http_builder,

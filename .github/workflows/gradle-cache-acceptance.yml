@@ -78,7 +78,7 @@ jobs:
           working-directory: .
       - uses: ./.github/actions/mise-install
         with:
-          install: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
+          install: "erlang elixir github:minio/minio github:ClickHouse/ClickHouse"
           cache: "true"
           working-directory: server
       - uses: actions/setup-java@v5
@@ -86,6 +86,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          # The legacy `tools` package does not resolve with cmdline-tools 16.0.
+          packages: platform-tools
       - name: Install server deps
         uses: ./.github/actions/mix-deps-get
         with:

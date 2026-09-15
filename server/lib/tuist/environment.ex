@@ -284,6 +284,46 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
   end
 
+  @doc """
+  Whether the public-page Turnstile challenge is armed on this
+  deployment. Read straight off the env at request time so an ops
+  flip via `helm upgrade --set env.TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED`
+  is picked up without a full restart on the next pod rotation.
+  """
+  def public_page_challenge_enabled? do
+    truthy?(System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED", "0"))
+  end
+
+  @doc """
+  True when the public-page challenge should be enforced on this
+  deployment. Same shape as `turnstile_required?/0`: only the
+  tuist-hosted plane is gated so on-premise installs are not
+  interfering with their own dashboards.
+  """
+  def public_page_challenge_required? do
+    tuist_hosted?() and public_page_challenge_enabled?()
+  end
+
+  @doc """
+  How long a solved Turnstile challenge counts as fresh in the
+  session, in seconds. Default is four hours so a legitimate anon
+  visitor browsing across multiple public projects during a work
+  session only sees the interstitial once, while a stale session
+  from a shared device still expires within one workday.
+  """
+  def public_page_challenge_freshness do
+    case System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_FRESHNESS_SECONDS") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {seconds, _} when seconds > 0 -> seconds
+          _ -> 4 * 60 * 60
+        end
+
+      _ ->
+        4 * 60 * 60
+    end
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
@@ -1583,6 +1623,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns the bucket size for the anonymous per-scope dashboard rate limiter.
+
+  Applied on top of the per-subject dashboard limit and keyed by
+  `(method, account_handle[, project_handle])` for unauthenticated requests,
+  so a scraper distributed across many IPs is caught in aggregate.
+
+  The default values are:
+  - 600 requests per minute per scope for canary environments
+  - 120 requests per minute per scope for other environments
+  """
+  def public_project_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:public_project_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 600, else: 120
+    end
+  end
+
+  @doc """
   Returns the bucket size for the MCP rate limiter.
 
   The default values are:
@@ -1816,6 +1874,16 @@ defmodule Tuist.Environment do
   """
   def runners_macos_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
+  parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
+  `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`
+  normalizes and orders them.
+  """
+  def runner_macos_xcode_versions do
+    Application.get_env(:tuist, :runner_macos_xcode_versions, [])
   end
 
   @doc """

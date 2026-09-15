@@ -35,20 +35,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
     :ok
   end
 
-  for {archive_error, reason} <- [bad_eocd: :bad_eocd, bad_crc: {@log_name, :bad_crc}] do
+  for archive_error <- [:bad_eocd, :bad_crc] do
     @tag archive_error: archive_error
-    test "retries #{archive_error} without marking the build as failed" do
-      reject(&XCActivityLogParser.parse/5)
-      reject(&Builds.create_build/1)
-
-      assert {:error, unquote(Macro.escape(reason))} = ProcessBuildWorker.perform(job(1))
-
-      assert_received {:download_path, path}
-      refute File.exists?(path)
-    end
-
-    @tag archive_error: archive_error
-    test "marks the build as failed after exhausting retries for #{archive_error}" do
+    test "discards #{archive_error} on the first attempt and marks the build as failed" do
       reject(&XCActivityLogParser.parse/5)
       expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
 
@@ -61,7 +50,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
         {:ok, attrs}
       end)
 
-      assert {:error, unquote(Macro.escape(reason))} = ProcessBuildWorker.perform(job(5))
+      assert {:discard, :corrupt_archive} = ProcessBuildWorker.perform(job(1))
 
       assert_received {:download_path, path}
       refute File.exists?(path)

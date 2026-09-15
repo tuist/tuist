@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -13,6 +14,18 @@ import (
 	cfv1alpha1 "github.com/tuist/tuist/infra/cloudflare-operator/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
 )
+
+// readyCondition returns a Conditions slice carrying a single Ready
+// condition with the given status. It keeps the dependsOn tests
+// terse: [readyCondition(metav1.ConditionTrue, "Reconciled")].
+func readyCondition(status metav1.ConditionStatus, reason string) []metav1.Condition {
+	return []metav1.Condition{{
+		Type:               cfv1alpha1.ConditionTypeReady,
+		Status:             status,
+		Reason:             reason,
+		LastTransitionTime: metav1Now(),
+	}}
+}
 
 // fakeBM is a scripted BotManagementAPI. Each test wires the live
 // state and observes what the reconciler PUTs.
@@ -237,6 +250,105 @@ func TestBotManagement_GetErrorSurfacesInStatus(t *testing.T) {
 	}
 	if !strings.Contains(got.Status.Message, "boom") {
 		t.Errorf("expected status.message to carry API error, got %q", got.Status.Message)
+	}
+}
+
+// TestBotManagement_DependsOnMissing_WaitsAndDoesNotPUT covers the
+// first-reconcile race: the bot-management CR merges before the
+// referenced skip-SBFM custom rule finishes creating. The reconciler
+// must not push managed_challenge before the exemption is live, or
+// CI-driven /api/* traffic gets served the Cloudflare challenge page.
+func TestBotManagement_DependsOnMissing_WaitsAndDoesNotPUT(t *testing.T) {
+	cr := sampleBotManagementCR("uid-depon-missing")
+	cr.Finalizers = []string{finalizer}
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeActive
+	cr.Spec.SuperBotFightMode.DefinitelyAutomated = cfv1alpha1.SBFMActionManagedChallenge
+	cr.Spec.DependsOn = &cfv1alpha1.ResourceRef{Kind: "CloudflareCustomRule", Name: "skip-sbfm-api-paths"}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeBM{live: sampleBMLive()}
+	r := &CloudflareBotManagementReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	res, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.putCalls != 0 {
+		t.Fatalf("must not PUT while dependency missing; put=%d", cf.putCalls)
+	}
+	if res.RequeueAfter == 0 {
+		t.Errorf("expected a positive RequeueAfter, got %v", res.RequeueAfter)
+	}
+}
+
+// TestBotManagement_DependsOnNotReady_WaitsAndDoesNotPUT covers the
+// steady-state case: the dependency exists but its last reconcile
+// failed. Same expectation as the missing case — hold the write.
+func TestBotManagement_DependsOnNotReady_WaitsAndDoesNotPUT(t *testing.T) {
+	dep := &cfv1alpha1.CloudflareCustomRule{
+		ObjectMeta: metaWithUID("skip-sbfm-api-paths", "uid-dep-notready"),
+		Spec: cfv1alpha1.CloudflareCustomRuleSpec{
+			ZoneID: "zone-abc", Description: "d", Expression: "true", Action: "skip",
+			ActionParameters: &cfv1alpha1.ActionParameters{Phases: []string{"http_request_sbfm"}},
+			CreateNewRule:    true,
+		},
+		Status: cfv1alpha1.CloudflareCustomRuleStatus{
+			Conditions: readyCondition(metav1.ConditionFalse, "ReconcileError"),
+		},
+	}
+	cr := sampleBotManagementCR("uid-depon-notready")
+	cr.Finalizers = []string{finalizer}
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeActive
+	cr.Spec.SuperBotFightMode.DefinitelyAutomated = cfv1alpha1.SBFMActionManagedChallenge
+	cr.Spec.DependsOn = &cfv1alpha1.ResourceRef{Kind: "CloudflareCustomRule", Name: "skip-sbfm-api-paths"}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr, dep).WithStatusSubresource(cr, dep).Build()
+	cf := &fakeBM{live: sampleBMLive()}
+	r := &CloudflareBotManagementReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.putCalls != 0 {
+		t.Fatalf("must not PUT while dependency not Ready; put=%d", cf.putCalls)
+	}
+}
+
+// TestBotManagement_DependsOnReady_ProceedsToPUT proves the gate lifts
+// once the dependency is Ready: the SBFM change actually goes out.
+func TestBotManagement_DependsOnReady_ProceedsToPUT(t *testing.T) {
+	dep := &cfv1alpha1.CloudflareCustomRule{
+		ObjectMeta: metaWithUID("skip-sbfm-api-paths", "uid-dep-ready"),
+		Spec: cfv1alpha1.CloudflareCustomRuleSpec{
+			ZoneID: "zone-abc", Description: "d", Expression: "true", Action: "skip",
+			ActionParameters: &cfv1alpha1.ActionParameters{Phases: []string{"http_request_sbfm"}},
+			CreateNewRule:    true,
+		},
+		Status: cfv1alpha1.CloudflareCustomRuleStatus{
+			Conditions: readyCondition(metav1.ConditionTrue, "Reconciled"),
+		},
+	}
+	cr := sampleBotManagementCR("uid-depon-ready")
+	cr.Finalizers = []string{finalizer}
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeActive
+	cr.Spec.SuperBotFightMode.DefinitelyAutomated = cfv1alpha1.SBFMActionManagedChallenge
+	cr.Spec.DependsOn = &cfv1alpha1.ResourceRef{Kind: "CloudflareCustomRule", Name: "skip-sbfm-api-paths"}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr, dep).WithStatusSubresource(cr, dep).Build()
+	cf := &fakeBM{live: sampleBMLive()}
+	r := &CloudflareBotManagementReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.putCalls != 1 {
+		t.Fatalf("Ready dependency must not block the PUT; put=%d", cf.putCalls)
+	}
+	if got := cf.lastPut.SBFMDefinitelyAutomated; got == nil || *got != "managed_challenge" {
+		t.Errorf("SBFMDefinitelyAutomated = %v, want managed_challenge", got)
 	}
 }
 

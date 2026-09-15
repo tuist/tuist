@@ -294,9 +294,6 @@ spec:
                     backfillBudgetExhaustedPeers:
                       type: integer
                       format: int64
-                    outboxMessages:
-                      type: integer
-                      format: int64
                     fdTimeoutCount:
                       type: integer
                       format: int64
