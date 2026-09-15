@@ -104,4 +104,46 @@ struct LocalPackageTestDependenciesTests {
             #expect(target.metadata.tags.contains("tuist:prunable"))
         }
     }
+
+    @Test(arguments: [false, true])
+    func ignoresTestsWithoutProductionReachableDependencies(supportDependsOnRuntime: Bool) async throws {
+        let appPath = try AbsolutePath(validating: "/App")
+        let packagePath = try AbsolutePath(validating: "/Package")
+        let runtime = Target.test(
+            name: "Runtime", destinations: [.iPhone, .mac, .appleTv, .appleWatch], product: .staticFramework,
+            deploymentTargets: .init(iOS: "15.0", macOS: "12.0", watchOS: "8.0", tvOS: "15.0")
+        )
+        let support = Target.test(name: "Support", destinations: runtime.destinations, product: .staticFramework)
+        let tests = Target.test(
+            name: "SupportTests", destinations: runtime.destinations, product: .unitTests,
+            dependencies: [.target(name: "Support")],
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        let graph = Graph.test(
+            projects: [
+                appPath: .test(path: appPath, targets: [.test(name: "App", destinations: [.iPhone], product: .app)]),
+                packagePath: .test(path: packagePath, targets: [runtime, support, tests], type: .external(hash: nil)),
+            ],
+            dependencies: [
+                .target(name: "App", path: appPath): [.target(name: "Runtime", path: packagePath)],
+                .target(name: "SupportTests", path: packagePath): [.target(name: "Support", path: packagePath)],
+                .target(name: "Support", path: packagePath): supportDependsOnRuntime
+                    ? [.target(name: "Runtime", path: packagePath)] : [],
+            ]
+        )
+        let (narrowed, _, _) = try await ExternalProjectsPlatformNarrowerGraphMapper().map(
+            graph: graph, environment: MapperEnvironment()
+        )
+        let mappedRuntime = try #require(narrowed.projects[packagePath]?.targets["Runtime"])
+        #expect(mappedRuntime.destinations == [.iPhone])
+        #expect(mappedRuntime.deploymentTargets == .iOS("15.0"))
+
+        let (pruned, _, _) = try await PruneOrphanExternalTargetsGraphMapper().map(
+            graph: narrowed, environment: MapperEnvironment()
+        )
+        for name in ["Support", "SupportTests"] {
+            let target = try #require(pruned.projects[packagePath]?.targets[name])
+            #expect(target.metadata.tags.contains("tuist:prunable"))
+        }
+    }
 }

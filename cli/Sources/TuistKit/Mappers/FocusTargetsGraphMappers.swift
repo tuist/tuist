@@ -55,6 +55,10 @@ public struct FocusTargetsGraphMappers: GraphMapping {
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         let graphTraverser = GraphTraverser(graph: graph)
+        var environment = environment
+        if !includedProducts.isDisjoint(with: [.unitTests, .uiTests]) {
+            environment.graphBeforeTestFocus = graph
+        }
         var graph = graph
 
         let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil

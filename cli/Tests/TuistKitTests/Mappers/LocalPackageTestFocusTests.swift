@@ -1,6 +1,8 @@
 import Path
 import Testing
 import TuistCore
+import TuistDependencies
+import TuistGenerator
 import TuistTesting
 import XcodeGraph
 
@@ -59,6 +61,57 @@ struct LocalPackageTestFocusTests {
         for name in ["Unused", "RemoteTests"] {
             let target = try #require(mapped.projects[supportPath]?.targets[name])
             #expect(target.metadata.tags.contains("tuist:prunable"))
+        }
+    }
+
+    @Test func selectedSchemeKeepsInferredPlatformsAfterRemovingProductionConsumers() async throws {
+        let appPath = try AbsolutePath(validating: "/App")
+        let packagePath = try AbsolutePath(validating: "/Package")
+        let runtime = Target.test(name: "Runtime", destinations: [.iPhone, .mac], product: .staticFramework)
+        let support = Target.test(name: "Support", destinations: [.iPhone, .mac], product: .staticFramework)
+        let tests = ["SelectedTests", "OtherTests"].map { name in
+            Target.test(
+                name: name, destinations: [.iPhone, .mac], product: .unitTests,
+                dependencies: [.target(name: "Runtime"), .target(name: "Support")],
+                metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+            )
+        }
+        let graph = Graph.test(
+            projects: [
+                appPath: .test(
+                    path: appPath,
+                    targets: [.test(name: "App", destinations: [.iPhone], product: .app)],
+                    schemes: [.test(name: "Selected", testAction: .test(targets: [
+                        .test(target: TargetReference(projectPath: packagePath, name: "SelectedTests")),
+                    ]))]
+                ),
+                packagePath: .test(path: packagePath, targets: [runtime, support] + tests, type: .external(hash: nil)),
+            ],
+            dependencies: [
+                .target(name: "App", path: appPath): [.target(name: "Runtime", path: packagePath)],
+                .target(name: "SelectedTests", path: packagePath): [
+                    .target(name: "Runtime", path: packagePath), .target(name: "Support", path: packagePath),
+                ],
+                .target(name: "OtherTests", path: packagePath): [
+                    .target(name: "Runtime", path: packagePath), .target(name: "Support", path: packagePath),
+                ],
+            ]
+        )
+        let (focused, _, environment) = try FocusTargetsGraphMappers(
+            schemeName: "Selected", includedTargets: [], includedProducts: [.unitTests, .uiTests]
+        ).map(graph: graph, environment: MapperEnvironment())
+        let (shaken, _, _) = try await TreeShakePrunedTargetsGraphMapper().map(graph: focused, environment: environment)
+        #expect(shaken.projects[appPath]?.targets["App"] == nil)
+        #expect(shaken.projects[packagePath]?.targets["OtherTests"] == nil)
+        let (narrowed, _, _) = try await ExternalProjectsPlatformNarrowerGraphMapper().map(
+            graph: shaken,
+            environment: environment
+        )
+        let (pruned, _, _) = try await PruneOrphanExternalTargetsGraphMapper().map(graph: narrowed, environment: environment)
+        for name in ["SelectedTests", "Runtime", "Support"] {
+            let target = try #require(pruned.projects[packagePath]?.targets[name])
+            #expect(target.destinations == [.iPhone])
+            #expect(!target.metadata.tags.contains("tuist:prunable"))
         }
     }
 }

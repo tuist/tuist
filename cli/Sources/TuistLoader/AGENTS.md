@@ -16,4 +16,4 @@ This module loads and evaluates Tuist manifests (e.g., `Project.swift`, `Workspa
 - Manifest loading emits clear `FatalError` types for missing or malformed manifests.
 - `ManifestLoader` uses start/end tokens to parse manifest output and caches results.
 - Swift package targets using tools version 5.9 or newer carry their package name compiler argument in target settings so graph transformations preserve package access.
-- Opted-in local package test targets may reference external products resolved from `Tuist/Package.swift`; map these through the same dependency path as production targets. Remote package tests remain excluded.
+- Opted-in local package test targets may reference external products resolved from `Tuist/Package.swift`; map these through the same dependency path as production targets. Remote package tests remain excluded. Missing external products on tagged local package tests identify the test and product and direct users to declare the providing package in `Tuist/Package.swift` and run `tuist install`.
