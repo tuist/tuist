@@ -73,6 +73,15 @@ server:
   turnstile:
     enabled: true
 
+  # Interstitial Turnstile challenge in front of public project dashboards.
+  # Defence in depth on top of Cloudflare Super Bot Fight Mode at the edge
+  # (bot-management.yaml sets `sbfm_definitely_automated: managed_challenge`);
+  # SBFM still lets a real chunk of automated traffic through, so browser
+  # sessions get gated at the app layer too before they can touch the
+  # ClickHouse-backed dashboards. See PR #13205.
+  publicPageChallenge:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 
@@ -1555,10 +1564,7 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

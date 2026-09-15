@@ -10863,6 +10863,7 @@ mod tests {
             peer_tls: None,
             public_tls: None,
             https_port: 0,
+            gateway_grpc_port: None,
             accelerated_file_serving: AcceleratedFileServingConfig {
                 enabled: true,
                 mode: AcceleratedFileServingMode::Splice,

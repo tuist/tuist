@@ -1041,6 +1041,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Locale, :assign_locale}
@@ -1229,6 +1230,7 @@ defmodule TuistWeb.Router do
 
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},

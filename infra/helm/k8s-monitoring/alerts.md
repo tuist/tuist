@@ -2917,6 +2917,205 @@ Every probe location must come back as its own series. A single
 
 ## Warning alerts
 
+### CI remote compilation-cache reads slow for an account
+
+Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`).
+This is rule `dfybzqdz5rh1cb` ("Xcode cache - CI remote reads slow for an
+account"), folder `Alerts`, group `Cache client latency`, which evaluates every
+10 minutes.
+
+```sql
+WITH
+recent AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+  GROUP BY id
+),
+base AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 7 DAY AND inserted_at < now() - INTERVAL 1 HOUR AND is_ci
+    AND cityHash64(id) % 20 = 0 AND account_id IN (SELECT acct FROM recent)
+  GROUP BY id
+),
+recent_builds AS (
+  SELECT r.acct AS acct, ct.build_run_id AS build, count() AS reads,
+    countIf(ct.read_duration > 150) AS slow_reads, quantile(0.9)(ct.read_duration) AS p90
+  FROM cacheable_tasks AS ct INNER JOIN recent AS r ON r.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM recent) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct, build
+),
+baseline AS (
+  SELECT b.acct AS acct, count() AS base_reads, countIf(ct.read_duration > 150) / count() AS base_share
+  FROM cacheable_tasks AS ct INNER JOIN base AS b ON b.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM base) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct
+)
+SELECT toString(rb.acct) AS account_id,
+  round(sum(rb.slow_reads) / sum(rb.reads), 3) AS slow_read_share
+FROM recent_builds AS rb INNER JOIN baseline AS bl ON bl.acct = rb.acct
+GROUP BY account_id
+HAVING sum(rb.reads) >= 1000
+  AND count() >= 3
+  AND countIf(rb.p90 > 200 AND rb.reads >= 100) >= 2
+  AND slow_read_share >= 0.1
+  AND any(bl.base_reads) >= 1000
+  AND slow_read_share >= 4 * any(bl.base_share)
+```
+
+- Condition: threshold `C` directly on `A`, `IS ABOVE 0`. No Reduce step: the
+  query returns one numeric column and one string column, which Grafana reads
+  as one series per `account_id`.
+- Pending period: none, keep firing for 30 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Account {{ $labels.account_id }}: {{ $values.A.Value | humanizePercentage }} of CI remote compilation-cache reads took over 150 ms in the last hour`
+
+**Why this reads client data rather than Kura metrics.** On 2026-09-14/15 CI
+builds on one account ran up to about 20 minutes longer. Per-task timings showed
+20-30 minute stretches where even p10 remote read latency was 225-235 ms and
+writes 700-1000 ms, against a normal p90 of 7-30 ms. Kura looked healthy the
+whole time: gRPC in-flight at or below 8, no CPU throttling, and
+`kura_public_request_latency_seconds` p90 under 3.5 ms. That histogram does
+cover gRPC, but it measures from the request reaching Kura to its response
+headers. The latency was added in front of it: the regional ingress returned
+malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
+a far region. No server-side rule can see either. `cacheable_tasks` records what
+Xcode itself waited for.
+
+**Why the account is compared with its own history.** Normal read latency
+differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
+read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
+build and another had a p90 of 200-900 ms in nearly every build. An absolute
+threshold fires on those accounts all day and still has to sit high enough to
+miss the incident's 265-320 ms builds. The slow-read share against the account's
+own 7-day share fires on a change, not on a steady state. The incident account's
+share went from 0.5-1% to 11-22%.
+
+**Why per-build and per-read conditions instead of an hourly p90.** The incident
+was intermittent: slow builds (p90 265-505 ms) were interleaved with normal ones
+(p90 around 20 ms) in the same hour, so an account-wide hourly percentile
+diluted it. Requiring two builds over a 200 ms p90 keeps a single slow build from
+firing, and the minimum of 1000 reads over 3 builds keeps small hours out.
+
+**Writes are not part of the condition.** Normal per-build write p90 ranges from
+30 ms to several seconds across accounts, driven by upload size, and the
+incident's 700-1100 ms writes sit inside that range.
+
+**Validated against production** on 2026-09-15 with the same SQL and `now()`
+replaced by a fixed time:
+
+| Evaluated at (UTC) | Result |
+| --- | --- |
+| 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
+| 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
+| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-03 12:00 | No rows |
+
+Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
+account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
+genuine burst: that account's slow builds read at p90 500-700 ms for about two
+hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+builds moved lane) are skipped.
+
+**Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts
+with `build_run_id`, so `build_run_id IN (recent CI builds)` reads about 3% of
+granules. One evaluation reads about 130M rows (3 GiB) in 4 seconds, most of it
+the sampled 7-day baseline. Do not filter `cacheable_tasks` on `inserted_at`
+alone: that is a full scan. Do not alias an aggregate with the name of a column
+the same query filters on (`any(account_id) AS account_id`): ClickHouse
+resolves the `WHERE` to the alias and rejects the query.
+
+**Runbook.** Look at the account's builds (replace `ACCOUNT`):
+
+```sql
+SELECT br.id, br.ins, round(br.dur / 60000, 1) AS minutes, count() AS reads,
+  round(quantile(0.1)(ct.read_duration)) AS p10,
+  round(quantile(0.5)(ct.read_duration)) AS p50,
+  round(quantile(0.9)(ct.read_duration)) AS p90
+FROM cacheable_tasks AS ct
+INNER JOIN (
+  SELECT id, any(inserted_at) AS ins, any(duration) AS dur FROM build_runs
+  WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  GROUP BY id
+) AS br ON br.id = ct.build_run_id
+WHERE ct.build_run_id IN (
+    SELECT id FROM build_runs
+    WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  )
+  AND ct.status = 'hit_remote' AND ct.read_duration > 0
+GROUP BY br.id, br.ins, minutes
+ORDER BY br.ins
+```
+
+Then check the two known causes:
+
+1. [Kura ingress returning malformed or 502 responses](#kura-ingress-returning-malformed-or-502-responses)
+   for the account's instances.
+2. A CAS proxy endpoint flip. The CLI re-resolves the endpoint every 10 minutes
+   with one latency probe per region, and one failed probe moves it to another
+   region for at least 10 minutes. Those builds show a stretch where even p10
+   sits at the far region's round trip, then an abrupt return.
+
+Limits: only processed builds count, so the rule lags a slow build by its
+duration plus processing time. Hits replayed straight from the local CAS never
+reach `cacheable_tasks`.
+
+### Kura ingress returning malformed or 502 responses
+
+Data source: Loki `grafanacloud-logs`. This is rule `bfybzuvqgyzggc`, folder
+`Alerts`, group `Cache` (5-minute interval).
+
+```logql
+sum by (service_name, upstream) (
+  count_over_time(
+    {service_name=~"kura-.*-ingress-nginx", cluster="tuist-production"}
+      | regexp `^[^ ]+ - - \[[^]]+\] "[A-Z]+ [^"]+" (?P<resp_status>[0-9]{3}) .* \[(?P<upstream>[^\]]+)\] \[[^\]]*\] `
+      | resp_status=~"0..|502"
+    [15m]
+  )
+)
+```
+
+- Condition: threshold `C` on `A`, `IS ABOVE 30`
+- Pending period: 15 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Kura gateway {{ $labels.service_name }} returned {{ $values.A.Value | printf "%.0f" }} malformed or 502 responses in 15 minutes for {{ $labels.upstream }}`
+
+The regional controllers log status `009` (clients see `HTTP/2 000` or
+`HTTP/0.9`) with upstream status 200 when nginx hands an HTTP request a cached
+h2c connection, and `502` when it hands a gRPC call an HTTP/1.1 connection. Both
+Ingresses of a Kura instance point at pod port 4000, and ingress-nginx keeps one
+keepalive pool per upstream address, so this only happens on an instance serving
+both lanes at once. Kura answered correctly in every case, so no Kura metric or
+rule moves. The paired controller error lines are
+`upstream sent no valid HTTP/1.0 header` and
+`no connection data found for keepalive http2 connection`. PR #13227 routes
+gateway gRPC to a dedicated Kura port; until it is deployed, expect this rule to
+fire for accounts that use both lanes.
+
+`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
+identifies the account.
+
+- 503 and 504 are excluded. They come from draining pods, capacity shedding and
+  upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
+  what Kura produces.
+- The pending period is what separates sustained breakage from a burst: one
+  burst stays in the 15-minute window for three 5-minute evaluations and never
+  reaches the fourth.
+- The source is the access log because the controllers were not scraped. Every
+  line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
+  `kura-ingress-nginx` scrape in `values.yaml` now exports
+  `nginx_ingress_controller_requests` for these controllers, so this rule can
+  move to that metric once the scrape is deployed and its `status` values are
+  confirmed.
+
+Backtested over 2026-09-01 to 09-15 with the same expression stepped every 5
+minutes: fires for both of the incident account's instances throughout
+2026-09-14/15, on 2026-09-01, 09-02 and 09-03 for a us-east instance, and a few
+times a week for two us-west instances, all with the same `009`/`502` pairing.
+Single bursts did not fire, including one of 4,287 `502` responses.
+
 ### Kura shedding cache reads under capacity pressure
 
 ```promql
@@ -4583,20 +4782,59 @@ min by (cluster, namespace) (
 ### Database connection pool starved
 
 ```promql
-sum by (cluster, namespace, repo, database) (
-  increase(tuist_repo_pool_checkout_queue_starved_samples_sum[5m])
+sum by (cluster, workload, repo, database) (
+  increase(tuist_repo_pool_checkout_queue_starved_samples{workload!=""}[5m])
 )
 /
 clamp_min(
-  sum by (cluster, namespace, repo, database) (
-    increase(tuist_repo_pool_checkout_queue_total_samples_sum[5m])
+  sum by (cluster, workload, repo, database) (
+    increase(tuist_repo_pool_checkout_queue_total_samples{workload!=""}[5m])
   ),
   1
 ) > 0.1
 ```
 
 - Pending period: 2 minutes
-- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.cluster }}`
+- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.workload }} / {{ $labels.cluster }}`
+
+Use `workload`, rather than a scrape job or namespace, to compare the web,
+build processor, and macOS test-result processor. The shared pool plugin polls
+every 100 milliseconds, so the accumulated starvation samples can expose
+bursts that the 60-second macOS scrape misses in the queue-depth gauge.
+The exported counters have no `_sum` suffix.
+
+### Database query failures by workload
+
+```promql
+sum by (cluster, workload, repo, result) (
+  increase(tuist_repo_query_count{result!="ok"}[5m])
+) > 0
+```
+
+- Pending period: 5 minutes
+- Set No Data to Normal: error series only exist after an error occurs.
+- Summary: `Database queries are failing with {{ $labels.result }} for {{ $labels.workload }} / {{ $labels.repo }} in {{ $labels.cluster }}`
+
+`queue_timeout` counts attempts rejected before acquiring a connection;
+`connection_error` counts other connection failures; `error` covers database
+and other adapter errors. `ok` counts successful queries. These are bounded
+labels, without statement text, parameters, project names, or customer data.
+
+The Processor Service dashboard (`tuist-processor-service`) plots this rate
+alongside `tuist_repo_query_{queue_time,query_time,decode_time,total_time}_milliseconds`.
+Each timing family exports histogram buckets, count, and sum. Query execution
+includes the network round trip; it is not isolated database-engine time.
+Phases missing from an adapter event are omitted, so a rejected checkout does
+not create a zero-duration execution sample. The dashboard's timing panels
+filter to successful queries; the failure-rate panel keeps rejected work
+visible separately. Mean durations work in every environment, while buckets
+are retained only in production.
+
+After deploying, compare the `web`, `processor`, and `xcresult_processor`
+workloads on the dashboard. If raw exports contain a metric but Grafana does
+not, inspect Adaptive Metrics before changing the application. Historical
+series will not acquire the new workload label. These are rule definitions
+to provision in Grafana, not automatically deployed alert rules.
 
 ### Tuist server ClickHouse query failures
 
@@ -4660,9 +4898,9 @@ histogram_quantile(
 ### Slow or cancelled ClickHouse query
 
 Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
-not the metrics data source. This is rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
-query"), whose definition before 2026-09-05 could not have fired on that
-day's Modules page outage, so the fields below replace it.
+not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
+query") since 2026-09-15. Its definition before then could not have fired on
+the 2026-09-05 Modules page outage, and errored on every evaluation.
 
 ```sql
 SELECT
@@ -4681,6 +4919,7 @@ ORDER BY slow_or_cancelled DESC
 LIMIT 20
 ```
 
+- Query `A` relative time range: 15 minutes.
 - Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
   expression: the query returns one numeric column and string columns only,
   which Grafana reads as one series per `(query_hash, query_preview)` label
@@ -4688,11 +4927,12 @@ LIMIT 20
   several numeric ones and its Reduce step failed with `input data must be a
   wide series`, so the rule errored instead of evaluating whenever rows came
   back.
-- Pending period: 2 minutes
-- Severity: warning
-- Folder `Alerts`, group `Server`
-- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.B }} times in 15 minutes: {{ $labels.query_preview }}`
-- Set **No Data** to Normal: a healthy cluster returns no rows.
+- Pending period: 2 minutes; keep firing for 10 minutes
+- Label `severity=warning`
+- Folder `Alerts`, group `Server`; no receiver set on the rule
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.A }} times in 15 minutes: {{ $labels.query_preview }}`.
+  Use `$values.A`: `$values.B` is the threshold result, 0 or 1.
+- Set **No Data** to Normal: a healthy cluster returns no rows. Error state: Error.
 - `clusterAllReplicas('default', system.query_log)` reads every replica's log.
   The data source hits one of the three ClickHouse Cloud replicas per request,
   so the previous `system.query_log` saw a third of the attempts at best.
@@ -4723,10 +4963,14 @@ LIMIT 20
 - `normalizeQuery` folds literals into `?` so the preview label is stable per
   hash between evaluations; a changing label value would open a new alert
   instance each time.
-- Validated against a reproduction, not against production: replaying the
-  failure through the driver against ClickHouse 26.1 gave 18 and 4 for the two
-  query shapes, both above the threshold, while the previous rule's
-  `type = 'QueryFinish'` form returned no rows over the same window.
+- Validated against a reproduction: replaying the failure through the driver
+  against ClickHouse 26.1 gave 18 and 4 for the two query shapes, both above
+  the threshold, while the previous rule's `type = 'QueryFinish'` form returned
+  no rows over the same window.
+- Validated in production on 2026-09-15: `POST /api/v1/eval` returned one
+  `numeric-multi` frame per `(query_hash, query_preview)` for both `A` and
+  `B`, and the first scheduled evaluation after the update reported
+  `health: ok` with no error.
 
 ### etcd write-ahead-log synchronization latency
 

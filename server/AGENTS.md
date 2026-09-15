@@ -111,6 +111,12 @@ The marketing site redesign launches as a whole behind a single FunWithFlags boo
   and duration by outcome) and LiveView async loads by
   `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
   a metric nothing queries has its labels aggregated away by Grafana Cloud.
+- `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
+  and connection-wait, execution, decoding, and total-duration histograms for
+  PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
+  web, build processing, test-result processing, and registry synchronization.
+  The Processor Service dashboard compares these workloads using the same
+  measurements; execution time includes the network round trip.
 
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).

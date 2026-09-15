@@ -143,6 +143,12 @@ Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.c
 
 Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
 
+`processor-service.json` compares application database queues and query phases
+across the web and processor runtimes using the shared `tuist_repo_*` metrics
+and the `workload` label. Its background job panels use the shared Oban
+metrics and an independent queue selector. Do not reintroduce the retired
+standalone service's `processor_*` metrics or `job="processor"` selectors.
+
 **Editing workflow:**
 - Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.
 - Editing files directly in the repo is also supported: after merge, Grafana pulls on its sync interval (60s) or via webhook.

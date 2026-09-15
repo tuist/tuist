@@ -5,6 +5,7 @@ This area owns marketing controllers and components for the public site.
 ## Responsibilities
 - Render marketing pages and UI components.
 - Bridge marketing content from `Tuist.Marketing` into controllers/views.
+- Interactive blog diagrams live in `components/` with colocated hooks and styles. `CacheLatencyLab` illustrates one round trip plus transfer time per artifact; keep its assumptions visible and its controls usable with a keyboard.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
