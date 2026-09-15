@@ -13,6 +13,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
@@ -80,9 +81,12 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   test "persists usage events with account and project mapping", %{conn: conn, kura_client: client} do
     account = AccountsFixtures.organization_fixture(name: "acme").account
     project = ProjectsFixtures.project_fixture(account: account, name: "ios")
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
 
     conn =
-      post_events(conn, [build_event()], authorization: authorization_header(client.id, client.secret))
+      post_events(conn, [build_event(%{"node_id" => KuraFixtures.node_id(server)})],
+        authorization: authorization_header(client.id, client.secret)
+      )
 
     assert %{"accepted" => 1} = json_response(conn, 202)
 
@@ -175,8 +179,9 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   test "persists storage telemetry attached to the batch", %{conn: conn, kura_client: client} do
     account = AccountsFixtures.organization_fixture().account
-    eviction = build_eviction(%{"tenant_id" => account.name})
-    snapshot = build_snapshot(%{"tenant_id" => account.name})
+    node_id = KuraFixtures.node_id(KuraFixtures.active_server_fixture(account, region: "eu-west"))
+    eviction = build_eviction(%{"tenant_id" => account.name, "node_id" => node_id})
+    snapshot = build_snapshot(%{"tenant_id" => account.name, "node_id" => node_id})
 
     conn =
       conn
@@ -231,6 +236,26 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^eviction["event_id"])) == nil
 
     assert ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"])) == nil
+  end
+
+  test "a self-hosted node's usage lands on its credential's account whatever the casing of its tenant", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
+    event_id = "self-hosted-mixed-case-#{account.id}"
+
+    conn =
+      post_events(
+        conn,
+        [build_event(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})],
+        authorization: authorization_header("self-hosted-client", "self-hosted-secret")
+      )
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+
+    assert [%UsageEvent{account_id: account_id}] =
+             ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+    assert account_id == account.id
   end
 
   test "a self-hosted credential cannot attribute storage telemetry to another tenant", %{conn: conn} do

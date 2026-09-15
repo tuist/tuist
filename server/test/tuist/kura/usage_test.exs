@@ -8,6 +8,7 @@ defmodule Tuist.Kura.UsageTest do
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   defp insert_event(attrs) do
@@ -32,6 +33,28 @@ defmodule Tuist.Kura.UsageTest do
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
   end
 
+  defp wire_event(overrides) do
+    Map.merge(
+      %{
+        "event_id" => "wire-#{System.unique_integer([:positive])}",
+        "tenant_id" => "acme",
+        "namespace_id" => "ios",
+        "node_id" => "kura-0",
+        "region" => "us-east-1",
+        "traffic_plane" => "public",
+        "direction" => "egress",
+        "operation" => "download",
+        "protocol" => "http",
+        "artifact_kind" => "xcframework",
+        "bytes" => 100,
+        "request_count" => 1,
+        "window_start_unix_seconds" => 1_777_968_000,
+        "window_seconds" => 60
+      },
+      overrides
+    )
+  end
+
   defp window_span do
     {
       ~U[2026-05-01 00:00:00Z],
@@ -42,29 +65,19 @@ defmodule Tuist.Kura.UsageTest do
   defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
 
   describe "create_events/1" do
-    test "resolves tenant/namespace handles to account/project ids" do
-      handle = "acme-#{System.unique_integer([:positive])}"
-      account = AccountsFixtures.organization_fixture(name: handle).account
+    test "attributes events to the account of the node's instance and the namespace's project" do
+      account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
       project = ProjectsFixtures.project_fixture(account: account, name: "ios")
+      server = KuraFixtures.active_server_fixture(account, region: "us-east")
 
       {:ok, 1} =
         Usage.create_events([
-          %{
+          wire_event(%{
             "event_id" => "wire-1",
-            "tenant_id" => handle,
+            "tenant_id" => String.downcase(account.name),
             "namespace_id" => "ios",
-            "node_id" => "kura-0",
-            "region" => "us-east-1",
-            "traffic_plane" => "public",
-            "direction" => "egress",
-            "operation" => "download",
-            "protocol" => "http",
-            "artifact_kind" => "xcframework",
-            "bytes" => 100,
-            "request_count" => 1,
-            "window_start_unix_seconds" => 1_777_968_000,
-            "window_seconds" => 60
-          }
+            "node_id" => KuraFixtures.node_id(server)
+          })
         ])
 
       assert [%UsageEvent{account_id: a_id, project_id: p_id, bytes: 100}] =
@@ -74,28 +87,41 @@ defmodule Tuist.Kura.UsageTest do
       assert p_id == project.id
     end
 
-    test "falls back to account_id alone when only the account handle resolves" do
-      handle = "lonely-#{System.unique_integer([:positive])}"
-      account = AccountsFixtures.organization_fixture(name: handle).account
+    test "matches the namespace to a project regardless of casing" do
+      account = AccountsFixtures.organization_fixture().account
+      project = ProjectsFixtures.project_fixture(account: account, name: "ios")
+      server = KuraFixtures.active_server_fixture(account, region: "us-east")
+      event_id = "wire-namespace-case-#{account.id}"
 
       {:ok, 1} =
         Usage.create_events([
-          %{
+          wire_event(%{
+            "event_id" => event_id,
+            "tenant_id" => account.name,
+            "namespace_id" => "iOS",
+            "node_id" => KuraFixtures.node_id(server)
+          })
+        ])
+
+      assert [%UsageEvent{project_id: project_id}] =
+               ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+      assert project_id == project.id
+    end
+
+    test "keeps the account when the namespace names no project" do
+      account = AccountsFixtures.organization_fixture().account
+      server = KuraFixtures.active_server_fixture(account, region: "us-east")
+
+      {:ok, 1} =
+        Usage.create_events([
+          wire_event(%{
             "event_id" => "wire-orphan-project",
-            "tenant_id" => handle,
+            "tenant_id" => account.name,
             "namespace_id" => "no-such-project",
-            "node_id" => "kura-0",
-            "region" => "us-east-1",
-            "traffic_plane" => "public",
-            "direction" => "egress",
-            "operation" => "download",
-            "protocol" => "http",
-            "artifact_kind" => "xcframework",
-            "bytes" => 50,
-            "request_count" => 1,
-            "window_start_unix_seconds" => 1_777_968_000,
-            "window_seconds" => 60
-          }
+            "node_id" => KuraFixtures.node_id(server),
+            "bytes" => 50
+          })
         ])
 
       assert [%UsageEvent{account_id: a_id, project_id: 0}] =
@@ -105,27 +131,29 @@ defmodule Tuist.Kura.UsageTest do
     end
 
     test "rejects batches exceeding @max_events_per_batch" do
-      events =
-        Enum.map(1..5_001, fn i ->
-          %{
-            "event_id" => "evt-#{i}",
-            "tenant_id" => "acme",
-            "namespace_id" => "ios",
-            "node_id" => "kura-0",
-            "region" => "us-east-1",
-            "traffic_plane" => "public",
-            "direction" => "egress",
-            "operation" => "download",
-            "protocol" => "http",
-            "artifact_kind" => "xcframework",
-            "bytes" => 1,
-            "request_count" => 1,
-            "window_start_unix_seconds" => 1_777_968_000,
-            "window_seconds" => 60
-          }
-        end)
+      events = Enum.map(1..5_001, fn i -> wire_event(%{"event_id" => "evt-#{i}"}) end)
 
       assert {:error, :too_many_events} = Usage.create_events(events)
+    end
+  end
+
+  describe "create_events/2" do
+    test "attributes a self-hosted node's events to the account its credential authenticated as" do
+      account = AccountsFixtures.organization_fixture(name: "Acme-#{System.unique_integer([:positive])}").account
+      project = ProjectsFixtures.project_fixture(account: account, name: "ios")
+      event_id = "wire-self-hosted-#{account.id}"
+
+      {:ok, 1} =
+        Usage.create_events(
+          [wire_event(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})],
+          account
+        )
+
+      assert [%UsageEvent{account_id: a_id, project_id: p_id}] =
+               ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+      assert a_id == account.id
+      assert p_id == project.id
     end
   end
 
