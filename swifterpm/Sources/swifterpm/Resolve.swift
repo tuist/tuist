@@ -270,10 +270,11 @@ enum PackageResolver {
     ///
     /// Package.resolved is rewritten in place so both the warm and cold
     /// paths see the pruned seed. Reachable package manifests are inspected
-    /// from the persistent cache or the previous scratch checkout before a
-    /// pin is considered orphaned. If a reachable manifest is unavailable,
-    /// pruning is skipped so a valid transitive pin is never deleted merely
-    /// because this install has no materialized checkout yet.
+    /// from version-specific cached sources or registry downloads before a
+    /// pin is considered orphaned. Unversioned scratch checkouts and local
+    /// repositories may describe another revision and cannot establish reachability.
+    /// If a reachable manifest is unavailable or cannot be evaluated, pruning
+    /// is skipped and normal resolution handles the current requirements.
     ///
     /// `workspace-state.json` is cleared when pruning happens, because SwiftPM
     /// otherwise re-associates the seed with the stale checkout state and still
@@ -325,15 +326,15 @@ enum PackageResolver {
             // has a materialized manifest that we can inspect. If a direct
             // package is unavailable, retaining the unknown pins is safer than
             // deleting a valid transitive lock entry.
-            guard let manifest = try await manifestForPin(
+            guard let manifest = try? await manifestForPin(
                 pin,
                 scratchDir: scratchDir,
                 cacheRoot: cacheRoot,
                 disableSandbox: disableSandbox
-            ) else {
+            ), let dependencies = try? ManifestParser.dependencies(manifest) else {
                 return
             }
-            for dependency in try ManifestParser.dependencies(manifest) {
+            for dependency in dependencies {
                 let dependencyIdentity = dependency.identity.lowercased()
                 if expectedIdentities.insert(dependencyIdentity).inserted {
                     identitiesToInspect.append(dependencyIdentity)
@@ -375,17 +376,6 @@ enum PackageResolver {
         if let cached = try? Cache.sourcePath(root: cacheRoot, pin: pin) {
             candidates.append(cached)
         }
-        if !PinKind.isRegistry(pin.kind) {
-            candidates.append(
-                scratchDir
-                    .appendingPathComponent("checkouts")
-                    .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
-            )
-        }
-        if pin.kind == "localSourceControl" {
-            candidates.append(URL(fileURLWithPath: pin.location))
-        }
-
         for candidate in candidates {
             guard try await fileSystem.exists(
                 candidate.appendingPathComponent("Package.swift").absolutePath

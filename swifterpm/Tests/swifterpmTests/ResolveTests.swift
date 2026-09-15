@@ -358,8 +358,14 @@ struct ResolveTests {
         }
     }
 
-    @Test
-    func resolvePreservesValidTransitivePinsWhenTheResolvedFileOriginHashIsStale() async throws {
+    enum SourceAvailability: CaseIterable, Sendable {
+        case cached, staleCheckout, coldLocalRepository, editedLocalRepository
+    }
+
+    @Test(arguments: SourceAvailability.allCases)
+    func resolvePreservesValidTransitivePinsWhenTheResolvedFileOriginHashIsStale(
+        sourceAvailability: SourceAvailability
+    ) async throws {
         try await withTemporaryDirectory { root in
             let transitive = root.appendingPathComponent("Transitive")
             try await writeLibraryPackageManifest(at: transitive, name: "Transitive")
@@ -394,8 +400,41 @@ struct ResolveTests {
             #expect(initial.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
 
             try await addCommitAndTag(at: transitive, tag: "1.1.0")
+            try await writeLibraryPackageManifest(at: direct, name: "Direct")
+            try await SystemProcess.run("git", ["add", "Package.swift", "Sources"], workingDirectory: direct)
+            try await SystemProcess.run("git", ["commit", "-m", "Remove transitive dependency"], workingDirectory: direct)
+            try await SystemProcess.run("git", ["tag", "2.0.0"], workingDirectory: direct)
 
             var staleResolved = try await ResolvedFile.read(packageDir: package)
+            switch sourceAvailability {
+            case .cached:
+                break
+            case .staleCheckout:
+                try await writeAppPackageManifest(
+                    at: package, dependencyURL: direct.path, exactVersion: "2.0.0", dependencyName: "Direct"
+                )
+                try await fileSystem.removePath(scratch)
+                try await SystemProcess.run(
+                    "swift", [
+                        "package", "--replace-scm-with-registry", "--disable-sandbox",
+                        "--package-path", package.path, "--scratch-path", scratch.path,
+                        "--cache-path", cacheDirectory.path, "resolve",
+                    ]
+                )
+                try await writeAppPackageManifest(at: package, dependencyURL: direct.path, dependencyName: "Direct")
+                let directPin = try #require(staleResolved.pins.first { $0.identity == "direct" })
+                try await fileSystem.removePath(Cache.sourcePath(root: cacheDirectory, pin: directPin))
+            case .coldLocalRepository, .editedLocalRepository:
+                try await fileSystem.removePath(scratch)
+                try await fileSystem.removePath(cacheDirectory)
+                if sourceAvailability == .editedLocalRepository {
+                    try await fileSystem.atomicWrite(
+                        "// swift-tools-version: 6.0\nunfinished manifest edit\n",
+                        to: direct.appendingPathComponent("Package.swift")
+                    )
+                }
+            }
+
             staleResolved.originHash = "stale"
             try await ResolvedFile.write(packageDir: package, resolved: staleResolved)
 
@@ -409,6 +448,47 @@ struct ResolveTests {
                 )
             )
             #expect(resolved.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
+        }
+    }
+
+    @Test
+    func resolveReplacesAnOldPinWhoseManifestRequiresANewerToolchain() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+
+            let incompatibleManifest = "// swift-tools-version: 999.0\nimport PackageDescription\n"
+            try await fileSystem.atomicWrite(incompatibleManifest, to: dependency.appendingPathComponent("Package.swift"))
+            try await SystemProcess.run("git", ["add", "Package.swift"], workingDirectory: dependency)
+            try await SystemProcess.run("git", ["commit", "-m", "Require a newer toolchain"], workingDirectory: dependency)
+            try await SystemProcess.run("git", ["tag", "2.0.0"], workingDirectory: dependency)
+            let revision = try await SystemProcess.run("git", ["rev-parse", "HEAD"], workingDirectory: dependency)
+            var seed = try await ResolvedFile.read(packageDir: package)
+            seed.originHash = "stale"
+            seed.pins[0].state.version = "2.0.0"
+            seed.pins[0].state.revision = String(decoding: revision.stdout, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let cached = try Cache.sourcePath(root: cacheDirectory, pin: seed.pins[0])
+            try await fileSystem.atomicWrite(incompatibleManifest, to: cached.appendingPathComponent("Package.swift"))
+            try await ResolvedFile.write(packageDir: package, resolved: seed)
+
+            let resolved = try await SwifterPM().resolve(request)
+
+            #expect(resolved.pins.first?.version == "1.0.0")
+            #expect(try await ResolvedFile.read(packageDir: package).pins.first?.state.version == "1.0.0")
         }
     }
 
