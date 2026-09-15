@@ -12,6 +12,7 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
+  alias TuistWeb.API.Schemas.Tests.XcodeCoverage
   alias TuistWeb.Authentication
 
   require Logger
@@ -318,6 +319,7 @@ defmodule TuistWeb.API.TestsController do
            },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
+           xcode_coverage: XcodeCoverage,
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -841,7 +843,8 @@ defmodule TuistWeb.API.TestsController do
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
-          stress_new_tests: Map.get(params, :stress_new_tests)
+          stress_new_tests: Map.get(params, :stress_new_tests),
+          xcode_coverage: Map.get(params, :xcode_coverage)
         })
     end
   end

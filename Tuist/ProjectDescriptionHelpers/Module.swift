@@ -1129,6 +1129,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.support.targetName),
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),

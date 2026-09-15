@@ -41,6 +41,9 @@ extension TuistConfig.Tuist {
         let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
         let network = try makeNetwork(from: manifest, generatorPaths: generatorPaths)
         let xcodeCache = TuistConfig.Tuist.XcodeCache(upload: manifest.xcodeCache.upload)
+        let testInsights = TuistConfig.Tuist.TestInsights(
+            coverage: .init(upload: manifest.testInsights.coverage.upload)
+        )
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -82,6 +85,7 @@ extension TuistConfig.Tuist {
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
+                testInsights: testInsights,
                 url: url,
                 network: network
             )
@@ -91,6 +95,7 @@ extension TuistConfig.Tuist {
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
+                testInsights: testInsights,
                 url: url,
                 network: network
             )
