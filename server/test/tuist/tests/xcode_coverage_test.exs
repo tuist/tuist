@@ -122,6 +122,23 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       assert XcodeCoverage.file_detail(project.id, test.id, "Missing.swift") == nil
     end
 
+    test "keeps the report's counts for a file without line data", %{project: project, account: account} do
+      counts_only = %{
+        file("Sources/Calculator/Legacy.swift", "legacy1", ["Calculator"], [])
+        | covered_lines: 8,
+          executable_lines: 10
+      }
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([counts_only])})
+
+      assert {[%{covered_lines: 8, executable_lines: 10}], 1} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+
+      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Legacy.swift")
+      assert {detail.covered_lines, detail.executable_lines} == {8, 10}
+      # Which lines ran is unknown, which is not the same as none being uncovered.
+      assert detail.uncovered_ranges == nil
+    end
+
     test "leaves a run without coverage untouched", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{})
 

@@ -2350,9 +2350,11 @@
           <div>
             <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
             <dd id="coverage-file-uncovered-lines">
-              {if @coverage_file.uncovered_ranges == [],
-                do: dgettext("dashboard_tests", "None"),
-                else: coverage_line_ranges(@coverage_file.uncovered_ranges)}
+              {case @coverage_file.uncovered_ranges do
+                nil -> dgettext("dashboard_tests", "Unavailable")
+                [] -> dgettext("dashboard_tests", "None")
+                ranges -> coverage_line_ranges(ranges)
+              end}
             </dd>
           </div>
         </dl>

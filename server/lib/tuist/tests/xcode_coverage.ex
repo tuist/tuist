@@ -157,7 +157,9 @@ defmodule Tuist.Tests.XcodeCoverage do
             partial_rows: fragment("countIf(?)", f.partial),
             newest_report_at: max(f.inserted_at)
           }
-        ), settings: [select_sequential_consistency: 1])
+        ),
+        settings: [select_sequential_consistency: 1]
+      )
 
     %{
       files: files,
@@ -295,7 +297,10 @@ defmodule Tuist.Tests.XcodeCoverage do
   def percentage(_covered, nil), do: 0.0
   def percentage(covered, executable), do: Float.round(covered / executable * 100, 1)
 
-  # A row per shard that compiled the file: the counts add up.
+  # A row per shard that compiled the file: the counts add up. When no report
+  # has the file's lines (its archive entry was missing), the counts are the
+  # report's, as in `merged_files_query/2`, and which lines ran is unknown:
+  # `uncovered_ranges` is nil rather than empty.
   defp detail(path, rows) do
     lines =
       rows
@@ -303,14 +308,21 @@ defmodule Tuist.Tests.XcodeCoverage do
       |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
       |> Enum.sort()
 
+    {covered_lines, executable_lines, uncovered_ranges} =
+      if lines == [] do
+        {rows |> Enum.map(& &1.covered_lines) |> Enum.max(), rows |> Enum.map(& &1.executable_lines) |> Enum.max(), nil}
+      else
+        {Enum.count(lines, fn {_line, count} -> count > 0 end), length(lines), uncovered_ranges(lines)}
+      end
+
     %{
       path: path,
       git_blob_id: rows |> hd() |> Map.get(:git_blob_id),
       targets: rows |> Enum.flat_map(& &1.targets) |> Enum.uniq() |> Enum.sort(),
-      covered_lines: Enum.count(lines, fn {_line, count} -> count > 0 end),
-      executable_lines: length(lines),
+      covered_lines: covered_lines,
+      executable_lines: executable_lines,
       lines: lines,
-      uncovered_ranges: uncovered_ranges(lines),
+      uncovered_ranges: uncovered_ranges,
       functions: merged_functions(rows)
     }
   end
