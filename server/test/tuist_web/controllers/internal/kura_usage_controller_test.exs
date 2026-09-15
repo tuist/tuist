@@ -43,7 +43,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     "Basic " <> Base.encode64("#{client_id}:#{client_secret}")
   end
 
-  defp build_event(overrides \\ %{}) do
+  defp build_event(overrides) do
     Map.merge(
       %{
         "event_id" => "event-1",

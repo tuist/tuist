@@ -1109,6 +1109,54 @@ defmodule Tuist.Kura do
     |> order_by([s], asc: s.region)
   end
 
+  @doc """
+  The account of the instance each managed node belongs to, keyed by the node id
+  the node reports its usage and storage telemetry under.
+
+  A node id is the host of the pod's `KURA_NODE_URL`,
+  `<provisioner_node_ref>-<ordinal>.<provisioner_node_ref>-headless.<namespace>.svc.cluster.local`.
+  The tenant id the node reports beside it is the account handle downcased as
+  it was when the instance was rendered, so it matches neither a handle with
+  capitals nor one renamed since.
+
+  Ids of any other shape, and instances no live server owns, are left out.
+  """
+  def account_ids_by_node_id([]), do: %{}
+
+  def account_ids_by_node_id(node_ids) when is_list(node_ids) do
+    refs_by_node_id =
+      node_ids
+      |> Enum.uniq()
+      |> Enum.flat_map(fn node_id ->
+        case node_ref(node_id) do
+          nil -> []
+          ref -> [{node_id, ref}]
+        end
+      end)
+
+    refs = Enum.map(refs_by_node_id, fn {_node_id, ref} -> ref end)
+
+    account_ids_by_ref =
+      Server
+      |> where([s], s.provisioner_node_ref in ^refs and s.status != :destroyed)
+      |> select([s], {s.provisioner_node_ref, s.account_id})
+      |> Repo.all()
+      |> Map.new()
+
+    for {node_id, ref} <- refs_by_node_id, Map.has_key?(account_ids_by_ref, ref), into: %{} do
+      {node_id, Map.fetch!(account_ids_by_ref, ref)}
+    end
+  end
+
+  defp node_ref(node_id) when is_binary(node_id) do
+    case Regex.run(~r/\A([a-z0-9][a-z0-9-]*)-\d+\.\1-headless\./, node_id, capture: :all_but_first) do
+      [ref] -> ref
+      nil -> nil
+    end
+  end
+
+  defp node_ref(_node_id), do: nil
+
   @doc "Fetches a server scoped to the given account."
   def get_server(account_id, server_id) do
     Repo.get_by(Server, id: server_id, account_id: account_id)

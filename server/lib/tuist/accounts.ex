@@ -154,22 +154,6 @@ defmodule Tuist.Accounts do
     Repo.one(from(a in Account, where: a.name == ^handle))
   end
 
-  @doc """
-  Batch lookup for `get_account_by_handle/1`. Returns a map of
-  `handle => account_id` for every handle that resolves. Handles that
-  don't match an account are simply absent from the map.
-
-  Use this instead of mapping over `get_account_by_handle/1` to avoid
-  the N+1 query pattern when resolving Kura-style handle batches.
-  """
-  def get_account_ids_by_handles(handles) when is_list(handles) do
-    handles = Enum.uniq(handles)
-
-    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
-    |> Repo.all()
-    |> Map.new()
-  end
-
   @doc ~S"""
   Given an id, it returns the organization associated with it.
 

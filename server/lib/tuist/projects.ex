@@ -119,6 +119,31 @@ defmodule Tuist.Projects do
   end
 
   @doc """
+  The ids of the projects named by `{account_id, project_handle}` pairs, in a
+  single query, keyed by the pairs as given. Handles match regardless of casing.
+  """
+  def project_ids_by_account_and_handle([]), do: %{}
+
+  def project_ids_by_account_and_handle(pairs) when is_list(pairs) do
+    pairs = Enum.uniq(pairs)
+    account_ids = pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    handles = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    ids =
+      from(p in Project,
+        where: p.account_id in ^account_ids and p.name in ^handles,
+        select: {p.account_id, p.name, p.id}
+      )
+      |> Repo.all()
+      |> Map.new(fn {account_id, name, id} -> {{account_id, String.downcase(name)}, id} end)
+
+    for {account_id, handle} = pair <- pairs,
+        {:ok, id} <- [Map.fetch(ids, {account_id, String.downcase(handle)})],
+        into: %{},
+        do: {pair, id}
+  end
+
+  @doc """
   Gets projects by their full handles (account_handle/project_handle) in a single query.
   Returns a map of full_handle => project.
   """
