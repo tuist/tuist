@@ -24,8 +24,8 @@ No hosted project, credentials, remote cache, or published package is required.
 The runner isolates Tuist's cache, configuration, and session directories and
 uses `cache --no-upload`.
 
-The default mode checks the current behavior. To express the desired future
-behavior as a failing regression test, use:
+The default mode checks the original exact-hash behavior recorded below. To
+check whether a binary reuses the combined artifact, use:
 
 ```sh
 python3 reproduce.py --tuist /absolute/path/to/tuist --expect-reuse
@@ -134,10 +134,11 @@ resource bundles separately. Alternatively, an indexed superset lookup must
 prove those same inputs match before choosing an artifact. Filename aliases or
 blindly trying broader destination hashes do not prove that.
 
-No production hashing change is included. A practical workaround is to warm and
-generate with the same manifest/environment/workspace scope, using positional
-focus only after loading; another is to warm each genuinely different scope.
+For older clients, a practical workaround is to warm and generate with the same
+manifest/environment/workspace scope, using positional focus only after loading;
+another is to warm each genuinely different scope.
 
-See [the durable fix design](durable-fix.md) for the proposed per-SDK artifact
-contract, contextual dependency hashing, resource handling, migration, and
-implementation acceptance criteria.
+See [the implemented design](durable-fix.md) for SDK fingerprints that point to a
+single combined XCFramework, compatibility checks, rollout boundaries, and the
+automated acceptance test that rewrites `Workspace.swift`. The validation
+snapshot above describes the original behavior, before that implementation.
