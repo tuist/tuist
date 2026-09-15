@@ -4699,9 +4699,9 @@ histogram_quantile(
 ### Slow or cancelled ClickHouse query
 
 Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
-not the metrics data source. This is rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
-query"), whose definition before 2026-09-05 could not have fired on that
-day's Modules page outage, so the fields below replace it.
+not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
+query") since 2026-09-15. Its definition before then could not have fired on
+the 2026-09-05 Modules page outage, and errored on every evaluation.
 
 ```sql
 SELECT
@@ -4720,6 +4720,7 @@ ORDER BY slow_or_cancelled DESC
 LIMIT 20
 ```
 
+- Query `A` relative time range: 15 minutes.
 - Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
   expression: the query returns one numeric column and string columns only,
   which Grafana reads as one series per `(query_hash, query_preview)` label
@@ -4727,11 +4728,12 @@ LIMIT 20
   several numeric ones and its Reduce step failed with `input data must be a
   wide series`, so the rule errored instead of evaluating whenever rows came
   back.
-- Pending period: 2 minutes
-- Severity: warning
-- Folder `Alerts`, group `Server`
-- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.B }} times in 15 minutes: {{ $labels.query_preview }}`
-- Set **No Data** to Normal: a healthy cluster returns no rows.
+- Pending period: 2 minutes; keep firing for 10 minutes
+- Label `severity=warning`
+- Folder `Alerts`, group `Server`; no receiver set on the rule
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.A }} times in 15 minutes: {{ $labels.query_preview }}`.
+  Use `$values.A`: `$values.B` is the threshold result, 0 or 1.
+- Set **No Data** to Normal: a healthy cluster returns no rows. Error state: Error.
 - `clusterAllReplicas('default', system.query_log)` reads every replica's log.
   The data source hits one of the three ClickHouse Cloud replicas per request,
   so the previous `system.query_log` saw a third of the attempts at best.
@@ -4762,10 +4764,14 @@ LIMIT 20
 - `normalizeQuery` folds literals into `?` so the preview label is stable per
   hash between evaluations; a changing label value would open a new alert
   instance each time.
-- Validated against a reproduction, not against production: replaying the
-  failure through the driver against ClickHouse 26.1 gave 18 and 4 for the two
-  query shapes, both above the threshold, while the previous rule's
-  `type = 'QueryFinish'` form returned no rows over the same window.
+- Validated against a reproduction: replaying the failure through the driver
+  against ClickHouse 26.1 gave 18 and 4 for the two query shapes, both above
+  the threshold, while the previous rule's `type = 'QueryFinish'` form returned
+  no rows over the same window.
+- Validated in production on 2026-09-15: `POST /api/v1/eval` returned one
+  `numeric-multi` frame per `(query_hash, query_preview)` for both `A` and
+  `B`, and the first scheduled evaluation after the update reported
+  `health: ok` with no error.
 
 ### etcd write-ahead-log synchronization latency
 
