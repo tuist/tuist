@@ -548,7 +548,6 @@ runnersFleet:
       default: true
   xcodeVersions:
     - xcodeVersion: "27.0"
-    - xcodeVersion: "27.0-beta"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"

@@ -211,7 +211,6 @@ The current Tahoe-era profile set is:
 - `:26-4-1`
 - `:26-3`
 - `:26-0-1`
-- `:27-0-beta` (channel) and `:27-0-beta-<n>` (each exact beta)
 
 Exact tags are immutable: a patch bump from Apple (26.4.1 to
 26.4.2) republishes under a *new* tag, never over an existing one,
@@ -289,8 +288,9 @@ The immutable `:27-0-beta-<n>` tags are what make a bad beta
 recoverable: rebuild the runner image from the previous one and
 pin it the same way.
 
-When the major goes stable, promote `27.0` through the normal
-stable path above and leave `27.0-beta` in place until accounts
-have moved their profiles off it. Dropping the entry is what
-strands them, and it costs nothing while its pool sits at
-`minWarmPoolFloor: 0`.
+When the major goes stable, promote it through the normal stable
+path above and retire the channel in the same change: drop its
+`profiles.json`, catalog and `xcodeOverrides` entries, and add a
+migration that moves the Runner Profiles still naming the channel
+onto the stable version. Migrations run before the chart rolls, so
+no profile is left pointing at the dropped pool.
