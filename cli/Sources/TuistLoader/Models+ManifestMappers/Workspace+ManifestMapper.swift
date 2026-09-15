@@ -28,7 +28,8 @@ extension XcodeGraph.Workspace {
                 include: [
                     String(resolvedPath.appending(component: Manifest.package.fileName(resolvedPath)).pathString.dropFirst()),
                     String(resolvedPath.appending(component: Manifest.project.fileName(resolvedPath)).pathString.dropFirst()),
-                ]
+                ],
+                exclude: ManifestLookupExcludes.derivedDirectories
             )
             .collect()
             .map(\.parentDirectory)

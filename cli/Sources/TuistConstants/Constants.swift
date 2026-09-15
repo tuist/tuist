@@ -48,6 +48,8 @@ public enum Constants {
         public static let privacyManifest = "PrivacyManifests"
         public static let moduleMaps = "ModuleMaps"
         public static let frameworkSearchPaths = "FrameworkSearchPaths"
+        /// Derived directories that are kept across generations so the mtimes of the files inside them stay stable.
+        public static let preservedAcrossGenerations = [moduleMaps, frameworkSearchPaths]
         public static let sources = "Sources"
         public static let testPlans = "TestPlans"
         public static let signingKeychain = "signing.keychain"
