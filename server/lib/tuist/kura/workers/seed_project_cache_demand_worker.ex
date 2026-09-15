@@ -31,14 +31,17 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   to start its clock at the account's first endpoint resolution, because an
   instance seeded here has moved no bytes by construction.
 
-  **Placement.** No placer decision is recorded. The job carries `origin`, the
-  coarse location label of the request that created the project (never an
-  address), and the seed is placed nearest it rather than in the default
-  region (`AccountPolicies.resolve_with_origin_hint/2`). That is still a guess,
-  since where somebody created a project is not necessarily where CI will run,
-  so it only orders the choice: `Tuist.Kura.Placement`'s `correct_initial`
-  rung only fires while the primary was never decided, and it moves the
-  account once its own runs say otherwise.
+  **Placement.** The job carries `origin`, the coarse location label of the
+  request that created the project (never an address). The seed is placed
+  nearest it rather than in the default region
+  (`AccountPolicies.resolve_with_origin_hint/2`), and that region is recorded
+  as the account's primary, because provisioning resolves again without the
+  hint and would otherwise skip it. Where somebody created a project is not
+  necessarily where CI will run, so the record is a guess rather than a
+  decision (`PlacerRegion.guess?/1`): `Tuist.Kura.Placement`'s
+  `correct_initial` rung only fires while the primary was never decided, and
+  it moves the account once its own runs say otherwise. A seed without an
+  origin, or one declined for capacity, records nothing.
 
   **Capacity.** A seed is speculative, so a region over its pressure line
   declines and the refusal is counted rather than retried. The account is
@@ -56,6 +59,8 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.PlacerRegion
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.Telemetry
@@ -80,12 +85,12 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
         # seeded. `AccountPolicies.resolve_with_origin_hint/2` counts the
         # refusal itself.
         {:error, _reason} -> :ok
-        {:ok, resolution} -> seed_region(account, resolution)
+        {:ok, resolution} -> seed_region(account, resolution, origin)
       end
     end
   end
 
-  defp seed_region(%Account{} = account, %{plan: plan, service_region: service_region}) do
+  defp seed_region(%Account{} = account, %{plan: plan, service_region: service_region}, origin) do
     if Capacity.under_pressure?(service_region) do
       Telemetry.seed_declined(plan, service_region, :capacity_pressure)
 
@@ -95,10 +100,23 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
 
       :ok
     else
+      record_guess(account, service_region, origin)
       {:ok, _count} = Demand.upsert(account.id, service_region, DateTime.utc_now())
       :ok
     end
   end
+
+  # Insert-only: a primary the account already holds is the region resolution
+  # chose here anyway, so it is left as it is.
+  defp record_guess(%Account{} = account, service_region, origin) when is_binary(origin) do
+    PlacerRegions.record_first_primary(account, service_region, %{
+      "signal" => PlacerRegion.creation_origin_signal()
+    })
+
+    :ok
+  end
+
+  defp record_guess(_account, _service_region, _origin), do: :ok
 
   defp serving_instance?(%Account{id: account_id}) do
     Repo.exists?(

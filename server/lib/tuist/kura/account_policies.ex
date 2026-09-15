@@ -126,7 +126,9 @@ defmodule Tuist.Kura.AccountPolicies do
   hint only orders the regions first placement chooses among. Any counted
   origin outranks it, and it is not evidence: it records no spill and counts no
   unmet preference, so the fast first-placement correction stays open for an
-  account whose builds run somewhere else.
+  account whose builds run somewhere else. The seed records the region it
+  chose as a guess (`PlacerRegion.guess?/1`), so the resolutions that follow
+  without the hint land there too.
   """
   def resolve_with_origin_hint(%Account{} = account, origin_hint) do
     resolve(account, %{default_lookups() | origin_hint: fn _account -> origin_hint end})

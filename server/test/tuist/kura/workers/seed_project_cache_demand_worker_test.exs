@@ -122,7 +122,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert %{} = Demand.get(account.id, region)
     end
 
-    test "records demand in the region nearest where the project was created" do
+    test "provisions in the region nearest where the project was created" do
       stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
       account = account()
 
@@ -130,7 +130,9 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
 
       assert %{service_region: "eu-west"} = Demand.get(account.id, "eu-west")
       assert Demand.get(account.id, @region) == nil
-      assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+
+      assert :ok = Lifecycle.reconcile()
+      assert [%Server{status: :provisioning, region: "eu-west"}] = servers_for(account)
     end
 
     test "does nothing for an account that already has a live instance" do
@@ -197,6 +199,18 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
 
       assert %{} = Demand.get(account.id, @region)
     end
+
+    test "records no placement when it declines a hinted seed" do
+      stub_region_nodes([{@region, [@node_allocatable_bytes]}])
+      stub_region_pods(List.duplicate(reserved_pod(50), 100))
+
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "US-VA"})
+
+      assert Demand.get(account.id, @region) == nil
+      assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+    end
   end
 
   describe "what the seeded instance must not trigger" do
@@ -237,6 +251,18 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert :ok = Lifecycle.reconcile()
 
       assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+    end
+
+    test "records a hinted seed as a guess, so the first-placement correction stays open" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "FR"})
+
+      assert [%PlacerRegion{role: :primary, region: "eu-west"} = placer_region] =
+               Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id))
+
+      assert PlacerRegion.guess?(placer_region)
     end
   end
 
