@@ -396,7 +396,7 @@ const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 /// How long a registered path may go without a build using it before the
 /// registry forgets it. A forgotten path is registered again by the next build
 /// that declares its instance.
-const REGISTRY_FORGET_AFTER: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const REGISTRY_FORGET_AFTER: Duration = Duration::from_secs(3 * 24 * 60 * 60);
 
 /// How far a path's last use may move past the one on disk before it is written.
 const PATH_USE_RECORD_INTERVAL: Duration = Duration::from_secs(60 * 60);
@@ -7535,8 +7535,12 @@ mod tests {
         store.to_string_lossy().into_owned()
     }
 
-    fn days_ago(days: u64) -> u64 {
-        unix_seconds() - days * 24 * 60 * 60
+    fn a_day_past_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() - 24 * 60 * 60
+    }
+
+    fn a_day_inside_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() + 24 * 60 * 60
     }
 
     #[test]
@@ -7549,7 +7553,7 @@ mod tests {
 
     #[test]
     fn a_use_is_written_once_it_has_moved_past_the_record_interval() {
-        let recorded = days_ago(1);
+        let recorded = unix_seconds() - 24 * 60 * 60;
         let at = |seconds: u64| PathUse { at: recorded + seconds, recorded };
         assert!(!at(0).needs_recording());
         assert!(!at(PATH_USE_RECORD_INTERVAL.as_secs() - 1).needs_recording());
@@ -7566,7 +7570,11 @@ mod tests {
         std::fs::write(&registry, format!("{idle}\ttuist/app\n{used}\ttuist/app\n")).unwrap();
         std::fs::write(
             uses_path_for(&registry),
-            format!("{idle}\t{}\n{used}\t{}\n", days_ago(31), days_ago(29)),
+            format!(
+                "{idle}\t{}\n{used}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_inside_the_forget_window()
+            ),
         )
         .unwrap();
 
@@ -7633,7 +7641,8 @@ mod tests {
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
         std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
-        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", days_ago(31))).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
         let proxy = registry_proxy(&registry);
         proxy.forget_unused_paths();
         assert_eq!(proxy.resolve_instance(&store, ""), None);
@@ -7659,7 +7668,8 @@ mod tests {
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
         std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
-        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", days_ago(31))).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
         let proxy = registry_proxy(&registry);
 
         proxy.resolve_instance(&store, "");
@@ -7675,7 +7685,7 @@ mod tests {
         let dir = TempCasDir::new("registry-used-since");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
-        let observed = days_ago(31);
+        let observed = a_day_past_the_forget_window();
         std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
         std::fs::write(uses_path_for(&registry), format!("{store}\t{observed}\n")).unwrap();
         let proxy = registry_proxy(&registry);
@@ -7729,7 +7739,11 @@ mod tests {
         .unwrap();
         std::fs::write(
             uses_path_for(&registry),
-            format!("{shared}\t{}\n{idle}\t{}\n", days_ago(31), days_ago(31)),
+            format!(
+                "{shared}\t{}\n{idle}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_past_the_forget_window()
+            ),
         )
         .unwrap();
         let proxy = registry_proxy(&registry);
