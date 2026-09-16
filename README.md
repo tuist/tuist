@@ -39,17 +39,7 @@ Openness and community are cornerstones in shaping Tuist, as we believe they are
 
 ## Get started
 
-Head to [the Tuist docs](https://tuist.dev/en/docs) for install instructions, an overview of the platform, and step-by-step guides for the workflow you want to adopt.
-
-## Documentation
-
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
-
-You can check out [the project documentation](https://tuist.dev/en/docs).
-
-### Sample projects
-
-You can find some sample projects in the [examples folder](examples/xcode) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+Head to [the Tuist docs](https://tuist.dev/en/docs) for install instructions, an overview of the platform, step-by-step guides for the workflow you want to adopt, and pointers to sample projects and contribution resources.
 
 ## Development
 
@@ -61,7 +51,6 @@ This repository represents a monorepo with the following projects:
 | [app](/app) | The iOS and macOS app (Swift) |
 | [android](/android) | The Android app (Kotlin/Compose) |
 | [server](/server) | The Tuist server that hosts the cache, previews, analytics, and dashboard (Elixir/Phoenix) |
-| [cache](/cache) | The self-hostable Tuist cache service (Elixir/Phoenix) |
 | [registry](/registry) | The Swift package registry service (Elixir/Phoenix) |
 | [kura](/kura) | The Rust cache mesh service for distributed cache traffic |
 | [gradle](/gradle) | The Tuist Gradle plugin for Android/JVM builds (Kotlin) |
