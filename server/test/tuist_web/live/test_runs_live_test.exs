@@ -295,6 +295,41 @@ defmodule TuistWeb.TestRunsLiveTest do
       refute any =~ "SchemeNone"
     end
 
+    test "excludes the runs of a coverage kind when the filter is negated", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
+      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
+
+      {:ok, _run_without_coverage} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "SchemeNone",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)
+        )
+
+      not_full =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "!=", "filter_coverage_val" => "full"})
+        |> render()
+
+      refute not_full =~ "SchemeFull"
+      assert not_full =~ "SchemePartial"
+      assert not_full =~ "SchemeNone"
+
+      without_coverage =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "!=", "filter_coverage_val" => "any"})
+        |> render()
+
+      assert without_coverage =~ "SchemeNone"
+      refute without_coverage =~ "SchemeFull"
+      refute without_coverage =~ "SchemePartial"
+    end
+
     defp live_table(conn, organization, project, filters) do
       {:ok, lv, _html} =
         live(

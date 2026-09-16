@@ -490,9 +490,12 @@ defmodule TuistWeb.TestRunsLive do
 
   def coverage_title(_totals), do: dgettext("dashboard_tests", "Full: every test of the run reported its coverage.")
 
-  defp coverage_option([%{value: "full"} | _]), do: :full
-  defp coverage_option([%{value: "partial"} | _]), do: :partial
-  defp coverage_option([%{value: "any"} | _]), do: :any
+  # `is not` inverts the set the value names, so "is not Full" leaves the
+  # partial runs and the ones that gathered no coverage.
+  defp coverage_option([%{value: value, operator: operator} | _]) when value in ["full", "partial", "any"] do
+    {if(operator == :!=, do: :not_in, else: :in), String.to_existing_atom(value)}
+  end
+
   defp coverage_option(_), do: nil
 
   defp build_flop_filters(filters, search) do

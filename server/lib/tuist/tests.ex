@@ -383,6 +383,12 @@ defmodule Tuist.Tests do
       {_coverage, nil} ->
         Test
 
+      {{:not_in, coverage}, project_id} ->
+        from(t in Test, where: t.id not in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+
+      {{:in, coverage}, project_id} ->
+        from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+
       {coverage, project_id} ->
         from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
     end
