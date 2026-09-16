@@ -697,9 +697,52 @@ struct SetupCacheCommandServiceTests {
             .called(1)
         #expect(
             alertController.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is being prepared.",
+                "The remote cache is still being prepared.",
             ]
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_resolvesTheRemoteCacheBeforeStartingTheProxy() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        var events: [String] = []
+        cacheURLStore.reset()
+        given(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .any)
+            .willProduce { _, _ in
+                events.append("resolve")
+                return URL(string: "https://acme-eu-west-1.kura.tuist.dev")!
+            }
+        launchAgentService.reset()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willProduce { _, _, _, _ in
+                events.append("install")
+                return nil
+            }
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(false)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(events == ["resolve", "install"])
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())

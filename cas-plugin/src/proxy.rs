@@ -47,6 +47,11 @@ pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 /// one is asked again. The move happens only if the second answer agrees.
 pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
 
+/// How soon a proxy with no endpoint at all asks again. The account's cache is
+/// being prepared, which takes seconds, and every build until it is found runs
+/// without a remote.
+pub const ENDPOINT_ABSENT_INTERVAL: Duration = Duration::from_secs(10);
+
 #[derive(Debug, PartialEq, Eq)]
 enum EndpointVerdict {
     Keep,
@@ -3834,12 +3839,10 @@ impl Proxy {
         }
     }
 
-    /// Sooner while there is no endpoint at all: the account's cache is still
-    /// being prepared, and every build until it is found runs without a remote.
     fn endpoint_resolution_interval(&self) -> Duration {
-        if self.endpoint_candidate.lock().unwrap().is_some()
-            || self.grpc_url.read().unwrap().is_empty()
-        {
+        if self.grpc_url.read().unwrap().is_empty() {
+            ENDPOINT_ABSENT_INTERVAL
+        } else if self.endpoint_candidate.lock().unwrap().is_some() {
             ENDPOINT_CONFIRM_INTERVAL
         } else {
             ENDPOINT_REFRESH_INTERVAL
@@ -6565,7 +6568,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_CONFIRM_INTERVAL);
+        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_ABSENT_INTERVAL);
         assert_eq!(test_proxy().endpoint_resolution_interval(), ENDPOINT_REFRESH_INTERVAL);
     }
 

@@ -39,7 +39,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .called(1)
         #expect(
             alertController.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is being prepared.",
+                "The remote cache is still being prepared.",
             ]
         )
     }

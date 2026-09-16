@@ -655,7 +655,7 @@ struct BazelSetupCommandServiceTests {
             .called(0)
         #expect(
             AlertController.current.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is being prepared.",
+                "The remote cache is still being prepared.",
             ]
         )
     }

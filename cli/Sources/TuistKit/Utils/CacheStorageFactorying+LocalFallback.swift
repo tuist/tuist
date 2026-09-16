@@ -9,8 +9,9 @@ extension CacheStorageFactorying {
     /// The cache storage for `config`, or one backed by the local cache alone when the remote cache
     /// can't be used right now.
     ///
-    /// A remote cache that is still being prepared, has no endpoint, or is temporarily unreachable
-    /// never fails the command: a cache miss is always safe, so the run continues on the local cache
+    /// Resolving the endpoint already waits a bounded time for a cache instance that is being
+    /// prepared. A remote cache that is still not ready after that, has no endpoint, or is
+    /// temporarily unreachable never fails the command: a cache miss is always safe, so the run continues on the local cache
     /// and says why. Errors that waiting does not fix, such as rejected credentials or a malformed
     /// endpoint, are rethrown.
     func cacheStorageFallingBackToLocal(config: Tuist) async throws -> CacheStoring {
@@ -29,7 +30,7 @@ extension CacheStorageFactorying {
         switch error as? CacheURLStoreError {
         case .endpointBeingPrepared:
             return .alert(
-                "The remote cache is being prepared.",
+                "The remote cache is still being prepared.",
                 takeaway: "This run uses the local cache. The remote cache is used as soon as it is ready."
             )
         case .noEndpointsAvailable:

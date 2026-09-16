@@ -274,7 +274,7 @@ public struct BazelSetupCommandService {
             let warning: WarningAlert = switch error {
             case .endpointBeingPrepared:
                 .alert(
-                    "The remote cache is being prepared.",
+                    "The remote cache is still being prepared.",
                     takeaway: "Bazel builds run without the Tuist remote cache and build insights until it is ready. \(rerun)"
                 )
             case .noReachableEndpoints:

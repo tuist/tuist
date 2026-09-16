@@ -15,35 +15,54 @@ public protocol CacheURLStoring: Sendable {
 }
 
 public struct CacheURLStore: CacheURLStoring {
+    /// How long resolving an endpoint waits for a cache instance the server is preparing.
+    ///
+    /// An account's instance is prepared on demand, typically in seconds, so a run is better
+    /// served by waiting for it than by falling back to the local cache straight away. Callers
+    /// that sit on a request path, or are restarted until they succeed, pass `.zero`.
+    public static let defaultProvisioningWait: Duration = .seconds(30)
+
     private let cachedValueStore: CachedValueStoring
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let endpointLatencyService: EndpointLatencyServicing
+    private let provisioningWait: Duration
+    private let provisioningPollInterval: Duration
+    private let sleep: @Sendable (Duration) async throws -> Void
     private let localCache: NSCache<NSString, NSString>
 
-    public init() {
+    public init(provisioningWait: Duration = CacheURLStore.defaultProvisioningWait) {
         self.init(
             cachedValueStore: CachedValueStore(backend: .inSystemProcess),
-            getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
+            provisioningWait: provisioningWait
         )
     }
 
-    public init(cachedValueStore: CachedValueStoring) {
+    public init(
+        cachedValueStore: CachedValueStoring,
+        provisioningWait: Duration = CacheURLStore.defaultProvisioningWait
+    ) {
         self.init(
             cachedValueStore: cachedValueStore,
             getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
+            endpointLatencyService: EndpointLatencyService(),
+            provisioningWait: provisioningWait
         )
     }
 
     init(
         cachedValueStore: CachedValueStoring,
         getCacheEndpointsService: GetCacheEndpointsServicing,
-        endpointLatencyService: EndpointLatencyServicing
+        endpointLatencyService: EndpointLatencyServicing,
+        provisioningWait: Duration = .zero,
+        provisioningPollInterval: Duration = .seconds(1),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.cachedValueStore = cachedValueStore
         self.getCacheEndpointsService = getCacheEndpointsService
         self.endpointLatencyService = endpointLatencyService
+        self.provisioningWait = provisioningWait
+        self.provisioningPollInterval = provisioningPollInterval
+        self.sleep = sleep
         localCache = NSCache<NSString, NSString>()
     }
 
@@ -124,10 +143,7 @@ public struct CacheURLStore: CacheURLStoring {
     {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
-        let resolution = try await getCacheEndpointsService.getCacheEndpoints(
-            serverURL: serverURL,
-            accountHandle: accountHandle
-        )
+        let resolution = try await resolutionWaitingForProvisioning(serverURL: serverURL, accountHandle: accountHandle)
         let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
@@ -173,6 +189,34 @@ public struct CacheURLStore: CacheURLStoring {
             )
 
         return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
+    }
+
+    /// The server's answer, asked again every `provisioningPollInterval` for up to
+    /// `provisioningWait` while it has no endpoint and is preparing an instance.
+    private func resolutionWaitingForProvisioning(serverURL: URL, accountHandle: String?) async throws
+        -> CacheEndpointsResolution
+    {
+        var resolution = try await getCacheEndpointsService.getCacheEndpoints(
+            serverURL: serverURL,
+            accountHandle: accountHandle
+        )
+        guard resolution.endpoints.isEmpty, resolution.provisioning,
+              provisioningWait > .zero, provisioningPollInterval > .zero
+        else { return resolution }
+
+        Logger.current.notice(
+            "The remote cache is being prepared. Waiting up to \(provisioningWait.components.seconds) seconds for it to be ready."
+        )
+        var waited: Duration = .zero
+        while resolution.endpoints.isEmpty, resolution.provisioning, waited < provisioningWait {
+            try await sleep(provisioningPollInterval)
+            waited += provisioningPollInterval
+            resolution = try await getCacheEndpointsService.getCacheEndpoints(
+                serverURL: serverURL,
+                accountHandle: accountHandle
+            )
+        }
+        return resolution
     }
 
     /// A failed probe is retried once before the endpoint counts as unreachable,

@@ -132,15 +132,18 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
     }
 
-    /// Builds only ever talk to the proxy, which starts without a remote while the account's cache
-    /// is being prepared and adopts it once it serves, so setup is the one place that can say so.
-    private func warnIfRemoteCacheIsBeingPrepared(fullHandle: String, serverURL: URL) async {
+    /// Resolves the account's endpoint before the proxy starts, waiting for an instance that is
+    /// being prepared, so the proxy launches against it rather than without a remote.
+    ///
+    /// Builds only ever talk to the proxy, which starts without a remote when none is ready and
+    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet.
+    private func waitForRemoteCache(fullHandle: String, serverURL: URL) async {
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
         do {
             _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
         } catch CacheURLStoreError.endpointBeingPrepared {
             AlertController.current.warning(.alert(
-                "The remote cache is being prepared.",
+                "The remote cache is still being prepared.",
                 takeaway: "Builds use the local compilation cache until it is ready, and start using the remote cache without running setup again."
             ))
         } catch {
@@ -370,8 +373,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             upload: config.xcodeCache.upload,
             storeSizeLimit: config.xcodeCache.storeSizeLimit
         )
+        await waitForRemoteCache(fullHandle: fullHandle, serverURL: serverURL)
         try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
-        await warnIfRemoteCacheIsBeingPrepared(fullHandle: fullHandle, serverURL: serverURL)
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,

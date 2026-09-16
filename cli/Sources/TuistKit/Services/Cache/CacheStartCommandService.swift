@@ -22,7 +22,7 @@ struct CacheStartCommandService {
     init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .zero),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.serverEnvironmentService = serverEnvironmentService

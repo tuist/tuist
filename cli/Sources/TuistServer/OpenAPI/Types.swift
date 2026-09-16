@@ -15849,14 +15849,14 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
                 public struct Headers: Sendable, Hashable {
-                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving. While one is being provisioned the answer is `no-cache`, so a client waiting for the instance asks the server again rather than reusing it.
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
                     public var cache_hyphen_control: Swift.String?
                     /// Creates a new `Headers`.
                     ///
                     /// - Parameters:
-                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving. While one is being provisioned the answer is `no-cache`, so a client waiting for the instance asks the server again rather than reusing it.
                     public init(cache_hyphen_control: Swift.String? = nil) {
                         self.cache_hyphen_control = cache_hyphen_control
                     }

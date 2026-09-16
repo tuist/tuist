@@ -39,7 +39,7 @@ struct CacheProxyCommandService {
     init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .zero),
         resourceLocator: ResourceLocating = ResourceLocator()
     ) {
         self.serverEnvironmentService = serverEnvironmentService

@@ -260,6 +260,89 @@
             }
         }
 
+        @Test(.withMockedEnvironment())
+        func waits_for_an_endpoint_the_server_is_provisioning() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://acme-us-east-1.kura.tuist.dev"
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .seconds(30),
+                provisioningPollInterval: .seconds(1),
+                sleep: { _ in }
+            )
+            var lookups = 0
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willProduce { _, _ in
+                    lookups += 1
+                    return lookups < 3
+                        ? CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                        : CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil)
+                }
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result.absoluteString == endpoint)
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .called(3)
+        }
+
+        @Test(.withMockedEnvironment())
+        func stops_waiting_for_a_provisioning_endpoint_after_the_wait() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .seconds(3),
+                provisioningPollInterval: .seconds(1),
+                sleep: { _ in }
+            )
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .called(4)
+        }
+
+        @Test(.withMockedEnvironment())
+        func does_not_wait_for_an_endpoint_that_is_not_being_provisioned() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .seconds(30),
+                provisioningPollInterval: .seconds(1),
+                sleep: { _ in }
+            )
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil, provisioning: false))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .called(1)
+        }
+
         @Test
         func treats_a_missing_endpoint_as_transient_and_a_malformed_one_as_fatal() {
             // An account whose instance was reclaimed for inactivity, and one whose
