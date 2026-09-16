@@ -35,6 +35,20 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   reported and not seeded: the reconciler would retry its refused provision on
   every tick.
 
+  ## Preparing
+
+  With `prepare`, an instance is brought up and then archived as soon as it is
+  active (`Tuist.Kura.Lifecycle.archive_prepared/1`), so the slow part of a
+  first provision is done ahead of time and the instance holds no capacity
+  until its account asks for it through Kura. The job runs in passes a minute
+  apart: each pass archives what the previous ones brought up and seeds the
+  next accounts into the room that frees, until nothing is on its way.
+
+  Only instances the backfill brought up are archived, at most once each: an
+  instance that entered service before the backfill started, or whose account
+  has recorded demand of its own since, is left in service. Legacy traffic
+  never returns a prepared instance; only a request through Kura does.
+
   ## Running it
 
   `dry_run` defaults to true: the plan is taken in a transaction that is rolled
@@ -59,6 +73,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.OriginMap
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegion
@@ -79,15 +94,32 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   @not_live [:destroyed, :archived]
   # Whole-window scans of the cache event tables, far past the repo's per-request budget.
   @scan_seconds 300
+  @pass_seconds 60
+  @max_prepare_seconds 24 * 3600
+  @transitional_statuses [:provisioning, :replicating, :drain_pending]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args}) do
-    args
-    |> run()
-    |> log_report()
+  def perform(%Oban.Job{args: args} = job) do
+    args =
+      if Map.get(args, "prepare", false),
+        do: Map.put_new(args, "started_at", DateTime.to_iso8601(now())),
+        else: args
 
-    :ok
+    report = run(args)
+    log_report(report)
+
+    if next_pass?(report) do
+      {:ok, _job} = Oban.update_job(job, %{args: Map.put(args, "prepared", report.prepared)})
+      {:snooze, @pass_seconds}
+    else
+      :ok
+    end
   end
+
+  defp next_pass?(%{prepare: true, dry_run: false, in_flight: true, started_at: started_at}),
+    do: DateTime.diff(now(), started_at) < @max_prepare_seconds
+
+  defp next_pass?(_report), do: false
 
   @doc """
   Plans the seed and, unless `"dry_run"` is `true` (the default), applies it.
@@ -95,29 +127,47 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   """
   def run(args \\ %{}) do
     dry_run? = Map.get(args, "dry_run", true)
-    now = DateTime.truncate(DateTime.utc_now(), :second)
+    now = now()
     since = DateTime.add(now, -Map.get(args, "lookback_days", @default_lookback_days) * 86_400, :second)
+
+    options = %{
+      prepare?: Map.get(args, "prepare", false),
+      started_at: started_at(args, now),
+      prepared: MapSet.new(Map.get(args, "prepared", []))
+    }
 
     traffic = legacy_traffic(since, now)
     accounts = accounts_by_priority(traffic)
 
     plan =
-      case Repo.transaction(fn -> plan_and_apply(accounts, traffic, dry_run?) end) do
+      case Repo.transaction(fn -> plan_and_apply(accounts, traffic, options, dry_run?) end) do
         {:ok, plan} -> plan
         {:error, {:dry_run, plan}} -> plan
       end
 
-    Map.merge(plan, %{dry_run: dry_run?, since: since})
+    Map.merge(plan, %{
+      dry_run: dry_run?,
+      since: since,
+      prepare: options.prepare?,
+      started_at: options.started_at,
+      in_flight: Enum.any?(plan.entries, & &1.in_flight)
+    })
   end
 
-  defp plan_and_apply(accounts, traffic, dry_run?) do
-    plan = plan(accounts, traffic)
+  defp started_at(%{"started_at" => started_at}, _now) do
+    {:ok, started_at, _offset} = DateTime.from_iso8601(started_at)
+    started_at
+  end
+
+  defp started_at(_args, now), do: now
+
+  defp plan_and_apply(accounts, traffic, options, dry_run?) do
+    plan = plan(accounts, traffic, options)
 
     if dry_run? do
       Repo.rollback({:dry_run, plan})
     else
-      apply_plan(plan)
-      plan
+      apply_plan(plan, options)
     end
   end
 
@@ -193,10 +243,13 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
   ## Planning
 
-  defp plan([], _traffic), do: %{entries: [], regions: %{}}
+  defp plan([], _traffic, options), do: %{entries: [], regions: %{}, prepared: MapSet.to_list(options.prepared)}
 
-  defp plan(accounts, traffic) do
+  defp plan(accounts, traffic, options) do
     context = %{
+      prepare?: options.prepare?,
+      started_at: options.started_at,
+      prepared: options.prepared,
       traffic: traffic,
       inactive_cutoff: DateTime.add(DateTime.utc_now(), -Environment.kura_inactive_days() * 86_400, :second),
       resolutions: AccountPolicies.serving_regions_all(accounts),
@@ -208,7 +261,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
     {entries, regions} = Enum.flat_map_reduce(accounts, %{}, &plan_account(&1, context, &2))
 
-    %{entries: entries, regions: regions}
+    %{entries: entries, regions: regions, prepared: MapSet.to_list(options.prepared)}
   end
 
   defp plan_account(account, context, ledger) do
@@ -224,7 +277,9 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
       outcome: nil,
       reason: nil,
       kura_status: nil,
-      reservation_gib: nil
+      reservation_gib: nil,
+      server_id: nil,
+      in_flight: false
     }
 
     case Map.fetch!(context.resolutions, account.id) do
@@ -240,27 +295,70 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
   defp plan_region(entry, account, primary?, context, ledger) do
     servers = Map.get(context.servers, account.id, [])
-    live = Enum.find(servers, &(&1.region == entry.region and &1.status not in @not_live))
+    lifecycle = lifecycle(context, account, entry.region)
 
+    case Enum.find(servers, &(&1.region == entry.region and &1.status not in @not_live)) do
+      nil -> plan_absent(entry, account, lifecycle, primary? and spillable?(account, servers, context), context, ledger)
+      live -> {[plan_live(entry, live, lifecycle, context)], ledger}
+    end
+  end
+
+  defp plan_live(entry, %Server{status: :active} = live, lifecycle, context) do
+    if prepare?(entry, live, lifecycle, context),
+      do: %{entry | outcome: :prepare, kura_status: :active, server_id: live.id, in_flight: true},
+      else: %{entry | outcome: :serving, kura_status: :active}
+  end
+
+  defp plan_live(entry, live, lifecycle, context) do
+    in_flight = context.prepare? and live.status in @transitional_statuses and brought_up?(live, lifecycle, context)
+    %{entry | outcome: :waiting, kura_status: live.status, in_flight: in_flight}
+  end
+
+  defp plan_absent(entry, account, lifecycle, spillable?, context, ledger) do
     cond do
-      live && live.status == :active ->
-        {[%{entry | outcome: :serving, kura_status: :active}], ledger}
-
-      live ->
-        {[%{entry | outcome: :waiting, kura_status: live.status}], ledger}
+      context.prepare? and prepared_archive?(lifecycle) ->
+        {[%{entry | outcome: :prepared}], ledger}
 
       reason = blocked(entry, account, entry.region, context) ->
         {[%{entry | outcome: :skipped, reason: reason}], ledger}
 
       true ->
-        admit(entry, account, primary? and spillable?(account, servers, context), context, ledger)
+        admit(entry, account, spillable?, context, ledger)
     end
   end
+
+  defp lifecycle(context, account, region_id) do
+    context.lifecycles |> Map.get(account.id, []) |> Enum.find(&(&1.service_region == region_id))
+  end
+
+  # An instance the backfill brought up, that nothing has asked for through
+  # Kura since, and that the backfill has not archived before.
+  defp prepare?(entry, server, lifecycle, %{prepare?: true} = context) do
+    not MapSet.member?(context.prepared, prepared_key(entry)) and brought_up?(server, lifecycle, context) and
+      not is_nil(lifecycle) and DateTime.compare(lifecycle.last_cache_demand_at, entry.legacy.last_at) != :gt
+  end
+
+  defp prepare?(_entry, _server, _lifecycle, _context), do: false
+
+  defp brought_up?(server, lifecycle, context) do
+    DateTime.compare(service_started_at(server, lifecycle), context.started_at) != :lt
+  end
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{
+         last_returned_at: %DateTime{} = returned_at
+       }), do: Enum.max([inserted_at, returned_at], DateTime)
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, _lifecycle), do: inserted_at
+
+  defp prepared_archive?(%AccountRegionLifecycle{drain_reason: :prepared, archived_at: %DateTime{}}), do: true
+  defp prepared_archive?(_lifecycle), do: false
+
+  defp prepared_key(entry), do: "#{entry.account_id}:#{entry.region}"
 
   # The reasons `Tuist.Kura.Lifecycle` would not provision the account-region
   # from demand stamped at the account's last legacy request.
   defp blocked(entry, account, region_id, context) do
-    lifecycle = context.lifecycles |> Map.get(account.id, []) |> Enum.find(&(&1.service_region == region_id))
+    lifecycle = lifecycle(context, account, region_id)
     demand_at = demand_at(entry.legacy.last_at, lifecycle)
 
     cond do
@@ -270,8 +368,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
       destroyed_after?(Map.get(context.servers, account.id, []), region_id, demand_at) ->
         :destroyed_after_demand
 
-      archived_unused_after?(lifecycle, demand_at) ->
-        :archived_unused_after_demand
+      reason = archived_after(lifecycle, demand_at) ->
+        reason
 
       true ->
         nil
@@ -283,7 +381,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
     cond do
       fits? ->
-        {[%{entry | outcome: :provision, reservation_gib: gib}], count(ledger, entry.region, :provisions)}
+        {[%{entry | outcome: :provision, reservation_gib: gib, in_flight: true}],
+         count(ledger, entry.region, :provisions)}
 
       spillable? ->
         spill(entry, account, context, ledger)
@@ -304,7 +403,14 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
     case reserve_first(siblings, account, ledger) do
       {{sibling, gib}, ledger} ->
-        spilled = %{entry | outcome: :provision, region: sibling, preferred_region: entry.region, reservation_gib: gib}
+        spilled = %{
+          entry
+          | outcome: :provision,
+            region: sibling,
+            preferred_region: entry.region,
+            reservation_gib: gib,
+            in_flight: true
+        }
 
         ledger =
           ledger
@@ -391,12 +497,14 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     end)
   end
 
-  defp archived_unused_after?(
-         %AccountRegionLifecycle{drain_reason: :unused, archived_at: %DateTime{} = archived_at},
-         demand_at
-       ), do: DateTime.compare(demand_at, archived_at) != :gt
+  # Archived for never storing anything, or before anything used it, after the
+  # account's last demand: only demand recorded after the archival returns it.
+  defp archived_after(%AccountRegionLifecycle{drain_reason: reason, archived_at: %DateTime{} = archived_at}, demand_at)
+       when reason in [:unused, :prepared] do
+    if DateTime.compare(demand_at, archived_at) != :gt, do: :"archived_#{reason}_after_demand"
+  end
 
-  defp archived_unused_after?(_lifecycle, _demand_at), do: false
+  defp archived_after(_lifecycle, _demand_at), do: nil
 
   defp spillable?(%Account{id: account_id}, servers, context) do
     not MapSet.member?(context.decided, account_id) and not Enum.any?(servers, &(&1.status not in @not_live))
@@ -435,16 +543,26 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
   ## Applying
 
-  defp apply_plan(%{entries: entries}) do
+  defp apply_plan(%{entries: entries} = plan, options) do
     Enum.each(entries, &record_spill/1)
 
+    # Preparing refreshes nothing it did not seed: a clock moved by legacy
+    # traffic would read as the account asking for an instance it never used.
+    refreshed = if options.prepare?, do: [:provision], else: [:provision, :serving, :waiting]
+
     rows =
-      for %{outcome: outcome} = entry <- entries, outcome in [:provision, :serving, :waiting] do
+      for %{outcome: outcome} = entry <- entries, outcome in refreshed do
         %{account_id: entry.account_id, service_region: entry.region, last_cache_demand_at: entry.legacy.last_at}
       end
 
     {:ok, _count} = Demand.upsert_many(rows)
-    :ok
+
+    archived =
+      for %{outcome: :prepare} = entry <- entries,
+          :ok == Lifecycle.archive_prepared(Repo.get!(Server, entry.server_id)),
+          do: prepared_key(entry)
+
+    %{plan | prepared: Enum.uniq(plan.prepared ++ archived)}
   end
 
   defp record_spill(%{outcome: :provision, preferred_region: preferred} = entry) when is_binary(preferred) do
@@ -465,7 +583,13 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   ## Report
 
   defp log_report(report) do
-    mode = if report.dry_run, do: "dry run", else: "seeded"
+    mode =
+      cond do
+        report.dry_run -> "dry run"
+        report.prepare -> "prepare pass (in flight: #{report.in_flight}, prepared so far: #{length(report.prepared)})"
+        true -> "seeded"
+      end
+
     accounts = report.entries |> Enum.map(& &1.account_id) |> Enum.uniq() |> length()
 
     Logger.info(
@@ -495,6 +619,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
       "reservation_gib=#{entry.reservation_gib} kura_status=#{entry.kura_status} kura=#{kura} " <>
       "lanes=#{Enum.join(entry.legacy.lanes, ",")} events=#{entry.legacy.events} last_legacy_at=#{DateTime.to_iso8601(entry.legacy.last_at)}"
   end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 
   defp to_utc(%DateTime{} = at), do: DateTime.truncate(at, :second)
   defp to_utc(%NaiveDateTime{} = at), do: at |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)

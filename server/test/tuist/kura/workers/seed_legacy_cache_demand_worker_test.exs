@@ -9,6 +9,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
@@ -16,6 +17,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
   alias Tuist.Kura.Origins
   alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.SeedLegacyCacheDemandWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -404,6 +406,160 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
 
       assert [%{outcome: :skipped, reason: :capacity_exhausted}] = entries_for(report, account)
       assert %{"us-east" => %{headroom_gib: nil}} = report.regions
+    end
+  end
+
+  describe "prepare" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    defp prepare_pass(started_at, extra \\ %{}) do
+      %{"dry_run" => false, "prepare" => true, "started_at" => DateTime.to_iso8601(started_at)}
+      |> Map.merge(extra)
+      |> run()
+    end
+
+    defp activate(account) do
+      [server] = Enum.reject(servers_for(account), &(&1.status in [:archived, :destroyed]))
+      server |> Ecto.Changeset.change(%{status: :active}) |> Repo.update!()
+    end
+
+    defp elapse_drain(account, region \\ "us-east") do
+      started_at = DateTime.truncate(DateTime.add(DateTime.utc_now(), -Kura.drain_seconds() - 60, :second), :second)
+
+      account.id
+      |> Demand.get(region)
+      |> Ecto.Changeset.change(%{drain_started_at: started_at})
+      |> Repo.update!()
+    end
+
+    defp started_at, do: DateTime.truncate(DateTime.add(DateTime.utc_now(), -1, :second), :second)
+
+    test "seeds an instance, archives it once it is active, and leaves it archived" do
+      account = account()
+      module_cache_run(account, at: ago(1))
+      started_at = started_at()
+
+      first = prepare_pass(started_at)
+      assert [%{outcome: :provision, region: "us-east"}] = entries_for(first, account)
+      assert first.in_flight
+
+      assert :ok = Lifecycle.reconcile()
+      server = activate(account)
+
+      second = prepare_pass(started_at)
+      assert [%{outcome: :prepare, region: "us-east"}] = entries_for(second, account)
+      assert %Server{status: :drain_pending} = Repo.get!(Server, server.id)
+      assert second.prepared == ["#{account.id}:us-east"]
+      assert second.in_flight
+
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert %Server{status: :archived} = Repo.get!(Server, server.id)
+
+      module_cache_run(account, at: ago(0.001))
+      third = prepare_pass(started_at, %{"prepared" => second.prepared})
+
+      assert [%{outcome: :prepared, region: "us-east"}] = entries_for(third, account)
+      refute third.in_flight
+
+      assert :ok = Lifecycle.reconcile()
+      assert %Server{status: :archived} = Repo.get!(Server, server.id)
+    end
+
+    test "seeds the next account once the instance ahead of it has released its reservation" do
+      admission(%{"us-east" => @instance_gib, "eu-west" => 0})
+      first_account = account(region: :usa)
+      for days <- [1, 2], do: module_cache_run(first_account, at: ago(days))
+      second_account = account(region: :usa)
+      module_cache_run(second_account, at: ago(1))
+      started_at = started_at()
+
+      first = prepare_pass(started_at)
+      assert [%{outcome: :provision}] = entries_for(first, first_account)
+      assert [%{outcome: :skipped, reason: :capacity_exhausted}] = entries_for(first, second_account)
+
+      assert :ok = Lifecycle.reconcile()
+      activate(first_account)
+
+      second = prepare_pass(started_at)
+      assert [%{outcome: :prepare}] = entries_for(second, first_account)
+      assert [%{outcome: :skipped, reason: :capacity_exhausted}] = entries_for(second, second_account)
+
+      elapse_drain(first_account)
+      assert :ok = Lifecycle.reconcile()
+
+      third = prepare_pass(started_at, %{"prepared" => second.prepared})
+      assert [%{outcome: :prepared}] = entries_for(third, first_account)
+      assert [%{outcome: :provision}] = entries_for(third, second_account)
+      assert third.in_flight
+    end
+
+    test "leaves an instance in service once its account asks for the cache through Kura" do
+      account = account()
+      module_cache_run(account, at: ago(1))
+      started_at = started_at()
+
+      prepare_pass(started_at)
+      assert :ok = Lifecycle.reconcile()
+      server = activate(account)
+      Demand.record(account.id)
+
+      report = prepare_pass(started_at)
+
+      assert [%{outcome: :serving}] = entries_for(report, account)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+    end
+
+    test "never archives an instance that was serving before the backfill started" do
+      account = account()
+      server = instance(account, "us-east", :active)
+      server |> Ecto.Changeset.change(%{inserted_at: ago(30)}) |> Repo.update!()
+      {:ok, _} = Demand.upsert(account.id, "us-east", ago(1))
+      module_cache_run(account, at: ago(1))
+
+      report = prepare_pass(started_at())
+
+      assert [%{outcome: :serving}] = entries_for(report, account)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+      refute report.in_flight
+    end
+
+    test "archives an instance at most once in a backfill" do
+      account = account()
+      module_cache_run(account, at: ago(1))
+      started_at = started_at()
+
+      prepare_pass(started_at)
+      assert :ok = Lifecycle.reconcile()
+      activate(account)
+
+      report = prepare_pass(started_at, %{"prepared" => ["#{account.id}:us-east"]})
+
+      assert [%{outcome: :serving}] = entries_for(report, account)
+    end
+
+    test "the job snoozes while instances are on their way and finishes when none are" do
+      account = account()
+      module_cache_run(account, at: ago(1))
+
+      {:ok, job} =
+        %{"dry_run" => false, "prepare" => true}
+        |> SeedLegacyCacheDemandWorker.new()
+        |> Oban.insert()
+
+      assert {:snooze, _seconds} = SeedLegacyCacheDemandWorker.perform(job)
+      assert [%Oban.Job{args: %{"started_at" => _}}] = all_enqueued(worker: SeedLegacyCacheDemandWorker)
+
+      Repo.delete_all(from(l in AccountRegionLifecycle, where: l.account_id == ^account.id))
+      Repo.delete_all(from(s in Server, where: s.account_id == ^account.id))
+      Repo.delete_all(from(p in Tuist.Projects.Project, where: p.account_id == ^account.id))
+
+      [job] = all_enqueued(worker: SeedLegacyCacheDemandWorker)
+      assert :ok = SeedLegacyCacheDemandWorker.perform(job)
     end
   end
 
