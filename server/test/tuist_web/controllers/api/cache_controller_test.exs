@@ -95,7 +95,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       # Then
-      assert json_response(conn, 200) == %{"endpoints" => []}
+      assert json_response(conn, 200)["endpoints"] == []
     end
 
     test "returns no endpoints when no account_handle is provided", %{conn: conn} do
@@ -110,7 +110,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoints")
 
       # Then
-      assert json_response(conn, 200) == %{"endpoints" => []}
+      assert json_response(conn, 200) == %{"endpoints" => [], "provisioning" => false}
     end
 
     test "does not return another account's custom endpoints", %{conn: conn} do
@@ -132,7 +132,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Authentication.put_current_user(attacker)
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => []}
+      assert json_response(conn, :ok) == %{"endpoints" => [], "provisioning" => false}
     end
 
     test "returns Kura endpoints to a project-scoped account token", %{conn: conn} do
@@ -154,7 +154,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"], "provisioning" => false}
 
       # A serving instance is a stable answer, so it is cacheable for the usual
       # interval rather than re-resolved constantly.
@@ -179,7 +179,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Authentication.put_current_user(user)
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => []}
+      assert json_response(conn, :ok) == %{"endpoints" => [], "provisioning" => true}
       assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
     end
 
@@ -225,7 +225,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       # Then
-      assert json_response(conn, 200) == %{"endpoints" => ["https://kura-cache.example.com"]}
+      assert json_response(conn, 200) == %{"endpoints" => ["https://kura-cache.example.com"], "provisioning" => false}
     end
 
     test "returns custom endpoints when the account has no Kura endpoints", %{conn: conn} do
@@ -267,7 +267,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoints?account_handle=nonexistent-account")
 
       # Then
-      assert json_response(conn, 200) == %{"endpoints" => []}
+      assert json_response(conn, 200) == %{"endpoints" => [], "provisioning" => false}
     end
 
     test "returns Kura endpoints when the account has Kura endpoints in several regions", %{conn: conn} do

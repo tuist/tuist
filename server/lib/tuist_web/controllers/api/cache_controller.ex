@@ -78,6 +78,11 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
+                },
+                provisioning: %Schema{
+                  type: :boolean,
+                  description:
+                    "Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready."
                 }
               }
             }
@@ -112,7 +117,7 @@ defmodule TuistWeb.API.CacheController do
 
     conn
     |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
   end
 
   defp free_tier_exhausted_account(nil), do: nil
