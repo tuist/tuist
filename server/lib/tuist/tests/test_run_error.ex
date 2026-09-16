@@ -22,6 +22,7 @@ defmodule Tuist.Tests.TestRunError do
   `module_name` is the test target, or empty for a run-level error.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

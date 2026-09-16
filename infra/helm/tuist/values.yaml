@@ -1327,6 +1327,14 @@ xcresultProcessor:
       # bump `replicaCount` and enable the PDB.
       maxSurge: 0
       maxUnavailable: 1
+  # Grace period sized for an in-flight xcresult parse plus the final
+  # ingestion buffer drain. `Tuist.Tests.Workers.ProcessXcresultWorker`
+  # jobs typically run 30s–3min but can stretch on outsized archives;
+  # ingestion buffers use `shutdown: :infinity` and rely on this value
+  # as their outer wall, retrying their final flush until it lands or
+  # kubelet SIGKILLs the pod. 300s covers the parse tail and gives the
+  # buffer room to survive a slow ClickHouse.
+  terminationGracePeriodSeconds: 300
 
 # macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #

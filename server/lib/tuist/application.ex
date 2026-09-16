@@ -26,6 +26,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
   alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -34,6 +35,9 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunError
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
@@ -318,6 +322,10 @@ defmodule Tuist.Application do
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
         Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
         Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
+        Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
+        Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
+        Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+        Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
