@@ -47,6 +47,7 @@
 @import "./pages/runner_workflows.css";
 @import "./pages/runners.css";
 @import "./pages/connect.css";
+@import "./pages/coverage.css";
 @import "./pages/tests.css";
 @import "./pages/test_runs.css";
 @import "./pages/test_run.css";
