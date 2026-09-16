@@ -1,8 +1,8 @@
 ---
-title: "Kura: a distributed build cache for Xcode, Bazel, and Gradle"
+title: "Kura: a distributed cache for the Tuist module cache, Xcode, Bazel, and Gradle"
 category: "engineering"
 tags: ["engineering", "kura", "cache", "infrastructure", "rust", "build-systems"]
-excerpt: "How Tuist built Kura, a distributed build cache in Rust, to serve Xcode, Bazel, and Gradle builds with low latency, bounded resources, and global replication."
+excerpt: "How Tuist built Kura, a distributed build cache in Rust, to serve the Tuist module cache and Xcode, Bazel, and Gradle builds with low latency, bounded resources, and global replication."
 author: pepicrft
 live: true
 cta_title: "Build system caching that works from anywhere."
