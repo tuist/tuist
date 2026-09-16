@@ -15,13 +15,22 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
     %{server: %Server{id: UUIDv7.generate()}}
   end
 
-  test "checks again in a second while the instance is coming up", %{server: server} do
-    expect(Reconciler, :activate_when_ready, fn id ->
+  test "checks every second within a run, then snoozes, while the instance is coming up", %{server: server} do
+    # A snooze alone runs the job again only after Oban's stager and fetch,
+    # about three seconds later, so each run checks on its own clock first.
+    expect(Reconciler, :activate_when_ready, 10, fn id ->
       assert id == server.id
       {:waiting, %Deployment{inserted_at: DateTime.utc_now()}}
     end)
 
     assert {:snooze, 1} = perform_job(AwaitActivationWorker, %{"server_id" => server.id})
+  end
+
+  test "stops within the run as soon as the instance activates", %{server: server} do
+    expect(Reconciler, :activate_when_ready, 1, fn _id -> {:waiting, %Deployment{inserted_at: DateTime.utc_now()}} end)
+    expect(Reconciler, :activate_when_ready, 1, fn _id -> :done end)
+
+    assert :ok = perform_job(AwaitActivationWorker, %{"server_id" => server.id})
   end
 
   test "stops once the instance is active", %{server: server} do
