@@ -21,6 +21,8 @@ import (
 // job; storage credentials never enter the machine.
 const cacheAdapterType = "tuist"
 
+var errCacheRejected = errors.New("Tuist cache request rejected")
+
 func cacheConfig() *cacheconfig.Config {
 	// Shared drops the runner namespace, leaving `project/<id>/<key>`. The
 	// server scopes that path to the job's account and ref protection.
@@ -33,85 +35,48 @@ func registerCacheAdapter(job assignment) error {
 	})
 }
 
-type cacheURLs struct {
-	Download string `json:"download_url"`
-	Upload   string `json:"upload_url"`
-}
-
 type cacheAdapter struct {
 	job        assignment
 	timeout    time.Duration
 	objectName string
 	once       sync.Once
-	urls       cacheURLs
+	download   string
 }
 
-// Without URLs, GitLab Runner skips the remote cache and continues the job.
+// Without a URL, GitLab Runner skips the remote cache and continues the job.
 func (a *cacheAdapter) GetDownloadURL(ctx context.Context) cache.PresignedURL {
-	a.resolve(ctx)
-	return presigned(a.urls.Download)
+	a.once.Do(func() {
+		var response struct {
+			URL string `json:"url"`
+		}
+		request := map[string]any{"object_name": a.objectName, "expires_in": int(a.timeout.Seconds())}
+		if err := newCacheClient(a.job.ReportURL, a.job.ReportToken).post(ctx, "cache/download", request, &response); err == nil {
+			a.download = response.URL
+		}
+	})
+	return presigned(a.download)
 }
 
-func (a *cacheAdapter) GetUploadURL(ctx context.Context) cache.PresignedURL {
-	a.resolve(ctx)
-	return presigned(a.urls.Upload)
-}
+// Uploads go through the multipart bucket in GetGoCloudURL, since a single
+// presigned PUT is capped at 5 GB.
+func (a *cacheAdapter) GetUploadURL(context.Context) cache.PresignedURL { return cache.PresignedURL{} }
 
 func (a *cacheAdapter) GetHeadURL(context.Context) cache.PresignedURL { return cache.PresignedURL{} }
 
-// Metadata would travel as signed headers the presigned URL does not cover.
 func (a *cacheAdapter) WithMetadata(map[string]string) {}
 
-func (a *cacheAdapter) GetGoCloudURL(context.Context, bool) (cache.GoCloudURL, error) {
-	return cache.GoCloudURL{}, nil
-}
-
-func (a *cacheAdapter) resolve(ctx context.Context) {
-	a.once.Do(func() {
-		body, err := json.Marshal(map[string]any{"object_name": a.objectName, "expires_in": int(a.timeout.Seconds())})
-		if err != nil {
-			return
-		}
-		client := &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}}
-		for attempt := 0; attempt < 3; attempt++ {
-			retry, err := a.request(ctx, client, body)
-			if err == nil || !retry {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Duration(attempt+1) * time.Second):
-			}
-		}
-	})
-}
-
-func (a *cacheAdapter) request(ctx context.Context, client *http.Client, body []byte) (bool, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(a.job.ReportURL, "/")+"/cache", bytes.NewReader(body))
-	if err != nil {
-		return false, err
+func (a *cacheAdapter) GetGoCloudURL(_ context.Context, upload bool) (cache.GoCloudURL, error) {
+	if !upload {
+		return cache.GoCloudURL{}, nil
 	}
-	request.Header.Set("Authorization", "Bearer "+a.job.ReportToken)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return true, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, response.Body)
-		retry := response.StatusCode >= 500 || response.StatusCode == http.StatusTooManyRequests
-		return retry, errors.New("cache URLs unavailable")
-	}
-	var urls cacheURLs
-	if err := json.NewDecoder(io.LimitReader(response.Body, 64*1024)).Decode(&urls); err != nil {
-		return false, err
-	}
-	a.urls = urls
-	return false, nil
+	// The archiver runs as a separate process and reads these from its env file.
+	return cache.GoCloudURL{
+		URL: &url.URL{Scheme: cacheURLScheme, Host: "cache", Path: "/" + a.objectName},
+		Environment: map[string]string{
+			cacheEndpointEnv: a.job.ReportURL,
+			cacheTokenEnv:    a.job.ReportToken,
+		},
+	}, nil
 }
 
 func presigned(raw string) cache.PresignedURL {
@@ -120,4 +85,95 @@ func presigned(raw string) cache.PresignedURL {
 		return cache.PresignedURL{}
 	}
 	return cache.PresignedURL{URL: parsed}
+}
+
+type cacheClient struct {
+	endpoint string
+	token    string
+	api      *http.Client
+	storage  *http.Client
+}
+
+func newCacheClient(endpoint, token string) *cacheClient {
+	noRedirects := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &cacheClient{
+		endpoint: strings.TrimRight(endpoint, "/"),
+		token:    token,
+		api:      &http.Client{Timeout: 20 * time.Second, CheckRedirect: noRedirects},
+		// A part transfer is bounded by its context, not a fixed deadline.
+		storage: &http.Client{CheckRedirect: noRedirects},
+	}
+}
+
+func (c *cacheClient) post(ctx context.Context, path string, body, out any) error {
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	return withRetries(ctx, func() (bool, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/"+path, bytes.NewReader(encoded))
+		if err != nil {
+			return false, err
+		}
+		request.Header.Set("Authorization", "Bearer "+c.token)
+		request.Header.Set("Content-Type", "application/json")
+		response, err := c.api.Do(request)
+		if err != nil {
+			return true, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			_, _ = io.Copy(io.Discard, response.Body)
+			return retryable(response.StatusCode), errCacheRejected
+		}
+		if out == nil {
+			_, _ = io.Copy(io.Discard, response.Body)
+			return false, nil
+		}
+		return false, json.NewDecoder(io.LimitReader(response.Body, 64*1024)).Decode(out)
+	})
+}
+
+func (c *cacheClient) putPart(ctx context.Context, partURL string, data []byte) (string, error) {
+	var etag string
+	err := withRetries(ctx, func() (bool, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodPut, partURL, bytes.NewReader(data))
+		if err != nil {
+			return false, err
+		}
+		request.ContentLength = int64(len(data))
+		response, err := c.storage.Do(request)
+		if err != nil {
+			return true, err
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, response.Body)
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return retryable(response.StatusCode), errors.New("cache part upload rejected")
+		}
+		if etag = response.Header.Get("ETag"); etag == "" {
+			return false, errors.New("cache part upload returned no ETag")
+		}
+		return false, nil
+	})
+	return etag, err
+}
+
+func retryable(status int) bool {
+	return status >= 500 || status == http.StatusTooManyRequests
+}
+
+func withRetries(ctx context.Context, attempt func() (bool, error)) error {
+	const attempts = 3
+	for i := 1; ; i++ {
+		retry, err := attempt()
+		if err == nil || !retry || i == attempts {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(i) * time.Second):
+		}
+	}
 }

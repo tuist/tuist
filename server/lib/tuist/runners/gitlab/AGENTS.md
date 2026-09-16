@@ -28,13 +28,20 @@ assignment upstream if persistence fails.
   but remove erase-line controls used around section boundaries.
 - Shared account cache volumes/signing grants are withheld until GitLab job
   trust can be established independently of overridable CI variables.
-- GitLab's `cache:` keyword is backed by `Cache`: the executor posts GitLab's
-  object name to `/runners/jobs/cache` and receives presigned URLs. Take the
-  account, project ID and ref protection from the report token's claims, which
-  `mint_acquisition` copies from the coordinator's `job_info`/`git_info`; never
-  from the request or CI variables. Keep protected and unprotected refs in
-  separate key namespaces for reads and writes. A token without those claims
-  gets 404 and the job runs without a remote cache.
+- GitLab's `cache:` keyword is backed by `Cache` through
+  `RunnerJobCacheController` (`/runners/jobs/cache/*`): a presigned download
+  URL, and a multipart upload whose parts are presigned one at a time, so
+  archives are not capped by a single PUT. Take the account, project ID and
+  ref protection from the report token's claims, which `mint_acquisition`
+  copies from the coordinator's `job_info`/`git_info`; never from the request
+  or CI variables. Keep protected and unprotected refs in separate key
+  namespaces for reads and writes. A token without those claims gets 404 and
+  the job runs without a remote cache; storage failures are 503 so the
+  executor retries.
+- Every started upload schedules `AbortGitLabCacheUploadWorker` a day out.
+  Incomplete uploads never appear in object listings, so retention cannot
+  reclaim them. Aborting a completed upload is a no-op, so completion does not
+  cancel the job.
 - Cache archives live under `runner-gitlab-cache/<account handle>/` through
   `Storage`, so custom-storage accounts write to their own bucket. Hosted
   retention lists only that prefix, expires orphaned handles with the Air
