@@ -39,14 +39,7 @@ Openness and community are cornerstones in shaping Tuist, as we believe they are
 
 ## Get started
 
-You can run the following command to get started with [Mise] (check out [this page](https://tuist.dev/en/docs/guides/install-tuist) for other methods):
-
-```bash
-mise x tuist@latest -- tuist init
-```
-
-> [!IMPORTANT]
-> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://tuist.dev/en/docs/guides/features/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://tuist.dev/en/docs/guides/features/projects/adoption/migrate/xcode-project).
+Head to [the Tuist docs](https://tuist.dev/en/docs) for install instructions, an overview of the platform, and step-by-step guides for the workflow you want to adopt.
 
 ## Documentation
 
@@ -64,36 +57,19 @@ This repository represents a monorepo with the following projects:
 
 | Project | Description |
 | ------ | -------  |
-| [cli](/cli) | The command line interface for Tuist |
-| [app](/app) | The Swift-powered iOS and macOS app |
+| [cli](/cli) | The Tuist command-line interface (Swift) |
+| [app](/app) | The iOS and macOS app (Swift) |
+| [android](/android) | The Android app (Kotlin/Compose) |
+| [server](/server) | The Tuist server that hosts the cache, previews, analytics, and dashboard (Elixir/Phoenix) |
+| [cache](/cache) | The self-hostable Tuist cache service (Elixir/Phoenix) |
+| [registry](/registry) | The Swift package registry service (Elixir/Phoenix) |
 | [kura](/kura) | The Rust cache mesh service for distributed cache traffic |
-| [docs](/docs) | The documentation for Tuist |
-| [handbook](/handbook) | The company's handbook |
-
-## Sponsors
-
-Some companies support our community and open source efforts with contributions through [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). We'd like to give a special mention to the following sponsors:
-
-<table>
-  <tbody>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-          <img width="300" src="assets/companies/monday.com.svg" alt="mondaycom_logo"/>
-        </a>
-      </td>
-      <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
-    </tr>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-          <img width="200" src="assets/companies/lapse.svg" alt="lapse_logo"/>
-        </a>
-      </td>
-      <td><a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Lapse</a> is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.</td>
-    </tr>
-  </tbody>
-</table>
+| [gradle](/gradle) | The Tuist Gradle plugin for Android/JVM builds (Kotlin) |
+| [noora](/noora) | The Noora design system that powers the Tuist web UI (Elixir/Phoenix) |
+| [codebase-search](/codebase-search) | The hosted source-code search service (Rust) |
+| [atlas](/atlas) | The internal ops app for CRM, contracts, finance, and GTM (Elixir/Phoenix) |
+| [skills](/skills) | The Tuist agent skills package |
+| [handbook](/handbook) | The company handbook |
 
 ## Companies using Tuist
 
