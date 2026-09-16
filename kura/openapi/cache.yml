@@ -1145,7 +1145,4 @@ paths:
         - ModuleCache
 security:
   - authorization: []
-servers:
-  - url: http://localhost:8378
-    variables: {}
 tags: []
