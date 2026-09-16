@@ -17,6 +17,7 @@ defmodule Tuist.VCSTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -378,6 +379,93 @@ defmodule Tuist.VCSTest do
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
+    end
+
+    test "adds the coverage of the runs that gathered it to the tests section" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          default_branch: "main",
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      account = Tuist.Repo.preload(project, :account).account
+
+      Tuist.GitHistory.record_commits(project.id, "sha1", [
+        %{sha: "base", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
+        %{sha: @git_commit_sha, parents: ["base"], committed_at: ~U[2026-09-01 01:00:00Z]}
+      ])
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])],
+        %{git_commit_sha: "base", ran_at: ~N[2026-09-01 00:30:00], scheme: "App"}
+      )
+
+      pr_run =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [CoverageFixtures.file("Sources/A.swift", [1, 1, 0, 0])],
+          %{
+            git_ref: @git_ref,
+            git_branch: "feature",
+            git_commit_sha: @git_commit_sha,
+            scheme: "App",
+            base_branch: "main",
+            merge_base_sha: "base",
+            is_pull_request: true,
+            pull_request_number: 1,
+            history_source: "client",
+            ran_at: ~N[2026-09-01 02:00:00],
+            changed_files: [
+              %{
+                path: "Sources/A.swift",
+                status: "modified",
+                git_blob_id: "blob-Sources/A.swift",
+                hunks: [%{start: 3, end: 4}]
+              }
+            ]
+          }
+        )
+
+      stub(Req, :get, fn _opts -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      test_pid = self()
+
+      stub(Req, :post, fn opts ->
+        send(test_pid, {:comment_body, opts[:json].body})
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+
+      # Then
+      assert_received {:comment_body, body}
+
+      assert body =~ """
+             **Coverage**
+
+             | Scheme | Coverage | Change | Patch | Gaps |
+             |:-:|:-:|:-:|:-:|:-:|
+             | [App](https://tuist.dev/test_runs/#{pr_run.id}?tab=coverage) | 50.0% | -50.0 pp (100.0% at base) | 0.0% (0/2) | `Sources/A.swift` |
+             """
     end
 
     test "creates a comment with ipa previews" do

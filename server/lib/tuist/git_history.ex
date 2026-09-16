@@ -238,9 +238,11 @@ defmodule Tuist.GitHistory do
   ancestor within the walk bounds. The walk never descends below the lowest
   candidate generation.
   """
+  def nearest_ancestor(project_id, sha, candidates, opts \\ [])
+
   def nearest_ancestor(_project_id, _sha, [], _opts), do: nil
 
-  def nearest_ancestor(project_id, sha, candidates, opts \\ []) do
+  def nearest_ancestor(project_id, sha, candidates, opts) do
     candidates = MapSet.new(candidates)
 
     min_generation =
