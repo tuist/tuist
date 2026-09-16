@@ -55,8 +55,8 @@ defmodule Tuist.Kura.EgressLimits do
   @burst_field :kura_egress_burst_mbps
   @form_fields [@floor_field, @burst_field]
   @form_types %{@floor_field => :integer, @burst_field => :integer}
-  # Statuses in which a row holds no pods: teardown took the StatefulSet with
-  # them, and `:destroying` is on its way there. Nothing to shape, so they
+  # Statuses in which a row holds no pods: teardown scaled the StatefulSet to
+  # zero or deleted it, and `:destroying` is on its way there. Nothing to shape, so they
   # neither receive a change nor constrain one.
   @podless_statuses [:destroying, :destroyed, :archived]
   @no_override %{floor_mbps: nil, burst_mbps: nil}

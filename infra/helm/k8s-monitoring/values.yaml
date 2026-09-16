@@ -826,6 +826,9 @@ k8s-monitoring:
                   kurainstance: [metadata, name]
                   tenant_id: [spec, tenantID]
                   region: [spec, region]
+                  # A suspended instance leaves the controller's periodic
+                  # requeue, so its lastReconciledAt stops moving by design.
+                  suspended: [spec, suspended]
                 metrics:
                   - name: kurainstance_status_last_reconciled
                     help: Unix time the controller last completed a full reconcile of this instance.

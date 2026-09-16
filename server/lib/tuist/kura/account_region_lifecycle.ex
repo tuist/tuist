@@ -17,6 +17,11 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   (ownership, review date, expiry, capacity preflight, rollback) is separate
   work.
 
+  `suspension_released_at` is when the suspended workload of the last archival
+  was deleted. Archival suspends the instance rather than deleting it, so a
+  return only has to start pods; the suspension is released once the instance
+  has been archived for `Tuist.Kura.Lifecycle.suspension_days/0`.
+
   `drain_reason` is why the current or last drain started. It is cleared when
   the drain is cancelled or the instance returns from archive, so an `:unused`
   reason on a row without a serving instance means the instance was reclaimed
@@ -39,6 +44,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
     field :last_reclaimed_bytes, :integer
     field :last_drain_duration_ms, :integer
     field :last_returned_at, :utc_datetime
+    field :suspension_released_at, :utc_datetime
     field :drain_reason, Ecto.Enum, values: [:inactive, :capacity_pressure, :unused, :placement_retirement]
 
     belongs_to :account, Account
@@ -59,6 +65,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
       :last_reclaimed_bytes,
       :last_drain_duration_ms,
       :last_returned_at,
+      :suspension_released_at,
       :drain_reason
     ])
   end

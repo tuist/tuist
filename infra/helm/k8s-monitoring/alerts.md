@@ -1690,10 +1690,13 @@ the one to watch as its usage grows.
 
 ```promql
 time() - max by (cluster, namespace, kurainstance, tenant_id, region) (
-  kube_customresource_kurainstance_status_last_reconciled{cluster="tuist-production"}
+  kube_customresource_kurainstance_status_last_reconciled{cluster="tuist-production", suspended!="true"}
 )
 ```
 
+- Suspended instances (`spec.suspended`, archived accounts) are excluded: once
+  converged they leave the controller's periodic requeue, so their
+  `lastReconciledAt` stops moving by design.
 - Threshold: `> 600` seconds, as a separate threshold expression on `A`, so the
   alert value is how long the instance has gone unconverged
 - Pending period: 5 minutes

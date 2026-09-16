@@ -69,7 +69,7 @@ defmodule Tuist.Kura.Reconciler do
 
   @deployment_statuses [:pending, :running]
   # Hard ceiling on how much converge work the reconciler does in one
-  # tick. The cron fires every 30 s; bigger fan-outs are rare enough in
+  # tick. The cron fires every minute; bigger fan-outs are rare enough in
   # practice that one or two extra ticks are fine, and the ceiling
   # guards against a runaway query if a regression ever leaks
   # `:running` rows.
@@ -108,6 +108,71 @@ defmodule Tuist.Kura.Reconciler do
 
       :ok
     end
+  end
+
+  @doc """
+  Drives one server's open deployment now, exactly as the tick would, so an
+  instance a request has just asked for is applied without waiting for it.
+  """
+  def reconcile_server(%Server{id: server_id}) do
+    if Tuist.Environment.kura_control_plane?() do
+      case open_deployment(server_id) do
+        nil -> :ok
+        %Deployment{} = deployment -> reconcile_deployment(deployment)
+      end
+    else
+      :ok
+    end
+  end
+
+  @doc """
+  Activates a server whose open deployment the controller reports running,
+  through the same endpoint-gated path as the tick, and never applies anything:
+  that stays with the tick and `reconcile_server/1`, so polling this every
+  second does not re-apply a manifest the controller is still acting on.
+
+  Returns `{:waiting, deployment}` while the deployment is still open, and
+  `:done` once there is nothing left to wait for, whether the server activated,
+  its deployment closed some other way, or it is no longer one this path acts
+  on.
+  """
+  def activate_when_ready(server_id) do
+    case open_deployment(server_id) do
+      nil ->
+        :done
+
+      %Deployment{kura_server: %Server{status: status}}
+      when status in [:destroying, :destroyed, :drain_pending, :archived] ->
+        :done
+
+      %Deployment{kura_server: %Server{move_phase: move_phase}} when move_phase != :none ->
+        :done
+
+      %Deployment{kura_server: %Server{} = server} = deployment ->
+        activate_observed(deployment, server)
+
+        case open_deployment(server_id) do
+          nil -> :done
+          %Deployment{} = deployment -> {:waiting, deployment}
+        end
+    end
+  end
+
+  defp activate_observed(%Deployment{image_tag: image_tag} = deployment, %Server{} = server) do
+    case Provisioner.current_image_tag(server) do
+      {:ok, ^image_tag} -> activate_and_mark_succeeded(deployment, server)
+      _ -> :ok
+    end
+  end
+
+  defp open_deployment(server_id) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in ^@deployment_statuses)
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> order_by([d, _s], desc: d.inserted_at, desc: d.id)
+    |> limit(1)
+    |> preload([_d, s], kura_server: {s, :account})
+    |> Repo.one()
   end
 
   # Rollout scheduling is the first step of the tick, so a raise here would

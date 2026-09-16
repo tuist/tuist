@@ -691,8 +691,9 @@ defmodule Tuist.Kura do
 
   # Only the rows that still hold volumes, and only in the regions that size
   # instances from their account rather than alike. An archived or destroyed row
-  # holds nothing, because teardown took the StatefulSet and every claim with it,
-  # so it needs no re-pin and takes the current claim on its cold return.
+  # holds nothing: teardown emptied or deleted every claim, so it needs no re-pin
+  # and takes the current claim on its cold return, where the controller drops
+  # an empty retained volume that is smaller than the claim.
   #
   # A row already rendering `claim_size` is left alone: re-pinning it would
   # produce no manifest change, and reporting it as rebuilt would tell an
@@ -1821,10 +1822,11 @@ defmodule Tuist.Kura do
   install rather than as drift against whatever the instance ran before it
   was archived.
 
-  Teardown took the whole StatefulSet and its volumes with it, so this is also
-  the one point in a served instance's life where its disk footprint can change:
-  the account's plan is read again and the returning instance is built at
-  whatever that plan is worth now.
+  Teardown suspended the instance and emptied its volumes, so this is also the
+  one point in a served instance's life where its disk footprint can change: the
+  account's plan is read again and the returning instance is built at whatever
+  that plan is worth now. The deployment's manifest carries no suspension, so
+  applying it is what scales a suspended instance back up.
   """
   def return_from_archive(server, image_tag, account \\ nil)
 

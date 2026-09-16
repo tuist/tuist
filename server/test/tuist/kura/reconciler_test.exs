@@ -1058,6 +1058,83 @@ defmodule Tuist.Kura.ReconcilerTest do
     server
   end
 
+  describe "reconcile_server/1" do
+    test "applies one server's open deployment without waiting for the tick" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, nil}
+      end)
+
+      expect(Provisioner, :rollout, fn %Server{id: id}, %{image_tag: image_tag} ->
+        assert id == server.id
+        assert image_tag == deployment.image_tag
+        :ok
+      end)
+
+      assert :ok = Reconciler.reconcile_server(server)
+
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "does nothing when this process is not the Kura control plane" do
+      stub(Tuist.Environment, :kura_control_plane?, fn -> false end)
+      {_account, server, _deployment} = create_server()
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :ok = Reconciler.reconcile_server(server)
+    end
+  end
+
+  describe "activate_when_ready/1" do
+    test "activates the server once the controller reports its deployment's image" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, deployment.image_tag}
+      end)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps waiting, without re-applying, while the controller is still starting the pods" do
+      {_account, server, deployment} = create_server()
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, nil} end)
+      reject(&Provisioner.rollout/2)
+
+      assert {:waiting, %Deployment{id: id}} = Reconciler.activate_when_ready(server.id)
+      assert id == deployment.id
+    end
+
+    test "keeps waiting while the endpoint does not answer yet" do
+      {account, server, deployment} = create_server()
+      {:ok, _deployment} = Kura.mark_running(deployment)
+      stub_unready_public_endpoint(account, server)
+
+      assert {:waiting, _deployment} = Reconciler.activate_when_ready(server.id)
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
+    end
+
+    test "has nothing to wait for once the server is gone" do
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(UUIDv7.generate())
+    end
+
+    test "has nothing to wait for once the deployment is closed" do
+      {_account, server, deployment} = create_server()
+      mark_deployment_succeeded(deployment)
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+    end
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)

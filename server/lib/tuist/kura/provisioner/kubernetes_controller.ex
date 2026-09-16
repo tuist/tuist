@@ -65,14 +65,51 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp do_rollout(name, %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region}) do
+  # A suspension is the same apply with one more field, so the rollout that
+  # returns the instance, which renders without it, is also what clears it: the
+  # field belongs to this field manager, and server-side apply drops a field
+  # its manager stops sending.
+  @impl true
+  def suspend(name, %{server: %Server{} = server} = inputs) do
+    if @warm_handoffs_enabled or server.move_phase == :none do
+      do_rollout(name, Map.put(inputs, :suspended, true))
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  @doc """
+  `:suspended` only once the controller reports the suspension for the spec
+  generation that asked for it, which is when the workload has stopped and its
+  retained volumes are empty.
+  """
+  @impl true
+  def suspension_state(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, instance} -> {:ok, suspension_state_of(instance)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp suspension_state_of(%{
+         "spec" => %{"suspended" => true},
+         "metadata" => %{"generation" => generation},
+         "status" => %{"phase" => "Suspended", "observedGeneration" => generation}
+       }), do: :suspended
+
+  defp suspension_state_of(%{"spec" => %{"suspended" => true}}), do: :suspending
+  defp suspension_state_of(_instance), do: :running
+
+  defp do_rollout(
+         name,
+         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
+       ) do
     entitlements = manifest_entitlements(account, region)
     external_peers = self_hosted_peers(account, region, entitlements)
+    manifest = render_manifest(name, image_tag, account, region, server, external_peers, entitlements)
+    manifest = if inputs[:suspended], do: put_in(manifest, ["spec", "suspended"], true), else: manifest
 
-    case apply_manifests(
-           [render_manifest(name, image_tag, account, region, server, external_peers, entitlements)],
-           region
-         ) do
+    case apply_manifests([manifest], region) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end

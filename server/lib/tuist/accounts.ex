@@ -31,6 +31,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
@@ -2807,9 +2808,12 @@ defmodule Tuist.Accounts do
 
         case kura_cache_endpoint_urls(account, Origins.value(origin)) do
           [] ->
+            instance_expected? = Demand.instance_expected?(account)
+            if instance_expected?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
+
             %{
               endpoints: absent_kura_endpoint_urls(account),
-              provisioning: Demand.instance_expected?(account)
+              provisioning: instance_expected?
             }
 
           urls ->

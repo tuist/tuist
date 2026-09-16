@@ -1719,6 +1719,87 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "suspend/2" do
+    test "applies the KuraInstance marked suspended, keeping everything that addresses it" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        assert manifest["metadata"]["name"] == "kura-tuist-eu-west-1"
+        assert manifest["spec"]["suspended"] == true
+        assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:0.5.2"
+        assert manifest["spec"]["publicHost"] == "tuist-eu-west-1.kura.tuist.dev"
+        {:ok, manifest}
+      end)
+
+      assert :ok =
+               KubernetesController.suspend("kura-tuist-eu-west-1", %{
+                 image_tag: "0.5.2",
+                 account: %{name: "tuist"},
+                 server: %Server{},
+                 region: eu_region()
+               })
+    end
+
+    test "a rollout clears the suspension, because its apply owns the field" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        refute Map.has_key?(manifest["spec"], "suspended")
+        {:ok, manifest}
+      end)
+
+      assert :ok =
+               KubernetesController.rollout("kura-tuist-eu-west-1", %{
+                 image_tag: "0.5.2",
+                 account: %{name: "tuist"},
+                 server: %Server{},
+                 region: eu_region()
+               })
+    end
+  end
+
+  describe "suspension_state/2" do
+    defp instance(generation, spec, status) do
+      %{"metadata" => %{"generation" => generation}, "spec" => spec, "status" => status}
+    end
+
+    test "is suspended once the controller reports it for the current spec" do
+      stub(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->
+        {:ok, instance(4, %{"suspended" => true}, %{"phase" => "Suspended", "observedGeneration" => 4})}
+      end)
+
+      assert {:ok, :suspended} = KubernetesController.suspension_state("kura-tuist-eu-west-1", eu_region())
+    end
+
+    test "is suspending while the controller has not reported the current spec suspended" do
+      stub(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->
+        {:ok, instance(4, %{"suspended" => true}, %{"phase" => "Suspended", "observedGeneration" => 3})}
+      end)
+
+      assert {:ok, :suspending} = KubernetesController.suspension_state("kura-tuist-eu-west-1", eu_region())
+
+      stub(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->
+        {:ok, instance(4, %{"suspended" => true}, %{"phase" => "Suspending", "observedGeneration" => 4})}
+      end)
+
+      assert {:ok, :suspending} = KubernetesController.suspension_state("kura-tuist-eu-west-1", eu_region())
+    end
+
+    test "is running while the spec does not ask for a suspension" do
+      stub(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->
+        {:ok, instance(4, %{}, %{"phase" => "Suspended", "observedGeneration" => 3})}
+      end)
+
+      assert {:ok, :running} = KubernetesController.suspension_state("kura-tuist-eu-west-1", eu_region())
+    end
+
+    test "reports a missing instance" do
+      stub(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] -> {:error, :not_found} end)
+
+      assert {:error, :not_found} = KubernetesController.suspension_state("kura-tuist-eu-west-1", eu_region())
+    end
+  end
+
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
       expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->

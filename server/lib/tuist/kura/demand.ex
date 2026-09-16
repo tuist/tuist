@@ -120,6 +120,15 @@ defmodule Tuist.Kura.Demand do
   end
 
   @doc """
+  Writes one account's demand through the caller's connection at once, instead
+  of leaving it in this node's buffer. For a caller that is about to act on the
+  demand, possibly on another node, and so cannot wait for a flush.
+  """
+  def persist_now(account_id, %DateTime{} = demand_at) do
+    persist([{account_id, DateTime.to_unix(demand_at)}])
+  end
+
+  @doc """
   The lifecycle row for an account-region, or `nil` when the account has never
   asked for Kura cache in that region.
   """
