@@ -158,53 +158,9 @@ stringData:
   # is only how the host is reached.
   url-tailnet: {{ printf "http://default:%s@%s:8123/%s" $password (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname) $m.database | quote }}
 {{- end }}
-  # Mounted into users.d. ClickHouse reads it at startup and on reload.
+  # Mounted into users.d with `subPath`, so ClickHouse reads it at startup only.
   users.xml: |
-    <clickhouse>
-      <profiles>
-        <default>
-          <!--
-            Three settings that only matter inside a `Replicated` database,
-            and each of which is load-bearing for the Cloud schema clone.
-
-            `allow_only_replicated_engine` is the guard. Without it a CREATE
-            that somehow reaches this database with a plain `MergeTree`
-            engine succeeds and produces a table whose data lives on one
-            replica only, which is invisible until a second replica exists
-            and disagrees. With it, that CREATE fails outright. ClickHouse
-            Cloud defaults this to 1 for the same reason.
-
-            `allow_replicated_engine_arguments = 2` accepts the explicit
-            Keeper path and replica arguments carried by DDL cloned from
-            Cloud and substitutes the server defaults instead of honouring
-            them. Cloud emits `('/clickhouse/tables/{uuid}/{shard}',
-            '{replica}', ...)`, which is the same path this server would
-            choose anyway; mode 1 would accept and honour it, and mode 0
-            would reject the clone outright.
-
-            `allow_heavy_create` permits `CREATE MATERIALIZED VIEW ...
-            POPULATE`, which 14 of the ingest migrations use. It is off by
-            default because such a statement holds the distributed DDL queue
-            for as long as the backfill runs. That is acceptable here: the
-            statements run during migration, not against live traffic.
-          -->
-          <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>
-          <database_replicated_allow_replicated_engine_arguments>2</database_replicated_allow_replicated_engine_arguments>
-          <database_replicated_allow_heavy_create>1</database_replicated_allow_heavy_create>
-        </default>
-      </profiles>
-      <users>
-        <default>
-          <password>{{ $password }}</password>
-          <networks>
-            <ip>::/0</ip>
-          </networks>
-          <profile>default</profile>
-          <quota>default</quota>
-          <access_management>1</access_management>
-        </default>
-      </users>
-    </clickhouse>
+    {{- include "tuist.clickhouseManagedUsersXml" (dict "password" $password) | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -629,7 +585,11 @@ spec:
         # the ConfigMap through the disk declaration. The rule is that a value
         # is omitted only when it configures the client or the rollout rather
         # than the server.
-        checksum/config: {{ printf "%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password | sha256sum | trunc 32 }}
+        #
+        # The users configuration is hashed as well. Its Secret is mounted with
+        # `subPath`, which Kubernetes never refreshes, so a profile change would
+        # otherwise sit unread until something else restarted the pod.
+        checksum/config: {{ printf "%s|%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password)) | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}

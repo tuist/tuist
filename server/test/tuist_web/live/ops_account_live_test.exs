@@ -1222,7 +1222,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       # look up.
       assert html =~ "discarding work a median of 12.0 hours after it was written"
       assert html =~ "should keep everything for at least 1.0 days"
-      assert html =~ "Seen on 14 consecutive days of measurements"
+      assert html =~ "Seen on 14 days of measurements"
       assert html =~ "Apply proposal"
     end
 

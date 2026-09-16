@@ -3,7 +3,6 @@ import { GoogleOneTap } from "../../shared/js/hooks/google-one-tap.js";
 import { NavbarMegaMenu } from "./hooks/navbar-mega-menu.js";
 import { MobileMenu } from "./hooks/mobile-menu.js";
 import { MobileMenuDropdown } from "./hooks/mobile-menu-dropdown.js";
-import { FaqAccordion } from "./hooks/faq-accordion.js";
 import { ScrollToTop } from "./hooks/scroll-to-top.js";
 import { CodeCopy } from "./hooks/code-copy.js";
 import { CodeGroup } from "./hooks/code-group.js";
@@ -15,7 +14,6 @@ import { CacheHeroChart } from "./hooks/cache-hero-chart.js";
 import { CacheMinimalOverhead } from "./hooks/cache-minimal-overhead.js";
 import { CacheObservability } from "./hooks/cache-observability.js";
 import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
-import { CounterAnimation } from "./hooks/counter-animation.js";
 import { KaTeX } from "./hooks/katex.js";
 import { PlatformBackground } from "./hooks/platform-background.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
@@ -79,7 +77,6 @@ const Hooks = {
   LogoContextMenu,
   MobileMenu,
   MobileMenuDropdown,
-  FaqAccordion,
   ScrollToTop,
   CodeCopy,
   CodeGroup,
@@ -91,7 +88,6 @@ const Hooks = {
   CacheMinimalOverhead,
   CacheObservability,
   CacheBuildDecks,
-  CounterAnimation,
   KaTeX,
   BlogViewPreference,
   PricingPlanSelect,

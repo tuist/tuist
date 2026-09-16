@@ -121,6 +121,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEILQ9gGM5W1agSHl9o4rT"
       air:
         usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
         flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
@@ -334,18 +339,13 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # Step 6a: the full parity gate, before reads move.
-    #
-    # Compares every copied table over its whole history, schemas included,
-    # unlike the hourly worker's two-hour window. The repair it follows copied
-    # the September chunk of every table that was short, and the rows the
-    # in-cluster server held that no source row matched were deleted by hand
-    # first, so that copy could not leave duplicates behind.
-    #
-    # It raises, and a failure rolls canary back. If it fails, read the Job and
-    # disarm this rather than redeploying into it.
+    # Step 6a, the full parity gate, is disarmed. Its last run found one copied
+    # table differing from the system of record over the whole dataset:
+    # test_runs, with the same row count on both servers and a different
+    # duration sum. The repair closed every other table. Reads stay where they
+    # are until test_runs is explained.
     migration:
-      enabled: true
+      enabled: false
       name: parity
       task: Tuist.Release.check_clickhouse_parity
 
@@ -824,6 +824,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

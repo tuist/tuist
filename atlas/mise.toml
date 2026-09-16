@@ -1,0 +1,14 @@
+[tools]
+# erlang, elixir, and node are pinned at the monorepo root so every
+# Elixir service shares the same toolchain and lockfile. Add tools here
+# only when they are truly atlas-specific.
+aube = "1.41.0"
+fnox = "latest"
+kubectl = "latest"
+kubelogin = "latest"   # int128/kubelogin — provides `kubectl oidc-login`
+helm = "latest"
+clusterctl = "latest"
+jq = "latest"
+yq = "latest"
+"github-cli" = "latest"
+"1password-cli" = "latest"

@@ -217,7 +217,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "json"]
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -356,6 +356,9 @@ defmodule TuistWeb.Router do
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
     redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
     redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
+    # The flaky-tests and test-insights pages folded into the tests page.
+    redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
+    redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
@@ -952,6 +955,11 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/cache/download", RunnerJobCacheController, :download
+    post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
+    post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
+    post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
+    post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
   end
 
   scope "/api/internal", TuistWeb.Internal do

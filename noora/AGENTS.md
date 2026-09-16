@@ -36,7 +36,7 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
-- Brand icons use monochrome `currentColor` SVGs in `lib/noora/icons/`; `brand-gitlab.svg` comes from Simple Icons and is exposed as `brand_gitlab/1`.
+- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
 
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)

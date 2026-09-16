@@ -175,7 +175,7 @@ public struct BazelSetupCommandService {
     public func run(
         directory: String?,
         buildInsights: Bool = true,
-        remoteDownloader: Bool = false,
+        remoteDownloader: Bool = true,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)

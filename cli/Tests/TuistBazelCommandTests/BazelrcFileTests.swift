@@ -5,8 +5,13 @@ import TuistREAPI
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
-    @Test func enables_remote_asset_downloads_with_local_fallback() {
-        let contents = rendered(remoteDownloader: true)
+    @Test func enables_remote_asset_downloads_with_local_fallback_by_default() throws {
+        let contents = BazelrcFile.render(
+            endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
+            accountHandle: "acme",
+            projectHandle: "app",
+            credentialHelperPath: try AbsolutePath(validating: "/tmp/tuist-bazel-credential-helper")
+        )
         #expect(contents.contains("build --experimental_remote_downloader=grpcs://acme-eu-west-1.kura.tuist.dev"))
         #expect(contents.contains("build --experimental_remote_downloader_local_fallback=true"))
     }

@@ -140,6 +140,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -1585,6 +1590,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 14
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
