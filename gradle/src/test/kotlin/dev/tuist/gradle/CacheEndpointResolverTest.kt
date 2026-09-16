@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import dev.tuist.gradle.api.model.CacheEndpoints
 import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -20,13 +21,13 @@ class CacheEndpointResolverTest {
         tokenCacheFactory = { CachedValueStore() }) {}
 
 
-    private fun stubService(endpoints: List<String>): GetCacheEndpointsService {
+    private fun stubService(endpoints: List<String>, provisioning: Boolean? = null): GetCacheEndpointsService {
         return object : GetCacheEndpointsService() {
             override fun getCacheEndpoints(
                 serverURL: URI,
                 accountHandle: String,
                 tokenProvider: TokenProvider
-            ): List<String> = endpoints
+            ): CacheEndpoints = CacheEndpoints(endpoints = endpoints, provisioning = provisioning)
         }
     }
 
@@ -57,6 +58,17 @@ class CacheEndpointResolverTest {
                 serverURL, accountHandle, stubTokenProvider,
                 envProvider = { null },
                 getCacheEndpointsService = stubService(emptyList())
+            )
+        }
+    }
+
+    @Test
+    fun `no endpoints while the cache is being prepared throws CacheEndpointBeingPreparedException`() {
+        assertFailsWith<CacheEndpointBeingPreparedException> {
+            CacheEndpointResolver.resolve(
+                serverURL, accountHandle, stubTokenProvider,
+                envProvider = { null },
+                getCacheEndpointsService = stubService(emptyList(), provisioning = true)
             )
         }
     }
@@ -98,9 +110,9 @@ class CacheEndpointResolverTest {
                 serverURL: URI,
                 accountHandle: String,
                 tokenProvider: TokenProvider
-            ): List<String> {
+            ): CacheEndpoints {
                 callCount++
-                return listOf("https://cache.dev")
+                return CacheEndpoints(endpoints = listOf("https://cache.dev"))
             }
         }
 

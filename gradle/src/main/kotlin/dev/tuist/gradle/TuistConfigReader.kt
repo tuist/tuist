@@ -45,6 +45,11 @@ class NoCacheEndpointsException(accountHandle: String) : RuntimeException(
         "Verify your project is correctly configured at https://tuist.dev."
 )
 
+class CacheEndpointBeingPreparedException(accountHandle: String) : RuntimeException(
+    "The remote cache for account '$accountHandle' is being prepared. " +
+        "This build uses the local cache, and the remote cache is used as soon as it is ready."
+)
+
 class CacheEndpointsUnreachableException(endpoints: List<String>) : RuntimeException(
     "None of the cache endpoints are reachable: ${endpoints.joinToString(", ")}. " +
         "Check your internet connection and firewall settings."
@@ -65,13 +70,17 @@ object CacheEndpointResolver {
             return envEndpoint
         }
 
-        val endpoints = getCacheEndpointsService.getCacheEndpoints(
+        val resolution = getCacheEndpointsService.getCacheEndpoints(
             serverURL = serverURL,
             accountHandle = accountHandle,
             tokenProvider = tokenProvider
         )
+        val endpoints = resolution.endpoints
 
         if (endpoints.isEmpty()) {
+            if (resolution.provisioning == true) {
+                throw CacheEndpointBeingPreparedException(accountHandle)
+            }
             throw NoCacheEndpointsException(accountHandle)
         }
 

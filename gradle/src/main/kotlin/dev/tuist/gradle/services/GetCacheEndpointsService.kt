@@ -3,6 +3,7 @@ package dev.tuist.gradle.services
 import dev.tuist.gradle.TokenProvider
 import dev.tuist.gradle.TuistHttpClients
 import dev.tuist.gradle.api.CacheApi
+import dev.tuist.gradle.api.model.CacheEndpoints
 import retrofit2.Retrofit
 import java.net.URI
 
@@ -18,7 +19,7 @@ open class GetCacheEndpointsService(
         serverURL: URI,
         accountHandle: String,
         tokenProvider: TokenProvider
-    ): List<String> {
+    ): CacheEndpoints {
         val api = retrofitProvider(serverURL, tokenProvider).create(CacheApi::class.java)
         val response = api.getCacheEndpoints(accountHandle).execute()
         if (!response.isSuccessful) {
@@ -27,7 +28,7 @@ open class GetCacheEndpointsService(
                     ?: "Fetching cache endpoints failed with status ${response.code()}."
             )
         }
-        return response.body()?.endpoints
+        return response.body()
             ?: throw RuntimeException("Cache endpoints response was empty.")
     }
 }
