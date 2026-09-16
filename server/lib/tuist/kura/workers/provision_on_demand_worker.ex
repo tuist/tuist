@@ -13,13 +13,15 @@ defmodule Tuist.Kura.Workers.ProvisionOnDemandWorker do
   `Tuist.Kura.Workers.AwaitActivationWorker`. The tick stays the authority and
   converges anything this misses.
 
-  One job per account waits in the queue at a time, so every client of an
-  account asking at once costs one provisioning pass.
+  At most one job per account runs in any five seconds. Every client of an
+  account asks while it has no endpoint, a CI fleet included, and an account
+  refused for capacity keeps asking; each extra pass would take the region's
+  admission lock only to reach the same answer.
   """
   use Oban.Worker,
     queue: :kura_provisioning,
     max_attempts: 1,
-    unique: [keys: [:account_id], period: :infinity, states: :incomplete]
+    unique: [keys: [:account_id], period: 5, states: :successful]
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
