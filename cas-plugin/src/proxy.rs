@@ -8,7 +8,7 @@
 //! is multi-process by design) and materializes fetched graphs into it
 //! before answering a resolve, so consumers' demand loads are local hits.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -401,6 +401,43 @@ const REOPEN_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 /// healthy one takes milliseconds.
 const REOPEN_STALL_REPORT: Duration = Duration::from_secs(10);
 
+/// How often `bound_store` measures a store whose project set a size limit.
+/// Measuring walks the store directory, and a prune that could not rotate the
+/// store (another process still holds it open) would otherwise be retried on
+/// every tick.
+const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
+/// The per-generation limit for a store whose footprint may reach
+/// `store_size_limit` bytes. A pruned store settles at about twice its
+/// per-generation limit (the primary plus the upstream it demoted), which is
+/// why the runner image stages half of its CAS allowance the same way. Never 0,
+/// which `set_ondisk_limit` reads as imposing no limit.
+fn generation_limit(store_size_limit: u64) -> u64 {
+    (store_size_limit / 2).max(1)
+}
+
+/// The allocated size of the store's newest generation: the primary, which is
+/// the only one a close looks at when it decides to rotate. `None` when the
+/// store has no generation yet. Pure so the gate is unit-testable.
+fn newest_generation_size(sizes: &HashMap<String, u64>) -> Option<u64> {
+    sizes
+        .iter()
+        .filter_map(|(name, size)| {
+            name.strip_prefix("v1.")
+                .and_then(|index| index.parse::<u64>().ok())
+                .map(|index| (index, *size))
+        })
+        .max_by_key(|(index, _)| *index)
+        .map(|(_, size)| size)
+}
+
+/// The size limit of a store several projects share: the smallest any of them
+/// set. A project that set none does not lift the others'. Pure so the policy
+/// is unit-testable.
+fn shared_store_limit(limits: impl IntoIterator<Item = Option<u64>>) -> Option<u64> {
+    limits.into_iter().flatten().min()
+}
+
 /// A cached resolve outcome for a key.
 enum Resolution {
     /// Lookup metadata cannot suppress a replacement upload after a failed
@@ -541,7 +578,7 @@ struct StoreBinding {
 enum Reopen {
     /// Nothing is rebinding the handle.
     Idle,
-    /// A `cas-reopen` thread is rebinding the handle.
+    /// A `cas-reopen` thread is rebinding the handle, or a prune owns it.
     InFlight { since: Instant, stall_reported: bool },
     /// The last reopen failed at `at` and left the slot empty.
     Failed { at: Instant },
@@ -552,7 +589,7 @@ enum Reopen {
 enum StoreVerdict {
     /// Answer from the handle.
     Serve,
-    /// Answer a miss: a reopen is running, or failed inside
+    /// Answer a miss: a reopen or prune is running, or a reopen failed inside
     /// `REOPEN_RETRY_INTERVAL`.
     Unavailable,
     /// Rebind the handle to the directory with this identity.
@@ -1107,10 +1144,51 @@ impl PathState {
     /// handle opened alongside ours finds the chain still live and collects
     /// nothing, while reporting success.
     ///
-    /// The write lock is the quiescence guarantee: no reader can be inside an
-    /// FFI call with the handle we dispose, and none can take one out until the
-    /// replacement is in place.
+    /// The store is claimed for the whole prune (see `claim_for_prune`), so
+    /// lookups answer misses instead of waiting for it, and the write lock is
+    /// held only to take the handle out and to put the fresh one in, never
+    /// across the dispose, open, or prune, any of which can block.
     fn prune_ondisk(&self, limit_bytes: u64) -> Result<u64, String> {
+        if !self.claim_for_prune() {
+            return Err("the store is being reopened or pruned".into());
+        }
+        let outcome = self.rotate_and_prune(limit_bytes);
+        self.release_prune_claim();
+        outcome
+    }
+
+    /// Claims the store for a prune, or `false` when a reopen or another prune
+    /// already owns it. A claimed store reads as `Reopen::InFlight`, so
+    /// `check_generation` answers `false` for it and starts no reopen of its
+    /// own, and only one prune or reopen handles the slot at a time.
+    fn claim_for_prune(&self) -> bool {
+        let mut binding = self.binding.lock().unwrap();
+        if matches!(binding.reopen, Reopen::InFlight { .. }) {
+            return false;
+        }
+        binding.reopen = Reopen::InFlight {
+            since: Instant::now(),
+            stall_reported: false,
+        };
+        true
+    }
+
+    /// Ends a prune's claim. A prune whose reopen failed left the slot empty,
+    /// which is marked `Failed` so `check_generation` retries the open on its
+    /// own thread.
+    fn release_prune_claim(&self) {
+        let out_of_service = self.cas.read().unwrap().is_none();
+        self.binding.lock().unwrap().reopen = if out_of_service {
+            Reopen::Failed { at: Instant::now() }
+        } else {
+            Reopen::Idle
+        };
+    }
+
+    /// Sets the limit, disposes the handle (the close that rotates), opens a
+    /// fresh one, and prunes through it before installing it. The caller holds
+    /// the claim.
+    fn rotate_and_prune(&self, limit_bytes: u64) -> Result<u64, String> {
         let Some(set_limit) = self.up.llcas_cas_set_ondisk_size_limit else {
             return Err("upstream plugin exports no ondisk size limit".into());
         };
@@ -1118,43 +1196,45 @@ impl PathState {
             return Err("upstream plugin exports no ondisk prune".into());
         };
         let before = generation_sizes(&self.cas_path);
-        let mut cas = self.cas.write().unwrap();
-        // A reopen owns the slot from taking the stale handle until it installs
-        // the fresh one. A prune in between would open a handle beside that
-        // open, which rotates nothing.
-        let reopen = self.binding.lock().unwrap().reopen;
-        if matches!(reopen, Reopen::InFlight { .. }) {
-            return Err("the store is being reopened after a wipe".into());
-        }
-
-        if let Some(live) = *cas {
-            // Only worth a log: a limit we failed to set means the dispose below
-            // rotates nothing, and the prune then honestly collects nothing.
-            if let Err(message) = unsafe { set_ondisk_limit(self.up, set_limit, live, limit_bytes) }
-            {
-                crate::log_line(&format!(
-                    "proxy prune: could not set the limit on {}: {message}",
-                    self.cas_path
-                ));
+        // Under the write lock, so no reader is inside a call with the handle.
+        // Readers see the empty slot as out of service until the fresh handle is
+        // installed.
+        let stale = {
+            let mut cas = self.cas.write().unwrap();
+            if let Some(live) = *cas {
+                // Only worth a log: a limit we failed to set means the dispose
+                // below rotates nothing, and the prune then honestly collects
+                // nothing.
+                if let Err(message) =
+                    unsafe { set_ondisk_limit(self.up, set_limit, live, limit_bytes) }
+                {
+                    crate::log_line(&format!(
+                        "proxy prune: could not set the limit on {}: {message}",
+                        self.cas_path
+                    ));
+                }
             }
-        }
-        // Dispose FIRST, and leave the slot empty across it: this is the close
-        // that rotates, so nothing of ours may hold the store open here.
-        if let Some(stale) = cas.take() {
+            cas.take()
+        };
+        // A prune removes objects from the store IN PLACE. Our known-local marks
+        // are trusted without an on-disk probe, so a surviving mark for a
+        // collected blob hands a consumer a graph with holes -- the same hazard
+        // OP_INVALIDATE exists for. Nothing learns a mark while the slot is
+        // empty, so dropping them here covers the whole prune, including one
+        // that then errors.
+        self.invalidate();
+        self.publish_cache.lock().unwrap().clear();
+        // Dispose FIRST: this is the close that rotates, so nothing of ours may
+        // hold the store open here.
+        if let Some(stale) = stale {
             unsafe { (self.up.llcas_cas_dispose)(stale) };
         }
 
-        // The fresh handle sees the post-rotation chain. A store that will not
-        // reopen is one we can no longer serve at all, so leave the slot `None`
-        // rather than hand readers a disposed pointer, and mark the reopen
-        // failed so `check_generation` retries it on its own thread.
-        //
-        // Every path from here runs through the invalidation below, including
-        // that one. The rotation has already happened, so the marks describe a
-        // chain this state no longer addresses whether or not the prune ran.
+        // The fresh handle sees the post-rotation chain, and is installed only
+        // after the prune. A store that will not reopen stays out of service,
+        // and `release_prune_claim` leaves it to the reopen retry.
         let outcome = match (self.open)(self.up, &self.cas_path) {
             Ok(fresh) => {
-                *cas = Some(fresh);
                 // Re-set on the new primary so the NEXT close rotates too,
                 // without anyone having to ask again.
                 if let Err(message) =
@@ -1168,6 +1248,7 @@ impl PathState {
                 let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
                 let failed = unsafe { prune(fresh, &mut error) };
                 let detail = unsafe { take_error(self.up, error) };
+                *self.cas.write().unwrap() = Some(fresh);
                 if failed {
                     Err(detail.unwrap_or_else(|| "prune failed".into()))
                 } else {
@@ -1176,22 +1257,6 @@ impl PathState {
             }
             Err(message) => Err(format!("reopen after rotation: {message}")),
         };
-        let out_of_service = cas.is_none();
-        drop(cas);
-        if out_of_service {
-            let mut binding = self.binding.lock().unwrap();
-            if binding.reopen == Reopen::Idle {
-                binding.reopen = Reopen::Failed { at: Instant::now() };
-            }
-        }
-
-        // A prune removed objects from the store IN PLACE. Our known-local marks
-        // are trusted without an on-disk probe, so a surviving mark for a
-        // collected blob hands a consumer a graph with holes -- the same hazard
-        // OP_INVALIDATE exists for, and it applies to a partial prune that then
-        // errored just as much as to one that succeeded.
-        self.invalidate();
-        self.publish_cache.lock().unwrap().clear();
 
         outcome?;
         Ok(reclaimed_bytes(&self.cas_path, &before))
@@ -1531,6 +1596,7 @@ struct SourceContext {
     trunk: Option<String>,
     ci_branch: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
 /// How long a recorded context is reused while the sources file is unchanged.
@@ -1565,6 +1631,7 @@ struct SourceBranches {
     branch: Option<String>,
     trunk: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
 /// What `tuist setup cache` recorded for an instance.
@@ -1603,6 +1670,10 @@ struct RegisteredSource {
     /// Absent is permissive: nothing recorded is nothing to withhold.
     #[serde(default = "uploads_by_default")]
     upload: bool,
+    /// The project's `xcodeCache.storeSizeLimit`, in bytes: what `bound_stores`
+    /// prunes the project's stores back to. Absent is unbounded.
+    #[serde(default, rename = "storeSizeLimit")]
+    store_size_limit: Option<u64>,
 }
 
 fn uploads_by_default() -> bool {
@@ -1641,6 +1712,10 @@ pub struct Proxy {
     // persisted so an Xcode ⌘B build (which declares none) still routes after
     // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
+    // cas_path -> every instance that has declared it, persisted in the same
+    // registry. A store is shared (Xcode's default one by every project on the
+    // machine), and its size limit is the smallest any of them set.
+    path_instances: Mutex<HashMap<String, BTreeSet<String>>>,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -1686,6 +1761,8 @@ pub struct Proxy {
     // When we last said a refresh was held off for a busy machine (see
     // `log_busy`).
     busy_logged_at: Mutex<Option<Instant>>,
+    // cas_path -> when `bound_store` last measured it.
+    store_bound_checked: Mutex<HashMap<String, Instant>>,
 
     // Keys answered by a per-key lookup while a snapshot was Ready: they fell
     // out of the server's size-capped wire view, which ranks by version — a
@@ -1720,7 +1797,7 @@ impl Proxy {
         registry_path: Option<PathBuf>,
         analytics: Option<crate::analytics::Analytics>,
     ) -> &'static Proxy {
-        let path_instance = registry_path
+        let (path_instance, path_instances) = registry_path
             .as_deref()
             .map(load_registry)
             .unwrap_or_default();
@@ -1734,6 +1811,7 @@ impl Proxy {
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
+            path_instances: Mutex::new(path_instances),
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
@@ -1751,6 +1829,7 @@ impl Proxy {
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             busy_logged_at: Mutex::new(None),
+            store_bound_checked: Mutex::new(HashMap::new()),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
@@ -1849,9 +1928,17 @@ impl Proxy {
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
         let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
-            if map.get(cas_path).map(String::as_str) != Some(declared) {
+            let mut known = self.path_instances.lock().unwrap();
+            let rerouted = map.get(cas_path).map(String::as_str) != Some(declared);
+            if rerouted {
                 map.insert(cas_path.to_string(), declared.to_string());
-                self.persist_registry(&map);
+            }
+            let newly_known = known
+                .entry(cas_path.to_string())
+                .or_default()
+                .insert(declared.to_string());
+            if rerouted || newly_known {
+                self.persist_registry(&map, &known);
             }
             Some(declared.to_string())
         } else {
@@ -1942,18 +2029,34 @@ impl Proxy {
         self.active_instances.lock().unwrap().contains(instance)
     }
 
-    fn persist_registry(&self, map: &HashMap<String, String>) {
+    /// Writes one `cas_path\tinstance` line per instance that has declared a
+    /// path, with each path's routing instance after its others (see
+    /// `load_registry`).
+    fn persist_registry(
+        &self,
+        routing: &HashMap<String, String>,
+        known: &HashMap<String, BTreeSet<String>>,
+    ) {
         let Some(path) = &self.registry_path else {
             return;
         };
         let mut body = String::new();
-        for (cas_path, instance) in map {
+        let mut line = |cas_path: &str, instance: &str| {
             if !cas_path.contains(['\t', '\n']) && !instance.contains(['\t', '\n']) {
                 body.push_str(cas_path);
                 body.push('\t');
                 body.push_str(instance);
                 body.push('\n');
             }
+        };
+        for (cas_path, instances) in known {
+            let routed = routing.get(cas_path);
+            for instance in instances.iter().filter(|instance| Some(*instance) != routed) {
+                line(cas_path, instance);
+            }
+        }
+        for (cas_path, instance) in routing {
+            line(cas_path, instance);
         }
         let _ = std::fs::write(path, body);
     }
@@ -3028,9 +3131,9 @@ impl Proxy {
         };
         if let Some(stalled_for) = stalled_for {
             crate::log_line(&format!(
-                "cas reopen after wipe has not returned after {}s for {}; resolves on it answer misses until it does",
-                stalled_for.as_secs(),
-                state.cas_path
+                "cas store {} has been out of service for {}s while a reopen or prune runs; resolves on it answer misses until it returns",
+                state.cas_path,
+                stalled_for.as_secs()
             ));
         }
         let StoreVerdict::Reopen(target) = verdict else {
@@ -3400,6 +3503,113 @@ impl Proxy {
             if should_reclaim(idle, cas_dir_gone) {
                 state.invalidate();
                 state.publish_cache.lock().unwrap().clear();
+            }
+        }
+    }
+
+    /// Prunes every store this proxy holds that has grown past its size limit
+    /// (see `store_size_limit`). Called from the maintenance loop and skipped
+    /// while the machine is busy: a store only rotates when the proxy's handle
+    /// is its last, which a running build's compilers prevent.
+    pub fn bound_stores(&self) {
+        if self.busy_reason().is_some() {
+            return;
+        }
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            if let Some(limit) = self.store_size_limit(&cas_path) {
+                self.bound_store(&cas_path, state, limit);
+            }
+        }
+    }
+
+    /// The size limit of the store at `cas_path`: the smallest limit set by any
+    /// project that has used it. Stores are shared (Xcode's default store by
+    /// every project on the machine), so the limit of whichever project built
+    /// last would make the bound depend on build order, and a project without a
+    /// limit would lift another's.
+    fn store_size_limit(&self, cas_path: &str) -> Option<u64> {
+        let instances: Vec<String> = self
+            .path_instances
+            .lock()
+            .unwrap()
+            .get(cas_path)
+            .map(|instances| instances.iter().cloned().collect())
+            .unwrap_or_default();
+        shared_store_limit(
+            instances
+                .iter()
+                .map(|instance| self.source_context(instance).store_size_limit),
+        )
+    }
+
+    /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL
+    /// and prunes it at `generation_limit(limit)` on a `cas-bound` thread, which
+    /// it returns, when the store occupies more than `limit` bytes AND its
+    /// newest generation is large enough for the close to rotate. The prune
+    /// claims the store, so resolves on it answer misses meanwhile, and the
+    /// maintenance loop never waits for a dispose, open, or prune that blocks.
+    fn bound_store(
+        &self,
+        cas_path: &str,
+        state: &'static PathState,
+        limit: u64,
+    ) -> Option<std::thread::JoinHandle<()>> {
+        // A prune deletes objects, and deleting one a spooled publication still
+        // owes the remote strands the association naming it, which is why the
+        // runner's teardown drains before it prunes. Not counted as a check, so
+        // the store is measured once its spool empties.
+        if spool_records(cas_path) > 0 {
+            return None;
+        }
+        {
+            let mut checked = self.store_bound_checked.lock().unwrap();
+            if checked
+                .get(cas_path)
+                .is_some_and(|at| at.elapsed() < STORE_BOUND_INTERVAL)
+            {
+                return None;
+            }
+            checked.insert(cas_path.to_string(), Instant::now());
+        }
+        let size = directory_size(cas_path);
+        if size <= limit {
+            return None;
+        }
+        // A close starts a new generation only when it finds the PRIMARY past
+        // half its limit, so a store whose bulk sits in the upstream under a
+        // near-empty primary cannot rotate yet. Pruning it anyway disposes the
+        // handle, drops the marks and takes the path out of service without
+        // reclaiming a byte, on every pass until builds refill the primary --
+        // which is the state of every store that grew before its project set a
+        // limit.
+        let primary = newest_generation_size(&generation_sizes(cas_path)).unwrap_or(0);
+        if primary <= generation_limit(limit) {
+            return None;
+        }
+        let spawned = std::thread::Builder::new()
+            .name("cas-bound".into())
+            .spawn(move || match state.prune_ondisk(generation_limit(limit)) {
+                Ok(reclaimed) => crate::log_line(&format!(
+                    "store {} occupied {size} bytes, past its {limit}-byte limit: pruning reclaimed {reclaimed} bytes",
+                    state.cas_path
+                )),
+                Err(message) => crate::log_line(&format!(
+                    "store {} occupied {size} bytes, past its {limit}-byte limit: prune failed: {message}",
+                    state.cas_path
+                )),
+            });
+        match spawned {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                crate::log_line(&format!("store prune could not start for {cas_path}: {error}"));
+                None
             }
         }
     }
@@ -4140,6 +4350,7 @@ impl Proxy {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
                         upload: context.upload,
+                        store_size_limit: context.store_size_limit,
                     };
                 }
             }
@@ -4149,6 +4360,7 @@ impl Proxy {
         let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
         // Unknown instance: nothing recorded, so nothing to withhold.
         let upload = source.as_ref().map(|source| source.upload).unwrap_or(true);
+        let store_size_limit = source.as_ref().and_then(|source| source.store_size_limit);
         {
             let cache = self.source_cache.lock().unwrap();
             let changed = cache
@@ -4171,9 +4383,15 @@ impl Proxy {
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
                 upload,
+                store_size_limit,
             },
         );
-        SourceBranches { branch, trunk, upload }
+        SourceBranches {
+            branch,
+            trunk,
+            upload,
+            store_size_limit,
+        }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
@@ -4184,6 +4402,7 @@ impl Proxy {
             trunk: source.trunk.clone(),
             ci_branch: source.ci_branch.clone(),
             upload: source.upload,
+            store_size_limit: source.store_size_limit,
         };
         if let Some(path) = self.registry_path.as_deref() {
             match load_sources(&sources_path_for(path)) {
@@ -4627,17 +4846,25 @@ fn take_u16_field(buf: &[u8]) -> Option<(&[u8], &[u8])> {
     Some((&rest[..len], &rest[len..]))
 }
 
-/// Loads the persisted `cas_path -> instance` registry (tab-separated lines).
-fn load_registry(path: &Path) -> HashMap<String, String> {
-    let mut map = HashMap::new();
+/// Loads the persisted registry: tab-separated `cas_path\tinstance` lines, one
+/// per instance that has declared the path. Returns the routing map (the LAST
+/// line for each path, which is also all a proxy that predates the other lines
+/// reads) and every instance known per path.
+fn load_registry(path: &Path) -> (HashMap<String, String>, HashMap<String, BTreeSet<String>>) {
+    let mut routing = HashMap::new();
+    let mut known: HashMap<String, BTreeSet<String>> = HashMap::new();
     if let Ok(body) = std::fs::read_to_string(path) {
         for line in body.lines() {
             if let Some((cas_path, instance)) = line.split_once('\t') {
-                map.insert(cas_path.to_string(), instance.to_string());
+                routing.insert(cas_path.to_string(), instance.to_string());
+                known
+                    .entry(cas_path.to_string())
+                    .or_default()
+                    .insert(instance.to_string());
             }
         }
     }
-    map
+    (routing, known)
 }
 
 /// The sources registry sits next to the cas_path registry, written by
@@ -5619,6 +5846,7 @@ mod tests {
                 "tuist/ci":        {"trunk": "main", "branch": "feature/x"},
                 "tuist/no-trunk":  {"branch": "feature/y"},
                 "tuist/read-only": {"trunk": "main", "upload": false},
+                "tuist/bounded":   {"trunk": "main", "storeSizeLimit": 1073741824},
                 "tuist/newer":     {"trunk": "main", "something-we-do-not-know": 1},
                 "tuist/dev":       {"trunk": "main"},
                 "tuist/bare":      {}
@@ -5655,6 +5883,10 @@ mod tests {
         assert_eq!(bare.trunk, None);
         assert_eq!(bare.ci_branch, None);
         assert!(bare.upload, "nothing recorded is nothing to withhold");
+        assert_eq!(bare.store_size_limit, None, "nothing recorded is no limit");
+
+        let bounded = sources.get("tuist/bounded").expect("bounded entry");
+        assert_eq!(bounded.store_size_limit, Some(1024 * 1024 * 1024));
 
         // Unreadable is not the same as empty: a project this read forgot would
         // come back as unknown, and unknown has to be allowed to upload.
@@ -6822,6 +7054,285 @@ mod tests {
             before,
             "an over-limit store must still rotate after concurrent registration"
         );
+    }
+
+    /// A project's `storeSizeLimit` is enforced without a caller asking: a store
+    /// within it is left alone, a store past it is rotated and pruned, and a
+    /// store is measured at most once per STORE_BOUND_INTERVAL.
+    #[test]
+    fn a_store_past_its_projects_size_limit_is_pruned() {
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let proxy = test_proxy();
+
+        let within = TempCasDir::new("bound-within");
+        let within_state = path_state_for(&within.path());
+        fill_to(within_state, &within, 24 * 1024 * 1024);
+        let untouched = generations(&within);
+        assert!(
+            proxy
+                .bound_store(&within.path(), within_state, u64::MAX)
+                .is_none(),
+            "a store within its limit is left alone"
+        );
+        assert_eq!(generations(&within), untouched);
+
+        let over = TempCasDir::new("bound-over");
+        let over_state = path_state_for(&over.path());
+        fill_to(over_state, &over, 24 * 1024 * 1024);
+        proxy
+            .bound_store(&over.path(), over_state, LIMIT)
+            .expect("a store past its limit is pruned")
+            .join()
+            .unwrap();
+        assert_eq!(
+            generations(&over).len(),
+            2,
+            "a store past its limit rotates, keeping the full generation as upstream"
+        );
+
+        fill_to(over_state, &over, 24 * 1024 * 1024);
+        assert!(
+            proxy.bound_store(&over.path(), over_state, LIMIT).is_none(),
+            "a store measured within STORE_BOUND_INTERVAL is not measured again"
+        );
+        assert!(directory_size(&over.path()) > LIMIT);
+    }
+
+    #[test]
+    fn a_store_size_limit_is_a_footprint_split_across_two_generations() {
+        assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
+        assert_eq!(
+            generation_limit(1),
+            1,
+            "a limit of 0 would lift the bound instead of imposing one"
+        );
+    }
+
+    /// A prune deletes objects, so it waits for the store's spooled publications
+    /// the way the runner's teardown drains before it prunes.
+    #[test]
+    fn a_store_with_spooled_publications_is_not_pruned_until_they_drain() {
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-spooled");
+        let state = path_state_for(&dir.path());
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        let before = generations(&dir);
+        let spool = spool_dir(&dir.path());
+        std::fs::create_dir_all(&spool).expect("spool");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let proxy = test_proxy();
+
+        assert!(
+            proxy.bound_store(&dir.path(), state, LIMIT).is_none(),
+            "a store that still owes publications is not pruned"
+        );
+        assert_eq!(generations(&dir), before);
+
+        std::fs::remove_file(&record).expect("drain");
+        proxy
+            .bound_store(&dir.path(), state, LIMIT)
+            .expect("once the spool drains, the next pass prunes the store")
+            .join()
+            .unwrap();
+        assert_ne!(generations(&dir), before);
+    }
+
+    #[test]
+    fn the_newest_generation_is_the_one_a_close_can_rotate() {
+        let sizes = HashMap::from([
+            ("v1.1".to_string(), 24_000_000u64),
+            ("v1.2".to_string(), 3_000u64),
+        ]);
+        assert_eq!(newest_generation_size(&sizes), Some(3_000));
+        assert_eq!(newest_generation_size(&HashMap::new()), None);
+    }
+
+    /// After a rotation the oversized generation is the upstream and the primary
+    /// is near empty, so a close cannot rotate anything. Pruning on the store's
+    /// total size alone disposed the handle, bumped `gen_counter` and took the
+    /// path out of service on every pass while reclaiming nothing (measured: a 4
+    /// MiB limit against a 24 MiB fill stayed at 25.35 MiB across three passes).
+    #[test]
+    fn a_store_whose_primary_cannot_rotate_yet_is_left_alone() {
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-upstream-heavy");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        fill_to(state, &dir, 24 * 1024 * 1024);
+
+        proxy
+            .bound_store(&dir.path(), state, LIMIT)
+            .expect("the first pass rotates")
+            .join()
+            .unwrap();
+        assert!(
+            directory_size(&dir.path()) > LIMIT,
+            "the rotation demoted the full generation rather than collecting it"
+        );
+        let rotated = generations(&dir);
+        let counter = state.gen_counter.load(Ordering::SeqCst);
+
+        proxy.store_bound_checked.lock().unwrap().clear();
+        assert!(
+            proxy.bound_store(&dir.path(), state, LIMIT).is_none(),
+            "a store whose primary cannot rotate is not pruned again"
+        );
+        assert_eq!(
+            state.gen_counter.load(Ordering::SeqCst),
+            counter,
+            "and nothing takes the path out of service for a prune that would collect nothing"
+        );
+        assert_eq!(generations(&dir), rotated);
+    }
+
+    // An automatic prune runs beside builds that start once the machine looks
+    // idle. A dispose, open, or prune that does not return must not hold their
+    // resolves, which answer misses meanwhile, nor the maintenance loop.
+    #[test]
+    fn a_blocked_automatic_prune_parks_neither_resolves_nor_the_maintenance_loop() {
+        const LIMIT: u64 = 2 * 1024 * 1024;
+        const QUEUED: usize = 8;
+        let dir = TempCasDir::new("bound-blocked");
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let release_rx = Mutex::new(release_rx);
+        let blocked = std::sync::atomic::AtomicBool::new(false);
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if !blocked.swap(true, Ordering::SeqCst) {
+                    let _ = entered_tx.send(());
+                    let _ = release_rx.lock().unwrap().recv();
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        let digest = store_probe_object(state, b"served-before-the-blocked-prune");
+        let key = b"bound-blocked-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/bound-blocked");
+
+        let (returned_tx, returned_rx) = std::sync::mpsc::channel();
+        let cas_path = dir.path();
+        std::thread::spawn(move || {
+            let _ = returned_tx.send(proxy.bound_store(&cas_path, state, LIMIT));
+        });
+        entered_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the prune must reach its reopen");
+        let returned = returned_rx.recv_timeout(Duration::from_secs(5));
+
+        let (answered_tx, answered_rx) = std::sync::mpsc::channel();
+        for _ in 0..QUEUED {
+            let remote = remote.clone();
+            let key = key.clone();
+            let answered = answered_tx.clone();
+            std::thread::spawn(move || {
+                let _ = answered.send(proxy.resolve(&remote, "tuist/bound-blocked", state, &key, None));
+            });
+        }
+        drop(answered_tx);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut answers = Vec::new();
+        while answers.len() < QUEUED {
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            let Ok(answer) = answered_rx.recv_timeout(left) else {
+                break;
+            };
+            answers.push(answer);
+        }
+        let _ = release_tx.send(());
+
+        let prune = returned.expect("the maintenance loop must not wait for a blocked prune");
+        assert_eq!(
+            answers.len(),
+            QUEUED,
+            "every resolve must answer while the prune is blocked, not wait for it"
+        );
+        assert!(
+            answers.iter().all(|answer| matches!(answer, Ok(None))),
+            "a store being pruned answers misses: {answers:?}"
+        );
+        prune
+            .expect("a store past its limit is pruned")
+            .join()
+            .unwrap();
+        assert!(
+            wait_until_serving(proxy, state),
+            "the path serves again once the prune returns"
+        );
+        assert_eq!(
+            generations(&dir).len(),
+            2,
+            "the prune still rotates the store once its reopen returns"
+        );
+    }
+
+    #[test]
+    fn a_shared_store_is_bounded_by_the_smallest_limit_its_projects_set() {
+        assert_eq!(shared_store_limit([None, Some(20), Some(10)]), Some(10));
+        assert_eq!(
+            shared_store_limit([None, None]),
+            None,
+            "a store no project bounded is unbounded"
+        );
+    }
+
+    /// Xcode's default store is shared by every project on the machine. Taking
+    /// the limit of whichever project declared the path last let a project
+    /// without a limit switch another project's bound off, and a restart forgot
+    /// every project but the last.
+    #[test]
+    fn a_project_without_a_limit_does_not_lift_another_projects_limit_on_a_shared_store() {
+        let dir = std::env::temp_dir().join(format!("tuist-shared-limit-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/bounded":{"storeSizeLimit":1073741824},"tuist/unbounded":{}}"#,
+        )
+        .expect("write sources");
+        let proxy_for = |registry: &Path| {
+            Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                String::new(),
+                Some(registry.to_path_buf()),
+                None,
+            )
+        };
+
+        let proxy = proxy_for(&registry);
+        proxy.resolve_instance("/shared", "tuist/bounded");
+        proxy.resolve_instance("/shared", "tuist/unbounded");
+        assert_eq!(proxy.store_size_limit("/shared"), Some(1024 * 1024 * 1024));
+
+        let (routing, known) = load_registry(&registry);
+        assert_eq!(
+            routing.get("/shared").map(String::as_str),
+            Some("tuist/unbounded"),
+            "⌘B builds route to the project that declared the path last, which is also \
+             what a proxy that reads only the last line sees"
+        );
+        assert_eq!(known.get("/shared").map(BTreeSet::len), Some(2));
+
+        let restarted = proxy_for(&registry);
+        assert_eq!(
+            restarted.store_size_limit("/shared"),
+            Some(1024 * 1024 * 1024),
+            "a restart remembers every project that used the path"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Why the prune is an op on the proxy rather than something its caller can
