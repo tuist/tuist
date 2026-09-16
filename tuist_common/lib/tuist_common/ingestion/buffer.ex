@@ -19,19 +19,25 @@ defmodule TuistCommon.Ingestion.Buffer do
   from any host.
   """
 
-  # `shutdown: :infinity` lets the supervisor wait as long as the buffer
-  # needs to drain during termination. The outer wall is the pod's
-  # `terminationGracePeriodSeconds`: kubelet enforces it, so we do not
-  # need a hardcoded shutdown budget at the OTP layer. Buffers are the
-  # last children to stop (Oban drains first), so nothing meaningful is
-  # queued behind them.
+  # `shutdown: :infinity` lets the supervisor wait for the buffer's own
+  # self-bounded drain to finish, instead of imposing a second, tighter
+  # deadline from the OTP layer. The drain caps itself: exponential
+  # backoff between attempts, hard stop after `@shutdown_max_attempts`,
+  # so a wedged ClickHouse can never hang the shutdown. The pod's
+  # `terminationGracePeriodSeconds` remains the outer safety net.
   use GenServer, shutdown: :infinity
 
   require Logger
 
   @dropped_event [:tuist_common, :ingestion, :buffer, :dropped]
   @shutdown_retry_event [:tuist_common, :ingestion, :buffer, :shutdown_retry]
-  @shutdown_retry_delay_ms 1_000
+  # Bounded shutdown-flush retry budget. Defaults picked so a slow
+  # ClickHouse gets a real chance to drain the tail (~30 s of wall
+  # time in the worst case) without letting a wedged one hold the
+  # process open indefinitely.
+  @shutdown_max_attempts 8
+  @shutdown_initial_delay_ms 250
+  @shutdown_max_delay_ms 5_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
@@ -193,32 +199,53 @@ defmodule TuistCommon.Ingestion.Buffer do
   """
   def shutdown_retry_event, do: @shutdown_retry_event
 
-  # Loops the shutdown flush until the buffer is empty. The outer wall
-  # is the pod's `terminationGracePeriodSeconds`: kubelet SIGKILLs the
-  # BEAM at that point, so this is not a "hang forever" risk — it
-  # simply lets the buffer use whatever grace the operator has already
-  # promised it. Emits a per-attempt telemetry event so a wedged
-  # ClickHouse at shutdown is still visible when SIGKILL preempts the
-  # terminal dropped-bytes event.
-  defp drain_until_empty(%{buffer: []}), do: :ok
+  # Bounded shutdown flush with exponential backoff. Each attempt runs
+  # `do_flush/1` (which itself retries transport and memory-limit
+  # failures inside `ClickHouseRetry`); on a persistent failure the
+  # loop sleeps for a doubling delay capped at `@shutdown_max_delay_ms`
+  # and tries again. After `@shutdown_max_attempts` we give up: the
+  # buffered bytes are logged, counted through the terminal
+  # `dropped` telemetry event, and the process is allowed to finish
+  # shutting down. Each retry emits its own event so a Grafana panel
+  # can see the drain tail while the loop is still running.
+  defp drain_until_empty(state), do: drain_until_empty(state, 1)
 
-  defp drain_until_empty(state) do
+  defp drain_until_empty(%{buffer: []}, _attempt), do: :ok
+
+  defp drain_until_empty(state, attempt) when attempt > @shutdown_max_attempts do
+    Logger.error(
+      "Giving up on #{state.name} shutdown flush after #{@shutdown_max_attempts} attempts; dropping #{state.buffer_size} byte(s)"
+    )
+
+    :telemetry.execute(@dropped_event, %{bytes: state.buffer_size}, %{buffer: state.name})
+  end
+
+  defp drain_until_empty(state, attempt) do
     case do_flush(state) do
       :ok ->
         :ok
 
       {:error, error} ->
-        :telemetry.execute(@shutdown_retry_event, %{bytes: state.buffer_size}, %{
-          buffer: state.name
-        })
+        delay = shutdown_backoff_delay(attempt)
 
-        Logger.warning(
-          "Retrying #{state.name} shutdown flush of #{state.buffer_size} byte(s) after transient failure: #{error_message(error)}"
+        :telemetry.execute(
+          @shutdown_retry_event,
+          %{bytes: state.buffer_size, attempt: attempt},
+          %{buffer: state.name}
         )
 
-        Process.sleep(@shutdown_retry_delay_ms)
-        drain_until_empty(state)
+        Logger.warning(
+          "Retrying #{state.name} shutdown flush of #{state.buffer_size} byte(s) (attempt #{attempt}/#{@shutdown_max_attempts}, sleep #{delay}ms) after transient failure: #{error_message(error)}"
+        )
+
+        Process.sleep(delay)
+        drain_until_empty(state, attempt + 1)
     end
+  end
+
+  defp shutdown_backoff_delay(attempt) do
+    (@shutdown_initial_delay_ms * Integer.pow(2, attempt - 1))
+    |> min(@shutdown_max_delay_ms)
   end
 
   defp handle_capacity_pressure(row_binary, state) do
