@@ -45,6 +45,7 @@ import { PricingPlanSelect } from "./hooks/pricing-plan-select.js";
 import { NotFoundOutline } from "./hooks/not-found-outline.js";
 import { NewsletterForm } from "./hooks/newsletter-form.js";
 import { NewsletterIssuesSort } from "./hooks/newsletter-issues-sort.js";
+import { CacheGlobe } from "./hooks/cache-globe.js";
 
 const Hooks = {
   GoogleOneTap,
@@ -94,6 +95,7 @@ const Hooks = {
   NotFoundOutline,
   NewsletterForm,
   NewsletterIssuesSort,
+  CacheGlobe,
 };
 
 export { Hooks };
