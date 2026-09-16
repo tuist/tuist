@@ -346,6 +346,8 @@ defmodule Cache.S3Test do
         {:ok, :done}
       end)
 
+      stub(Cache.CacheArtifacts, :record_content_sha256, fn ^key, nil -> :ok end)
+
       capture_log(fn ->
         assert {:ok, :hit} = S3.download(key)
       end)
@@ -384,6 +386,45 @@ defmodule Cache.S3Test do
       capture_log(fn ->
         assert {:ok, :hit} = S3.download(key)
       end)
+    end
+
+    test "clears the recorded digest when the object it pulls back carries none" do
+      key = "test_account/test_project/module/builds/TE/ST/hash/Module.zip"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "Module.zip")
+      test_pid = self()
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      # Uploaded by a client that declares no digest, after a project clean left
+      # the row with the previous upload's digest.
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
+        {:ok, %{status_code: 200, headers: [{"content-length", "6"}]}}
+      end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "module")
+        {:ok, :done}
+      end)
+
+      stub(Cache.CacheArtifacts, :record_content_sha256, fn key, digest ->
+        send(test_pid, {:recorded, key, digest})
+        :ok
+      end)
+
+      capture_log(fn ->
+        assert {:ok, :hit} = S3.download(key)
+      end)
+
+      assert_received {:recorded, ^key, nil}
     end
 
     test "keeps the local copy's digest when the download is discarded" do

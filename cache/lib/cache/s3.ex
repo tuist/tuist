@@ -211,20 +211,17 @@ defmodule Cache.S3 do
     handle_download_result(key, local_path, tmp_path, dl_duration, dl_result, head_response)
   end
 
-  # An artifact pulled back from object storage after eviction lost its row, and
-  # with it the digest its uploader declared. The object's metadata still carries
-  # it, so the next disk hit serves it again instead of going unverified. Only for
-  # a download that was installed: when a local copy was already in place the
-  # download is discarded, and that copy can be a different upload under the same
-  # key, whose own digest must stand.
-  defp restore_content_sha256(key, %{headers: headers}) do
-    case content_sha256_from_headers(headers) do
-      nil -> :ok
-      content_sha256 -> Cache.CacheArtifacts.record_content_sha256(key, content_sha256)
-    end
+  # An installed download is exactly the object, so the digest in the object's
+  # metadata is the only one that describes those bytes, and it is recorded even
+  # when there is none: a row can outlive its file (a project clean removes files
+  # and objects but not rows), and the previous upload's digest would describe
+  # different bytes. Only for a download that was installed: when a local copy was
+  # already in place the download is discarded, and that copy can be a different
+  # upload under the same key, whose own digest must stand.
+  defp restore_content_sha256(key, head_response) do
+    headers = if is_map(head_response), do: Map.get(head_response, :headers, []), else: []
+    Cache.CacheArtifacts.record_content_sha256(key, content_sha256_from_headers(headers))
   end
-
-  defp restore_content_sha256(_key, _head_response), do: :ok
 
   defp content_sha256_from_headers(headers) do
     Enum.find_value(headers, fn {name, value} ->
