@@ -1,4 +1,3 @@
-import Crypto
 import Foundation
 import Mockable
 import OpenAPIRuntime
@@ -29,14 +28,11 @@ public enum LoadCacheCASServiceError: LocalizedError {
     case badRequest(String)
     case unprocessableContent(String)
     case notFound(String)
-    case checksumMismatch(expected: String, actual: String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
-        case let .checksumMismatch(expected, actual):
-            return "The CAS artifact did not match the SHA-256 its uploader declared (declared \(expected), received \(actual))."
         case let .rateLimited(message, retryAfterSeconds):
             guard let retryAfterSeconds else { return message }
             return "\(message) (retry after \(retryAfterSeconds)s)"
@@ -98,12 +94,6 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
             switch success.body {
             case let .binary(httpBody):
                 let data = try await Data(collecting: httpBody, upTo: .max)
-                if let mismatch = Self.checksumMismatch(
-                    of: data,
-                    declared: success.headers.tuist_hyphen_checksum_hyphen_sha256
-                ) {
-                    throw mismatch
-                }
                 return data
             }
         case let .unauthorized(unauthorized):
@@ -152,14 +142,5 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
         case let .undocumented(statusCode: statusCode, _):
             throw LoadCacheCASServiceError.unknownError(statusCode)
         }
-    }
-
-    /// Artifacts uploaded without a digest, or served by a server that predates
-    /// digests, carry none and are returned as they are.
-    static func checksumMismatch(of data: Data, declared: String?) -> LoadCacheCASServiceError? {
-        guard let declared = declared?.lowercased(), !declared.isEmpty else { return nil }
-        let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        guard actual != declared else { return nil }
-        return .checksumMismatch(expected: declared, actual: actual)
     }
 }

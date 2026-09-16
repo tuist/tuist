@@ -109,17 +109,6 @@
             #expect(casErrorIsBackendHealthy(SaveCacheCASServiceError.contentTooLarge("too big")))
         }
 
-        @Test func classifies_a_body_that_fails_its_digest_as_backend_healthy() {
-            #expect(
-                casErrorIsBackendHealthy(
-                    LoadCacheCASServiceError.checksumMismatch(
-                        expected: String(repeating: "0", count: 64),
-                        actual: String(repeating: "1", count: 64)
-                    )
-                )
-            )
-        }
-
         @Test func classifies_backpressure_as_a_failure_so_the_breaker_stops_asking() {
             #expect(
                 casErrorIsBackendHealthy(

@@ -200,34 +200,6 @@
         }
 
         @Test
-        func load_when_the_object_fails_its_declared_digest_reports_a_miss_rather_than_an_error() async throws {
-            // Given
-            var request = CompilationCacheService_Cas_V1_CASLoadRequest()
-            request.casID.id = "test-cas-id".data(using: .utf8)!
-
-            given(loadCacheCASService)
-                .loadCacheCAS(
-                    casId: .any,
-                    fullHandle: .any,
-                    serverURL: .any,
-                    authenticationURL: .any,
-                    serverAuthenticationController: .any
-                )
-                .willThrow(
-                    LoadCacheCASServiceError.checksumMismatch(
-                        expected: String(repeating: "0", count: 64),
-                        actual: String(repeating: "1", count: 64)
-                    )
-                )
-
-            // When
-            let response = try await subject.load(request: request, context: ServerContext.test())
-
-            // Then
-            #expect(response.outcome == .objectNotFound)
-        }
-
-        @Test
         func save_with_direct_data() async throws {
             // Given
             let testData = Data("direct test data".utf8)
