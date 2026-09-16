@@ -303,25 +303,25 @@ defmodule Tuist.Runners.GitLab do
   end
 
   # The next assignment's shape is unknown until GitLab hands it over, so
-  # acquisition pauses once queued assignments of any shape take all of the
-  # account's remaining concurrency for that shape.
+  # acquisition continues only while each platform's remaining concurrency
+  # fits all of its queued assignments plus one more as large as the largest.
   defp headroom_left?(account_id, waiting) do
     waiting
     |> Enum.flat_map(fn
-      {_job, %WorkflowJob{status: "queued"} = workflow_job} ->
-        [
-          %{
-            platform: String.to_existing_atom(workflow_job.platform),
-            vcpus: workflow_job.vcpus,
-            memory_gb: workflow_job.memory_gb
-          }
-        ]
-
-      _ ->
-        []
+      {_job, %WorkflowJob{status: "queued"} = workflow_job} -> [workflow_job]
+      _ -> []
     end)
-    |> Enum.frequencies()
-    |> Enum.all?(fn {shape, queued} -> queued < Concurrency.headroom_jobs(account_id, shape) end)
+    |> Enum.group_by(& &1.platform)
+    |> Enum.all?(fn {platform, queued} ->
+      vcpus = Enum.map(queued, & &1.vcpus)
+      memory_gb = Enum.map(queued, & &1.memory_gb)
+
+      Concurrency.headroom_jobs(account_id, %{
+        platform: String.to_existing_atom(platform),
+        vcpus: Enum.sum(vcpus) + Enum.max(vcpus),
+        memory_gb: Enum.sum(memory_gb) + Enum.max(memory_gb)
+      }) > 0
+    end)
   end
 
   defp settle_waiting(connection, disconnecting) do

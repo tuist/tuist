@@ -292,6 +292,28 @@ defmodule Tuist.Runners.GitLabTest do
     assert_received :requested
   end
 
+  test "sums queued jobs of different sizes against the platform's remaining concurrency", %{connection: connection} do
+    payload = fn -> put_in(payload(), ["variables"], [%{"key" => "CI_JOB_TAGS", "value" => ~s(["tuist-linux"])}]) end
+
+    stub(Client, :request_job, fn _ ->
+      send(self(), :requested)
+      {:ok, payload.()}
+    end)
+
+    for {vcpus, memory_gb} <- [{4, 16}, {4, 16}, {8, 32}] do
+      expect(Dispatch, :resolve_dispatch_target, fn _, [label] ->
+        {:ok,
+         %{pool_name: "pool-linux", requested_dispatch_label: label, platform: :linux, vcpus: vcpus, memory_gb: memory_gb}}
+      end)
+
+      assert {:ok, 1} = GitLab.poll(connection)
+      assert_received :requested
+    end
+
+    assert {:ok, 0} = GitLab.poll(connection)
+    refute_received :requested
+  end
+
   test "keeps an assignment waiting for a machine until its GitLab timeout", %{connection: connection} do
     expect(Client, :request_job, fn _ -> {:ok, Map.put(payload(), "runner_info", %{"timeout" => 3600})} end)
     assert {:ok, 1} = GitLab.poll(connection)

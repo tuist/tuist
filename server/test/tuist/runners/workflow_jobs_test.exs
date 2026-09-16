@@ -750,6 +750,14 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_142, enqueued_at: DateTime.add(now, -7_200, :second)))
       :ok = WorkflowJobs.transition_claimed(910_142, "pod-1", now)
 
+      for {workflow_job_id, provider} <- [{910_143, "gitlab"}, {910_144, "buildkite"}] do
+        :ok =
+          account
+          |> attrs(workflow_job_id, enqueued_at: DateTime.add(now, -7_200, :second))
+          |> Map.put(:provider, provider)
+          |> WorkflowJobs.upsert_queued()
+      end
+
       candidates = WorkflowJobs.list_stale_queued(DateTime.add(now, -86_400, :second), DateTime.add(now, -3_600, :second))
 
       assert [%{workflow_job_id: 910_140, repository: "acme/cli", enqueued_at: %DateTime{}, account_id: _}] = candidates
