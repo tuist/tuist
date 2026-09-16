@@ -56,7 +56,10 @@ struct MultiplatformCacheAcceptanceTests {
         let narrowed = Set(after).subtracting(warmed)
         #expect(narrowed.count == 2)
         for artifact in narrowed {
-            #expect(try await XCFrameworkCoverage.read(at: artifact).keys.sorted() == ["ios-device", "ios-simulator"])
+            #expect(try await XCFrameworkCoverageService().coverage(at: artifact).keys.sorted() == [
+                "ios-device",
+                "ios-simulator",
+            ])
         }
         #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()) == Set(warmedBlobs))
         try await TuistTest.run(GenerateCommand.self, ["--path", fixture.pathString, "--no-open", "PhoneConsumer"])

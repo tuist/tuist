@@ -1,14 +1,23 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import XcodeGraph
 
-public enum XCFrameworkCoverage {
-    public static func read(
-        at path: AbsolutePath,
-        fileSystem: FileSysteming = FileSystem()
-    ) async throws -> [String: Set<String>] {
+@Mockable
+public protocol XCFrameworkCoverageServicing: Sendable {
+    func coverage(at path: AbsolutePath) async throws -> [String: Set<String>]
+}
+
+public struct XCFrameworkCoverageService: XCFrameworkCoverageServicing {
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
+
+    public func coverage(at path: AbsolutePath) async throws -> [String: Set<String>] {
         let data = try await fileSystem.readFile(at: path.appending(component: "Info.plist"))
         let info = try PropertyListDecoder().decode(XCFrameworkInfoPlist.self, from: data)
         var result: [String: Set<String>] = [:]

@@ -35,7 +35,7 @@ struct BinaryCacheStorageTests {
         let ios = item("ios", fingerprints.filter { $0.key != "macos-device" })
         let hits = try await reader.fetch([ios], cacheCategory: .binaries)
         let path = try #require(hits.values.first)
-        #expect(try await XCFrameworkCoverage.read(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
+        #expect(try await XCFrameworkCoverageService().coverage(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
         #expect(await remote.downloads[shared] == 1)
         let exact = try BinaryCacheAction(name: ios.name, targetHash: ios.hash)
         #expect(await remote.queries[exact.digest] == nil)
@@ -201,7 +201,7 @@ struct BinaryCacheStorageTests {
         #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
         let reader = subject(directory.appending(component: "reader"), remote: remote)
         let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
-        #expect(try await XCFrameworkCoverage.read(at: restored)["ios-simulator"] == ["arm64"])
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored)["ios-simulator"] == ["arm64"])
         #expect(try await reader.fetch([item("other", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
             .isEmpty)
     }
