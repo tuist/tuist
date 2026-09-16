@@ -62,7 +62,7 @@ defmodule Atlas.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:noora, "~> 0.86.0"},
+      {:noora, path: "../noora"},
       {:money, "~> 1.14"},
       {:forex, "~> 1.1"},
       {:flow, "~> 1.2"},
@@ -113,8 +113,15 @@ defmodule Atlas.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["compile", "esbuild atlas"],
+      "assets.setup": [
+        "cmd --cd ../noora aube install",
+        "esbuild.install --if-missing"
+      ],
+      "assets.build": [
+        "cmd --cd ../noora aube run build",
+        "compile",
+        "esbuild atlas"
+      ],
       "assets.deploy": [
         "esbuild atlas --minify",
         "phx.digest"
