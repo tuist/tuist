@@ -416,6 +416,21 @@ fn generation_limit(store_size_limit: u64) -> u64 {
     (store_size_limit / 2).max(1)
 }
 
+/// The allocated size of the store's newest generation: the primary, which is
+/// the only one a close looks at when it decides to rotate. `None` when the
+/// store has no generation yet. Pure so the gate is unit-testable.
+fn newest_generation_size(sizes: &HashMap<String, u64>) -> Option<u64> {
+    sizes
+        .iter()
+        .filter_map(|(name, size)| {
+            name.strip_prefix("v1.")
+                .and_then(|index| index.parse::<u64>().ok())
+                .map(|index| (index, *size))
+        })
+        .max_by_key(|(index, _)| *index)
+        .map(|(_, size)| size)
+}
+
 /// The size limit of a store several projects share: the smallest any of them
 /// set. A project that set none does not lift the others'. Pure so the policy
 /// is unit-testable.
@@ -3535,11 +3550,11 @@ impl Proxy {
     }
 
     /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL
-    /// and, when it occupies more than `limit` bytes, prunes it at
-    /// `generation_limit(limit)` on a `cas-bound` thread, which it returns. The
-    /// prune claims the store, so resolves on it answer misses meanwhile, and
-    /// the maintenance loop never waits for a dispose, open, or prune that
-    /// blocks.
+    /// and prunes it at `generation_limit(limit)` on a `cas-bound` thread, which
+    /// it returns, when the store occupies more than `limit` bytes AND its
+    /// newest generation is large enough for the close to rotate. The prune
+    /// claims the store, so resolves on it answer misses meanwhile, and the
+    /// maintenance loop never waits for a dispose, open, or prune that blocks.
     fn bound_store(
         &self,
         cas_path: &str,
@@ -3565,6 +3580,17 @@ impl Proxy {
         }
         let size = directory_size(cas_path);
         if size <= limit {
+            return None;
+        }
+        // A close starts a new generation only when it finds the PRIMARY past
+        // half its limit, so a store whose bulk sits in the upstream under a
+        // near-empty primary cannot rotate yet. Pruning it anyway disposes the
+        // handle, drops the marks and takes the path out of service without
+        // reclaiming a byte, on every pass until builds refill the primary --
+        // which is the state of every store that grew before its project set a
+        // limit.
+        let primary = newest_generation_size(&generation_sizes(cas_path)).unwrap_or(0);
+        if primary <= generation_limit(limit) {
             return None;
         }
         let spawned = std::thread::Builder::new()
@@ -7110,6 +7136,54 @@ mod tests {
             .join()
             .unwrap();
         assert_ne!(generations(&dir), before);
+    }
+
+    #[test]
+    fn the_newest_generation_is_the_one_a_close_can_rotate() {
+        let sizes = HashMap::from([
+            ("v1.1".to_string(), 24_000_000u64),
+            ("v1.2".to_string(), 3_000u64),
+        ]);
+        assert_eq!(newest_generation_size(&sizes), Some(3_000));
+        assert_eq!(newest_generation_size(&HashMap::new()), None);
+    }
+
+    /// After a rotation the oversized generation is the upstream and the primary
+    /// is near empty, so a close cannot rotate anything. Pruning on the store's
+    /// total size alone disposed the handle, bumped `gen_counter` and took the
+    /// path out of service on every pass while reclaiming nothing (measured: a 4
+    /// MiB limit against a 24 MiB fill stayed at 25.35 MiB across three passes).
+    #[test]
+    fn a_store_whose_primary_cannot_rotate_yet_is_left_alone() {
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-upstream-heavy");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        fill_to(state, &dir, 24 * 1024 * 1024);
+
+        proxy
+            .bound_store(&dir.path(), state, LIMIT)
+            .expect("the first pass rotates")
+            .join()
+            .unwrap();
+        assert!(
+            directory_size(&dir.path()) > LIMIT,
+            "the rotation demoted the full generation rather than collecting it"
+        );
+        let rotated = generations(&dir);
+        let counter = state.gen_counter.load(Ordering::SeqCst);
+
+        proxy.store_bound_checked.lock().unwrap().clear();
+        assert!(
+            proxy.bound_store(&dir.path(), state, LIMIT).is_none(),
+            "a store whose primary cannot rotate is not pruned again"
+        );
+        assert_eq!(
+            state.gen_counter.load(Ordering::SeqCst),
+            counter,
+            "and nothing takes the path out of service for a prune that would collect nothing"
+        );
+        assert_eq!(generations(&dir), rotated);
     }
 
     // An automatic prune runs beside builds that start once the machine looks
