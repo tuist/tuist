@@ -1828,4 +1828,42 @@ mod tests {
         drop(reservation);
         assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
     }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn sha256_streaming_throughput_benchmark() {
+        const UPDATE_BYTES: usize = 256 * 1024;
+        const UPDATES: usize = 4 * 1024;
+        const SAMPLES: usize = 6;
+
+        let chunk: Vec<u8> = (0..UPDATE_BYTES)
+            .map(|index| (index as u32).wrapping_mul(2_654_435_761).to_le_bytes()[3])
+            .collect();
+        let hashed_bytes = (UPDATE_BYTES * UPDATES) as f64;
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        let mut digest = String::new();
+        for sample in 0..SAMPLES {
+            let started_at = std::time::Instant::now();
+            let mut hasher = Sha256::new();
+            for _ in 0..UPDATES {
+                hasher.update(std::hint::black_box(&chunk));
+            }
+            let finalized = std::hint::black_box(hasher.finalize());
+            let elapsed = started_at.elapsed().as_secs_f64();
+            digest = hex::encode(finalized);
+            if sample > 0 {
+                rates.push(hashed_bytes / elapsed);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        let median = rates[rates.len() / 2];
+        println!(
+            "METRIC sha256_mib_per_second={:.1}\nMETRIC sha256_seconds_per_gib={:.3}\nMETRIC sha256_min_mib_per_second={:.1}\nMETRIC sha256_max_mib_per_second={:.1}\nsha256_digest={digest}",
+            median / (1024.0 * 1024.0),
+            (1024.0 * 1024.0 * 1024.0) / median,
+            rates[0] / (1024.0 * 1024.0),
+            rates[rates.len() - 1] / (1024.0 * 1024.0)
+        );
+    }
 }
