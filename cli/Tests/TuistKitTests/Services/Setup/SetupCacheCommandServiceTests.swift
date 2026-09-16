@@ -6,6 +6,7 @@ import Path
 import Testing
 import struct TSCUtility.Version
 import TuistAlert
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -32,6 +33,7 @@ struct SetupCacheCommandServiceTests {
     private let gitController = MockGitControlling()
     private let cacheSocketService = MockCacheSocketServicing()
     private let xcodeController = MockXcodeControlling()
+    private let cacheURLStore = MockCacheURLStoring()
 
     init() {
         subject = SetupCacheCommandService(
@@ -44,8 +46,13 @@ struct SetupCacheCommandServiceTests {
             gitController: gitController,
             cacheSocketService: cacheSocketService,
             xcodeController: xcodeController,
+            cacheURLStore: cacheURLStore,
             cacheDaemonStartupTimeout: .zero
         )
+
+        given(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .any)
+            .willReturn(URL(string: "https://acme-eu-west-1.kura.tuist.dev")!)
 
         // The real answers come from `xcode-select`, and the developer directory
         // lands in the agent's environment, which these tests pin exactly.
@@ -661,6 +668,54 @@ struct SetupCacheCommandServiceTests {
                 environmentVariables: .any
             )
             .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_warnsWhenTheRemoteCacheIsBeingPrepared() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let alertController = AlertController()
+        cacheURLStore.reset()
+        given(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .value("tuist"))
+            .willThrow(CacheURLStoreError.endpointBeingPrepared)
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any
+            )
+            .called(1)
+        #expect(
+            alertController.warnings().map(\.message).map { $0.plain() } == [
+                "The remote cache is being prepared.",
+            ]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_doesNotWarnWhenTheRemoteCacheIsServing() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
+
+        // Then
+        #expect(alertController.warnings().isEmpty)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

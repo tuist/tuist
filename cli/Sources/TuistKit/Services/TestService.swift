@@ -352,7 +352,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
 
         let destination = try await destination(
             arguments: passthroughXcodeBuildArguments,
@@ -1299,7 +1299,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func selectiveTestHashUploadStorage(noUpload: Bool, config: Tuist) async throws -> CacheStoring {
         noUpload
             ? try await cacheStorageFactory.cacheLocalStorage()
-            : try await cacheStorageFactory.cacheStorage(config: config)
+            : try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
     }
 
     private func storeSuccessfulTestHashesFromGraph(

@@ -245,6 +245,21 @@
             }
         }
 
+        @Test(.withMockedEnvironment())
+        func throws_that_the_endpoint_is_being_prepared_when_the_server_is_provisioning_one() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+        }
+
         @Test
         func treats_a_missing_endpoint_as_transient_and_a_malformed_one_as_fatal() {
             // An account whose instance was reclaimed for inactivity, and one whose
@@ -253,6 +268,7 @@
             // must stay fatal: the cache daemon starts through the first two and
             // refuses the third.
             #expect(CacheURLStoreError.noEndpointsAvailable.isTransientAbsence)
+            #expect(CacheURLStoreError.endpointBeingPrepared.isTransientAbsence)
             #expect(CacheURLStoreError.noReachableEndpoints.isTransientAbsence)
             #expect(!CacheURLStoreError.invalidURL("not a url").isTransientAbsence)
         }

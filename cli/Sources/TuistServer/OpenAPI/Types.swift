@@ -4871,15 +4871,25 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
+            /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/provisioning`.
+            public var provisioning: Swift.Bool?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            public init(endpoints: [Swift.String]) {
+            ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            public init(
+                endpoints: [Swift.String],
+                provisioning: Swift.Bool? = nil
+            ) {
                 self.endpoints = endpoints
+                self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
+                case provisioning
             }
         }
         /// The page number to return.
@@ -15861,15 +15871,25 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
+                        /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/provisioning`.
+                        public var provisioning: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        public init(endpoints: [Swift.String]) {
+                        ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        public init(
+                            endpoints: [Swift.String],
+                            provisioning: Swift.Bool? = nil
+                        ) {
                             self.endpoints = endpoints
+                            self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
+                            case provisioning
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.

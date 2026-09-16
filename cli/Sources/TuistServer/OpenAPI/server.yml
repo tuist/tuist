@@ -1250,6 +1250,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        provisioning:
+          description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+          type: boolean
+          x-struct:
+          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -8683,6 +8688,11 @@ paths:
                       x-struct:
                       x-validate:
                     type: array
+                    x-struct:
+                    x-validate:
+                  provisioning:
+                    description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                    type: boolean
                     x-struct:
                     x-validate:
                 required:

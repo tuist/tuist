@@ -131,7 +131,7 @@ public struct CacheURLStore: CacheURLStoring {
         let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
-            throw CacheURLStoreError.noEndpointsAvailable
+            throw resolution.provisioning ? CacheURLStoreError.endpointBeingPrepared : CacheURLStoreError.noEndpointsAvailable
         }
 
         if endpoints.count == 1 {
@@ -203,6 +203,7 @@ public struct CacheURLStore: CacheURLStoring {
 
 public enum CacheURLStoreError: LocalizedError, Equatable {
     case noEndpointsAvailable
+    case endpointBeingPrepared
     case noReachableEndpoints
     case invalidURL(String)
 
@@ -221,7 +222,7 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     /// no amount of waiting corrects, so it stays fatal.
     public var isTransientAbsence: Bool {
         switch self {
-        case .noEndpointsAvailable, .noReachableEndpoints:
+        case .noEndpointsAvailable, .endpointBeingPrepared, .noReachableEndpoints:
             true
         case .invalidURL:
             false
@@ -232,6 +233,8 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
         switch self {
         case .noEndpointsAvailable:
             return "No cache endpoints are available."
+        case .endpointBeingPrepared:
+            return "The remote cache is being prepared and has no endpoint yet."
         case .noReachableEndpoints:
             return "None of the cache endpoints are reachable."
         case let .invalidURL(url):
