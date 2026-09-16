@@ -77,6 +77,7 @@
         </td>
       </tr>
     </table>
+    <%= if is_map(@issue.hero) do %>
     <div style="background-color: #F3F2FD; padding-top: 2rem; padding-bottom: 2rem; max-width: 100%; box-sizing: border-box; text-align: center;">
       <%= if not is_nil(@issue.hero["image"]) do %>
         <% img_src =
@@ -110,6 +111,7 @@
         {raw(@issue.hero["subtitle"])}
       </div>
     </div>
+    <% end %>
 
     <div style="padding-top: 4rem; padding-bottom: 4rem; max-width: 100%; box-sizing: border-box;">
       <table
@@ -146,6 +148,7 @@
               {raw(@issue.body)}
             </div>
 
+            <%= if is_list(@issue.tools) and @issue.tools != [] do %>
             <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
 
             <div>
@@ -176,7 +179,9 @@
                 </tr>
               </table>
             </div>
+            <% end %>
 
+            <%= if is_map(@issue.interview) do %>
             <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
 
             <div style="background: #f3f2fd; padding: 2rem; border-radius: 2rem; display: table; width: 100%; max-width: 100%; box-sizing: border-box; margin: 3rem 0;">
@@ -230,7 +235,9 @@
                 </tr>
               </table>
             </div>
+            <% end %>
 
+            <%= if is_list(@issue.food_for_thought) and @issue.food_for_thought != [] do %>
             <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
 
             <div style="margin: 3rem 0;">
@@ -259,6 +266,7 @@
                 </tr>
               </table>
             </div>
+            <% end %>
           </td>
         </tr>
       </table>

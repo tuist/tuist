@@ -1,0 +1,18 @@
+date: 2026-09-16
+title: "What we've been up to at Tuist"
+body: |
+  Hola 👋,
+
+  It's Pedro from Tuist. Months ago I promised we wouldn't spam you, but I think I've drifted too far to the silent end of the spectrum, so I thought this beautiful rainy day in Berlin would be a good moment to share, very concisely, what we've been up to. Bear with me, because we've been shipping a lot.
+
+  We have a cool new [brand](https://tuist.dev/blog/2026/09/12/the-new-tuist) that better captures what we are becoming as a company: a virtual platform team for developers and large organizations. Take a look and click around, it's really nice. We've also built a new multi-build-system technology, [Kura](https://tuist.dev/blog/2026/09/14/kura), so we can dedicate cache resources per account, across several regions, ensuring your builds fetch cache artifacts with the lowest possible latency. If you update to the latest CLI, you'll opt into all of that automatically, and things should just keep working.
+
+  Our family of supported build toolchains has grown with Bazel, which now joins Xcode across our feature set: build, test and cache insights, and remote caching. And speaking of build toolchains, while working on Bazel we developed an appetite for something that would bridge our infrastructure work with the diversity of projects out there, so we are building a new build system called [Once](https://buildonce.dev). The TL;DR: the capabilities of Bazel, without any migration. Isn't that cool?
+
+  What else, what else... We also made Swift package resolution faster and more file-system efficient. We called it [SwifterPM](https://tuist.dev/blog/2026/07/16/swifterpm), and we wrote a few blog posts we think you'll enjoy, like [the physics of build systems](https://tuist.dev/blog/2026/08/25/the-physics-of-build-systems) and [what it takes to build a build system](https://tuist.dev/blog/2026/06/30/three-build-systems-one-graph).
+
+  We also have [CI runners](https://docs.tuist.dev/guides/features/runners) now, with support for GitHub Actions, Buildkite, and GitLab CI. They aren't generally available yet, but we're using them ourselves and rolling them out to customers who've shown interest. Maybe you too? [Shoot me an email](mailto:pedro@tuist.dev). We can lower what you're paying today and, at the same time, make your build and test pipelines noticeably faster, thanks to all the optimizations we've shipped, from co-locating the cache to building our own Xcode cache plugin to save as much time as possible on cache interactions. We've also ordered M5 Pros and announced that we are deploying our own compute infrastructure, starting with a data center in Berlin.
+
+  There are more things that landed in this period, but I'll stop here. As for what's next: building out the data center infrastructure will keep us busy. We're also investing a lot in the new build system, Once, and starting our first experiments with video as a better marketing tool. Code coverage is coming too, and it'll become the foundation for taking test selection to more ecosystems.
+
+  If any of this caught your attention, whether you're interested in moving your CI workloads to us to save money, want to support us because you think Tuist is very cool, or would like to try Once (it still has rough edges, but you'll be recognized as one of the first supporters of the effort), just send me an email at pedro@tuist.dev or [book a call with me](https://cal.tuist.dev/team/tuist/tuist). And if this resonates, feel free to forward it to your engineering managers or your Android teams too. The idea of a single, unified infrastructure for productive development across platforms is something they might really like.
