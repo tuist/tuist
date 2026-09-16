@@ -91,6 +91,11 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
         switch response {
         case .noContent:
             return
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.badRequest(error.message)
+            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):

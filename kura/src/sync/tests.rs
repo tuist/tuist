@@ -82,6 +82,7 @@ async fn feed_rows_follow_the_echo_rule_and_the_activation() {
         .apply_replicated_inline_artifact_from_bytes_with(
             ApplyProvenance {
                 origin_region: Some("eu"),
+                content_sha256: None,
                 sync_feed_row: true,
             },
             ArtifactProducer::Xcode,
@@ -99,6 +100,7 @@ async fn feed_rows_follow_the_echo_rule_and_the_activation() {
         .apply_replicated_inline_artifact_from_bytes_with(
             ApplyProvenance {
                 origin_region: Some("local"),
+                content_sha256: None,
                 sync_feed_row: false,
             },
             ArtifactProducer::Xcode,
@@ -215,6 +217,7 @@ async fn origin_region_is_stamped_on_client_writes_and_carried_on_applies() {
         .apply_replicated_inline_artifact_from_bytes_with(
             ApplyProvenance {
                 origin_region: Some("eu"),
+                content_sha256: None,
                 sync_feed_row: true,
             },
             ArtifactProducer::Xcode,
@@ -608,6 +611,7 @@ async fn ascending_index_read_filters_pages_and_settles() {
                 .apply_replicated_inline_artifact_from_bytes_with(
                     ApplyProvenance {
                         origin_region: origin.as_deref(),
+                        content_sha256: None,
                         sync_feed_row: true,
                     },
                     ArtifactProducer::Xcode,
@@ -776,6 +780,7 @@ async fn server_generated_versions_come_from_the_feed_ticket() {
         .apply_replicated_inline_artifact_from_bytes_with(
             ApplyProvenance {
                 origin_region: Some("eu"),
+                content_sha256: None,
                 sync_feed_row: true,
             },
             ArtifactProducer::Xcode,
@@ -875,6 +880,7 @@ async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
             .apply_replicated_inline_artifact_from_bytes_with(
                 ApplyProvenance {
                     origin_region: Some("local"),
+                    content_sha256: None,
                     sync_feed_row: true,
                 },
                 ArtifactProducer::Xcode,

@@ -1168,6 +1168,7 @@ where
                         prelude.version_ms,
                         meta.branch.as_deref(),
                         meta.origin_region.as_deref(),
+                        meta.content_sha256.as_deref(),
                     )
                     .await
                     .map_err(PassAbort::Hard)?;
@@ -1182,6 +1183,7 @@ where
                     .apply_replicated_inline_artifact_from_bytes_with(
                         ApplyProvenance {
                             origin_region: meta.origin_region.as_deref(),
+                            content_sha256: meta.content_sha256.as_deref(),
                             sync_feed_row: context.tuning.feed_rows,
                         },
                         producer,
@@ -1236,6 +1238,7 @@ where
                             prelude.version_ms,
                             meta.branch.as_deref(),
                             meta.origin_region.as_deref(),
+                            meta.content_sha256.as_deref(),
                         )
                         .await
                         .map_err(PassAbort::Hard)?;
@@ -1305,6 +1308,7 @@ where
                         staged_path,
                         prelude.version_ms,
                         meta.origin_region.as_deref(),
+                        meta.content_sha256.as_deref(),
                     )
                     .await
                     .map(|staged| match staged {
@@ -1316,6 +1320,7 @@ where
                     .apply_replicated_artifact_from_path_with(
                         ApplyProvenance {
                             origin_region: meta.origin_region.as_deref(),
+                            content_sha256: meta.content_sha256.as_deref(),
                             sync_feed_row: context.tuning.feed_rows,
                         },
                         producer,
@@ -2910,6 +2915,7 @@ mod tests {
                         content_type: "application/octet-stream".to_owned(),
                         branch: None,
                         origin_region: None,
+                        content_sha256: None,
                     }
                     .to_wire_bytes()
                     .expect("manifest meta should encode");

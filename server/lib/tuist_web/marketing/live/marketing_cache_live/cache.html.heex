@@ -1,219 +1,384 @@
-<TuistWeb.Marketing.Layouts.marketing>
+<% # "Minimal overhead" card chart: 7 build columns, each a dither-filled
+# ghost bar (the uncached build time) with the cached time as a purple box
+# at its foot, a 2px breath apart. Column tops align and every column ends
+# at the same baseline. Every column is exactly proportional: box_height =
+# 205 * cached / cold, with the values picked so cached stays under 100s
+# and the heights stay varied — which pairs the smallest boxes with the
+# longest builds (the strongest version of the story). %>
+<% minimal_overhead_columns = [
+  %{label: "CI", cold: "06m50s", cached: "84s", box_height: 42},
+  %{label: "CI", cold: "05m39s", cached: "91s", box_height: 55},
+  %{label: "LOCAL", cold: "16m14s", cached: "95s", box_height: 20},
+  %{label: "CI", cold: "05m56s", cached: "99s", box_height: 57},
+  %{label: "CI", cold: "08m12s", cached: "72s", box_height: 30},
+  %{label: "CI", cold: "11m40s", cached: "82s", box_height: 24},
+  %{label: "LOCAL", cold: "04m50s", cached: "92s", box_height: 65}
+] %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-cache">
-    <TuistWeb.Marketing.MarketingComponents.navbar
-      current_user={@current_user}
-      current_path={@current_path}
-    />
-
-    <section data-part="header">
-      <div data-part="titles">
-        <span data-part="label">{dgettext("marketing", "Cache")}</span>
-        <h1 data-part="heading">
-          {dgettext("marketing", "Reduce build times.")}<br />
-          {dgettext("marketing", "Boost productivity.")}
-        </h1>
+    <%!-- Hero card: left-aligned on the 1200px frame (Figma: 112px above the
+    title, 8px left inset, 64px right/bottom, 32px gaps). The background
+    lollipop chart (COLD row, CACHED staircase, entrance animation, and the
+    pointer-repel springs) is drawn entirely by the CacheHeroChart canvas
+    hook; phx-update="ignore" keeps LiveView away from its client state. --%>
+    <header data-part="header">
+      <div
+        data-part="illustration"
+        aria-hidden="true"
+        id="marketing-cache-hero-chart"
+        phx-hook="CacheHeroChart"
+        phx-update="ignore"
+        data-columns={@hero_column_count}
+      >
+        <canvas data-part="canvas"></canvas>
       </div>
+      <h1 data-part="title">
+        <span data-part="line">{dgettext("marketing", "Never build the")}</span>
+        <span data-part="line">{dgettext("marketing", "same thing twice.")}</span>
+      </h1>
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+          "Share build artifacts across your developers, CI, and agent environments, so no one waits on code that's already compiled."
         )}
       </p>
-      <nav data-part="actions">
-        <.button
-          href={
-            TuistWeb.Marketing.MarketingHTML.localized_href(
-              "https://tuist.dev/en/docs/guides/features/cache"
-            )
-          }
-          label={dgettext("marketing", "Read docs")}
-          target="_blank"
-          variant="secondary"
-          size="large"
-        />
-      </nav>
-    </section>
-
-    <section data-part="hero-image">
-      <img
-        src={~p"/marketing/images/cache/cache_header.webp"}
-        alt={dgettext("marketing", "Cache dashboard illustration")}
-        decoding="async"
+      <.button
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/cache"
+          )
+        }
+        variant="secondary"
+        label={dgettext("marketing", "Read docs")}
       />
-    </section>
+    </header>
 
-    <section data-part="cache-types">
+    <section data-part="features" aria-labelledby="cache-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="cache-features-title">
+          {dgettext("marketing", "Everything you'd want from a cache")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Fast everywhere, with near-zero overhead and built-in observability into cache performance."
+          )}
+        </p>
+      </div>
+      <%!-- 2x2 feature grid divided by hairlines. Each cell's figure is an
+      illustration placeholder that reserves the artwork's slot until the
+      real illustrations land. --%>
       <div data-part="grid">
-        <div data-part="cache-type">
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Module cache")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Cache individual modules as binaries and share them across your team and CI using Tuist's project generation."
-              )}
-            </p>
-          </div>
-        </div>
-        <div data-part="cache-type">
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Xcode cache")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Store and share Xcode compilation artifacts across local, CI, and agentic environments to speed up clean builds."
-              )}
-            </p>
-          </div>
-        </div>
-        <div data-part="cache-type">
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Gradle cache")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Brings the same remote caching to Gradle builds for a unified cross-platform cache."
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section data-part="stats">
-      <div data-part="content">
-        <div data-part="stat">
-          <span data-part="label">
-            {dgettext("marketing", "Cache artifacts served in the last 24 hours")}
-          </span>
-          <span
-            data-part="value"
-            id="cache-artifacts-counter"
-            phx-hook="CounterAnimation"
-            data-counter-target={@last_24h_artifacts_count}
-            data-counter-duration="2000"
+        <div data-part="cell">
+          <figure
+            data-part="illustration"
+            data-illustration="minimal-overhead"
+            aria-hidden="true"
+            id="cache-minimal-overhead"
+            phx-hook="CacheMinimalOverhead"
+            phx-update="ignore"
           >
-            0
-          </span>
-        </div>
-        <%!-- <div data-part="testimonial">
-          <p data-part="quote">
-            {dgettext(
-              "marketing",
-              "\"Tuist's caching drastically reduced our build times and made CI far more reliable\""
-            )}
-          </p>
-          <div data-part="author">
-            <span data-part="name">{dgettext("marketing", "Example name, Senior Engineer")}</span>
-            <div data-part="logo">
-              <svg
-                width="77"
-                height="46"
-                viewBox="0 0 77 46"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M38.7137 32.2925H41.4087V24.6625C41.4087 22.825 42.7212 21.39 44.4187 21.39C46.1162 21.39 47.5862 22.755 47.5862 24.6625V32.2925H50.5087V24.5225C50.5087 21.25 47.8137 18.73 44.8737 18.73C43.7887 18.73 42.4062 19.115 41.4087 20.48V19.0275H38.7137V32.2925ZM66.3287 18.73C62.3912 18.73 59.3112 21.8625 59.3112 25.7475C59.3112 29.7025 62.3212 32.6075 66.3287 32.6075C70.3362 32.6075 73.4162 29.72 73.4162 25.7475C73.4162 21.8625 70.4062 18.73 66.3287 18.73ZM66.3287 29.86C64.0887 29.86 62.3212 28.0225 62.3212 25.7475C62.3212 23.315 64.1762 21.5475 66.3287 21.5475C68.6387 21.5475 70.4937 23.2975 70.4937 25.7475C70.4937 28.0225 68.7087 29.86 66.3287 29.86ZM58.8387 32.2925V29.475C56.8262 30.4725 54.9012 29.7025 54.9012 27.4975V21.705H58.5237V19.045H54.9187V15.615H52.0662V27.0425C52.0662 31.7675 55.3037 33.36 58.8387 32.2925ZM30.0862 18.73C26.1487 18.73 23.0687 21.8625 23.0687 25.7475C23.0687 29.7025 26.0787 32.6075 30.0862 32.6075C34.0937 32.6075 37.1737 29.72 37.1737 25.7475C37.1737 21.8625 34.1637 18.73 30.0862 18.73ZM30.0862 29.86C27.8462 29.86 26.0787 28.0225 26.0787 25.7475C26.0787 23.315 27.8462 21.5475 30.0862 21.5475C32.3962 21.5475 34.2512 23.2975 34.2512 25.7475C34.2512 28.0225 32.3962 29.86 30.0862 29.86ZM11.9562 12.9375C6.40875 12.9375 2.15625 17.1375 2.15625 22.8425C2.15625 28.3375 6.39125 32.6775 11.9562 32.6775C17.6612 32.6775 21.9137 28.3375 21.9137 22.93C21.8962 17.1375 17.6612 12.9375 11.9562 12.9375ZM11.9562 29.7025C8.10625 29.7025 5.25375 26.815 5.25375 22.8425C5.25375 18.73 8.10625 15.685 11.9562 15.685C15.8937 15.685 18.7462 18.73 18.7462 22.7725C18.7462 26.815 15.8937 29.7025 11.9562 29.7025Z"
-                  fill="#4E575F"
-                />
-                <path
-                  d="M21.4417 33.0623C15.8942 32.4498 12.3417 29.7023 10.5742 24.5223L13.3567 23.6123C14.7392 27.7248 17.3642 29.7898 21.7567 30.2448L21.4417 33.0623Z"
-                  fill="#4E575F"
-                />
-              </svg>
+            <%!-- Columns are 50px wide, 30px apart (Figma). Each ghost bar
+            is filled by a DitherTexture canvas — the dividers' Bayer grain,
+            but with a gentler density ramp so the fill stays subtle —
+            phase-shifted per column. The CacheMinimalOverhead hook plays
+            the scroll-triggered collapse entrance: solid cost bars squash
+            down into the cached boxes, leaving the ghosts behind. --%>
+            <div
+              :for={{column, index} <- Enum.with_index(minimal_overhead_columns)}
+              data-part="column"
+              style={"--delay: #{index * 120}ms; --box-height: #{column.box_height}px;"}
+            >
+              <span data-part="label">{column.label}</span>
+              <div data-part="ghost" style={"height: #{203 - column.box_height}px;"}>
+                <canvas
+                  data-part="dither"
+                  id={"cache-minimal-overhead-dither-#{index}"}
+                  phx-hook="DitherTexture"
+                  phx-update="ignore"
+                  data-pitch="2"
+                  data-dot="2"
+                  data-top="0.1"
+                  data-bottom="0.35"
+                  data-wave="0.25"
+                  data-wave-scale="2.5"
+                  data-levels="0"
+                  data-speed="1"
+                  data-phase={index * 7}
+                  data-dither="on"
+                  data-opacity="0.25"
+                ></canvas>
+                <span data-part="value">{column.cold}</span>
+              </div>
+              <div data-part="cached" style={"height: #{column.box_height}px;"}>
+                <span data-part="value">{column.cached}</span>
+              </div>
+              <span data-part="collapse"></span>
             </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Minimal overhead")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Cache lookups stay lightweight, so every build can check for reusable artifacts without introducing extra build cost."
+              )}
+            </p>
           </div>
-        </div> --%>
+        </div>
+        <div data-part="cell">
+          <%!-- Dither globe: a slowly spinning stippled sphere rendered by
+          the DitherGlobe hook — wireframe, coastlines, and land stipple on
+          the marketing dither ramp, with pulsing purple region markers.
+          The look is tuned entirely through the data attributes below. --%>
+          <figure data-part="illustration" data-illustration="low-latency" aria-hidden="true">
+            <canvas
+              id="cache-low-latency-globe"
+              phx-hook="DitherGlobe"
+              phx-update="ignore"
+              data-size="2.05"
+              data-pitch="2"
+              data-tilt-x="0.07"
+              data-tilt-z="-0.26"
+              data-speed="0.15"
+              data-meridians="0"
+              data-parallels="0"
+              data-density="85"
+              data-shade="13"
+              data-land="55"
+              data-ocean="18"
+              data-offset-x="0"
+              data-offset-y="136"
+            ></canvas>
+            <span data-part="fade"></span>
+            <%!-- Instant first paint: a tiny inline dot-sphere drawn while
+            the HTML streams in, so the card never sits empty waiting for
+            the marketing bundle on slow connections. The DitherGlobe hook
+            repaints the full globe over it as soon as it mounts. (HEEx
+            does not interpolate braces inside script tags.) The CSP nonce
+            is required — without it the browser blocks the inline script
+            and the card sits empty until the hook mounts. --%>
+            <script nonce={@csp_nonce}>
+              (() => {
+                var c = document.getElementById("cache-low-latency-globe");
+                if (!c || c.getAttribute("width")) return;
+                var host = c.parentElement;
+                var r = host.getBoundingClientRect();
+                var w = Math.round(r.width);
+                var h = Math.round(r.height);
+                if (!w || !h) return;
+                var dpr = Math.min(devicePixelRatio || 1, 2);
+                c.width = w * dpr;
+                c.height = h * dpr;
+                var x = c.getContext("2d");
+                x.setTransform(dpr, 0, 0, dpr, 0, 0);
+                var d = c.dataset;
+                var rad = (Math.min(w, h) / 2) * (+d.size || 1);
+                var cx = w / 2 + (+d.offsetX || 0);
+                var cy = h / 2 + (+d.offsetY || 0);
+                var probe = document.createElement("span");
+                probe.style.color = "var(--marketing-cache-globe-dither-mid)";
+                host.appendChild(probe);
+                x.fillStyle = getComputedStyle(probe).color;
+                probe.remove();
+                var ga = Math.PI * (3 - Math.sqrt(5));
+                var seed = 7;
+                for (var i = 0; i < 6000; i++) {
+                  var y = 1 - ((i + 0.5) * 2) / 6000;
+                  var rr = Math.sqrt(1 - y * y);
+                  var t = ga * i;
+                  var px = Math.cos(t) * rr;
+                  var pz = Math.sin(t) * rr;
+                  if (pz < 0.05) continue;
+                  seed = (seed * 1103515245 + 12345) & 2147483647;
+                  if (seed / 2147483647 > 0.4) continue;
+                  var gx = Math.round((cx + px * rad) / 2) * 2;
+                  var gy = Math.round((cy - y * rad) / 2) * 2;
+                  x.fillRect(gx, gy, 2, 2);
+                }
+              })();
+            </script>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Low latency, everywhere")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Artifacts are served from the region closest to your developers, CI, and agent environments for fast access wherever builds run."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- Observability dashboard: static HTML rebuild of the Figma
+          comp — a cacheable-targets panel with a segmented distribution
+          bar and legend, three stat cards, and a blurred gradient fade at
+          the bottom edge. Decorative (aria-hidden), so the labels stay
+          untranslated like the other cards' chart annotations. --%>
+          <figure
+            data-part="illustration"
+            data-illustration="observability"
+            aria-hidden="true"
+            id="cache-observability"
+            phx-hook="CacheObservability"
+            phx-update="ignore"
+          >
+            <div data-part="dashboard">
+              <div data-part="panel">
+                <p data-part="heading">
+                  Cacheable targets: <strong>127</strong>
+                </p>
+                <div data-part="bar">
+                  <span data-part="segment" data-segment="local"></span>
+                  <span data-part="segment" data-segment="remote"></span>
+                  <span data-part="segment" data-segment="uploaded"></span>
+                </div>
+                <ul data-part="legend">
+                  <li data-segment="local">Local</li>
+                  <li data-segment="remote">Remote</li>
+                  <li data-segment="uploaded">Uploaded</li>
+                </ul>
+              </div>
+              <div data-part="stats">
+                <div data-part="stat">
+                  <span data-part="label">Cache hit rate</span>
+                  <span data-part="value">78%</span>
+                </div>
+                <div data-part="stat">
+                  <span data-part="label">Compilation time saved</span>
+                  <span data-part="value">15m</span>
+                </div>
+                <div data-part="stat">
+                  <span data-part="label">Binary cache pulls</span>
+                  <span data-part="value">200 MB</span>
+                </div>
+              </div>
+            </div>
+            <span data-part="fade"></span>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Built-in observability")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "See cache hits, misses, and build performance so you can understand what's being reused and where builds can improve."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- Build-system blueprint card (Figma: 382x182): the system and
+          its ecosystem in the header, a faint drafting grid below, and
+          Apple's app-icon grid system — rounded square, concentric
+          circles, diagonals, center axes — drawn over it as an inline
+          SVG. Decorative (aria-hidden), labels untranslated like the
+          other cards' chart annotations. --%>
+          <figure
+            data-part="illustration"
+            data-illustration="build-systems"
+            aria-hidden="true"
+            id="cache-build-decks"
+            phx-hook="CacheBuildDecks"
+            phx-update="ignore"
+          >
+            <%!-- One blueprint panel per build system, stacked like a
+            deck: Xcode in front, Bazel and Gradle behind it, each peeking
+            only its header row and drawn slightly narrower the deeper it
+            sits. Each system carries its own drafting pattern — a square
+            grid for Xcode, a diamond lattice for Bazel, an arc-stencil
+            tessellation for Gradle. --%>
+            <div data-part="panel" data-system="xcode" data-pos="0">
+              <header data-part="header">
+                <span data-part="system">XCODE</span>
+                <span data-part="platform">APPLE&nbsp;ECOSYSTEM</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <div data-part="panel" data-system="bazel" data-pos="1">
+              <header data-part="header">
+                <span data-part="system">BAZEL</span>
+                <span data-part="platform">GOOGLE&nbsp;OPEN&nbsp;SOURCE</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <div data-part="panel" data-system="gradle" data-pos="2">
+              <header data-part="header">
+                <span data-part="system">GRADLE</span>
+                <span data-part="platform">GRADLE&nbsp;PROJECT</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <span data-part="fade"></span>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Built for your build system")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Accelerate builds with caching designed around how your projects actually compile."
+              )}
+            </p>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section data-part="features">
-      <div data-part="feature-row">
-        <div data-part="feature">
-          <div data-part="image">
-            <img
-              src={~p"/marketing/images/cache/cache_feature_build_faster.webp"}
-              alt={dgettext("marketing", "Build faster")}
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Build faster")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "A low-latency, layered caching system stores and serves artifacts close to where the compute happens."
-              )}
-            </p>
-          </div>
-        </div>
-        <div data-part="feature">
-          <div data-part="image">
-            <img
-              src={~p"/marketing/images/cache/cache_feature_usage.webp"}
-              alt={dgettext("marketing", "Optimize your cache usage")}
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Optimize your cache usage")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Cache insights show you how your build graph is performing against the caching infrastructure."
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div data-part="feature-row">
-        <div data-part="feature">
-          <div data-part="image">
-            <img
-              src={~p"/marketing/images/cache/cache_feature_adopt.webp"}
-              alt={dgettext("marketing", "Adopt it easily")}
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Adopt it easily")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Integrate with a single command or a few lines of configuration - no infrastructure to host or maintain."
-              )}
-            </p>
-          </div>
-        </div>
-        <div data-part="feature">
-          <div data-part="image">
-            <img
-              src={~p"/marketing/images/cache/cache_feature_use.webp"}
-              alt={dgettext("marketing", "Use it everywhere")}
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
-          <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Use it everywhere")}</h3>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "The cache runs transparently across local development, CI, and agentic environments without developers noticing it."
-              )}
-            </p>
-          </div>
-        </div>
+    <%!-- CTA framed by dithered divider bands, same recipe as the home
+    page's closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="cache-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        phx-update="ignore"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your development")}</h2>
+      <div data-part="actions" role="group" aria-labelledby="cta-title">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
       </div>
     </section>
 
-    <TuistWeb.Marketing.MarketingComponents.feature_cta
-      title={dgettext("marketing", "Speed up your builds with binary caching")}
-      docs_href="https://tuist.dev/en/docs/guides/features/cache"
-    />
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="cache-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        phx-update="ignore"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

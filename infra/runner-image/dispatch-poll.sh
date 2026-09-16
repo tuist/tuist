@@ -294,6 +294,13 @@ CACHE_INVENTORY_BEFORE=""
 # The post-job inventory, captured while the image is still mounted so the HEAD
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
+# SHA-256 of the settled image FILE — the bytes the upload sends, hashed after
+# the measuring re-attach has detached. The inventory digest above is a claim
+# about entry names and sizes; this is the claim about the bytes themselves,
+# verified by the object store at ingest (x-amz-checksum-sha256) and by every
+# converging host before it adopts the object as its master. Empty when hashing
+# failed, which just publishes a HEAD without a content digest (the status quo).
+CACHE_CONTENT_DIGEST=""
 # STATUS_SHARE is defined near the EXIT trap at the top of this script,
 # which reports the runner's exit code through it before this section is
 # ever reached.
@@ -1050,6 +1057,16 @@ capture_settled_inventory() {
     hdiutil detach "${CACHE_VERIFY_MOUNTPOINT}" -force -quiet 2>/dev/null || true
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 1
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache inventory digest=${CACHE_INVENTORY_AFTER}"
+  # Hash the image FILE only after the read-only attach is gone, so the digest
+  # names exactly the bytes the PUT will read. Nothing else can write between
+  # here and the upload: the job's mount is detached and the verify attach was
+  # read-only. openssl over shasum for throughput — this runs at teardown and,
+  # like the upload it protects, holds the VM slot for its duration. Best-effort:
+  # a hashing failure clears the digest and the promote proceeds unverified
+  # rather than losing the branch.
+  CACHE_CONTENT_DIGEST=$(/usr/bin/openssl dgst -sha256 -r "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}' | tr -cd 'a-f0-9')
+  [ "${#CACHE_CONTENT_DIGEST}" = "64" ] || CACHE_CONTENT_DIGEST=""
+  echo "$(date -u +%FT%TZ) dispatch-poll: settled cache image sha256=${CACHE_CONTENT_DIGEST:-unavailable}"
   return 0
 }
 
@@ -1095,13 +1112,21 @@ report_cache_dirty() {
 # this job's result. Best-effort: an absent block just means no convergence.
 stage_volume_head() {
   [ -d "${STATUS_SHARE}" ] || return 0
-  local gen digest download
+  local gen digest content_digest download
   gen=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/dispatch.json)
   digest=$(sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  # The HEAD's content digest (SHA-256 of the master object's bytes), staged for
+  # the host's convergence to verify the download against before adopting it.
+  # Absent on a HEAD promoted by a guest that predates the content hash; the
+  # host then skips the content check. (`"content_digest"` is matched literally,
+  # and the greedy `"digest"` match above cannot land inside it — that substring
+  # is preceded by an underscore, not a quote.)
+  content_digest=$(sed -n 's/.*"content_digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json | tr -cd 'a-f0-9')
+  [ "${#content_digest}" = "64" ] || content_digest=""
   download=$(sed -n 's/.*"download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
   [ -n "${download}" ] || return 0
-  printf '{"generation":%s,"digest":"%s","download_url":"%s"}' \
-    "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
+  printf '{"generation":%s,"digest":"%s","content_digest":"%s","download_url":"%s"}' \
+    "${gen:-0}" "${digest}" "${content_digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
 }
 
 # read_base_generation returns the HEAD generation this VM's branch was cloned
@@ -1219,7 +1244,7 @@ report_volume_head() {
   # stale) that can never catch up.
   unverifiable=$(read_unverifiable_head)
   node_name=$(read_node_name)
-  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
+  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"content_digest\":\"${CACHE_CONTENT_DIGEST}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
   if [ -n "${unverifiable}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: reporting HEAD ${unverifiable} as unverifiable on this host"
   fi
@@ -1253,6 +1278,12 @@ report_volume_head() {
     return 0
   fi
   upload_url=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${mint_body}" 2>/dev/null)
+  # The base64 checksum the server signed into the URL, echoed back so the PUT
+  # sends exactly the value the signature covers. Present only when the mint
+  # carried a content digest AND the storage provider signs upload headers; a
+  # server predating the field returns nothing and the PUT goes out bare.
+  local upload_checksum
+  upload_checksum=$(sed -n 's/.*"checksum_sha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${mint_body}" 2>/dev/null | tr -cd 'A-Za-z0-9+/=')
   rm -f "${mint_body}" 2>/dev/null || true
   if [ -z "${upload_url}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL (http=${mint_http:-000}); HEAD not advanced"
@@ -1274,9 +1305,21 @@ report_volume_head() {
   # the host cannot reclaim the slot until it finishes. Report the duration to the
   # host (volume-upload-ms) so we can watch how long uploads hold slots and keep
   # the volume sized so it stays fast. perl for ms precision (BSD date has no %N).
+  # When the mint signed a checksum into the URL, the PUT must carry it: the
+  # object store then hashes the received bytes and rejects a payload that does
+  # not reproduce the digest, so uploader-RAM or wire corruption fails HERE —
+  # loudly, before the HEAD bump — instead of becoming every host's master.
+  # (The guest's bash is 3.2 under `set -u`, where expanding an EMPTY array is
+  # an unbound-variable error — hence the ${arr[@]+...} guard on the expansion.)
+  local upload_checksum_args
+  upload_checksum_args=()
+  if [ -n "${upload_checksum}" ]; then
+    upload_checksum_args=(-H "x-amz-checksum-sha256: ${upload_checksum}")
+  fi
   local upload_start upload_end
   upload_start=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
+    ${upload_checksum_args[@]+"${upload_checksum_args[@]}"} \
     -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
     write_promote_result "error"

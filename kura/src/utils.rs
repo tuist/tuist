@@ -176,6 +176,10 @@ pub struct TempBodyFile {
     pub path: PathBuf,
     pub size: u64,
     pub file_cache_policy: FileCachePolicy,
+    /// Lowercase hex SHA-256 of the staged bytes, computed inline while they
+    /// streamed in. Present only when the caller asked for it via
+    /// `RequestBodyStaging::compute_sha256`.
+    pub sha256_hex: Option<String>,
     _cleanup: TempFileCleanup,
     _memory_reservation: ForegroundFileCacheReservation,
 }
@@ -437,6 +441,10 @@ pub struct RequestBodyStaging<'a> {
     pub io: &'a IoController,
     pub memory: &'a MemoryController,
     pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
+    /// Hash the body into `TempBodyFile::sha256_hex` while it streams in.
+    /// Costs CPU per byte, so it is opt-in: only lanes that go on to verify a
+    /// client-declared digest set it, and only when the request declared one.
+    pub compute_sha256: bool,
 }
 
 pub async fn read_request_to_temp(
@@ -485,6 +493,7 @@ pub async fn read_request_to_temp(
     let mut stream = request.into_body().into_data_stream();
     let mut size = 0_u64;
     let mut advised_through = 0_u64;
+    let mut hasher = staging.compute_sha256.then(Sha256::new);
 
     while let Some(item) = stream.next().await {
         let chunk = match item {
@@ -508,6 +517,9 @@ pub async fn read_request_to_temp(
         }
         if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
+        }
+        if let Some(hasher) = hasher.as_mut() {
+            hasher.update(&chunk);
         }
 
         if let Err(error) = file.write_all(&chunk).await {
@@ -553,6 +565,7 @@ pub async fn read_request_to_temp(
         path: temp_path,
         size,
         file_cache_policy,
+        sha256_hex: hasher.map(|hasher| hex::encode(hasher.finalize())),
         _cleanup: cleanup,
         _memory_reservation: memory_reservation,
     })
@@ -1098,6 +1111,7 @@ mod tests {
                     io: &io,
                     memory: &memory,
                     bandwidth_limiter: None,
+                    compute_sha256: false,
                 },
             )
             .await;
@@ -1452,6 +1466,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1516,6 +1531,7 @@ mod tests {
                             io: &io,
                             memory: &memory,
                             bandwidth_limiter: None,
+                            compute_sha256: false,
                         },
                     )
                     .await
@@ -1547,6 +1563,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1592,6 +1609,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1644,6 +1662,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1690,6 +1709,7 @@ mod tests {
                     io: &io,
                     memory: &memory,
                     bandwidth_limiter: None,
+                    compute_sha256: false,
                 },
             ),
         )
@@ -1750,6 +1770,7 @@ mod tests {
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
+                compute_sha256: false,
             },
         )
         .await
@@ -1827,5 +1848,43 @@ mod tests {
         assert_eq!(budget.reserved.load(Ordering::Acquire), 100);
         drop(reservation);
         assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn sha256_streaming_throughput_benchmark() {
+        const UPDATE_BYTES: usize = 256 * 1024;
+        const UPDATES: usize = 4 * 1024;
+        const SAMPLES: usize = 6;
+
+        let chunk: Vec<u8> = (0..UPDATE_BYTES)
+            .map(|index| (index as u32).wrapping_mul(2_654_435_761).to_le_bytes()[3])
+            .collect();
+        let hashed_bytes = (UPDATE_BYTES * UPDATES) as f64;
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        let mut digest = String::new();
+        for sample in 0..SAMPLES {
+            let started_at = std::time::Instant::now();
+            let mut hasher = Sha256::new();
+            for _ in 0..UPDATES {
+                hasher.update(std::hint::black_box(&chunk));
+            }
+            let finalized = std::hint::black_box(hasher.finalize());
+            let elapsed = started_at.elapsed().as_secs_f64();
+            digest = hex::encode(finalized);
+            if sample > 0 {
+                rates.push(hashed_bytes / elapsed);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        let median = rates[rates.len() / 2];
+        println!(
+            "METRIC sha256_mib_per_second={:.1}\nMETRIC sha256_seconds_per_gib={:.3}\nMETRIC sha256_min_mib_per_second={:.1}\nMETRIC sha256_max_mib_per_second={:.1}\nsha256_digest={digest}",
+            median / (1024.0 * 1024.0),
+            (1024.0 * 1024.0 * 1024.0) / median,
+            rates[0] / (1024.0 * 1024.0),
+            rates[rates.len() - 1] / (1024.0 * 1024.0)
+        );
     }
 }

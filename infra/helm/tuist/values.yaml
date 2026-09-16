@@ -2318,6 +2318,7 @@ runnersFleet:
     - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the

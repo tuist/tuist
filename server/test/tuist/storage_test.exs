@@ -285,6 +285,35 @@ defmodule Tuist.StorageTest do
   end
 
   describe "generate_upload_url/2" do
+    test "signs the requested headers into the URL so the object store verifies the upload" do
+      url = "https://tuist.io/upload-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      expires_in = 60
+      config = %{test: :config}
+      signed_headers = [{"x-amz-checksum-sha256", "Zm9vYmFy"}]
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
+                                          :put,
+                                          ^bucket_name,
+                                          ^object_key,
+                                          [
+                                            query_params: [],
+                                            expires_in: ^expires_in,
+                                            headers: ^signed_headers
+                                          ] ->
+        {:ok, url}
+      end)
+
+      assert Storage.generate_upload_url(object_key, :test,
+               expires_in: expires_in,
+               signed_headers: signed_headers
+             ) == url
+    end
+
     test "generates the upload URL using the ExAws.S3 module and sends the right telemetry event" do
       # Given
       event_name =
