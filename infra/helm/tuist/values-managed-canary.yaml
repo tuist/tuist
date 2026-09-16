@@ -334,18 +334,13 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # Step 6a: the full parity gate, before reads move.
-    #
-    # Compares every copied table over its whole history, schemas included,
-    # unlike the hourly worker's two-hour window. The repair it follows copied
-    # the September chunk of every table that was short, and the rows the
-    # in-cluster server held that no source row matched were deleted by hand
-    # first, so that copy could not leave duplicates behind.
-    #
-    # It raises, and a failure rolls canary back. If it fails, read the Job and
-    # disarm this rather than redeploying into it.
+    # Step 6a, the full parity gate, is disarmed. Its last run found one copied
+    # table differing from the system of record over the whole dataset:
+    # test_runs, with the same row count on both servers and a different
+    # duration sum. The repair closed every other table. Reads stay where they
+    # are until test_runs is explained.
     migration:
-      enabled: true
+      enabled: false
       name: parity
       task: Tuist.Release.check_clickhouse_parity
 
