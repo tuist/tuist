@@ -1014,95 +1014,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
-    func test_run_warns_without_failing_when_test_hashes_fail_to_upload() async throws {
-        // Given
-        givenGenerator()
-
-        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
-        let schemeOne = Scheme.test(
-            name: "ProjectSchemeOne",
-            testAction: .test(
-                targets: [
-                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
-                ]
-            )
-        )
-
-        given(buildGraphInspector)
-            .workspaceSchemes(graphTraverser: .any)
-            .willReturn([schemeOne])
-
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                projectPathOne: .test(
-                    path: projectPathOne,
-                    targets: [
-                        .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
-                    ],
-                    schemes: [
-                        .test(
-                            name: "ProjectSchemeOne",
-                            testAction: .test(
-                                targets: [
-                                    .test(
-                                        target: TargetReference(
-                                            projectPath: projectPathOne, name: "TargetA"
-                                        )
-                                    ),
-                                ]
-                            )
-                        ),
-                    ]
-                ),
-            ]
-        )
-        environment.targetTestHashes = [
-            projectPathOne: [
-                "TargetA": "hash-a",
-            ],
-        ]
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willProduce { path, _ in
-                (
-                    path,
-                    .test(
-                        projects: [
-                            projectPathOne: .test(
-                                path: projectPathOne,
-                                targets: [
-                                    .test(name: "TargetA"),
-                                ],
-                                schemes: [schemeOne]
-                            ),
-                        ]
-                    ),
-                    environment
-                )
-            }
-        cacheStorage.reset()
-        given(cacheStorage)
-            .store(.any, cacheCategory: .any)
-            .willThrow(CacheUploadError(failures: [
-                CacheUploadFailure(item: CacheStorableItem(name: "TargetA", hash: "hash-a"), reason: "request timed out"),
-            ]))
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
-
-        try await AlertController.$current.withValue(AlertController()) {
-            // When
-            try await testRun(path: try temporaryPath())
-
-            // Then
-            XCTAssertEqual(
-                AlertController.current.warnings().map { $0.message.plain() },
-                ["Failed to upload TargetA with hash hash-a: request timed out"]
-            )
-        }
-    }
-
     func test_run_uploads_build_run_using_passthrough_derived_data_path() async throws {
         // Given
         givenGenerator()
@@ -7156,6 +7067,30 @@ struct TestServiceSchemePlanningTests {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_warns_without_failing_when_test_hashes_fail_to_upload() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+        fixture.cacheStorage.reset()
+        given(fixture.cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willProduce { items, _ in
+                throw CacheUploadError(failures: items.keys.map {
+                    CacheUploadFailure(item: $0, reason: "request timed out")
+                })
+            }
+
+        try await fixture.run(path: temporaryDirectory)
+
+        #expect(AlertController.current.warnings().map { $0.message.plain() }.sorted() == [
+            "Failed to upload AppSnapshotTests with hash app-snapshot-tests-hash: request timed out",
+            "Failed to upload AppTests with hash app-tests-hash: request timed out",
+            "Failed to upload FeatureTests with hash feature-tests-hash: request timed out",
+        ])
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
