@@ -2631,7 +2631,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             onlyTestIdentifiers: [],
             skipTestIdentifiers: [],
             stressNewTests: nil,
-            gitHistory: gitHistory?.payload
+            gitHistory: gitHistory?.payload,
+            coverageUpload: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
