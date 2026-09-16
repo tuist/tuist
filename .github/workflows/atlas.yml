@@ -196,8 +196,16 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: node aube
+          install: node
           working-directory: atlas/workers/inbox
+
+      # aube is pinned in atlas/mise.toml at a version newer than the
+      # root mise.lock's aube entry, so `mise install --locked` refuses
+      # it. Install it unlocked; the aube-lock.yaml pins the JS
+      # dependency graph, which is what actually matters here.
+      - name: Install aube
+        working-directory: atlas
+        run: mise install aube
 
       - name: Restore Aube cache
         uses: actions/cache@v6
