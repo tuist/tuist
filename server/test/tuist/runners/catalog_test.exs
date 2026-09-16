@@ -83,6 +83,9 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.3"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-3"
 
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.1.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-1-1"
+
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end

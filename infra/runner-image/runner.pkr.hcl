@@ -315,6 +315,17 @@ build {
     ]
   }
 
+  # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
+  # only exposes a downloaded toolchain to the user that installed
+  # it. Running the download as `runner` registers it for the user
+  # jobs run as.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'"
+    ]
+  }
+
   # Install the Actions runner agent under runner's home so the
   # binary, its `_diag` logs, and any side data it writes land
   # under `/Users/runner/...` — matching GitHub-hosted's layout
@@ -537,6 +548,8 @@ build {
   # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
   # explicit `xcrun xcresulttool version` below doubles as proof
   # that the base's Xcode install + `xcode-select -s` propagated.
+  # `xcrun metal --version` proves the base's Metal Toolchain is
+  # visible to `runner` and not only to the user that installed it.
   #
   # Tuist itself isn't in the list — customer workflows install it
   # via mise / brew so they own the version pin.
@@ -544,7 +557,8 @@ build {
     inline = [
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]
   }
 
