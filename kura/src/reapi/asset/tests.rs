@@ -665,7 +665,11 @@ async fn truncated_content_length_without_checksum_never_publishes_an_asset() {
             let (mut stream, _) = listener.accept().await.unwrap();
             count.fetch_add(1, Ordering::SeqCst);
             let mut request = [0; 4096];
-            stream.read(&mut request).await.unwrap();
+            let read = stream.read(&mut request).await.unwrap();
+            assert!(
+                read > 0,
+                "origin connection closed before sending a request"
+            );
             stream
                 .write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort",
@@ -723,7 +727,11 @@ async fn draining_cancels_a_stalled_grpc_fetch_and_releases_admission_and_stagin
     let origin = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();
         let mut request = [0; 4096];
-        stream.read(&mut request).await.unwrap();
+        let read = stream.read(&mut request).await.unwrap();
+        assert!(
+            read > 0,
+            "origin connection closed before sending a request"
+        );
         stream
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nx")
             .await
@@ -1091,12 +1099,14 @@ async fn invalid_lookup_records_are_reported_without_credentials_and_repaired() 
             context
                 .state
                 .store
-                .persist_inline_artifact_from_bytes_and_replicate(
+                .apply_replicated_inline_artifact_from_bytes(
                     ArtifactProducer::Reapi,
                     "ios",
                     &spec.keys[0],
                     "application/json",
                     &bytes,
+                    // A locally stamped seed can share the repair's millisecond and win LWW.
+                    crate::utils::now_ms() - 60_000,
                     None,
                     None,
                 )
