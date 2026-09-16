@@ -22,19 +22,19 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/content")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/content")
 
     assert has_element?(view, "#gtm-content")
     assert has_element?(view, "#gtm-content [data-part='header'] [data-part='title']", "Content")
     assert has_element?(view, "#new-idea-modal")
     assert has_element?(view, "#new-idea-modal [data-part='trigger']", "New idea")
     assert has_element?(view, "#sidebar-gtm")
-    assert has_element?(view, ~s(#sidebar-gtm a[href="/gtm/content"]), "Content")
-    assert has_element?(view, ~s(#sidebar-gtm a[href="/gtm/social"]), "Social")
-    assert has_element?(view, ~s(#sidebar-gtm a[href="/gtm/outreach"]), "Outreach")
-    assert has_element?(view, ~s(#sidebar-gtm a[href="/gtm/content"] [data-selected]))
+    assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/content"]), "Content")
+    assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/social"]), "Social")
+    assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/outreach"]), "Outreach")
+    assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/content"] [data-selected]))
     assert has_element?(view, "#gtm-ideas-table", "Caching deep dive")
-    assert has_element?(view, ~s(#gtm-ideas-table a[href="/gtm/content/#{idea.id}"]), "Caching deep dive")
+    assert has_element?(view, ~s(#gtm-ideas-table a[href="/commercial/gtm/content/#{idea.id}"]), "Caching deep dive")
   end
 
   test "renders the social idea list", %{conn: conn} do
@@ -48,15 +48,15 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/social")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/social")
 
     assert has_element?(view, "#gtm-social")
     assert has_element?(view, "#gtm-social [data-part='header'] [data-part='title']", "Social")
     assert has_element?(view, "#new-social-idea-modal")
     assert has_element?(view, "#new-social-idea-modal [data-part='trigger']", "New social idea")
-    assert has_element?(view, ~s(#sidebar-gtm a[href="/gtm/social"] [data-selected]))
+    assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/social"] [data-selected]))
     assert has_element?(view, "#gtm-social-ideas-table", "Share the cache chart")
-    assert has_element?(view, ~s(#gtm-social-ideas-table a[href="/gtm/social/#{idea.id}"]), "Share the cache chart")
+    assert has_element?(view, ~s(#gtm-social-ideas-table a[href="/commercial/gtm/social/#{idea.id}"]), "Share the cache chart")
     assert has_element?(view, "#social-idea-actions-#{idea.id}")
   end
 
@@ -64,7 +64,7 @@ defmodule AtlasWeb.GTMLiveTest do
     user = insert_user!("gtm-social-create@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/social")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/social")
 
     render_submit(view, "create_social_idea", %{
       "social_channel_idea" => %{
@@ -79,7 +79,7 @@ defmodule AtlasWeb.GTMLiveTest do
     assert idea.author_id == user.id
     assert idea.description == "Use the registry announcement."
 
-    {:ok, detail, _html} = live(conn, ~p"/gtm/social/#{idea.id}")
+    {:ok, detail, _html} = live(conn, ~p"/commercial/gtm/social/#{idea.id}")
     assert has_element?(detail, "#gtm-social-idea [data-part='idea-title']", "Turn launch note into a short post")
     assert has_element?(detail, "#edit-social-idea-modal [data-part='trigger']", "Edit idea")
     assert has_element?(detail, "#gtm-social-idea [data-part='social-idea-details-card']")
@@ -95,7 +95,7 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/social/#{idea.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/social/#{idea.id}")
 
     # Status is derived from the idea's post revisions, so even a submitted status is
     # ignored: the description updates but the status stays "idea".
@@ -118,7 +118,7 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/social/#{idea.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/social/#{idea.id}")
 
     # The composer is inline in the revisions card, so submit the real form.
     view
@@ -152,7 +152,7 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/social")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/social")
 
     assert has_element?(view, "#social-idea-actions-#{idea.id}")
 
@@ -166,15 +166,15 @@ defmodule AtlasWeb.GTMLiveTest do
     user = insert_user!("gtm-social-missing@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    assert {:error, {:live_redirect, %{to: "/gtm/social"}}} =
-             live(conn, ~p"/gtm/social/#{Ecto.UUID.generate()}")
+    assert {:error, {:live_redirect, %{to: "/commercial/gtm/social"}}} =
+             live(conn, ~p"/commercial/gtm/social/#{Ecto.UUID.generate()}")
   end
 
   test "captures a new idea from the modal and shows it in the list", %{conn: conn} do
     user = insert_user!("gtm-create@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/content")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/content")
 
     # The capture form lives inside the modal portal, so submit the event by name
     # rather than selecting the form (Floki cannot reach into the portal template).
@@ -187,7 +187,7 @@ defmodule AtlasWeb.GTMLiveTest do
     idea = Repo.get_by!(BlogPostIdea, title: "Why monorepos win")
     assert idea.author_id == user.id
 
-    {:ok, detail, _html} = live(conn, ~p"/gtm/content/#{idea.id}")
+    {:ok, detail, _html} = live(conn, ~p"/commercial/gtm/content/#{idea.id}")
     assert has_element?(detail, "#gtm-idea [data-part='idea-title']", "Why monorepos win")
   end
 
@@ -197,7 +197,7 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/content/#{idea.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/content/#{idea.id}")
 
     refute has_element?(view, "#idea-comments [data-part='comment']")
 
@@ -217,7 +217,7 @@ defmodule AtlasWeb.GTMLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/content/#{idea.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/content/#{idea.id}")
 
     view
     |> form("#idea-details-form",
@@ -232,7 +232,7 @@ defmodule AtlasWeb.GTMLiveTest do
     user = insert_user!("gtm-missing@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    assert {:error, {:live_redirect, %{to: "/gtm/content"}}} =
-             live(conn, ~p"/gtm/content/#{Ecto.UUID.generate()}")
+    assert {:error, {:live_redirect, %{to: "/commercial/gtm/content"}}} =
+             live(conn, ~p"/commercial/gtm/content/#{Ecto.UUID.generate()}")
   end
 end

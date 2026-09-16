@@ -13,33 +13,33 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, _user} = log_in_user(conn)
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support")
 
     assert has_element?(view, "#support")
     assert has_element?(view, "#support-needs-reply-tab")
     assert has_element?(view, "#support-filters-dropdown")
     assert has_element?(view, "#support-threads-table", thread.customer_email)
-    assert has_element?(view, ~s(a[href="/support"] [data-selected]))
+    assert has_element?(view, ~s(a[href="/commercial/support"] [data-selected]))
   end
 
   test "searches conversations without losing the current queue state", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
     thread = support_thread!(subject: "Cache upload stalls")
 
-    {:ok, view, _html} = live(conn, ~p"/support")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support")
 
     view
     |> form("#support-search-form", %{"search" => %{"query" => "Cache upload"}})
     |> render_change()
 
-    assert_patch(view, ~p"/support?q=Cache+upload")
+    assert_patch(view, ~p"/commercial/support?q=Cache+upload")
     assert has_element?(view, "#support-threads-table", thread.subject)
   end
 
   test "uses the standard table empty state when a queue is empty", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
 
-    {:ok, view, _html} = live(conn, ~p"/support")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support")
 
     assert has_element?(view, "#support-threads-table th", "Conversation")
     assert has_element?(view, "#support-threads-empty .noora-table-empty-state")
@@ -49,11 +49,11 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, _user} = log_in_user(conn)
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support?status=waiting")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support?status=waiting")
 
     assert has_element?(view, "#support-threads-empty")
 
-    render_patch(view, ~p"/support?status=open")
+    render_patch(view, ~p"/commercial/support?status=open")
 
     refute has_element?(view, "#support-threads-empty")
     assert has_element?(view, "#support-threads-table-body", thread.subject)
@@ -67,7 +67,7 @@ defmodule AtlasWeb.SupportLiveTest do
     assert {:ok, _thread} = Support.assign(assigned_thread, user.id, user)
 
     params = %{"filter_owner_op" => "==", "filter_owner_val" => "mine"}
-    {:ok, view, _html} = live(conn, ~p"/support?#{params}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support?#{params}")
 
     assert has_element?(view, "#owner")
     assert has_element?(view, "#support-threads-table", assigned_thread.customer_email)
@@ -77,12 +77,12 @@ defmodule AtlasWeb.SupportLiveTest do
   test "adds the owner filter with a default comparison", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
 
-    {:ok, view, _html} = live(conn, ~p"/support")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support")
 
     render_hook(view, "add_filter", %{"value" => "owner"})
 
     filter_params = %{"filter_owner_op" => "==", "filter_owner_val" => ""}
-    assert_patch(view, ~p"/support?#{filter_params}")
+    assert_patch(view, ~p"/commercial/support?#{filter_params}")
     assert_push_event(view, "open-dropdown", %{id: "filter-owner-value-dropdown"})
   end
 
@@ -90,7 +90,7 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, user} = log_in_user(conn, %{name: "Support Teammate"})
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     assert has_element?(view, "#support-composer-form")
     assert has_element?(view, "#support-composer-mode-reply[data-selected]")
@@ -121,7 +121,7 @@ defmodule AtlasWeb.SupportLiveTest do
                "body" => "Help us."
              })
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     assert has_element?(view, "#support-chat-email-unverified", "Email unverified")
     refute has_element?(view, "#support-composer-add-attachment")
@@ -145,7 +145,7 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, assignee} = log_in_user(conn, %{name: "Pedro Piñera Buendía"})
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     render_hook(view, "assign", %{
       "items" => [%{"label" => assignee.name, "value" => assignee.id}],
@@ -159,7 +159,7 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, _user} = log_in_user(conn)
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     render_click(view, "set_composer_mode", %{"mode" => "note"})
 
@@ -178,7 +178,7 @@ defmodule AtlasWeb.SupportLiveTest do
     {conn, _user} = log_in_user(conn)
     thread = support_thread!()
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     upload =
       file_input(view, "#support-composer-form", :reply_attachment, [
@@ -220,7 +220,7 @@ defmodule AtlasWeb.SupportLiveTest do
         """
       )
 
-    {:ok, view, _html} = live(conn, ~p"/support/#{thread.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
 
     message = thread.id |> Support.get_thread() |> then(&List.first(&1.messages))
 

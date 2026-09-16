@@ -27,7 +27,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
         {:noreply,
          socket
          |> assign_new_feature_form()
-         |> push_navigate(to: ~p"/sales/feature-interests/#{interest.id}")}
+         |> push_navigate(to: ~p"/commercial/sales/feature-interests/#{interest.id}")}
 
       {:error, changeset} ->
         {:noreply,
@@ -80,7 +80,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
             {:noreply,
              socket
              |> clear_feature_interest_context_modal()
-             |> push_patch(to: ~p"/sales/feature-interests/#{socket.assigns.interest.id}")
+             |> push_patch(to: ~p"/commercial/sales/feature-interests/#{socket.assigns.interest.id}")
              |> push_event("close-modal", %{id: "feature-interest-context-modal"})}
 
           {:error, %Ecto.Changeset{} = changeset} ->
@@ -113,7 +113,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
             {:noreply,
              socket
              |> put_flash(:error, gettext("Feature interest not found."))
-             |> push_navigate(to: ~p"/sales/feature-interests")}
+             |> push_navigate(to: ~p"/commercial/sales/feature-interests")}
 
           interest ->
             {:noreply, socket |> assign(:page_title, interest.title) |> assign(:interest, interest)}
@@ -228,7 +228,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
         <.table
           id="feature-interests-table"
           rows={@interests}
-          row_navigate={fn interest -> ~p"/sales/feature-interests/#{interest.id}" end}
+          row_navigate={fn interest -> ~p"/commercial/sales/feature-interests/#{interest.id}" end}
         >
           <:col :let={interest} label={gettext("Capability")}>
             <.text_and_description_cell
@@ -269,7 +269,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
         label={gettext("Feature interest")}
         variant="secondary"
         size="medium"
-        navigate={~p"/sales/feature-interests"}
+        navigate={~p"/commercial/sales/feature-interests"}
       >
         <:icon_left><.icon name="arrow_left" /></:icon_left>
       </.button>
@@ -305,7 +305,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
             <div data-part="feature-interest-account-heading">
               <.link
                 id={"feature-interest-account-link-#{interest_account.id}"}
-                navigate={~p"/sales/accounts/#{interest_account.account.id}"}
+                navigate={~p"/commercial/sales/accounts/#{interest_account.account.id}"}
                 data-part="feature-interest-account-name"
               >
                 {interest_account.account.name}
@@ -325,7 +325,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
               :if={interest_account.account_event}
               id={"feature-interest-source-#{interest_account.id}"}
               navigate={
-                "/sales/accounts/#{interest_account.account.id}#timeline-event-#{interest_account.account_event.id}"
+                "/commercial/sales/accounts/#{interest_account.account.id}#timeline-event-#{interest_account.account_event.id}"
               }
               data-part="feature-interest-source"
             >
@@ -334,7 +334,7 @@ defmodule AtlasWeb.FeatureInterestsLive do
             <.link
               :if={is_nil(interest_account.account_event) && interest_account.support_thread}
               id={"feature-interest-source-#{interest_account.id}"}
-              navigate={~p"/support/#{interest_account.support_thread.id}"}
+              navigate={~p"/commercial/support/#{interest_account.support_thread.id}"}
               data-part="feature-interest-source"
             >
               {gettext("Open source conversation")}

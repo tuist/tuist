@@ -59,7 +59,7 @@ defmodule AtlasWeb.GTMEmailLive do
       |> reset_page(@audiences_page_param)
       |> put_search_query("audiences-query", query)
 
-    {:noreply, push_patch(socket, to: ~p"/email?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/outbound/email?#{query_params}", replace: true)}
   end
 
   def handle_event("search_subscribers", %{"search" => %{"query" => query}}, socket) do
@@ -69,7 +69,7 @@ defmodule AtlasWeb.GTMEmailLive do
       |> reset_page(@subscribers_page_param)
       |> put_search_query("subscribers-query", query)
 
-    {:noreply, push_patch(socket, to: ~p"/email?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/outbound/email?#{query_params}", replace: true)}
   end
 
   def handle_event("search_members", %{"search" => %{"query" => query}}, socket) do
@@ -139,7 +139,7 @@ defmodule AtlasWeb.GTMEmailLive do
         {:noreply,
          socket
          |> push_event("close-modal", %{id: "new-email-subscriber-modal"})
-         |> push_patch(to: ~p"/email?#{reset_subscribers_page(socket)}", replace: true)
+         |> push_patch(to: ~p"/outbound/email?#{reset_subscribers_page(socket)}", replace: true)
          |> put_flash(:info, gettext("Subscriber created."))}
 
       {:error, changeset} ->
@@ -163,7 +163,7 @@ defmodule AtlasWeb.GTMEmailLive do
         {:noreply,
          socket
          |> push_event("close-modal", %{id: "new-email-audience-modal"})
-         |> push_navigate(to: ~p"/email/audiences/#{audience.id}")}
+         |> push_navigate(to: ~p"/outbound/email/audiences/#{audience.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :audience_form, to_form(changeset, as: "audience"))}
@@ -180,7 +180,7 @@ defmodule AtlasWeb.GTMEmailLive do
           {:ok, _deleted} ->
             {:noreply,
              socket
-             |> push_patch(to: ~p"/email?#{reset_audiences_page(socket)}", replace: true)
+             |> push_patch(to: ~p"/outbound/email?#{reset_audiences_page(socket)}", replace: true)
              |> put_flash(:info, gettext("Audience deleted."))}
 
           {:error, :has_broadcasts} ->
@@ -407,7 +407,7 @@ defmodule AtlasWeb.GTMEmailLive do
           id="email-audiences-table"
           rows={@audiences}
           row_key={fn audience -> audience.id end}
-          row_navigate={fn audience -> ~p"/email/audiences/#{audience.id}" end}
+          row_navigate={fn audience -> ~p"/outbound/email/audiences/#{audience.id}" end}
         >
           <:col :let={audience} label={gettext("Audience")}>
             <.text_and_description_cell
@@ -557,7 +557,7 @@ defmodule AtlasWeb.GTMEmailLive do
           label={gettext("Back to email")}
           variant="secondary"
           size="medium"
-          navigate={~p"/email"}
+          navigate={~p"/outbound/email"}
         >
           <:icon_left><.arrow_left /></:icon_left>
         </.button>
@@ -1273,7 +1273,7 @@ defmodule AtlasWeb.GTMEmailLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Audience not found."))
-        |> push_navigate(to: ~p"/email")
+        |> push_navigate(to: ~p"/outbound/email")
 
       audience ->
         socket
@@ -1333,13 +1333,13 @@ defmodule AtlasWeb.GTMEmailLive do
 
   defp filtered_path(socket, query_params) do
     case socket.assigns.live_action do
-      :index -> ~p"/email?#{query_params}"
+      :index -> ~p"/outbound/email?#{query_params}"
       :audience -> audience_path(socket, query_params)
     end
   end
 
   defp audience_path(socket, query_params) do
-    ~p"/email/audiences/#{socket.assigns.audience.id}?#{query_params}"
+    ~p"/outbound/email/audiences/#{socket.assigns.audience.id}?#{query_params}"
   end
 
   defp define_membership_filters do

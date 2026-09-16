@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.ListDocumentsTest do
 
     assert result.id == document.id
     assert result.account.name == "Acme"
-    assert result.account.url =~ "/sales/accounts/#{account.id}"
+    assert result.account.url =~ "/commercial/sales/accounts/#{account.id}"
   end
 
   test "rejects non-executive users" do

@@ -126,7 +126,7 @@ defmodule Atlas.SearchTest do
           source_id: Ecto.UUID.generate(),
           title: "Remote cache economics",
           body: "Explain build cost reduction.",
-          path: "/gtm/content/example"
+          path: "/commercial/gtm/content/example"
         },
         embed?: false
       )

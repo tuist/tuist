@@ -75,8 +75,8 @@ defmodule Atlas.Accounts.FeatureInterestsTest do
 
     activity = Repo.get_by!(Activity, action: "feature_interest.recorded", target_id: interest.id)
     assert activity.actor_id == user.id
-    assert activity.metadata["account_path"] == "/sales/accounts/#{account.id}"
-    assert activity.metadata["account_event_path"] == "/sales/accounts/#{account.id}#timeline-event-#{event.id}"
+    assert activity.metadata["account_path"] == "/commercial/sales/accounts/#{account.id}"
+    assert activity.metadata["account_event_path"] == "/commercial/sales/accounts/#{account.id}#timeline-event-#{event.id}"
   end
 
   test "updates account-specific notes and audits the change" do

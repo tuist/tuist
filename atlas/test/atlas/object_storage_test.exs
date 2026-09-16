@@ -40,7 +40,7 @@ defmodule Atlas.ObjectStorageTest do
     Req
     |> expect(:request, fn request ->
       assert request[:method] == :get
-      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/notes/demo.txt"
+      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/library/notes/demo.txt"
 
       {:ok, %{status: 200, body: "hello", headers: [{"content-type", "text/plain"}]}}
     end)
@@ -53,7 +53,7 @@ defmodule Atlas.ObjectStorageTest do
     Req
     |> expect(:request, fn request ->
       assert request[:method] == :delete
-      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/notes/demo.txt"
+      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/library/notes/demo.txt"
 
       {:ok, %{status: 204, body: "", headers: []}}
     end)
@@ -65,7 +65,7 @@ defmodule Atlas.ObjectStorageTest do
     Req
     |> expect(:request, fn request ->
       assert request[:method] == :head
-      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/notes/demo.txt"
+      assert request[:url] == "https://fsn1.your-objectstorage.com/atlas-test/library/notes/demo.txt"
 
       {:ok, %{status: 200, body: "", headers: [{"content-type", "text/plain"}]}}
     end)

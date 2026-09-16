@@ -27,7 +27,7 @@ defmodule AtlasWeb.SlackInstallControllerTest do
 
     conn = get(conn, ~p"/slack/install")
 
-    assert redirected_to(conn) == ~p"/sales"
+    assert redirected_to(conn) == ~p"/commercial/sales"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) == "You do not have access to manage Slack installs."
   end
 

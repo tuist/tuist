@@ -16,7 +16,7 @@ defmodule AtlasWeb.SessionsLiveTest do
     older = insert_session!(%{agent: "Older", started_at: ~U[2026-05-01 10:00:00.000000Z], account_id: account.id})
     newer = insert_session!(%{agent: "Newer", started_at: ~U[2026-05-08 10:00:00.000000Z], account_id: account.id})
 
-    {:ok, _view, html} = live(conn, ~p"/sessions")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions")
 
     assert html =~ "Sessions"
     assert html =~ "Older"
@@ -27,8 +27,8 @@ defmodule AtlasWeb.SessionsLiveTest do
     assert html =~ account.name
 
     # Ensure detail links point at the right session ids.
-    assert html =~ ~s(href="/sessions/#{newer.id}")
-    assert html =~ ~s(href="/sessions/#{older.id}")
+    assert html =~ ~s(href="/admin/sessions/#{newer.id}")
+    assert html =~ ~s(href="/admin/sessions/#{older.id}")
   end
 
   test "paginates the sessions list when there are more than one page", %{conn: conn} do
@@ -47,25 +47,25 @@ defmodule AtlasWeb.SessionsLiveTest do
     [oldest | _] = sessions
     newest = List.last(sessions)
 
-    {:ok, view, html} = live(conn, ~p"/sessions")
+    {:ok, view, html} = live(conn, ~p"/admin/sessions")
 
     assert html =~ "Agent20"
     refute html =~ "Agent00"
-    assert html =~ ~s(href="/sessions/#{newest.id}")
-    refute html =~ ~s(href="/sessions/#{oldest.id}")
+    assert html =~ ~s(href="/admin/sessions/#{newest.id}")
+    refute html =~ ~s(href="/admin/sessions/#{oldest.id}")
 
     # Pagination control is rendered with a link to page 2.
     assert html =~ "noora-pagination-group"
     assert html =~ "page=2"
 
-    {:ok, _view, html_page_two} = live(conn, ~p"/sessions?page=2")
+    {:ok, _view, html_page_two} = live(conn, ~p"/admin/sessions?page=2")
 
     assert html_page_two =~ "Agent00"
     refute html_page_two =~ "Agent20"
-    assert html_page_two =~ ~s(href="/sessions/#{oldest.id}")
+    assert html_page_two =~ ~s(href="/admin/sessions/#{oldest.id}")
 
     # Smoke test that the in-place page navigation also works through the pagination control.
-    assert view |> render_patch(~p"/sessions?page=2") =~ "Agent00"
+    assert view |> render_patch(~p"/admin/sessions?page=2") =~ "Agent00"
   end
 
   test "does not render the pagination control when results fit in one page", %{conn: conn} do
@@ -73,7 +73,7 @@ defmodule AtlasWeb.SessionsLiveTest do
 
     insert_session!(%{agent: "OnlyOne"})
 
-    {:ok, _view, html} = live(conn, ~p"/sessions")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions")
 
     refute html =~ "noora-pagination-group"
   end
@@ -81,7 +81,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   test "renders the empty state when no sessions exist", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "sessions-empty@example.com"})
 
-    {:ok, _view, html} = live(conn, ~p"/sessions")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions")
 
     assert html =~ "No agent sessions yet"
   end
@@ -110,14 +110,14 @@ defmodule AtlasWeb.SessionsLiveTest do
       metadata: %{"tool" => "find_account", "status" => "ok"}
     })
 
-    {:ok, _view, html} = live(conn, ~p"/sessions/#{session.id}")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions/#{session.id}")
 
     assert html =~ "EmailEventAgent"
     assert html =~ "Process this inbound email about renewal terms."
     assert html =~ "Succeeded"
     assert html =~ "captured"
     assert html =~ "find_account"
-    assert html =~ ~s(href="/sales/accounts/#{account.id}")
+    assert html =~ ~s(href="/commercial/sales/accounts/#{account.id}")
   end
 
   test "session detail page renders the transcript when llm_turn events exist", %{conn: conn} do
@@ -159,7 +159,7 @@ defmodule AtlasWeb.SessionsLiveTest do
       }
     })
 
-    {:ok, _view, html} = live(conn, ~p"/sessions/#{session.id}")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions/#{session.id}")
 
     assert html =~ "Activity"
     assert html =~ "Turn 0"
@@ -214,7 +214,7 @@ defmodule AtlasWeb.SessionsLiveTest do
       metadata: %{}
     })
 
-    {:ok, _view, html} = live(conn, ~p"/sessions/#{session.id}")
+    {:ok, _view, html} = live(conn, ~p"/admin/sessions/#{session.id}")
 
     assert html =~ "Activity"
     # tool_call card
@@ -227,8 +227,8 @@ defmodule AtlasWeb.SessionsLiveTest do
   test "session detail page redirects when the id is unknown", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "session-missing@example.com"})
 
-    assert {:error, {:live_redirect, %{to: "/sessions"}}} =
-             live(conn, ~p"/sessions/#{SessionID.generate()}")
+    assert {:error, {:live_redirect, %{to: "/admin/sessions"}}} =
+             live(conn, ~p"/admin/sessions/#{SessionID.generate()}")
   end
 
   defp insert_account!(attrs) do

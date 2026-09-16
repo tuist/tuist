@@ -39,7 +39,7 @@ defmodule AtlasWeb.FinancingsLive do
          |> put_flash(:info, gettext("Financing arrangement registered."))
          |> assign_new_form()
          |> push_event("close-modal", %{id: "new-financing-modal"})
-         |> push_navigate(to: ~p"/hardware/financings/#{financing.id}")}
+         |> push_navigate(to: ~p"/operations/hardware/financings/#{financing.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :financing_form, to_form(changeset, as: :financing))}
@@ -336,7 +336,7 @@ defmodule AtlasWeb.FinancingsLive do
             id="financings-table"
             rows={@financings}
             row_key={fn f -> "financings-row-#{f.id}" end}
-            row_navigate={fn f -> ~p"/hardware/financings/#{f.id}" end}
+            row_navigate={fn f -> ~p"/operations/hardware/financings/#{f.id}" end}
           >
             <:col
               :let={f}

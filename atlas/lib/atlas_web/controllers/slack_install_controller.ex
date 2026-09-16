@@ -36,7 +36,7 @@ defmodule AtlasWeb.SlackInstallController do
       {:halt,
        conn
        |> put_flash(:error, gettext("You do not have access to manage Slack installs."))
-       |> redirect(to: ~p"/sales")}
+       |> redirect(to: ~p"/commercial/sales")}
     end
   end
 

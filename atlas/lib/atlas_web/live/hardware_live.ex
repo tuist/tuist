@@ -47,7 +47,7 @@ defmodule AtlasWeb.HardwareLive do
     query = String.trim(query || "")
     updated = socket |> current_params() |> WebQuery.put_present("q", WebQuery.present_string(query))
 
-    {:noreply, push_patch(socket, to: ~p"/hardware?#{updated}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/operations/hardware?#{updated}", replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -55,7 +55,7 @@ defmodule AtlasWeb.HardwareLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/hardware?#{updated}")
+     |> push_patch(to: ~p"/operations/hardware?#{updated}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -65,7 +65,7 @@ defmodule AtlasWeb.HardwareLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/hardware?#{updated}")
+     |> push_patch(to: ~p"/operations/hardware?#{updated}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -88,7 +88,7 @@ defmodule AtlasWeb.HardwareLive do
          |> put_flash(:info, gettext("Asset registered."))
          |> assign_new_form()
          |> push_event("close-modal", %{id: "new-asset-modal"})
-         |> push_navigate(to: ~p"/hardware/#{asset.id}")}
+         |> push_navigate(to: ~p"/operations/hardware/#{asset.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :asset_form, to_form(changeset, as: :asset))}
@@ -356,7 +356,7 @@ defmodule AtlasWeb.HardwareLive do
             id="hardware-table"
             rows={@assets}
             row_key={fn asset -> "hardware-row-#{asset.id}" end}
-            row_navigate={fn asset -> ~p"/hardware/#{asset.id}" end}
+            row_navigate={fn asset -> ~p"/operations/hardware/#{asset.id}" end}
           >
             <:col
               :let={asset}

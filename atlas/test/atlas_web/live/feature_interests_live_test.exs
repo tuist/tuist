@@ -12,7 +12,7 @@ defmodule AtlasWeb.FeatureInterestsLiveTest do
     {conn, _user} = log_in_user(conn)
     title = "Build capacity planning #{System.unique_integer([:positive])}"
 
-    {:ok, view, _html} = live(conn, ~p"/sales/feature-interests")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/feature-interests")
 
     assert has_element?(view, "#new-feature-interest-button")
 
@@ -22,7 +22,7 @@ defmodule AtlasWeb.FeatureInterestsLiveTest do
 
     [interest] = Accounts.list_feature_interests()
     assert interest.title == title
-    assert_redirect(view, ~p"/sales/feature-interests/#{interest.id}")
+    assert_redirect(view, ~p"/commercial/sales/feature-interests/#{interest.id}")
   end
 
   test "shows every account interested in a requested capability and its event link", %{conn: conn} do
@@ -44,12 +44,12 @@ defmodule AtlasWeb.FeatureInterestsLiveTest do
                %{title: "remote BUILD runners", summary: "They need runners for pull request builds."}
              )
 
-    {:ok, index_view, _html} = live(conn, ~p"/sales/feature-interests")
+    {:ok, index_view, _html} = live(conn, ~p"/commercial/sales/feature-interests")
 
     assert has_element?(index_view, "#feature-interests-table", interest.title)
     assert has_element?(index_view, "#feature-interests-table", "2")
 
-    {:ok, detail_view, _html} = live(conn, ~p"/sales/feature-interests/#{interest.id}")
+    {:ok, detail_view, _html} = live(conn, ~p"/commercial/sales/feature-interests/#{interest.id}")
 
     assert has_element?(detail_view, "[id^='feature-interest-account-link-']", first_account.name)
     assert has_element?(detail_view, "[id^='feature-interest-account-link-']", second_account.name)
@@ -61,7 +61,7 @@ defmodule AtlasWeb.FeatureInterestsLiveTest do
     account = insert_account!("Account detail")
     event = insert_event!(account)
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#record-feature-interest-button")
     refute has_element?(view, "[id^='record-feature-interest-from-event-']")
@@ -108,7 +108,7 @@ defmodule AtlasWeb.FeatureInterestsLiveTest do
                %{title: "Remote build runners", summary: "They need runners for release builds."}
              )
 
-    {:ok, view, _html} = live(conn, ~p"/sales/feature-interests/#{interest.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/feature-interests/#{interest.id}")
     interest = Accounts.get_feature_interest(interest.id)
     [interest_account] = interest.accounts
 

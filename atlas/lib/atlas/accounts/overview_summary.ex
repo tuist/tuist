@@ -42,7 +42,7 @@ defmodule Atlas.Accounts.OverviewSummary do
                   target_id: updated_account.id,
                   target_label: updated_account.name,
                   metadata: %{
-                    "path" => "/sales/accounts/#{updated_account.id}",
+                    "path" => "/commercial/sales/accounts/#{updated_account.id}",
                     "generated_at" => updated_account.overview_summary_generated_at,
                     "summary_length" => String.length(summary)
                   }

@@ -267,7 +267,7 @@ defmodule AtlasWeb.Admin.IdentitiesLiveTest do
   test "redirects employees away from the identities panel", %{conn: conn} do
     {conn, _employee} = log_in_user(conn, %{email: "identities-employee@example.com", role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/admin/identities")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/admin/identities")
   end
 
   defp channel_dropdown_labels(view) do

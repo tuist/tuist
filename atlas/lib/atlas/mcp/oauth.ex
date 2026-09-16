@@ -21,7 +21,7 @@ defmodule Atlas.MCP.OAuth do
           "code_verifier" => code_verifier,
           "client_id" => client.client_id,
           "client_secret" => client.client_secret,
-          "return_to" => return_to || "/mcps"
+          "return_to" => return_to || "/admin/mcps"
         })
 
       params =
@@ -53,7 +53,7 @@ defmodule Atlas.MCP.OAuth do
          },
          {:ok, attrs} <- exchange_code(server, code, state["code_verifier"], redirect_uri, client),
          {:ok, session} <- MCP.upsert_oauth_session(user, server, attrs) do
-      {:ok, session, state["return_to"] || "/mcps"}
+      {:ok, session, state["return_to"] || "/admin/mcps"}
     else
       nil -> {:error, :missing_code}
       {:error, _reason} = error -> error

@@ -98,7 +98,7 @@ defmodule Atlas.Support.Workers.PostNotification do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "event" => Atom.to_string(event),
         "message_id" => args["message_id"],
         "slack_channel_id" => delivery.channel_id,

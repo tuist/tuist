@@ -12,19 +12,19 @@ defmodule AtlasWeb.MCPOAuthController do
              server,
              conn.assigns.current_user,
              redirect_uri(conn, server),
-             params["return_to"] || ~p"/mcps"
+             params["return_to"] || ~p"/admin/mcps"
            ) do
       redirect(conn, external: url)
     else
       {:error, :unsupported_auth_type} ->
         conn
         |> put_flash(:error, "This MCP server does not use OAuth.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       _error ->
         conn
         |> put_flash(:error, "MCP server not found.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
     end
   end
 
@@ -38,7 +38,7 @@ defmodule AtlasWeb.MCPOAuthController do
       {:error, _reason} ->
         conn
         |> put_flash(:error, "Could not connect MCP server.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
     end
   end
 
@@ -62,44 +62,44 @@ defmodule AtlasWeb.MCPOAuthController do
            ) do
       conn
       |> put_flash(:info, "Operator grant stored for #{grant.account_handle}.")
-      |> redirect(to: ~p"/mcps")
+      |> redirect(to: ~p"/admin/mcps")
     else
       {:error, :unknown_request} ->
         conn
         |> put_flash(:error, "That grant did not come from a request you started.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       {:error, :expired_request} ->
         conn
         |> put_flash(:error, "That access request expired. Start it again.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       {:error, :unreadable_grant} ->
         conn
         |> put_flash(:error, "That grant could not be read.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       {:error, {:unsupported_grant_tier, tier}} ->
         conn
         |> put_flash(:error, "Atlas proxies read grants only; that grant is #{tier}.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       {:error, {:account_mismatch, requested}} ->
         conn
         |> put_flash(:error, "That grant is not for #{requested}.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
 
       {:error, _reason} ->
         conn
         |> put_flash(:error, "Could not store the operator grant.")
-        |> redirect(to: ~p"/mcps")
+        |> redirect(to: ~p"/admin/mcps")
     end
   end
 
   def operator_grant(conn, _params) do
     conn
     |> put_flash(:error, "No operator grant in the response from ops.")
-    |> redirect(to: ~p"/mcps")
+    |> redirect(to: ~p"/admin/mcps")
   end
 
   defp redirect_uri(conn, %Server{} = server), do: redirect_uri(conn, server.name)

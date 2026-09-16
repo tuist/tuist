@@ -59,7 +59,7 @@ defmodule Atlas.Outreach.Briefs.Adapter do
         fingerprint: "outreach:recommendation:#{recommendation.contact_id}:#{recommendation.action_type}",
         source_type: "outreach_recommendation",
         source_id: recommendation.id,
-        source_path: "/gtm/outreach/#{recommendation.contact_id}",
+        source_path: "/commercial/gtm/outreach/#{recommendation.contact_id}",
         due_at: recommendation.due_at,
         evidence: recommendation_evidence(recommendation)
       }
@@ -82,7 +82,7 @@ defmodule Atlas.Outreach.Briefs.Adapter do
         fingerprint: "outreach:no_reply:#{attempt.id}",
         source_type: "outreach_message_attempt",
         source_id: attempt.id,
-        source_path: "/gtm/outreach/#{attempt.contact_id}",
+        source_path: "/commercial/gtm/outreach/#{attempt.contact_id}",
         due_at: DateTime.add(period.end_at, 3, :day),
         evidence: [
           %{

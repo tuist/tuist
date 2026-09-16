@@ -39,7 +39,7 @@ defmodule Atlas.Finance.PaymentDetectionTest do
     assert activity.interface == "worker"
     assert activity.target_id == account.id
     assert activity.metadata["finance_transaction_id"] == transaction.id
-    assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+    assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
   end
 
   test "does not notify when the agent cannot match a likely payment" do

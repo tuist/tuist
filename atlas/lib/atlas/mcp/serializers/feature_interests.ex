@@ -103,7 +103,7 @@ defmodule Atlas.MCP.Serializers.FeatureInterests do
 
   defp account_event_path(%{account_event_id: event_id, account_id: account_id})
        when is_binary(event_id) and is_binary(account_id) do
-    "/sales/accounts/#{account_id}#timeline-event-#{event_id}"
+    "/commercial/sales/accounts/#{account_id}#timeline-event-#{event_id}"
   end
 
   defp account_event_path(_interest_account), do: nil

@@ -411,7 +411,7 @@ defmodule Atlas.GTM do
 
         # Only draft the sibling revisions when this update is actually promoting the
         # revision to approved. Without the status_changed? guard, editing only the
-        # body/notes of an already-approved revision would needlessly re-draft (and
+        # body/library/notes of an already-approved revision would needlessly re-draft (and
         # bump updated_at on) every other revision.
         if status_changed? and Ecto.Changeset.get_field(changeset, :status) == "approved" do
           draft_other_social_post_revisions(revision.social_channel_idea_id, revision.id)
@@ -810,7 +810,7 @@ defmodule Atlas.GTM do
 
       audit_gtm_opportunity("gtm_opportunity.converted", updated_opportunity, %{
         "account_id" => account.id,
-        "account_path" => "/sales/accounts/#{account.id}"
+        "account_path" => "/commercial/sales/accounts/#{account.id}"
       })
 
       {:ok, account, updated_opportunity}
@@ -969,7 +969,7 @@ defmodule Atlas.GTM do
           metadata_or_changeset
           |> audit_metadata()
           |> Map.merge(%{
-            "path" => "/gtm/social/#{revision.social_channel_idea_id}",
+            "path" => "/commercial/gtm/social/#{revision.social_channel_idea_id}",
             "social_channel_idea_id" => revision.social_channel_idea_id,
             "social_channel_idea_title" => idea && idea.title,
             "revision_number" => revision.revision_number

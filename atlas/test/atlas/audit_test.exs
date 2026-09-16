@@ -29,7 +29,7 @@ defmodule Atlas.AuditTest do
     assert activity.target_type == "account"
     assert activity.target_id == account.id
     assert activity.target_label == "Audit Account"
-    assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+    assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
     assert activity.metadata["changed"]["name"] == "Audit Account"
   end
 
@@ -45,9 +45,9 @@ defmodule Atlas.AuditTest do
 
     assert activity.interface == "mcp"
     assert activity.metadata["source"] == "test"
-    assert activity.metadata["path"] == "/documents/document-id"
+    assert activity.metadata["path"] == "/library/documents/document-id"
 
-    assert Audit.serialize(activity).target.path == "/documents/document-id"
+    assert Audit.serialize(activity).target.path == "/library/documents/document-id"
   end
 
   test "merges context metadata into recorded activity metadata" do

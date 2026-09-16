@@ -214,7 +214,7 @@ defmodule AtlasWeb.Admin.UsersLive do
          socket
          |> assign(:current_user, updated_user)
          |> put_flash(:info, gettext("Your role was updated. Admin access has been removed."))
-         |> push_navigate(to: ~p"/sales")}
+         |> push_navigate(to: ~p"/commercial/sales")}
 
       updated_user.id == current_user.id ->
         {:noreply,

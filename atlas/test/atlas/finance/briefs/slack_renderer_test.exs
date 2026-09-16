@@ -20,7 +20,7 @@ defmodule Atlas.Finance.Briefs.SlackRendererTest do
     assert text =~ "*What to watch*"
     assert text =~ "*Recommended next steps*"
     assert length(Regex.scan(~r/Confirm the purchase is a one-off\./, text)) == 1
-    assert text =~ "<#{AtlasWeb.Endpoint.url()}/finance|Explore the finance dashboard>"
+    assert text =~ "<#{AtlasWeb.Endpoint.url()}/commercial/finance|Explore the finance dashboard>"
     refute text =~ "Duplicate task detail"
     refute text =~ "**"
     refute text =~ "Automated snapshot"

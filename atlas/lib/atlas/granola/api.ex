@@ -45,7 +45,7 @@ defmodule Atlas.Granola.API do
           _ -> []
         end
 
-      request = request(client, key, "/notes/#{note_id}", params)
+      request = request(client, key, "/library/notes/#{note_id}", params)
 
       case client.request.(request) do
         {:ok, %Req.Response{status: 200, body: body}} ->
@@ -67,7 +67,7 @@ defmodule Atlas.Granola.API do
 
   defp fetch_notes(client, key, opts, notes) do
     params = encode_params(opts)
-    request = request(client, key, "/notes", params)
+    request = request(client, key, "/library/notes", params)
 
     case client.request.(request) do
       {:ok, %Req.Response{status: 200, body: %{"notes" => page_notes} = body}} when is_list(page_notes) ->

@@ -277,7 +277,7 @@ defmodule Atlas.Slack do
         target_id: account.id,
         target_label: account.name,
         metadata: %{
-          "path" => "/sales/accounts/#{account.id}",
+          "path" => "/commercial/sales/accounts/#{account.id}",
           "previous_channels" => previous_channels,
           "channels" => channels
         }
@@ -476,7 +476,7 @@ defmodule Atlas.Slack do
 
     metadata =
       if channel.account_id do
-        Map.put(metadata, "path", "/sales/accounts/#{channel.account_id}")
+        Map.put(metadata, "path", "/commercial/sales/accounts/#{channel.account_id}")
       else
         metadata
       end

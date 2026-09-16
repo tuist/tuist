@@ -238,7 +238,7 @@ defmodule Atlas.Outreach.RecommendationNotifier do
 
   defp field(label, value), do: %{"type" => "mrkdwn", "text" => "*#{label}*\n#{escape_mrkdwn(value)}"}
 
-  defp recommendation_url(recommendation), do: url(~p"/gtm/outreach/#{recommendation.contact_id}")
+  defp recommendation_url(recommendation), do: url(~p"/commercial/gtm/outreach/#{recommendation.contact_id}")
 
   defp slack_channel_id(%Recommendation{slack_notification_channel_id: channel_id}, _opts)
        when is_binary(channel_id) and channel_id != "", do: {:ok, channel_id}

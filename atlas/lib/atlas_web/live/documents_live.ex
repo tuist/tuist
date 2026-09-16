@@ -148,7 +148,7 @@ defmodule AtlasWeb.DocumentsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/documents?#{updated_params}")
+     |> push_patch(to: ~p"/library/documents?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -160,7 +160,7 @@ defmodule AtlasWeb.DocumentsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/documents?#{updated_params}")
+     |> push_patch(to: ~p"/library/documents?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -272,7 +272,7 @@ defmodule AtlasWeb.DocumentsLive do
             id="documents-table"
             rows={@document_rows}
             row_key={fn row -> "documents-table-row-#{row.document.id}" end}
-            row_navigate={fn row -> ~p"/documents/#{row.document.id}" end}
+            row_navigate={fn row -> ~p"/library/documents/#{row.document.id}" end}
           >
             <:col :let={row} label={gettext("Document")}>
               <.text_and_description_cell
@@ -314,7 +314,7 @@ defmodule AtlasWeb.DocumentsLive do
                   :if={row.document.account}
                   id={"documents-account-link-#{row.document.id}"}
                   data-part="account-link"
-                  navigate={~p"/sales/accounts/#{row.document.account.id}"}
+                  navigate={~p"/commercial/sales/accounts/#{row.document.account.id}"}
                 >
                   {row.document.account.name}
                 </.link>
@@ -543,7 +543,7 @@ defmodule AtlasWeb.DocumentsLive do
       |> URI.decode_query()
       |> Map.drop(["search", "after", "before"])
 
-    ~p"/documents?#{query_params}"
+    ~p"/library/documents?#{query_params}"
   end
 
   defp normalize_sort_by(value) when value in @sortable_fields, do: value
@@ -607,10 +607,10 @@ defmodule AtlasWeb.DocumentsLive do
     }
   end
 
-  defp documents_path(""), do: ~p"/documents"
+  defp documents_path(""), do: ~p"/library/documents"
 
   defp documents_path(query_string) do
-    ~p"/documents"
+    ~p"/library/documents"
     |> URI.parse()
     |> Map.put(:query, query_string)
     |> URI.to_string()

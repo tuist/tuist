@@ -306,7 +306,7 @@ defmodule Atlas.Briefs.Composer do
     )
   end
 
-  defp report_dashboard_path(%{"kind" => kind}) when kind in ["monthly_finance_recap", "finance_pulse"], do: "/finance"
+  defp report_dashboard_path(%{"kind" => kind}) when kind in ["monthly_finance_recap", "finance_pulse"], do: "/commercial/finance"
   defp report_dashboard_path(_report), do: nil
 
   defp empty_to_nil(""), do: nil

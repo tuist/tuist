@@ -27,7 +27,7 @@ defmodule AtlasWeb.InsuranceShowLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Insurance policy not found."))
-         |> push_navigate(to: ~p"/hardware/insurance")}
+         |> push_navigate(to: ~p"/operations/hardware/insurance")}
     end
   end
 
@@ -40,7 +40,7 @@ defmodule AtlasWeb.InsuranceShowLive do
             <.breadcrumb
               id="insurance-breadcrumb-list"
               label={gettext("Insurance")}
-              phx-click={JS.navigate(~p"/hardware/insurance")}
+              phx-click={JS.navigate(~p"/operations/hardware/insurance")}
             />
             <.breadcrumb id="insurance-breadcrumb-current" label={@policy.provider} />
           </.breadcrumbs>
@@ -148,7 +148,7 @@ defmodule AtlasWeb.InsuranceShowLive do
             id="insurance-documents-table"
             rows={@documents}
             row_key={fn link -> "insurance-document-#{link.id}" end}
-            row_navigate={fn link -> ~p"/documents/#{link.document_id}" end}
+            row_navigate={fn link -> ~p"/library/documents/#{link.document_id}" end}
           >
             <:col :let={link} label={gettext("Kind")}>
               <.badge_cell
@@ -183,7 +183,7 @@ defmodule AtlasWeb.InsuranceShowLive do
             id="insurance-members-table"
             rows={@members}
             row_key={fn m -> "insurance-member-#{m.id}" end}
-            row_navigate={fn m -> ~p"/hardware/#{m.asset_id}" end}
+            row_navigate={fn m -> ~p"/operations/hardware/#{m.asset_id}" end}
           >
             <:col :let={m} label={gettext("Asset")}>
               <.text_cell label={member_asset_label(m)} />

@@ -26,11 +26,11 @@ defmodule AtlasWeb.AccountsLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts?q=deliveryhero-production")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts?q=deliveryhero-production")
 
     assert has_element?(view, "#accounts")
     assert has_element?(view, "#accounts-filters-dropdown")
-    assert has_element?(view, ~s(#accounts-table tr[id="#{account.id}"] a[href="/sales/accounts/#{account.id}"]))
+    assert has_element?(view, ~s(#accounts-table tr[id="#{account.id}"] a[href="/commercial/sales/accounts/#{account.id}"]))
     assert has_element?(view, "#accounts-table [data-type='text_and_description'] [data-part='label']", "Acme")
     assert has_element?(view, "#accounts-table", "Lifecycle")
     assert has_element?(view, "#accounts-table", "Customer")
@@ -65,7 +65,7 @@ defmodule AtlasWeb.AccountsLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts?q=termvalue")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts?q=termvalue")
 
     assert has_element?(view, "#accounts-table tr[id='#{account.id}']", "EUR 42,000.00")
     refute has_element?(view, "#accounts-table tr[id='#{account.id}']", "EUR 0.00")
@@ -75,7 +75,7 @@ defmodule AtlasWeb.AccountsLiveTest do
     user = insert_user!("create-account@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts")
 
     assert has_element?(view, "#new-account-button", "New account")
 
@@ -94,7 +94,7 @@ defmodule AtlasWeb.AccountsLiveTest do
 
     account = Repo.get_by!(Account, name: "Acme Labs")
 
-    assert account_path == "/sales/accounts/#{account.id}"
+    assert account_path == "/commercial/sales/accounts/#{account.id}"
     assert account.account_key == "manual:acme-example"
     assert account.primary_domain == "acme.example"
     assert account.segment == :lead
@@ -106,7 +106,7 @@ defmodule AtlasWeb.AccountsLiveTest do
     activity = Repo.get_by!(Activity, action: "account.created", target_id: account.id)
     assert activity.actor_id == user.id
     assert activity.interface == "dashboard"
-    assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+    assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
   end
 
   test "filters accounts using the shared Noora query-param filters", %{conn: conn} do
@@ -133,7 +133,7 @@ defmodule AtlasWeb.AccountsLiveTest do
       "filter_lifecycle_val" => "customer"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts?#{filter_params}")
 
     assert has_element?(view, ~s(#accounts-table tr[id="#{customer.id}"]))
     refute has_element?(view, ~s(#accounts-table tr[id="#{lead.id}"]))
@@ -155,7 +155,7 @@ defmodule AtlasWeb.AccountsLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts?q=grafana")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts?q=grafana")
 
     refute has_element?(view, ~s(#accounts-table tr[id="#{account.id}"]))
   end
@@ -164,11 +164,11 @@ defmodule AtlasWeb.AccountsLiveTest do
     user = insert_user!("sidebar@example.com")
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(
              view,
-             ~s(a[href="/sales/accounts?filter_lifecycle_op=%3D%3D&filter_lifecycle_val=prospect"]),
+             ~s(a[href="/commercial/sales/accounts?filter_lifecycle_op=%3D%3D&filter_lifecycle_val=prospect"]),
              "Accounts"
            )
   end

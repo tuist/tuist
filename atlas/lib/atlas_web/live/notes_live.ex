@@ -65,7 +65,7 @@ defmodule AtlasWeb.NotesLive do
         {:noreply,
          socket
          |> put_flash(:error, gettext("Note not found."))
-         |> push_navigate(to: ~p"/notes")}
+         |> push_navigate(to: ~p"/library/notes")}
     end
   end
 
@@ -79,7 +79,7 @@ defmodule AtlasWeb.NotesLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Note created."))
-         |> push_navigate(to: ~p"/notes/#{note.id}")}
+         |> push_navigate(to: ~p"/library/notes/#{note.id}")}
 
       {:error, changeset} ->
         {:noreply,
@@ -112,7 +112,7 @@ defmodule AtlasWeb.NotesLive do
       |> current_query_params()
       |> put_search_param(String.trim(query || ""))
 
-    {:noreply, push_patch(socket, to: ~p"/notes?#{query_string}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/library/notes?#{query_string}", replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -124,7 +124,7 @@ defmodule AtlasWeb.NotesLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/notes?#{updated_params}")
+     |> push_patch(to: ~p"/library/notes?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -136,7 +136,7 @@ defmodule AtlasWeb.NotesLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/notes?#{updated_params}")
+     |> push_patch(to: ~p"/library/notes?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -154,7 +154,7 @@ defmodule AtlasWeb.NotesLive do
             {gettext("Shared Markdown notes, indexed for quick retrieval by people and agents.")}
           </p>
         </div>
-        <.button id="notes-new-button" label={gettext("New note")} navigate={~p"/notes/new"}>
+        <.button id="notes-new-button" label={gettext("New note")} navigate={~p"/library/notes/new"}>
           <:icon_left><.icon name="plus" /></:icon_left>
         </.button>
       </div>
@@ -216,7 +216,7 @@ defmodule AtlasWeb.NotesLive do
               <.table
                 id="notes-table-content"
                 rows={@streams.notes}
-                row_navigate={fn {_id, note} -> ~p"/notes/#{note.id}" end}
+                row_navigate={fn {_id, note} -> ~p"/library/notes/#{note.id}" end}
               >
                 <:col :let={{_id, note}} label={gettext("Note")}>
                   <.text_and_description_cell
@@ -242,7 +242,7 @@ defmodule AtlasWeb.NotesLive do
     <div id="note-editor">
       <div data-part="header">
         <div data-part="text">
-          <.link navigate={~p"/notes"} data-part="back-link">{gettext("Notes")}</.link>
+          <.link navigate={~p"/library/notes"} data-part="back-link">{gettext("Notes")}</.link>
           <h1 data-part="title">{@preview_title}</h1>
           <p data-part="description">
             {gettext("Write Markdown on the left and preview the rendered note on the right.")}

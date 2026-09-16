@@ -32,7 +32,7 @@ defmodule AtlasWeb.MCPOAuthControllerTest do
         server,
         user,
         "http://www.example.com/mcps/grafana/callback",
-        "/mcps"
+        "/admin/mcps"
       )
 
     state = authorization_url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
@@ -55,7 +55,7 @@ defmodule AtlasWeb.MCPOAuthControllerTest do
 
     conn = get(conn, ~p"/mcps/grafana/callback?code=oauth-code&state=#{state}")
 
-    assert redirected_to(conn) == "/mcps"
+    assert redirected_to(conn) == "/admin/mcps"
     assert MCP.get_oauth_session(user, "grafana").access_token == "access-token"
   end
 

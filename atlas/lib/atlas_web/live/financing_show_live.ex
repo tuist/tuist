@@ -32,7 +32,7 @@ defmodule AtlasWeb.FinancingShowLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Financing not found."))
-         |> push_navigate(to: ~p"/hardware/financings")}
+         |> push_navigate(to: ~p"/operations/hardware/financings")}
     end
   end
 
@@ -143,7 +143,7 @@ defmodule AtlasWeb.FinancingShowLive do
             <.breadcrumb
               id="financing-breadcrumb-list"
               label={gettext("Financings")}
-              phx-click={JS.navigate(~p"/hardware/financings")}
+              phx-click={JS.navigate(~p"/operations/hardware/financings")}
             />
             <.breadcrumb id="financing-breadcrumb-current" label={@financing.provider} />
           </.breadcrumbs>
@@ -349,7 +349,7 @@ defmodule AtlasWeb.FinancingShowLive do
             id="financing-documents-table"
             rows={@documents}
             row_key={fn link -> "financing-document-#{link.id}" end}
-            row_navigate={fn link -> ~p"/documents/#{link.document_id}" end}
+            row_navigate={fn link -> ~p"/library/documents/#{link.document_id}" end}
           >
             <:col :let={link} label={gettext("Kind")}>
               <.badge_cell label={humanize(link.kind)} color="neutral" style="light-fill" />
@@ -387,7 +387,7 @@ defmodule AtlasWeb.FinancingShowLive do
             id="financing-lines-table"
             rows={@lines}
             row_key={fn line -> "financing-line-#{line.id}" end}
-            row_navigate={fn line -> ~p"/hardware/#{line.asset_id}" end}
+            row_navigate={fn line -> ~p"/operations/hardware/#{line.asset_id}" end}
           >
             <:col :let={line} label={gettext("Asset")}>
               <.text_cell label={asset_label(line)} />
