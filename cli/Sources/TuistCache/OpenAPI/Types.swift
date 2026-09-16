@@ -2587,7 +2587,7 @@ public enum Operations {
             public var query: Operations.saveGradleArtifact.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/PUT/header`.
             public struct Headers: Sendable, Hashable {
-                /// Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes received against this value to reject truncated uploads, so chunked transfer encoding (no Content-Length) is not accepted on this endpoint.
+                /// Declared body length in bytes. A body that ends before it is rejected as truncated instead of being stored.
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/PUT/header/content-length`.
                 public var content_hyphen_length: Swift.Int
@@ -2599,7 +2599,7 @@ public enum Operations {
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
-                ///   - content_hyphen_length: Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes received against this value to reject truncated uploads, so chunked transfer encoding (no Content-Length) is not accepted on this endpoint.
+                ///   - content_hyphen_length: Declared body length in bytes. A body that ends before it is rejected as truncated instead of being stored.
                 ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
                 ///   - accept:
                 public init(
