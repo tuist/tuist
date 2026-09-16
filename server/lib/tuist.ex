@@ -121,7 +121,7 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
-      Tests.XcodeCoverage,
+      Tests.Coverage,
       Tests.TestRunStressCandidate,
       Shards,
       Shards.Analytics,

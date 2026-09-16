@@ -1,4 +1,4 @@
-defmodule Tuist.Tests.XcodeCoverageTest do
+defmodule Tuist.Tests.CoverageTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
@@ -7,8 +7,9 @@ defmodule Tuist.Tests.XcodeCoverageTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
-  alias Tuist.Tests.XcodeCoverage
-  alias Tuist.Tests.XcodeCoverageRun
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -72,7 +73,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
   # The totals the coverage trend reads.
   defp published_totals(project, test) do
     ClickHouseRepo.one(
-      from(c in XcodeCoverageRun,
+      from(c in CoverageRun,
         where: c.project_id == ^project.id and c.test_run_id == ^test.id,
         group_by: c.test_run_id,
         select: %{
@@ -88,16 +89,16 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     test "stores every observed file with its lines and the run's totals", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter()])})
 
-      assert XcodeCoverage.run_summary(project.id, test.id) == %{covered_lines: 4, executable_lines: 9, partial: false}
+      assert Coverage.run_summary(project.id, test.id) == %{covered_lines: 4, executable_lines: 9, partial: false}
       assert published_totals(project, test) == %{covered_lines: 4, executable_lines: 9, partial: false}
 
       # A file compiled into several targets counts towards each of them.
       assert project.id
-             |> XcodeCoverage.targets_for_run(test.id)
+             |> Coverage.targets_for_run(test.id)
              |> Enum.map(&{&1.name, &1.files_count, &1.covered_lines, &1.executable_lines}) ==
                [{"Calculator", 2, 2, 7}, {"CalculatorTests", 1, 2, 5}, {"Formatter", 1, 2, 2}]
 
-      {files, count} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+      {files, count} = Coverage.list_files(project.id, test.id, 1, 20)
       assert count == 3
 
       assert Enum.map(files, & &1.path) == [
@@ -112,7 +113,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     test "describes one file's lines, uncovered ranges and functions", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
 
       assert detail.git_blob_id == "add1"
       assert detail.targets == ["Calculator", "CalculatorTests"]
@@ -120,7 +121,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       # Lines 3 and 4 run together; 5 is not executable, so 7 starts its own range after 6 ran.
       assert detail.uncovered_ranges == [{3, 4}, {7, 7}]
       assert [%{name: "add(_:_:)", execution_count: 3}] = detail.functions
-      assert XcodeCoverage.file_detail(project.id, test.id, "Missing.swift") == nil
+      assert Coverage.file_detail(project.id, test.id, "Missing.swift") == nil
     end
 
     test "keeps the report's counts for a file without line data", %{project: project, account: account} do
@@ -132,9 +133,9 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([counts_only])})
 
-      assert {[%{covered_lines: 8, executable_lines: 10}], 1} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+      assert {[%{covered_lines: 8, executable_lines: 10}], 1} = Coverage.list_files(project.id, test.id, 1, 20)
 
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Legacy.swift")
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Legacy.swift")
       assert {detail.covered_lines, detail.executable_lines} == {8, 10}
       # Which lines ran is unknown, which is not the same as none being uncovered.
       assert detail.uncovered_ranges == nil
@@ -143,9 +144,81 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     test "leaves a run without coverage untouched", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{})
 
-      assert XcodeCoverage.run_summary(project.id, test.id) == nil
+      assert Coverage.run_summary(project.id, test.id) == nil
       assert published_totals(project, test) == nil
-      assert XcodeCoverage.targets_for_run(project.id, test.id) == []
+      assert Coverage.targets_for_run(project.id, test.id) == []
+    end
+  end
+
+  describe "what measured the coverage" do
+    test "is recorded on every row with the run's scheme and the repository's object format", %{
+      project: project,
+      account: account
+    } do
+      sha1 = String.duplicate("a", 40)
+      tracked = file("Sources/Calculator/Add.swift", sha1, ["Calculator"], [{2, 3}, {3, 0}])
+      untracked = file("Sources/Calculator/Generated.swift", nil, ["Calculator"], [{1, 1}])
+      outside = file("/tmp/DerivedSources/Outside.swift", sha1, ["Calculator"], [{1, 1}])
+
+      {:ok, test} =
+        create_test(project, account, %{
+          scheme: "Calculator",
+          xcode_version: "26.3",
+          xcode_coverage: coverage([tracked, untracked, outside])
+        })
+
+      assert ClickHouseRepo.one(
+               from(c in CoverageRun,
+                 where: c.test_run_id == ^test.id,
+                 select: %{
+                   build_system: c.build_system,
+                   coverage_tool: c.coverage_tool,
+                   coverage_tool_version: c.coverage_tool_version,
+                   git_object_format: c.git_object_format,
+                   scheme: c.scheme
+                 }
+               )
+             ) == %{
+               build_system: "xcode",
+               coverage_tool: "xccov",
+               coverage_tool_version: "26.3",
+               git_object_format: "sha1",
+               scheme: "Calculator"
+             }
+
+      assert ClickHouseRepo.all(
+               from(f in CoverageFile,
+                 where: f.test_run_id == ^test.id,
+                 order_by: f.path,
+                 select: {f.path, f.in_repository, f.build_system, f.scope_kind, f.scope_id, f.evidence_kind}
+               )
+             ) == [
+               {"/tmp/DerivedSources/Outside.swift", false, "xcode", "run", "", "observed"},
+               {"Sources/Calculator/Add.swift", true, "xcode", "run", "", "observed"},
+               {"Sources/Calculator/Generated.swift", false, "xcode", "run", "", "observed"}
+             ]
+    end
+
+    test "reports a SHA-256 repository and no format when nothing was tracked", %{project: project, account: account} do
+      sha256 = String.duplicate("b", 64)
+
+      {:ok, tracked} =
+        create_test(project, account, %{
+          xcode_coverage: coverage([file("Sources/A.swift", sha256, ["A"], [{1, 1}])])
+        })
+
+      {:ok, untracked} =
+        create_test(project, account, %{xcode_coverage: coverage([file("Sources/A.swift", nil, ["A"], [{1, 1}])])})
+
+      formats =
+        ClickHouseRepo.all(
+          from(c in CoverageRun,
+            where: c.test_run_id in ^[tracked.id, untracked.id],
+            select: {c.test_run_id, c.git_object_format}
+          )
+        )
+
+      assert Map.new(formats) == %{tracked.id => "sha256", untracked.id => ""}
     end
   end
 
@@ -158,16 +231,16 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), test_file])})
 
-      assert %{covered_lines: 2, executable_lines: 5} = XcodeCoverage.run_summary(project.id, test.id)
+      assert %{covered_lines: 2, executable_lines: 5} = Coverage.run_summary(project.id, test.id)
       assert %{covered_lines: 2, executable_lines: 5} = published_totals(project, test)
 
-      assert project.id |> XcodeCoverage.targets_for_run(test.id) |> Enum.map(& &1.name) == [
+      assert project.id |> Coverage.targets_for_run(test.id) |> Enum.map(& &1.name) == [
                "Calculator",
                "CalculatorTests"
              ]
 
-      assert {[%{path: "Sources/Calculator/Add.swift"}], 1} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
-      assert XcodeCoverage.file_detail(project.id, test.id, "Tests/CalculatorTests/CalculatorTests.swift") == nil
+      assert {[%{path: "Sources/Calculator/Add.swift"}], 1} = Coverage.list_files(project.id, test.id, 1, 20)
+      assert Coverage.file_detail(project.id, test.id, "Tests/CalculatorTests/CalculatorTests.swift") == nil
     end
   end
 
@@ -177,8 +250,8 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 
-      assert XcodeCoverage.run_summary(project.id, test.id) == nil
-      assert {[], 0} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
+      assert Coverage.run_summary(project.id, test.id) == nil
+      assert {[], 0} = Coverage.list_files(project.id, test.id, 1, 20)
     end
   end
 
@@ -189,11 +262,11 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       partial_add = file("Sources/Calculator/Add.swift", "add1", ["Calculator"], [{2, 1}, {3, 0}, {4, 0}, {6, 0}, {7, 0}])
       {:ok, partial} = create_test(project, account, %{xcode_coverage: coverage([partial_add], partial: true)})
 
-      assert XcodeCoverage.run_summary(project.id, partial.id) == %{covered_lines: 1, executable_lines: 5, partial: true}
+      assert Coverage.run_summary(project.id, partial.id) == %{covered_lines: 1, executable_lines: 5, partial: true}
       assert published_totals(project, partial) == %{covered_lines: 1, executable_lines: 5, partial: true}
 
       assert {[%{path: "Sources/Calculator/Add.swift", covered_lines: 1}], 1} =
-               XcodeCoverage.list_files(project.id, partial.id, 1, 20)
+               Coverage.list_files(project.id, partial.id, 1, 20)
     end
   end
 
@@ -210,12 +283,12 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
 
-      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, other_shard()), 1)
+      Coverage.publish(stored, Coverage.rows(project.id, other_shard()), 1)
 
-      assert XcodeCoverage.run_summary(project.id, test.id) == %{covered_lines: 3, executable_lines: 5, partial: true}
+      assert Coverage.run_summary(project.id, test.id) == %{covered_lines: 3, executable_lines: 5, partial: true}
       assert published_totals(project, test) == %{covered_lines: 3, executable_lines: 5, partial: true}
 
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert Enum.take(detail.lines, 2) == [{2, 4}, {3, 5}]
       assert detail.uncovered_ranges == [{4, 4}, {7, 7}]
       assert detail.targets == ["Calculator", "CalculatorTests"]
@@ -234,13 +307,13 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       {:ok, stored} = Tests.get_test(test.id)
 
       # A shard that ran none of the function leaves the other shard's count exact.
-      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([{2, 0}, {3, 0}], 0)), 1)
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      Coverage.publish(stored, Coverage.rows(project.id, shard.([{2, 0}, {3, 0}], 0)), 1)
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert [%{covered_lines: 1, executable_lines: 2, execution_count: 1}] = detail.functions
 
       # Two shards each covered one line: 1/2 twice could be the same line or both.
-      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([{2, 0}, {3, 1}], 1)), 1)
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      Coverage.publish(stored, Coverage.rows(project.id, shard.([{2, 0}, {3, 1}], 1)), 1)
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert {detail.covered_lines, detail.executable_lines} == {2, 2}
       assert [%{covered_lines: nil, executable_lines: 2, execution_count: 2}] = detail.functions
     end
@@ -263,13 +336,13 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
-      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, other_shard()), 1)
+      Coverage.publish(stored, Coverage.rows(project.id, other_shard()), 1)
 
       # The first shard's totals, computed before the second shard reported, land last.
       [first_computation | _] =
-        ClickHouseRepo.all(from(c in XcodeCoverageRun, where: c.test_run_id == ^test.id, order_by: [asc: c.version]))
+        ClickHouseRepo.all(from(c in CoverageRun, where: c.test_run_id == ^test.id, order_by: [asc: c.version]))
 
-      IngestRepo.insert_all(XcodeCoverageRun, [
+      IngestRepo.insert_all(CoverageRun, [
         first_computation |> Map.from_struct() |> Map.delete(:__meta__) |> Map.put(:inserted_at, NaiveDateTime.utc_now())
       ])
 
@@ -280,20 +353,20 @@ defmodule Tuist.Tests.XcodeCoverageTest do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
 
-      XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, coverage([add()])), nil)
+      Coverage.publish(stored, Coverage.rows(project.id, coverage([add()])), nil)
 
-      detail = XcodeCoverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert Enum.take(detail.lines, 1) == [{2, 3}]
       assert [%{execution_count: 3}] = detail.functions
-      assert {_files, 1} = XcodeCoverage.list_files(project.id, test.id, 1, 20)
-      assert XcodeCoverage.run_summary(project.id, test.id) == %{covered_lines: 2, executable_lines: 5, partial: false}
+      assert {_files, 1} = Coverage.list_files(project.id, test.id, 1, 20)
+      assert Coverage.run_summary(project.id, test.id) == %{covered_lines: 2, executable_lines: 5, partial: false}
     end
   end
 
   describe "percentage/2" do
     test "rounds to one decimal and survives a target with no executable lines" do
-      assert XcodeCoverage.percentage(1, 3) == 33.3
-      assert XcodeCoverage.percentage(0, 0) == 0.0
+      assert Coverage.percentage(1, 3) == 33.3
+      assert Coverage.percentage(0, 0) == 0.0
     end
   end
 end

@@ -15,7 +15,7 @@ defmodule TuistWeb.TestRunsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.Coverage
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -460,7 +460,7 @@ defmodule TuistWeb.TestRunsLive do
 
     coverage_by_run =
       if socket.assigns.coverage_enabled,
-        do: XcodeCoverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id)),
+        do: Coverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id)),
         else: %{}
 
     socket
@@ -475,7 +475,7 @@ defmodule TuistWeb.TestRunsLive do
   def coverage_label(nil), do: dgettext("dashboard_tests", "No coverage")
 
   def coverage_label(%{covered_lines: covered, executable_lines: executable}),
-    do: "#{XcodeCoverage.percentage(covered, executable)}%"
+    do: "#{Coverage.percentage(covered, executable)}%"
 
   @doc false
   def coverage_badge_label(%{partial: true}), do: dgettext("dashboard_tests", "P")

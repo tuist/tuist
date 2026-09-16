@@ -1,16 +1,24 @@
-defmodule Tuist.Tests.XcodeCoverage do
+defmodule Tuist.Tests.Coverage do
   @moduledoc """
-  Xcode code coverage for test runs.
+  Code coverage for test runs, in a model shared by every build system.
 
-  The coverage is read from the run's result bundle by the shared Swift parser
-  (`xccov view --report` for targets and functions, `xccov view --archive` for
-  per-line execution counts), wherever the bundle is processed: on the server's
-  macOS processors for uploaded bundles, or on the client when it processes the
-  bundle itself. The client ties the files to the repository with the Git blob
-  each had, which only the checkout knows.
+  Xcode coverage is read from the run's result bundle by the shared Swift
+  parser (`xccov view --report` for targets and functions, `xccov view
+  --archive` for per-line execution counts), wherever the bundle is processed:
+  on the server's macOS processors for uploaded bundles, or on the client when
+  it processes the bundle itself. The client ties the files to the repository
+  with the Git blob each had, which only the checkout knows. JaCoCo (Gradle)
+  and LCOV (Bazel) reports map onto the same rows: a module or label is a
+  target, a method is a function, and their branch counters fill the columns
+  `xccov` leaves empty.
 
-  Every file a report covered is stored in `xcode_coverage_files` with its line
-  data. Test code (files only `.xctest` bundles compiled) is stored but left
+  Every file a report covered is stored in `coverage_files` with its line
+  data, tagged with the build system and the tool that produced it. A row's
+  scope is the run for now (`scope_kind` `run`); per-target, per-suite and
+  per-test rows use the same table once tests are attributed. Its evidence
+  kind is `observed`, measured in this run; `cached` and `carried` rows are
+  reused evidence, recorded by later phases. `in_repository` marks the paths
+  Git knows, the only ones evidence may rely on. Test code (files only `.xctest` bundles compiled) is stored but left
   out of every figure: a test that runs covers its own body, which says nothing
   about the product. A run that left tests out on purpose (selective testing,
   `-only-testing`) is marked partial: its coverage describes the tests that ran
@@ -24,20 +32,23 @@ defmodule Tuist.Tests.XcodeCoverage do
 
   Shards report concurrently, so no report can safely rewrite totals another
   one computed. The run page derives the totals from the reports, and the
-  coverage trend reads `xcode_coverage_runs`, where every report publishes the
+  coverage trend reads `coverage_runs`, where every report publishes the
   totals over the shards reported so far and the most complete computation
-  wins, whatever order the reports land in.
+  wins, whatever order the reports land in. The totals carry the run's scheme
+  and the tool and version that measured them, and the repository's Git
+  object format, so figures are only ever compared like with like.
   """
 
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
-  alias Tuist.Tests.XcodeCoverageFile
-  alias Tuist.Tests.XcodeCoverageRun
 
   @insert_chunk_size 2_000
 
@@ -47,7 +58,8 @@ defmodule Tuist.Tests.XcodeCoverage do
 
   @doc """
   The rows to store for the `xcode_coverage` block reported with a run, or nil
-  when the project's account does not have coverage enabled.
+  when the project's account does not have coverage enabled. Only files the
+  client found in Git, under a repository-relative path, are evidence.
   """
   def rows(_project_id, nil), do: nil
 
@@ -91,19 +103,29 @@ defmodule Tuist.Tests.XcodeCoverage do
         id: UUIDv7.generate(),
         test_run_id: test_run_id,
         project_id: project_id,
+        build_system: "xcode",
         shard_index: shard_index,
         partial: coverage.partial,
+        scope_kind: "run",
+        scope_id: "",
+        evidence_kind: "observed",
         inserted_at: reported_at
       })
     )
     |> Enum.chunk_every(@insert_chunk_size)
-    |> Enum.each(&IngestRepo.insert_all(XcodeCoverageFile, &1))
+    |> Enum.each(&IngestRepo.insert_all(CoverageFile, &1))
   end
 
   # The report's own files are merged from memory, since rows inserted moments
   # ago are not reliably read back within the same request; the other shards'
   # latest reports come from ClickHouse.
-  defp publish_totals(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, expected_shards, reported_at) do
+  defp publish_totals(
+         %Test{id: test_run_id, project_id: project_id} = test,
+         coverage,
+         shard_index,
+         expected_shards,
+         reported_at
+       ) do
     others = other_shards(project_id, test_run_id, shard_index)
 
     {covered, executable} =
@@ -115,10 +137,15 @@ defmodule Tuist.Tests.XcodeCoverage do
 
     newest_report_at = Enum.max([reported_at, others.newest_report_at], NaiveDateTime)
 
-    IngestRepo.insert_all(XcodeCoverageRun, [
+    IngestRepo.insert_all(CoverageRun, [
       %{
         project_id: project_id,
         test_run_id: test_run_id,
+        build_system: "xcode",
+        coverage_tool: "xccov",
+        coverage_tool_version: test.xcode_version || "",
+        git_object_format: git_object_format(coverage.files),
+        scheme: test.scheme || "",
         covered_lines: covered,
         executable_lines: executable,
         partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
@@ -130,6 +157,16 @@ defmodule Tuist.Tests.XcodeCoverage do
     ])
 
     :ok
+  end
+
+  # A blob id is 40 hex digits in a SHA-1 repository and 64 in a SHA-256 one;
+  # a report with no tracked file says nothing about the repository.
+  defp git_object_format(files) do
+    Enum.find_value(files, "", fn
+      %{git_blob_id: <<_::binary-size(64)>>} -> "sha256"
+      %{git_blob_id: <<_::binary-size(40)>>} -> "sha1"
+      _ -> nil
+    end)
   end
 
   defp other_shards(project_id, test_run_id, shard_index) do
@@ -242,7 +279,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   def totals_for_runs(_project_id, []), do: %{}
 
   def totals_for_runs(project_id, test_run_ids) do
-    from(c in XcodeCoverageRun,
+    from(c in CoverageRun,
       where: c.project_id == ^project_id and c.test_run_id in ^test_run_ids,
       group_by: c.test_run_id,
       having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
@@ -263,7 +300,7 @@ defmodule Tuist.Tests.XcodeCoverage do
   """
   def run_ids_query(project_id, coverage) do
     query =
-      from(c in XcodeCoverageRun,
+      from(c in CoverageRun,
         where: c.project_id == ^project_id,
         group_by: c.test_run_id,
         having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
@@ -337,6 +374,21 @@ defmodule Tuist.Tests.XcodeCoverage do
     |> case do
       [] -> nil
       rows -> detail(path, rows)
+    end
+  end
+
+  @retention_tables %{files: "coverage_files", runs: "coverage_runs"}
+
+  @doc """
+  Sets each coverage table's time-to-live to the configured retention (see
+  `Tuist.Environment.coverage_retention_days/1`) and returns the days applied
+  per table. The tables get it at creation; this re-applies it after the
+  configuration changed.
+  """
+  def apply_retention do
+    for {kind, days} <- Environment.coverage_retention_days(), table = Map.fetch!(@retention_tables, kind) do
+      IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
+      {table, days}
     end
   end
 
@@ -419,19 +471,19 @@ defmodule Tuist.Tests.XcodeCoverage do
     |> Enum.sort_by(&{&1.line_number, &1.name})
   end
 
-  # The rows of each shard's latest report.
+  # The run-scoped rows of each shard's latest report.
   defp report_files(project_id, test_run_id) do
     latest_reports =
-      from(f in XcodeCoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
+      from(f in CoverageFile,
+        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind == "run",
         group_by: f.shard_index,
         select: %{shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
       )
 
-    from(f in XcodeCoverageFile,
+    from(f in CoverageFile,
       join: r in subquery(latest_reports),
       on: r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id
+      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind == "run"
     )
   end
 
@@ -468,9 +520,12 @@ defmodule Tuist.Tests.XcodeCoverage do
   defp file_row(file) do
     functions = value(file, :functions, [])
 
+    git_blob_id = value(file, :git_blob_id, "")
+
     %{
       path: file.path,
-      git_blob_id: value(file, :git_blob_id, ""),
+      in_repository: git_blob_id != "" and not String.starts_with?(file.path, "/"),
+      git_blob_id: git_blob_id,
       targets: value(file, :targets, []),
       is_test: value(file, :is_test, false),
       covered_lines: value(file, :covered_lines, 0),
