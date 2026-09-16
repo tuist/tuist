@@ -1,42 +1,71 @@
 # Find eligible builder and runner images on Docker Hub. We use Ubuntu/Debian
-# instead of Alpine to avoid DNS://issues that arise often.
-ARG ELIXIR_VERSION=1.20.0-rc.6
-ARG OTP_VERSION=29.0
+# instead of Alpine to avoid DNS issues that arise often.
+#
+# Build context is the monorepo root: atlas depends on `../noora` as a
+# local path dependency, so both `atlas/` and `noora/` need to be
+# available inside the builder image. All COPY sources are therefore
+# repo-relative (e.g. `atlas/mix.exs`, `noora`).
+ARG ELIXIR_VERSION=1.20.2
+ARG OTP_VERSION=29.0.3
 ARG DEBIAN_VERSION=bookworm-20260518-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
+# ========================================
+# Stage: noora asset builder
+# Builds noora's CSS/JS from source so Atlas can embed the digested output
+# in the runtime image. Kept in a separate stage so the Elixir builder
+# doesn't need Node/aube in its layer.
+# ========================================
+FROM node:22-slim AS noora-assets
+
+ENV CI=1
+ENV XDG_DATA_HOME="/aube-data"
+
+RUN npm install -g --ignore-scripts=false @endevco/aube@1.41.0
+
+COPY noora /noora
+WORKDIR /noora
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+RUN aube run build
+
+# ========================================
+# Stage: Elixir builder
+# ========================================
 FROM ${BUILDER_IMAGE} AS builder
 
-# install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# prepare build dir
 WORKDIR /app
 
-# install hex + rebar
 RUN mix local.hex --force && \
     mix local.rebar --force
 
-# set build ENV
 ENV MIX_ENV="prod"
 
+# Copy the path-dependency source before running mix deps.get so mix can
+# resolve `{:noora, path: "../noora"}`. The aube-built priv/static from
+# the noora-assets stage overlays on top so Atlas can serve noora's
+# compiled CSS/JS.
+COPY noora /noora
+COPY --from=noora-assets /noora/priv/static /noora/priv/static
+
 # install mix dependencies
-COPY mix.exs mix.lock ./
+COPY atlas/mix.exs atlas/mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
 # to be re-compiled.
-COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY atlas/config/config.exs atlas/config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
-COPY priv priv
-COPY lib lib
-COPY assets assets
+COPY atlas/priv priv
+COPY atlas/lib lib
+COPY atlas/assets assets
 
 # Compile the project (generates colocated hooks needed by esbuild)
 RUN mix compile
@@ -45,13 +74,14 @@ RUN mix compile
 RUN mix assets.deploy
 
 # Changes to config/runtime.exs don't require recompiling the code
-COPY config/runtime.exs config/
+COPY atlas/config/runtime.exs config/
 
-COPY rel rel
+COPY atlas/rel rel
 RUN mix release
 
-# start a new build stage so that the final image will only contain
-# the compiled release and other runtime necessities
+# ========================================
+# Stage: Runner
+# ========================================
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
