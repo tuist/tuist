@@ -203,9 +203,13 @@ def main():
     for name, digest, components in re.findall(
         r"Target content hash for (Leaf|Shared) \(external project\): ([a-f0-9]+)\n\s*Components:\n((?:[ \t]+[^\n]*\n)+)", logs
     ):
-        hash_inputs[name][digest] = dict(re.findall(r"^\s*(\w+): (.*)$", components, re.MULTILINE))
+        fields = dict(re.findall(r"^\s*(\w+): (.*)$", components, re.MULTILINE))
+        # SDK fingerprints share the logger; compare the original graph hashes here.
+        if "xcframework-fingerprint-v1" in fields.get("additionalStrings", ""):
+            continue
+        hash_inputs[name][digest] = fields
     for name in ("Leaf", "Shared"):
-        hashes[name] = sorted(set(re.findall(rf"Target content hash for {name} \(external project\): ([a-f0-9]+)", logs)))
+        hashes[name] = sorted(hash_inputs[name])
         assert len(hashes[name]) >= 3, f"Expected external-package hashes for three destination sets: {name}"
         assert set(hash_inputs[name]) == set(hashes[name])
         for key in ("project", "name", "product", "projectSettings", "targetSettings", "embeddedProductReferences", "additionalStrings"):
