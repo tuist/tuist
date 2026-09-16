@@ -60,7 +60,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.Coverage
   alias Tuist.Webhooks.Dispatcher
 
   require Logger
@@ -383,10 +383,10 @@ defmodule Tuist.Tests do
         Test
 
       {{:not_in, coverage}, project_id} ->
-        from(t in Test, where: t.id not in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+        from(t in Test, where: t.id not in subquery(Coverage.run_ids_query(project_id, coverage)))
 
       {{:in, coverage}, project_id} ->
-        from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+        from(t in Test, where: t.id in subquery(Coverage.run_ids_query(project_id, coverage)))
     end
   end
 
@@ -529,7 +529,7 @@ defmodule Tuist.Tests do
     stress_new_tests = Map.get(attrs, :stress_new_tests)
 
     xcode_coverage =
-      XcodeCoverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
+      Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -553,7 +553,7 @@ defmodule Tuist.Tests do
       create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
-      XcodeCoverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
+      Coverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -778,8 +778,8 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
-          xcode_coverage = XcodeCoverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          XcodeCoverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
+          xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
+          Coverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test

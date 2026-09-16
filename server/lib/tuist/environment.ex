@@ -340,6 +340,25 @@ defmodule Tuist.Environment do
     end
   end
 
+  @coverage_retention_defaults %{files: 90, runs: 365}
+  @coverage_retention_environment_variables %{
+    files: "TUIST_COVERAGE_FILE_RETENTION_DAYS",
+    runs: "TUIST_COVERAGE_RUN_RETENTION_DAYS"
+  }
+
+  @doc """
+  How long coverage rows are kept in ClickHouse, in days: `files` for the
+  per-file detail (`coverage_files`) and `runs` for the run totals the trend
+  reads (`coverage_runs`). The tables' time-to-live is set from these when
+  they are created or `mix tuist.coverage.retention` re-applies them.
+  """
+  def coverage_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Map.new(@coverage_retention_defaults, fn {kind, default} ->
+      variable = Map.fetch!(@coverage_retention_environment_variables, kind)
+      {kind, parse_artifact_retention_days(Map.get(environment, variable), variable) || default}
+    end)
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do

@@ -12,7 +12,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.Coverage
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -248,7 +248,7 @@ defmodule TuistWeb.TestRunLiveTest do
       })
 
     {:ok, stored} = Tuist.Tests.get_test(test_run.id)
-    XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([0, 1])), 1)
+    Coverage.publish(stored, Coverage.rows(project.id, shard.([0, 1])), 1)
 
     {:ok, lv, _html} =
       live(

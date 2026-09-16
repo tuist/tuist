@@ -2259,7 +2259,7 @@
                 "Share of executable lines the tests ran at least once, counting each source file once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
+            value={"#{Coverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
             id="widget-coverage-percentage"
           />
           <.widget
@@ -2323,7 +2323,7 @@
                 "Share of the file's executable lines the tests ran at least once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
+            value={"#{Coverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
             id="widget-coverage-file-percentage"
           />
           <.widget

@@ -18,8 +18,8 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
   alias Tuist.Tests.TestModuleRun
-  alias Tuist.Tests.XcodeCoverage
-  alias Tuist.Tests.XcodeCoverageRun
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.CoverageRun
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
@@ -109,7 +109,7 @@ defmodule Tuist.Tests.Analytics do
         opts
       )
 
-    from(c in XcodeCoverageRun,
+    from(c in CoverageRun,
       join: t in subquery(runs),
       on: t.id == c.test_run_id,
       where: c.project_id == ^project_id,
@@ -158,7 +158,7 @@ defmodule Tuist.Tests.Analytics do
   end
 
   defp coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
-    XcodeCoverage.percentage(covered, executable)
+    Coverage.percentage(covered, executable)
   end
 
   defp fill_coverage_points(rows, start_datetime, end_datetime, date_period) do
