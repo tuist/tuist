@@ -35,7 +35,7 @@ struct BinaryCacheStorageTests {
         let ios = item("ios", fingerprints.filter { $0.key != "macos-device" })
         let hits = try await reader.fetch([ios], cacheCategory: .binaries)
         let path = try #require(hits.values.first)
-        #expect(try await BinaryCacheArtifact.coverage(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
+        #expect(try await XCFrameworkCoverage.read(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
         #expect(await remote.downloads[shared] == 1)
         let exact = try BinaryCacheAction(name: ios.name, targetHash: ios.hash)
         #expect(await remote.queries[exact.digest] == nil)
@@ -201,7 +201,7 @@ struct BinaryCacheStorageTests {
         #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
         let reader = subject(directory.appending(component: "reader"), remote: remote)
         let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
-        #expect(try await BinaryCacheArtifact.coverage(at: restored)["ios-simulator"] == ["arm64"])
+        #expect(try await XCFrameworkCoverage.read(at: restored)["ios-simulator"] == ["arm64"])
         #expect(try await reader.fetch([item("other", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
             .isEmpty)
     }
@@ -210,7 +210,7 @@ struct BinaryCacheStorageTests {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let delegate = RecordingSelectiveTestsStorage()
         let cache = BinaryCacheStorage(selectiveTestsStorage: delegate, local: BinaryCacheLocalStore(
-            directory: directory.appending(component: "Binaries"), actionDirectory: directory.appending(component: "Actions")
+            directory: directory.appending(component: "Binaries")
         ))
         let target = item("tests", [:])
         #expect(try await cache.store([target: []], cacheCategory: .selectiveTests) == [target])
@@ -244,7 +244,7 @@ struct BinaryCacheStorageTests {
         let provider = MockCacheDirectoriesProviding()
         given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
         let local = BinaryCacheLocalStore(
-            directory: binaries, actionDirectory: directory.appending(component: "Actions"),
+            directory: binaries,
             pruner: BinaryCachePruner(cacheDirectoriesProvider: provider)
         )
         let first = Data(repeating: 1, count: 500_000)
@@ -277,6 +277,41 @@ struct BinaryCacheStorageTests {
         #expect(await remote.maximumActiveLookups <= 32)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func actionRecordsShareTheBinaryBudgetAndPruning() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_CACHE_MAX_BYTES"] = "100000"
+        let binaries = directory.appending(component: "Binaries")
+        let provider = MockCacheDirectoriesProviding()
+        given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
+        let pruner = BinaryCachePruner(cacheDirectoriesProvider: provider)
+        let local = BinaryCacheLocalStore(directory: binaries, pruner: pruner)
+        let payload = Data(repeating: 1, count: 10000)
+        let digest = REAPI.digest(payload)
+        let result = REAPI.ActionResult.with {
+            $0.outputDirectories = [.with { $0.path = String(repeating: "x", count: 60000) }]
+        }
+        let source = directory.appending(component: "blob").url
+        try payload.write(to: source)
+        let admission = try await local.admission(preserving: [])
+        try await local.storeBlob(digest, from: source, preserving: [], admission: admission)
+        try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
+        try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
+        #expect(try local.action(digest) == result)
+        #expect(try local.blob(digest) != nil)
+        #expect(FileManager.default.fileExists(atPath: binaries.appending(components: [
+            "action-\(digest.hash)", "result.pb",
+        ]).pathString))
+        let remaining = try #require(try await pruner.headroom())
+        let resultSize = try result.serializedData().count
+        #expect(remaining == 90000 - payload.count - resultSize)
+        #expect(await admission.admit(remaining))
+        #expect(await admission.admit(1) == false)
+        try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [digest.hash])
+        #expect(try local.action(digest) == nil)
+        #expect(try local.blob(digest) != nil)
+    }
+
     @Test(.inTemporaryDirectory) func invalidTargetAndPartialUploadDoNotDiscardHealthyTargets() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let good = directory.appending(component: "CustomProduct.macro")
@@ -306,7 +341,7 @@ struct BinaryCacheStorageTests {
         let provider = MockCacheDirectoriesProviding()
         given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
         let local = BinaryCacheLocalStore(
-            directory: binaries, actionDirectory: directory.appending(component: "Actions"),
+            directory: binaries,
             pruner: BinaryCachePruner(cacheDirectoriesProvider: provider)
         )
         let remote = MemoryREAPICache()
@@ -343,7 +378,7 @@ struct BinaryCacheStorageTests {
 
     private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {
         BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
-            directory: path.appending(component: "Binaries"), actionDirectory: path.appending(component: "Actions")
+            directory: path.appending(component: "Binaries")
         ), remote: remote)
     }
 

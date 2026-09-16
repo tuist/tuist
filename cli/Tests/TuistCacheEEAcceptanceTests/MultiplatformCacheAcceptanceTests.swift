@@ -39,8 +39,7 @@ struct MultiplatformCacheAcceptanceTests {
         #expect(warmed.count == 2)
         let warmedBlobs = try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()
         #expect(!warmedBlobs.isEmpty)
-        let actionDirectory = CacheDirectoriesProvider().cacheDirectory().appending(component: "BinaryCacheActions")
-        #expect(try await fileSystem.glob(directory: actionDirectory, include: ["*/result.pb"]).collect().count == 6)
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 6)
         let workspace = fixture.appending(component: "Workspace.swift")
         try Data("import ProjectDescription\nlet workspace = Workspace(name: \"PlatformCache\", projects: [\"Phone\"])\n".utf8)
             .write(to: workspace.url)
@@ -57,7 +56,7 @@ struct MultiplatformCacheAcceptanceTests {
         let narrowed = Set(after).subtracting(warmed)
         #expect(narrowed.count == 2)
         for artifact in narrowed {
-            #expect(try await BinaryCacheArtifact.coverage(at: artifact).keys.sorted() == ["ios-device", "ios-simulator"])
+            #expect(try await XCFrameworkCoverage.read(at: artifact).keys.sorted() == ["ios-device", "ios-simulator"])
         }
         #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()) == Set(warmedBlobs))
         try await TuistTest.run(GenerateCommand.self, ["--path", fixture.pathString, "--no-open", "PhoneConsumer"])
@@ -70,6 +69,8 @@ struct MultiplatformCacheAcceptanceTests {
                 "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=",
             ])
         }
+        try await TuistTest.run(CleanCommand.self, ["binaries", "--path", fixture.pathString])
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().isEmpty)
     }
 
     @Test(
@@ -100,8 +101,8 @@ struct MultiplatformCacheAcceptanceTests {
             "--path", fixture.pathString, "--no-upload", "--cache-profile", "only-external", "PhoneConsumer", "MacConsumer",
         ])
         let provider = CacheDirectoriesProvider()
-        let actions = provider.cacheDirectory().appending(component: "BinaryCacheActions")
-        let results = try await fileSystem.glob(directory: actions, include: ["*/result.pb"]).collect()
+        let actions = try provider.cacheDirectory(for: .binaries)
+        let results = try await fileSystem.glob(directory: actions, include: ["action-*/result.pb"]).collect()
         let exact = try results.map { try REAPI.ActionResult(serializedBytes: Data(contentsOf: $0.url)) }
             .filter { $0.outputDirectories.first?.path == "outputs" }
         #expect(exact.count == 1)

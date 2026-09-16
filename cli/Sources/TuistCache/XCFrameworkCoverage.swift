@@ -1,12 +1,11 @@
-import CryptoKit
 import FileSystem
 import Foundation
 import Path
 import TuistCore
 import XcodeGraph
 
-public enum BinaryCacheArtifact {
-    public static func coverage(
+public enum XCFrameworkCoverage {
+    public static func read(
         at path: AbsolutePath,
         fileSystem: FileSysteming = FileSystem()
     ) async throws -> [String: Set<String>] {

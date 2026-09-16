@@ -725,8 +725,8 @@ struct TuistCacheEEAcceptanceTests {
             else { continue }
             let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
             try await fileSystem.remove(environment.cacheDirectory.appending(components: [
-                "BinaryCacheActions",
-                action.digest.hash,
+                "Binaries",
+                "action-\(action.digest.hash)",
             ]))
             evictedActions += 1
         }

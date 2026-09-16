@@ -23,9 +23,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The Tuist Binaries cache
     case binaries
 
-    /// Module-cache REAPI action results pointing to content-addressed output trees.
-    case binaryCacheActions
-
     /// The Tuist Selective Tests cache
     case selectiveTests
 
@@ -49,8 +46,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "Runs"
         case .binaries:
             return "Binaries"
-        case .binaryCacheActions:
-            return "BinaryCacheActions"
         case .selectiveTests:
             return "SelectiveTests"
         case .generationMetadata:
@@ -91,7 +86,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             // Recomputed from the sources they were derived from: a manifest reload, one swiftc
             // invocation, a project generation.
             return .support(maxAge: 7 * Self.day)
-        case .plugins, .selectiveTests, .generationMetadata, .binaryCacheActions:
+        case .plugins, .selectiveTests, .generationMetadata:
             // Refetched over the network, or read long after the run that wrote them, so these are
             // kept for as long as they plausibly stay relevant.
             return .support(maxAge: 30 * Self.day)
@@ -108,7 +103,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         .projectDescriptionHelpers,
         .selectiveTests,
         .generationMetadata,
-        .binaryCacheActions,
         .plugins,
     ]
 }

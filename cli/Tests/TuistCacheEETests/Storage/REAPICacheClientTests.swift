@@ -58,8 +58,7 @@ struct REAPICacheClientTests {
             let storage = BinaryCacheStorage(
                 selectiveTestsStorage: NoBinaryFallback(),
                 local: BinaryCacheLocalStore(
-                    directory: directory.appending(component: "Binaries"),
-                    actionDirectory: directory.appending(component: "Actions")
+                    directory: directory.appending(component: "Binaries")
                 ),
                 remote: client
             )
