@@ -332,4 +332,107 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
       assert json_response(conn, 500)["error"] == "finish report failed"
     end
   end
+
+  describe "POST cache" do
+    setup %{account: account} do
+      mapping =
+        Repo.insert!(%Tuist.Runners.GitLab.Job{
+          account_id: account.id,
+          url: "https://gitlab.com",
+          job_id: 42,
+          project_path: "acme/mobile",
+          pipeline_id: 90
+        })
+
+      payload = %{"job_info" => %{"project_id" => 123}, "git_info" => %{"protected" => true}}
+      %{mapping: mapping, scoped_token: JobReportToken.mint(mapping, payload)}
+    end
+
+    test "returns presigned URLs scoped to the token's account, project and ref", %{
+      conn: conn,
+      account: account,
+      scoped_token: token
+    } do
+      expected_key = "runner-gitlab-cache/#{account.name}/123/protected/gems"
+
+      expect(Tuist.Storage, :generate_download_url, fn ^expected_key, _account, opts ->
+        assert opts[:expires_in] == 600
+        "https://storage.example.com/#{expected_key}?signature=get"
+      end)
+
+      expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, _account, _opts ->
+        "https://storage.example.com/#{expected_key}?signature=put"
+      end)
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/cache", %{"object_name" => "project/123/gems", "expires_in" => 600})
+
+      assert json_response(conn, 200) == %{
+               "download_url" => "https://storage.example.com/#{expected_key}?signature=get",
+               "upload_url" => "https://storage.example.com/#{expected_key}?signature=put"
+             }
+    end
+
+    test "a token minted without a cache scope runs without a remote cache", %{conn: conn, mapping: mapping} do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      conn =
+        conn
+        |> authed(JobReportToken.mint(mapping))
+        |> post("/api/internal/runners/jobs/cache", %{"object_name" => "project/123/gems"})
+
+      assert json_response(conn, 404)["error"] == "cache unavailable"
+    end
+
+    test "a Buildkite token cannot mint GitLab cache URLs", %{conn: conn, token: token} do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/cache", %{"object_name" => "project/123/gems"})
+
+      assert json_response(conn, 404)["error"] == "cache unavailable"
+    end
+
+    test "rejects another project's object", %{conn: conn, scoped_token: token} do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/cache", %{"object_name" => "project/999/gems"})
+
+      assert json_response(conn, 400)["error"] == "invalid object_name"
+    end
+
+    test "a settled job cannot mint URLs", %{conn: conn, account: account, mapping: mapping, scoped_token: token} do
+      reject(&Tuist.Storage.generate_upload_url/3)
+      now = DateTime.utc_now()
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        status: "completed",
+        fleet_name: "linux-amd64",
+        enqueued_at: now,
+        completed_at: now
+      })
+
+      conn =
+        conn
+        |> authed(token)
+        |> post("/api/internal/runners/jobs/cache", %{"object_name" => "project/123/gems"})
+
+      assert json_response(conn, 410)["error"] =~ "no longer accepting"
+    end
+
+    test "requires a report token", %{conn: conn} do
+      conn = post(conn, "/api/internal/runners/jobs/cache", %{"object_name" => "project/123/gems"})
+      assert json_response(conn, 401)["error"] == "missing bearer token"
+    end
+  end
 end

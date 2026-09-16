@@ -332,9 +332,10 @@ defmodule Tuist.Runners.GitLab do
   end
 
   def mint_acquisition(account_id, workflow_job_id) do
-    with %Job{account_id: ^account_id, payload: payload} = job when is_binary(payload) <- get_job(workflow_job_id),
-         {:ok, _} <- Client.update_job(job.url, JSON.decode!(payload), "running", nil) do
-      {:ok, %{url: job.url, payload: JSON.decode!(payload), report_token: JobReportToken.mint(job)}}
+    with %Job{account_id: ^account_id, payload: encoded} = job when is_binary(encoded) <- get_job(workflow_job_id),
+         payload = JSON.decode!(encoded),
+         {:ok, _} <- Client.update_job(job.url, payload, "running", nil) do
+      {:ok, %{url: job.url, payload: payload, report_token: JobReportToken.mint(job, payload)}}
     else
       {:error, _} = error -> error
       _ -> {:error, :not_found}

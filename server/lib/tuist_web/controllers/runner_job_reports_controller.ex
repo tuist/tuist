@@ -14,6 +14,7 @@ defmodule TuistWeb.RunnerJobReportsController do
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.LogParser
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobReports
   alias Tuist.Runners.JobReportToken, as: ReportToken
@@ -111,6 +112,44 @@ defmodule TuistWeb.RunnerJobReportsController do
       error ->
         render_error(conn, error, "runner finish report")
     end
+  end
+
+  @doc """
+  `POST /api/internal/runners/jobs/cache`
+
+      { "object_name": "project/123/gems-protected", "expires_in": 3600 }
+
+  Returns presigned URLs for a GitLab `cache:` archive:
+
+      { "download_url": "...", "upload_url": "..." }
+
+  The executor asks while it generates a job stage's script, so a settled job
+  cannot mint URLs. A token minted without a cache scope receives 404 and the
+  job runs without a remote cache.
+  """
+  def cache(conn, params) do
+    with {:ok, %{workflow_job_id: workflow_job_id, provider: :gitlab} = identity} <- authenticate(conn),
+         :ok <- job_open(workflow_job_id),
+         {:ok, urls} <-
+           GitLabCache.urls(identity, Map.get(params, "object_name"), expires_in: Map.get(params, "expires_in")) do
+      json(conn, urls)
+    else
+      {:ok, _identity} ->
+        conn |> put_status(:not_found) |> json(%{error: "cache unavailable"})
+
+      {:error, :cache_unavailable} ->
+        conn |> put_status(:not_found) |> json(%{error: "cache unavailable"})
+
+      {:error, :invalid_object_name} ->
+        render_error(conn, {:error, {:invalid_field, "object_name"}}, "runner cache")
+
+      error ->
+        render_error(conn, error, "runner cache")
+    end
+  end
+
+  defp job_open(workflow_job_id) do
+    if JobReports.running?(workflow_job_id), do: :ok, else: {:error, :job_settled}
   end
 
   # A settled job stops accepting log lines once the upload that follows

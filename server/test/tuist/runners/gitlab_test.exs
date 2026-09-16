@@ -88,6 +88,24 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:error, :not_found} = GitLab.mint_acquisition(account.id + 1, id)
   end
 
+  test "report tokens carry the coordinator's project and ref protection", %{connection: connection, account: account} do
+    for {git_info, protected?} <- [
+          {%{"protected" => true}, true},
+          {%{"protected" => false}, false},
+          {%{}, false}
+        ] do
+      payload = Map.update!(payload(), "git_info", &Map.merge(&1, git_info))
+      expect(Client, :request_job, fn ^connection -> {:ok, payload} end)
+      assert {:ok, 1} = GitLab.poll(connection)
+      job = Repo.get_by!(Job, job_id: payload["id"])
+
+      assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
+      assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)
+      assert identity.gitlab_project_id == 123
+      assert identity.ref_protected == protected?
+    end
+  end
+
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
     reject(&Client.request_job/1)
     stub(FeatureFlags, :runners_enabled?, fn _ -> false end)

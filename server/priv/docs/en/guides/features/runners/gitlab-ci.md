@@ -42,9 +42,29 @@ Tuist reads `CI_JOB_TAGS` from each assignment and resolves the profile within t
 
 Jobs use GitLab's **shell executor** inside an isolated machine. Checkout, CI variables, `before_script`, `script`, `after_script`, artifacts and cancellation are handled by GitLab Runner. The pipeline's `image:` and `services:` settings do not configure this shell environment; use tools installed on the <.localized_link href="/guides/features/runners/profiles">runner image</.localized_link> or install them in your script.
 
-The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Shared account cache volumes and cache-signing grants are currently withheld for GitLab jobs; GitLab CI variables can be overridden by a pipeline and cannot establish whether a job is trusted. GitLab's local cache therefore lasts for that machine's lifetime.
+The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Shared account cache volumes and cache-signing grants are currently withheld for GitLab jobs; GitLab CI variables can be overridden by a pipeline and cannot establish whether a job is trusted.
 
 GitLab considers a job assigned as soon as Tuist acquires it. If no machine becomes available within ten minutes, Tuist fails the assignment with `runner_system_failure`. The retry policy above lets GitLab retry it. The same policy covers a lost runner machine.
+
+## Caching {#caching}
+
+GitLab's `cache:` keyword works across jobs, stages and pipelines without any runner configuration. Tuist stores the archives for your account. Accounts with their own storage configured keep them in that bucket.
+
+```yaml
+# .gitlab-ci.yml
+build:
+  tags: [tuist-macos]
+  cache:
+    key:
+      files: [Package.resolved]
+    paths: [.build/checkouts]
+  script:
+    - swift build
+```
+
+Protected and unprotected refs have separate caches. A job on an unprotected branch can't read or replace the cache of a protected branch, even with `cache:unprotect: true`.
+
+An archive expires after the same retention period as other cache artifacts, counted from its last upload. GitLab uploads an archive only when its contents change, so an unchanged cache expires even while jobs keep restoring it. The next job rebuilds it.
 
 ## Rotating tokens and disconnecting {#rotating-tokens-and-disconnecting}
 

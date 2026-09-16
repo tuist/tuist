@@ -58,13 +58,14 @@ defmodule Tuist.Storage.BucketArtifactRetention do
   defp maybe_put_storage_provider(opts, storage_provider), do: Keyword.put(opts, :storage_provider, storage_provider)
 
   defp expired_objects(objects, target) do
-    plans_by_account_handle = managed_plans_by_account_handle(objects, target)
+    account_handle = Map.get(target, :account_handle, &account_handle/1)
+    plans_by_account_handle = managed_plans_by_account_handle(objects, target, account_handle)
     retention_artifact_type = Map.fetch!(target, :retention_artifact_type)
     retention_days = Map.get(target, :retention_days)
     orphaned_account_plan = Map.get(target, :orphaned_account_plan)
 
     Enum.filter(objects, fn object ->
-      plan = plan_for_object(object, plans_by_account_handle) || orphaned_account_plan
+      plan = plan_for_object(account_handle.(object), plans_by_account_handle) || orphaned_account_plan
 
       cond do
         plan == :skip ->
@@ -90,10 +91,10 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     end)
   end
 
-  defp managed_plans_by_account_handle(objects, target) do
+  defp managed_plans_by_account_handle(objects, target, account_handle) do
     account_handles =
       objects
-      |> Enum.map(&account_handle/1)
+      |> Enum.map(account_handle)
       |> Enum.reject(&is_nil/1)
       |> Enum.flat_map(fn account_handle -> [account_handle, normalize_account_handle(account_handle)] end)
       |> Enum.uniq()
@@ -127,9 +128,7 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     Map.merge(normalized_values, exact_values)
   end
 
-  defp plan_for_object(object, plans_by_account_handle) do
-    account_handle = account_handle(object)
-
+  defp plan_for_object(account_handle, plans_by_account_handle) do
     Map.get(plans_by_account_handle, account_handle) ||
       Map.get(plans_by_account_handle, normalize_account_handle(account_handle))
   end

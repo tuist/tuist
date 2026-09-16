@@ -9,8 +9,11 @@ defmodule Tuist.Runners.JobReportToken do
   @salt "runner_gitlab_report"
   @max_age 12 * 60 * 60
 
-  def mint(%Job{workflow_job_id: id, account_id: account_id}) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, @salt, %{workflow_job_id: id, account_id: account_id})
+  def mint(job, payload \\ nil)
+
+  def mint(%Job{workflow_job_id: id, account_id: account_id}, payload) do
+    claims = Map.merge(%{workflow_job_id: id, account_id: account_id}, cache_scope(payload))
+    Phoenix.Token.sign(TuistWeb.Endpoint, @salt, claims)
   end
 
   def verify(token) when is_binary(token) do
@@ -29,4 +32,13 @@ defmodule Tuist.Runners.JobReportToken do
   end
 
   def verify(_), do: {:error, :invalid}
+
+  # The coordinator sets both fields in the job response; CI variables cannot
+  # override them. A job without them gets no remote cache scope.
+  defp cache_scope(%{"job_info" => %{"project_id" => project_id}, "git_info" => git_info})
+       when is_integer(project_id) and is_map(git_info) do
+    %{gitlab_project_id: project_id, ref_protected: Map.get(git_info, "protected") == true}
+  end
+
+  defp cache_scope(_payload), do: %{}
 end

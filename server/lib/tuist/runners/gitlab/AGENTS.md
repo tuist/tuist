@@ -28,6 +28,17 @@ assignment upstream if persistence fails.
   but remove erase-line controls used around section boundaries.
 - Shared account cache volumes/signing grants are withheld until GitLab job
   trust can be established independently of overridable CI variables.
+- GitLab's `cache:` keyword is backed by `Cache`: the executor posts GitLab's
+  object name to `/runners/jobs/cache` and receives presigned URLs. Take the
+  account, project ID and ref protection from the report token's claims, which
+  `mint_acquisition` copies from the coordinator's `job_info`/`git_info`; never
+  from the request or CI variables. Keep protected and unprotected refs in
+  separate key namespaces for reads and writes. A token without those claims
+  gets 404 and the job runs without a remote cache.
+- Cache archives live under `runner-gitlab-cache/<account handle>/` through
+  `Storage`, so custom-storage accounts write to their own bucket. Hosted
+  retention lists only that prefix, expires orphaned handles with the Air
+  window, and account deletion purges the prefix.
 - `infra/linux-runner-image/gitlab-runner/` embeds the upstream shell executor
   for both Linux and macOS. Keep the protocol version aligned with its pinned
   upstream commit. Job scripts, artifact handling, cancellation and masking
