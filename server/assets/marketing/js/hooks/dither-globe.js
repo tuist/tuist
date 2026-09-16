@@ -36,6 +36,15 @@
  *   data-emit-life:    their lifetime in seconds
  *   data-emit-opacity: 0-100 — their peak opacity
  *   data-offset-x / data-offset-y: center offset in px
+ *   data-markers:   JSON list of {lon, lat, active} region markers; when
+ *                   absent the globe shows the default serving regions.
+ *                   Inactive markers draw a dim core and no pulse.
+ *   data-paused:    "true" holds the frame until a motion event resumes it
+ *
+ * Runtime events on the canvas (dispatched by a page controller such as
+ * the cache globe page's CacheGlobe hook):
+ *   dither-globe:markers  detail.markers replaces the marker list
+ *   dither-globe:motion   detail.paused holds or resumes the spin
  */
 
 import { onThemeChange } from "../lib/theme.js";
@@ -275,7 +284,7 @@ function gridDots(M, P, step) {
 /* Region markers: pulsing purple points glued to real locations on the
    sphere — they rotate with the globe and hide behind the horizon. No
    labels, just the pulse. */
-const MARKERS = [
+const DEFAULT_MARKERS = [
   [-0.1, 51.5], // EU West — London
   [8.7, 50.1], // EU Central — Frankfurt
   [-77.5, 38.9], // US East — N. Virginia
@@ -287,7 +296,28 @@ const MARKERS = [
   [103.8, 1.35], // Asia — Singapore
   [139.7, 35.7], // Japan — Tokyo
   [151.2, -33.9], // Australia — Sydney
-].map(([lon, lat]) => ll2xyz(lon, lat));
+].map(([lon, lat]) => ({ point: ll2xyz(lon, lat), active: true }));
+
+function markersFrom(list) {
+  if (!Array.isArray(list)) return DEFAULT_MARKERS;
+  const markers = [];
+  for (const marker of list) {
+    const lon = Number(marker?.lon);
+    const lat = Number(marker?.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    markers.push({ point: ll2xyz(lon, lat), active: marker.active !== false });
+  }
+  return markers;
+}
+
+function parseMarkers(raw) {
+  if (!raw) return DEFAULT_MARKERS;
+  try {
+    return markersFrom(JSON.parse(raw));
+  } catch {
+    return DEFAULT_MARKERS;
+  }
+}
 
 const PULSE_S = 2.4; // one ring per marker every PULSE_S seconds, staggered
 
@@ -335,6 +365,21 @@ export const DitherGlobe = {
     this.emitAcc = 0;
     this.dt = 0;
 
+    this.markers = parseMarkers(this.el.dataset.markers);
+    this.held = this.el.dataset.paused === "true";
+    this.onMarkers = (event) => {
+      this.markers = markersFrom(event.detail && event.detail.markers);
+      if (this.raf === null) this.render();
+    };
+    this.onMotion = (event) => {
+      this.held = Boolean(event.detail && event.detail.paused);
+      if (this.held) this.stop();
+      else if (this.visible && !this.reduced) this.start();
+      if (this.held) this.render();
+    };
+    this.canvas.addEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.addEventListener("dither-globe:motion", this.onMotion);
+
     this.opts = {};
     for (const o of OPTIONS) {
       const raw = this.el.dataset[o.attr.replace(/-(\w)/g, (_, c) => c.toUpperCase())];
@@ -379,7 +424,7 @@ export const DitherGlobe = {
     this.viewObserver = new IntersectionObserver(
       ([entry]) => {
         this.visible = entry.isIntersecting;
-        if (this.visible && !this.reduced) this.start();
+        if (this.visible && !this.reduced && !this.held) this.start();
         else this.stop();
       },
       { threshold: 0.05 },
@@ -429,6 +474,8 @@ export const DitherGlobe = {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.removeEventListener("dither-globe:motion", this.onMotion);
   },
 
   start() {
@@ -667,7 +714,8 @@ export const DitherGlobe = {
      ellipses hugging the surface — tilting with the globe and squashing
      toward the limb — instead of flat screen circles. Markers fade out
      near the horizon and under prefers-reduced-motion only the static
-     cores show. */
+     cores show. Inactive markers (a region without recent activity) keep
+     a smaller, dimmer core and never pulse. */
   renderMarkers(rad, cx, cy) {
     const { ctx } = this;
     const R = this.rotation();
@@ -675,8 +723,10 @@ export const DitherGlobe = {
     const color = `rgb(${mr}, ${mg}, ${mb})`;
     const coreR = Math.max(3, rad * 0.028) / rad;
     const maxRing = coreR + 0.11;
-    for (let i = 0; i < MARKERS.length; i++) {
-      const [x, y, z] = MARKERS[i];
+    const markers = this.markers;
+    for (let i = 0; i < markers.length; i++) {
+      const { point, active } = markers[i];
+      const [x, y, z] = point;
       const wz = R[6] * x + R[7] * y + R[8] * z;
       if (wz <= 0.12) continue;
       const limb = Math.min(1, (wz - 0.12) / 0.3);
@@ -702,11 +752,11 @@ export const DitherGlobe = {
       ctx.save();
       ctx.transform(a, 0, b, d, px, py);
       ctx.fillStyle = color;
-      ctx.globalAlpha = limb;
+      ctx.globalAlpha = active ? limb : limb * 0.45;
       ctx.beginPath();
-      ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+      ctx.arc(0, 0, active ? coreR : coreR * 0.75, 0, Math.PI * 2);
       ctx.fill();
-      if (!this.reduced) {
+      if (active && !this.reduced) {
         // Stagger the phases so the pulses ripple around the globe
         // instead of firing in unison.
         const t = (this.pulseT / PULSE_S + i * 0.37) % 1;

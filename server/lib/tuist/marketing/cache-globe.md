@@ -1,6 +1,6 @@
 # Cache globe
 
-The public marketing page at `/globe` turns cache reuse into a conference display. `/globe?demo=true` runs a clearly labeled illustrative demonstration. Demo data never enters the database or the shared statistics service.
+The public marketing page at `/globe` turns cache reuse into a live display. `/globe?demo=true` runs a clearly labeled illustrative demonstration. Demo data never enters the database or the shared statistics service.
 
 ## Data
 
@@ -12,15 +12,14 @@ The query uses `FINAL` to deduplicate retried rollups in the existing replacing 
 
 When no snapshot exists, the page shows waiting and no invented value. Query failures preserve the last successful snapshot and mark it unavailable. Browser disconnects and aging observations have distinct reconnecting and delayed states. The globe pauses activity lights when its data is no longer current.
 
-## Visual direction and references
+## Visual direction
 
-- [Shopify's globe rendering breakdown](https://shopify.engineering/bfcm-3d-data-visualization): layered atmosphere, geographic particles, and bounded animation complexity.
-- [Shopify's 2023 globe overview and video](https://www.shopify.com/news/shopify-s-bfcm-globe-brings-commerce-to-life-like-never-before-heres-how-our-engineers-built-it): an engaging planetary scene paired with readable business counters.
-- [Shopify's rotating Earth layer demonstration](https://www.youtube.com/watch?v=N4oeDV4rNQo): directional lighting and a continuous atmospheric edge as the planet rotates. Inspected frames across the 20-second demonstration.
-- [Shopify's streaming data architecture](https://shopify.engineering/bfcm-live-map-2021-apache-flink-redesign): aggregate activity once, then distribute it to displays.
+The page follows the redesigned marketing site's frame without its chrome: only the wordmark linking home above the cache page's hero skeleton (copy bottom-left on a 600px card) and an activity frame of hairline rows for the counters, the five serving regions, the status line and the display controls. No shared navbar, footer or CTA, so it can stay on a screen. Everything uses Noora tokens and works in both themes.
 
-The Tuist version uses its own purple palette, brand assets, and typography. The globe rotates in the browser using the existing `cobe` dependency. Light trails leave a serving region radially and never connect to an invented destination. Region bars show relative recent volume, not a fabricated historical trend. Shopify imagery is research material and is not shipped with the page.
+The globe is the cache page's `DitherGlobe` hook — the stippled sphere on the marketing dither ramp — placed on the hero's right side and bleeding into the card's fade. The page's `CacheGlobe` hook feeds it the five public serving regions as markers (`data-markers`, then `dither-globe:markers` events): a region with downloads in the last five minutes pulses, an idle one keeps a dim core. Region bars show relative recent volume, not a fabricated historical trend. Nothing connects regions to invented destinations.
+
+Earlier research into Shopify's BFCM globes (layered atmosphere, aggregate-once-then-distribute streaming) informed the data flow; none of that imagery ships with the page.
 
 ## Verification
 
-Run the focused marketing globe, marketing statistics, runtime children, and globe LiveView test files. Launch the server with `mise run dev`, open both `/globe` and `/globe?demo=true` in headless Chrome, and capture desktop and mobile screenshots. Check pause/resume, reduced motion, full screen, reconnecting, stale data, rendering fallback, and navigation cleanup. Local development does not start the shared marketing poller by default, so its live page correctly starts in a waiting state.
+Run the focused marketing globe, marketing statistics, runtime children, and globe LiveView test files. Launch the server with `mise run dev`, open both `/globe` and `/globe?demo=true` in headless Chrome, and capture desktop and mobile screenshots. Local development does not start the shared marketing poller by default, so its live page correctly starts in a waiting state. Check pause/resume, reduced motion, full screen, reconnecting, stale data, both themes, and navigation cleanup.

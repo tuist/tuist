@@ -13,8 +13,11 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     {:ok, view, html} = live(conn, ~p"/globe")
 
     assert html =~ "Built once."
-    assert has_element?(view, "#cache-globe[data-demo=false]")
-    assert has_element?(view, "a[href='/cache']")
+    assert has_element?(view, "#marketing-globe[data-demo=false]")
+    assert has_element?(view, "#marketing-globe a[href='/cache']", "Meet the cache")
+    assert has_element?(view, "#marketing-globe-canvas[phx-hook=DitherGlobe]")
+    assert has_element?(view, "#marketing-globe [data-part=navbar] a[href='/']")
+    refute html =~ "marketing-navbar"
     refute html =~ "marketing-footer"
 
     send(view.pid, {:cache_globe_updated, %{CacheGlobe.empty() | downloads: 321}})
@@ -26,7 +29,7 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
     {:ok, view, html} = live(conn, ~p"/globe?demo=true")
 
-    assert has_element?(view, "#cache-globe[data-demo=true]")
+    assert has_element?(view, "#marketing-globe[data-demo=true]")
     assert html =~ "Demo · illustrative data"
     assert has_element?(view, "a[href='/globe']", "View live activity")
   end
