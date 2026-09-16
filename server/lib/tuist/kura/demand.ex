@@ -131,10 +131,10 @@ defmodule Tuist.Kura.Demand do
   True when the account is under the demand-driven lifecycle in any region.
 
   Cache-endpoint resolution uses this to decide what to answer while no Kura
-  instance is serving: a lifecycle-managed account falls back to the
-  Tuist-hosted default lane rather than to its own legacy custom endpoints,
-  because routing archived accounts at the custom-endpoint path would make
-  archival the thing that keeps that path alive.
+  instance is serving: a lifecycle-managed account gets no endpoints rather
+  than its own legacy custom endpoints, because routing archived accounts at
+  the custom-endpoint path would make archival the thing that keeps that path
+  alive.
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))

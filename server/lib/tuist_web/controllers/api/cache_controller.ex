@@ -20,7 +20,6 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
-  alias TuistWeb.Headers
   alias TuistWeb.RemoteIp
 
   plug(
@@ -107,7 +106,7 @@ defmodule TuistWeb.API.CacheController do
     %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
+      |> Accounts.get_cache_resolution_for_handle(RemoteIp.attributed_origin(conn))
 
     max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
@@ -141,14 +140,6 @@ defmodule TuistWeb.API.CacheController do
 
     if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
       account_handle
-    end
-  end
-
-  defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
     end
   end
 

@@ -15,14 +15,6 @@ defmodule Tuist.CacheEndpoints do
     |> Repo.all()
   end
 
-  @doc "Lists enabled cache endpoints ordered by display_name."
-  def list_active_cache_endpoints do
-    CacheEndpoint
-    |> where([c], c.enabled == true)
-    |> order_by(:display_name)
-    |> Repo.all()
-  end
-
   @doc "Gets a single cache endpoint by ID."
   def get_cache_endpoint(id) do
     case Repo.get(CacheEndpoint, id) do
@@ -52,21 +44,6 @@ defmodule Tuist.CacheEndpoints do
   @doc "Deletes a cache endpoint."
   def delete_cache_endpoint(%CacheEndpoint{} = endpoint) do
     Repo.delete(endpoint)
-  end
-
-  @doc "Returns active cache endpoint URLs. Uses secrets override if set, otherwise queries the database."
-  def active_endpoint_urls do
-    case Tuist.Environment.cache_endpoints() do
-      endpoints when is_list(endpoints) ->
-        endpoints
-
-      nil ->
-        if Tuist.Environment.tuist_hosted?() do
-          Enum.map(list_active_cache_endpoints(), & &1.url)
-        else
-          []
-        end
-    end
   end
 
   @doc "Toggles the enabled flag on a cache endpoint."
