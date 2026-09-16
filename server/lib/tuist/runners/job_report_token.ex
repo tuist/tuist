@@ -36,15 +36,12 @@ defmodule Tuist.Runners.JobReportToken do
 
   # The instance comes from the connection the job was acquired through. The
   # coordinator sets the project and ref protection in the job response, where
-  # CI variables cannot override them. A job without them gets no remote cache
-  # scope.
-  defp cache_scope(url, %{"job_info" => %{"project_id" => project_id}, "git_info" => git_info})
-       when is_binary(url) and is_integer(project_id) and is_map(git_info) do
-    %{
-      gitlab_instance: Cache.instance_id(url),
-      gitlab_project_id: project_id,
-      ref_protected: Map.get(git_info, "protected") == true
-    }
+  # CI variables cannot override them; CI_COMMIT_REF_PROTECTED can be, so it is
+  # never read. A job without them gets no remote cache scope rather than an
+  # assumed unprotected one.
+  defp cache_scope(url, %{"job_info" => %{"project_id" => project_id}, "git_info" => %{"protected" => protected?}})
+       when is_binary(url) and is_integer(project_id) and is_boolean(protected?) do
+    %{gitlab_instance: Cache.instance_id(url), gitlab_project_id: project_id, ref_protected: protected?}
   end
 
   defp cache_scope(_url, _payload), do: %{}

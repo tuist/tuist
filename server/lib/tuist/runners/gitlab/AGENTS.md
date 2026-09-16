@@ -41,7 +41,9 @@ assignment upstream if persistence fails.
   project ID and ref protection from the report token's claims, which
   `mint_acquisition` copies from the job's connection URL and the
   coordinator's `job_info`/`git_info`; never from the request or CI
-  variables. Keep protected and unprotected refs in separate key
+  variables. Pipelines can override `CI_COMMIT_REF_PROTECTED`, so read ref
+  protection only from `git_info.protected` (GitLab 18.3+), and give a job
+  without it no cache scope rather than assuming unprotected. Keep protected and unprotected refs in separate key
   namespaces for reads and writes. A token without those claims gets 404 and
   the job runs without a remote cache; storage failures are 503 so the
   executor retries.
