@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 import Mockable
 import OpenAPIRuntime
@@ -85,12 +86,18 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle
                 ),
+                headers: .init(tuist_hyphen_checksum_hyphen_sha256: Self.checksumSHA256(of: data)),
                 body: .binary(HTTPBody(data))
             )
         )
         switch response {
         case .noContent:
             return
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.badRequest(error.message)
+            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
@@ -129,5 +136,12 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
         case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)
         }
+    }
+
+    /// The digest of exactly the bytes sent, so the server can refuse a body
+    /// damaged after it was hashed. The CAS id is a hash of the uncompressed
+    /// content and cannot stand in for it.
+    static func checksumSHA256(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

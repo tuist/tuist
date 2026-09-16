@@ -488,6 +488,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/headers/tuist-checksum-sha256`.
+                    public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    public init(tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil) {
+                        self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadXcodeArtifact.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/content/application\/octet-stream`.
@@ -510,8 +526,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadXcodeArtifact.Output.Ok.Body) {
+                public init(
+                    headers: Operations.downloadXcodeArtifact.Output.Ok.Headers = .init(),
+                    body: Operations.downloadXcodeArtifact.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -549,17 +570,24 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/headers/etag`.
                     public var etag: Swift.String?
+                    /// Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/headers/tuist-checksum-sha256`.
+                    public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
                     /// Creates a new `Headers`.
                     ///
                     /// - Parameters:
                     ///   - content_hyphen_range: The range served, as `bytes <first>-<last>/<total>`
                     ///   - etag: The representation served, to be echoed in `If-Range` when resuming
+                    ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
                     public init(
                         content_hyphen_range: Swift.String? = nil,
-                        etag: Swift.String? = nil
+                        etag: Swift.String? = nil,
+                        tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil
                     ) {
                         self.content_hyphen_range = content_hyphen_range
                         self.etag = etag
+                        self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
                     }
                 }
                 /// Received HTTP response headers
@@ -1103,12 +1131,21 @@ public enum Operations {
             public var query: Operations.saveXcodeArtifact.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/header/tuist-checksum-sha256`.
+                public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveXcodeArtifact.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveXcodeArtifact.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveXcodeArtifact.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
                     self.accept = accept
                 }
             }
@@ -1169,6 +1206,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.saveXcodeArtifact.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.saveXcodeArtifact.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The declared tuist-checksum-sha256 is malformed
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveXcodeArtifact)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.saveXcodeArtifact.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.saveXcodeArtifact.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -1457,7 +1545,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Invalid request parameters
+            /// Invalid request parameters, or a body that does not match its declared tuist-checksum-sha256
             ///
             /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveXcodeArtifact)/responses/422`.
             ///
@@ -2016,6 +2104,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/200/headers/tuist-checksum-sha256`.
+                    public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+                    public init(tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil) {
+                        self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadGradleArtifact.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/200/content/application\/octet-stream`.
@@ -2038,8 +2142,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadGradleArtifact.Output.Ok.Body) {
+                public init(
+                    headers: Operations.downloadGradleArtifact.Output.Ok.Headers = .init(),
+                    body: Operations.downloadGradleArtifact.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -2482,17 +2591,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/PUT/header/content-length`.
                 public var content_hyphen_length: Swift.Int
+                /// Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/PUT/header/tuist-checksum-sha256`.
+                public var tuist_hyphen_checksum_hyphen_sha256: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveGradleArtifact.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - content_hyphen_length: Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes received against this value to reject truncated uploads, so chunked transfer encoding (no Content-Length) is not accepted on this endpoint.
+                ///   - tuist_hyphen_checksum_hyphen_sha256: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
                 ///   - accept:
                 public init(
                     content_hyphen_length: Swift.Int,
+                    tuist_hyphen_checksum_hyphen_sha256: Swift.String? = nil,
                     accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveGradleArtifact.AcceptableContentType>] = .defaultValues()
                 ) {
                     self.content_hyphen_length = content_hyphen_length
+                    self.tuist_hyphen_checksum_hyphen_sha256 = tuist_hyphen_checksum_hyphen_sha256
                     self.accept = accept
                 }
             }
@@ -2621,7 +2737,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Request body was truncated before reaching the declared Content-Length
+            /// Request body was truncated before reaching the declared Content-Length, or the declared tuist-checksum-sha256 is malformed
             ///
             /// - Remark: Generated from `#/paths//api/cache/gradle/{cache_key}/put(saveGradleArtifact)/responses/400`.
             ///
@@ -2927,7 +3043,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Invalid or missing request parameters (e.g., missing Content-Length header)
+            /// Invalid or missing request parameters (e.g., missing Content-Length header), or a body that does not match its declared tuist-checksum-sha256
             ///
             /// - Remark: Generated from `#/paths//api/cache/gradle/{cache_key}/put(saveGradleArtifact)/responses/422`.
             ///

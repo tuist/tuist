@@ -143,6 +143,14 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '206':
           content:
             application/octet-stream: {}
@@ -157,6 +165,13 @@ paths:
               style: simple
             etag:
               description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
               schema:
                 type: string
                 x-struct:
@@ -257,6 +272,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+          in: header
+          name: tuist-checksum-sha256
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/octet-stream: {}
@@ -265,6 +288,12 @@ paths:
       responses:
         '204':
           description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The declared tuist-checksum-sha256 is malformed
         '401':
           content:
             application/json:
@@ -300,7 +329,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request parameters
+          description: Invalid request parameters, or a body that does not match its declared tuist-checksum-sha256
         '500':
           content:
             application/json:
@@ -411,6 +440,14 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '401':
           content:
             application/json:
@@ -501,6 +538,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+          in: header
+          name: tuist-checksum-sha256
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/octet-stream: {}
@@ -516,7 +561,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Request body was truncated before reaching the declared Content-Length
+          description: Request body was truncated before reaching the declared Content-Length, or the declared tuist-checksum-sha256 is malformed
         '401':
           content:
             application/json:
@@ -552,7 +597,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid or missing request parameters (e.g., missing Content-Length header)
+          description: Invalid or missing request parameters (e.g., missing Content-Length header), or a body that does not match its declared tuist-checksum-sha256
         '500':
           content:
             application/json:

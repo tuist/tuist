@@ -167,9 +167,14 @@
                 // rebuild the artifact. `KeyValueService` has always mapped its
                 // equivalent to `.keyNotFound`; this lane never used the outcome
                 // the protocol provides for it.
+                // A body that fails its declared digest is a miss for the same reason:
+                // the object has to be rebuilt, not trusted or treated as a broken cache.
                 var isMiss = false
-                if let error = error as? LoadCacheCASServiceError, case .notFound = error {
-                    isMiss = true
+                if let error = error as? LoadCacheCASServiceError {
+                    switch error {
+                    case .notFound, .checksumMismatch: isMiss = true
+                    default: break
+                    }
                 }
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()

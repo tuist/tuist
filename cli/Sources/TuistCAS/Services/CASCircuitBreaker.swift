@@ -157,11 +157,15 @@
 
     /// Classifies a thrown CAS error as a backend-health signal. Errors that mean
     /// "the backend answered, this particular request just can't be served" — a 404
-    /// miss, or an artifact too large to upload — leave the breaker closed; every
+    /// miss, a body that fails its declared digest, or an artifact too large to
+    /// upload — leave the breaker closed; every
     /// other error (5xx, timeout, connection failure, auth) counts as unavailable.
     func casErrorIsBackendHealthy(_ error: Error) -> Bool {
-        if let error = error as? LoadCacheCASServiceError, case .notFound = error {
-            return true
+        if let error = error as? LoadCacheCASServiceError {
+            switch error {
+            case .notFound, .checksumMismatch: return true
+            default: break
+            }
         }
         if let error = error as? SaveCacheCASServiceError, case .contentTooLarge = error {
             return true
