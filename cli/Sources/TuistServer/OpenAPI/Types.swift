@@ -219,6 +219,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
     @available(*, deprecated)
     func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
+    /// Get a test run's code coverage.
+    ///
+    /// The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its baseline (the newest full run of the same scheme on the base branch at the merge base or the nearest ancestor of it) or why there is none.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)`.
+    func getTestRunCoverage(_ input: Operations.getTestRunCoverage.Input) async throws -> Operations.getTestRunCoverage.Output
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -338,6 +345,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/get(getBuild (2))`.
     func getBuild_space__lpar_2_rpar_(_ input: Operations.getBuild_space__lpar_2_rpar_.Input) async throws -> Operations.getBuild_space__lpar_2_rpar_.Output
+    /// List a test run's files with their coverage, least covered first.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)`.
+    func listTestRunCoverageFiles(_ input: Operations.listTestRunCoverageFiles.Input) async throws -> Operations.listTestRunCoverageFiles.Output
     /// List cacheable tasks for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
@@ -365,6 +377,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)`.
     func listCacheRuns(_ input: Operations.listCacheRuns.Input) async throws -> Operations.listCacheRuns.Output
+    /// List every branch's newest full-run coverage.
+    ///
+    /// For the given scheme (by default the one with most full runs on the default branch), every branch with a full run in the period, newest first, with its difference from the default branch in percentage points.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/branches`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)`.
+    func listCoverageBranches(_ input: Operations.listCoverageBranches.Input) async throws -> Operations.listCoverageBranches.Output
     /// List the steps for a runner job.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/steps`.
@@ -606,6 +625,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/notification-alerts/get(listProjectNotificationAlerts)`.
     func listProjectNotificationAlerts(_ input: Operations.listProjectNotificationAlerts.Input) async throws -> Operations.listProjectNotificationAlerts.Output
+    /// Get one file's coverage in a test run, line by line.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)`.
+    func getTestRunCoverageFile(_ input: Operations.getTestRunCoverageFile.Input) async throws -> Operations.getTestRunCoverageFile.Output
     /// It initiates a multipart upload in the cache.
     ///
     /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
@@ -763,6 +787,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{user_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws -> Operations.removeOrganizationMember.Output
+    /// Compare a test run's coverage with its baseline.
+    ///
+    /// The total delta (full runs only), the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)`.
+    func getTestRunCoverageComparison(_ input: Operations.getTestRunCoverageComparison.Input) async throws -> Operations.getTestRunCoverageComparison.Output
     /// List targets for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
@@ -826,6 +857,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/settings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/settings/get(getCoverageSettings)`.
     func getCoverageSettings(_ input: Operations.getCoverageSettings.Input) async throws -> Operations.getCoverageSettings.Output
+    /// Get a pull request's code coverage against its baseline.
+    ///
+    /// Every run of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `test_run_id`) with its baseline: deltas, patch coverage and gaps.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)`.
+    func getPullRequestCoverage(_ input: Operations.getPullRequestCoverage.Input) async throws -> Operations.getPullRequestCoverage.Output
     /// List Bazel remote-cache events for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events`.
@@ -1446,6 +1484,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get a test run's code coverage.
+    ///
+    /// The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its baseline (the newest full run of the same scheme on the base branch at the merge base or the nearest ancestor of it) or why there is none.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)`.
+    public func getTestRunCoverage(
+        path: Operations.getTestRunCoverage.Input.Path,
+        headers: Operations.getTestRunCoverage.Input.Headers = .init()
+    ) async throws -> Operations.getTestRunCoverage.Output {
+        try await getTestRunCoverage(Operations.getTestRunCoverage.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -1729,6 +1782,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List a test run's files with their coverage, least covered first.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)`.
+    public func listTestRunCoverageFiles(
+        path: Operations.listTestRunCoverageFiles.Input.Path,
+        query: Operations.listTestRunCoverageFiles.Input.Query = .init(),
+        headers: Operations.listTestRunCoverageFiles.Input.Headers = .init()
+    ) async throws -> Operations.listTestRunCoverageFiles.Output {
+        try await listTestRunCoverageFiles(Operations.listTestRunCoverageFiles.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// List cacheable tasks for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
@@ -1799,6 +1867,23 @@ extension APIProtocol {
         headers: Operations.listCacheRuns.Input.Headers = .init()
     ) async throws -> Operations.listCacheRuns.Output {
         try await listCacheRuns(Operations.listCacheRuns.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// List every branch's newest full-run coverage.
+    ///
+    /// For the given scheme (by default the one with most full runs on the default branch), every branch with a full run in the period, newest first, with its difference from the default branch in percentage points.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/branches`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)`.
+    public func listCoverageBranches(
+        path: Operations.listCoverageBranches.Input.Path,
+        query: Operations.listCoverageBranches.Input.Query = .init(),
+        headers: Operations.listCoverageBranches.Input.Headers = .init()
+    ) async throws -> Operations.listCoverageBranches.Output {
+        try await listCoverageBranches(Operations.listCoverageBranches.Input(
             path: path,
             query: query,
             headers: headers
@@ -2411,6 +2496,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get one file's coverage in a test run, line by line.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)`.
+    public func getTestRunCoverageFile(
+        path: Operations.getTestRunCoverageFile.Input.Path,
+        query: Operations.getTestRunCoverageFile.Input.Query,
+        headers: Operations.getTestRunCoverageFile.Input.Headers = .init()
+    ) async throws -> Operations.getTestRunCoverageFile.Output {
+        try await getTestRunCoverageFile(Operations.getTestRunCoverageFile.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// It initiates a multipart upload in the cache.
     ///
     /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
@@ -2788,6 +2888,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Compare a test run's coverage with its baseline.
+    ///
+    /// The total delta (full runs only), the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)`.
+    public func getTestRunCoverageComparison(
+        path: Operations.getTestRunCoverageComparison.Input.Path,
+        headers: Operations.getTestRunCoverageComparison.Input.Headers = .init()
+    ) async throws -> Operations.getTestRunCoverageComparison.Output {
+        try await getTestRunCoverageComparison(Operations.getTestRunCoverageComparison.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List targets for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
@@ -2948,6 +3063,23 @@ extension APIProtocol {
     ) async throws -> Operations.getCoverageSettings.Output {
         try await getCoverageSettings(Operations.getCoverageSettings.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// Get a pull request's code coverage against its baseline.
+    ///
+    /// Every run of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `test_run_id`) with its baseline: deltas, patch coverage and gaps.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)`.
+    public func getPullRequestCoverage(
+        path: Operations.getPullRequestCoverage.Input.Path,
+        query: Operations.getPullRequestCoverage.Input.Query = .init(),
+        headers: Operations.getPullRequestCoverage.Input.Headers = .init()
+    ) async throws -> Operations.getPullRequestCoverage.Output {
+        try await getPullRequestCoverage(Operations.getPullRequestCoverage.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -4606,6 +4738,595 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case hash
+            }
+        }
+        /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CoverageBaseline`.
+        public struct CoverageBaseline: Codable, Hashable, Sendable {
+            /// The base branch the baseline was taken from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/branch`.
+            public var branch: Swift.String
+            /// The commit the baseline run tested.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/commit`.
+            public var commit: Swift.String
+            /// Line coverage, in percent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/coverage`.
+            public var coverage: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/covered_lines`.
+            public var covered_lines: Swift.Int
+            /// How many commits before the merge base the baseline commit is (0 at the merge base).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/depth`.
+            public var depth: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/executable_lines`.
+            public var executable_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/ran_at`.
+            public var ran_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/CoverageBaseline/test_run_id`.
+            public var test_run_id: Swift.String
+            /// Creates a new `CoverageBaseline`.
+            ///
+            /// - Parameters:
+            ///   - branch: The base branch the baseline was taken from.
+            ///   - commit: The commit the baseline run tested.
+            ///   - coverage: Line coverage, in percent.
+            ///   - covered_lines:
+            ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+            ///   - executable_lines:
+            ///   - ran_at:
+            ///   - test_run_id:
+            public init(
+                branch: Swift.String,
+                commit: Swift.String,
+                coverage: Swift.Double,
+                covered_lines: Swift.Int,
+                depth: Swift.Int,
+                executable_lines: Swift.Int,
+                ran_at: Foundation.Date? = nil,
+                test_run_id: Swift.String
+            ) {
+                self.branch = branch
+                self.commit = commit
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.depth = depth
+                self.executable_lines = executable_lines
+                self.ran_at = ran_at
+                self.test_run_id = test_run_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case branch
+                case commit
+                case coverage
+                case covered_lines
+                case depth
+                case executable_lines
+                case ran_at
+                case test_run_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CoverageComparison`.
+        public struct CoverageComparison: Codable, Hashable, Sendable {
+            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline`.
+            public struct baselinePayload: Codable, Hashable, Sendable {
+                /// The base branch the baseline was taken from.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/branch`.
+                public var branch: Swift.String
+                /// The commit the baseline run tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/commit`.
+                public var commit: Swift.String
+                /// Line coverage, in percent.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/depth`.
+                public var depth: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/ran_at`.
+                public var ran_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `baselinePayload`.
+                ///
+                /// - Parameters:
+                ///   - branch: The base branch the baseline was taken from.
+                ///   - commit: The commit the baseline run tested.
+                ///   - coverage: Line coverage, in percent.
+                ///   - covered_lines:
+                ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                ///   - executable_lines:
+                ///   - ran_at:
+                ///   - test_run_id:
+                public init(
+                    branch: Swift.String,
+                    commit: Swift.String,
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    depth: Swift.Int,
+                    executable_lines: Swift.Int,
+                    ran_at: Foundation.Date? = nil,
+                    test_run_id: Swift.String
+                ) {
+                    self.branch = branch
+                    self.commit = commit
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.depth = depth
+                    self.executable_lines = executable_lines
+                    self.ran_at = ran_at
+                    self.test_run_id = test_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case branch
+                    case commit
+                    case coverage
+                    case covered_lines
+                    case depth
+                    case executable_lines
+                    case ran_at
+                    case test_run_id
+                }
+            }
+            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline`.
+            public var baseline: Components.Schemas.CoverageComparison.baselinePayload?
+            /// Why a figure is missing: a machine-readable kind and a sentence.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason`.
+            public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason/kind`.
+                public var kind: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason/message`.
+                public var message: Swift.String
+                /// Creates a new `baseline_reasonPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - message:
+                public init(
+                    kind: Swift.String,
+                    message: Swift.String
+                ) {
+                    self.kind = kind
+                    self.message = message
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case message
+                }
+            }
+            /// Why a figure is missing: a machine-readable kind and a sentence.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason`.
+            public var baseline_reason: Components.Schemas.CoverageComparison.baseline_reasonPayload?
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// Null when only the run has the entry, or there is no baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/baseline_coverage`.
+                public var baseline_coverage: Swift.Double?
+                /// Null when only the baseline has the entry.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/coverage`.
+                public var coverage: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int?
+                /// Percentage points; null when the entry cannot be compared.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/delta`.
+                public var delta: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/filesPayload/path`.
+                public var path: Swift.String?
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                ///   - coverage: Null when only the baseline has the entry.
+                ///   - covered_lines:
+                ///   - delta: Percentage points; null when the entry cannot be compared.
+                ///   - executable_lines:
+                ///   - path:
+                public init(
+                    baseline_coverage: Swift.Double? = nil,
+                    coverage: Swift.Double? = nil,
+                    covered_lines: Swift.Int? = nil,
+                    delta: Swift.Double? = nil,
+                    executable_lines: Swift.Int? = nil,
+                    path: Swift.String? = nil
+                ) {
+                    self.baseline_coverage = baseline_coverage
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.delta = delta
+                    self.executable_lines = executable_lines
+                    self.path = path
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case baseline_coverage
+                    case coverage
+                    case covered_lines
+                    case delta
+                    case executable_lines
+                    case path
+                }
+            }
+            /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/files`.
+            public typealias filesPayload = [Components.Schemas.CoverageComparison.filesPayloadPayload]
+            /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/files`.
+            public var files: Components.Schemas.CoverageComparison.filesPayload
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/gapsPayload`.
+            public struct gapsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/gapsPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/gapsPayload/path`.
+                public var path: Swift.String
+                /// Creates a new `gapsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - executable_lines:
+                ///   - path:
+                public init(
+                    executable_lines: Swift.Int,
+                    path: Swift.String
+                ) {
+                    self.executable_lines = executable_lines
+                    self.path = path
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case executable_lines
+                    case path
+                }
+            }
+            /// Changed files with executable lines in their hunks none of which ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/gaps`.
+            public typealias gapsPayload = [Components.Schemas.CoverageComparison.gapsPayloadPayload]
+            /// Changed files with executable lines in their hunks none of which ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/gaps`.
+            public var gaps: Components.Schemas.CoverageComparison.gapsPayload
+            /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch`.
+            public struct patchPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/coverage`.
+                public var coverage: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/covered_lines`.
+                public var covered_lines: Swift.Int?
+                /// Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/executable_lines`.
+                public var executable_lines: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload`.
+                public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/coverage`.
+                    public var coverage: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/path`.
+                    public var path: Swift.String
+                    /// `added`, `modified` or `renamed`.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/status`.
+                    public var status: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/filesPayload/uncovered_ranges`.
+                    public var uncovered_ranges: [[Swift.Int]]
+                    /// Creates a new `filesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - coverage:
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - path:
+                    ///   - status: `added`, `modified` or `renamed`.
+                    ///   - uncovered_ranges:
+                    public init(
+                        coverage: Swift.Double,
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        path: Swift.String,
+                        status: Swift.String,
+                        uncovered_ranges: [[Swift.Int]]
+                    ) {
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.path = path
+                        self.status = status
+                        self.uncovered_ranges = uncovered_ranges
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case coverage
+                        case covered_lines
+                        case executable_lines
+                        case path
+                        case status
+                        case uncovered_ranges
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/files`.
+                public typealias filesPayload = [Components.Schemas.CoverageComparison.patchPayload.filesPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/files`.
+                public var files: Components.Schemas.CoverageComparison.patchPayload.filesPayload?
+                /// Present when unavailable.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason`.
+                public struct reasonPayload: Codable, Hashable, Sendable {
+                    /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason/kind`.
+                    public var kind: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason/message`.
+                    public var message: Swift.String
+                    /// Creates a new `reasonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///   - message:
+                    public init(
+                        kind: Swift.String,
+                        message: Swift.String
+                    ) {
+                        self.kind = kind
+                        self.message = message
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case kind
+                        case message
+                    }
+                }
+                /// Present when unavailable.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason`.
+                public var reason: Components.Schemas.CoverageComparison.patchPayload.reasonPayload?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skippedPayload`.
+                public struct skippedPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skippedPayload/path`.
+                    public var path: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skippedPayload/reason`.
+                    public var reason: Swift.String
+                    /// Creates a new `skippedPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - path:
+                    ///   - reason:
+                    public init(
+                        path: Swift.String,
+                        reason: Swift.String
+                    ) {
+                        self.path = path
+                        self.reason = reason
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case path
+                        case reason
+                    }
+                }
+                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skipped`.
+                public typealias skippedPayload = [Components.Schemas.CoverageComparison.patchPayload.skippedPayloadPayload]
+                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skipped`.
+                public var skipped: Components.Schemas.CoverageComparison.patchPayload.skippedPayload?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case available = "available"
+                    case unavailable = "unavailable"
+                }
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/status`.
+                public var status: Components.Schemas.CoverageComparison.patchPayload.statusPayload
+                /// Creates a new `patchPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                ///   - files:
+                ///   - reason: Present when unavailable.
+                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                ///   - status:
+                public init(
+                    coverage: Swift.Double? = nil,
+                    covered_lines: Swift.Int? = nil,
+                    executable_lines: Swift.Int? = nil,
+                    files: Components.Schemas.CoverageComparison.patchPayload.filesPayload? = nil,
+                    reason: Components.Schemas.CoverageComparison.patchPayload.reasonPayload? = nil,
+                    skipped: Components.Schemas.CoverageComparison.patchPayload.skippedPayload? = nil,
+                    status: Components.Schemas.CoverageComparison.patchPayload.statusPayload
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.files = files
+                    self.reason = reason
+                    self.skipped = skipped
+                    self.status = status
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case files
+                    case reason
+                    case skipped
+                    case status
+                }
+            }
+            /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch`.
+            public var patch: Components.Schemas.CoverageComparison.patchPayload
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/run`.
+            public struct runPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/run/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/run/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/run/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/run/id`.
+                public var id: Swift.String
+                /// Whether the run left tests out on purpose; a partial run has no total delta.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/run/partial`.
+                public var partial: Swift.Bool
+                /// Creates a new `runPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines:
+                ///   - id:
+                ///   - partial: Whether the run left tests out on purpose; a partial run has no total delta.
+                public init(
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    id: Swift.String,
+                    partial: Swift.Bool
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.id = id
+                    self.partial = partial
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case id
+                    case partial
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/run`.
+            public var run: Components.Schemas.CoverageComparison.runPayload
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload`.
+            public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                /// Null when only the run has the entry, or there is no baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/baseline_coverage`.
+                public var baseline_coverage: Swift.Double?
+                /// Null when only the baseline has the entry.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/coverage`.
+                public var coverage: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/covered_lines`.
+                public var covered_lines: Swift.Int?
+                /// Percentage points; null when the entry cannot be compared.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/delta`.
+                public var delta: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/executable_lines`.
+                public var executable_lines: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/CoverageComparison/targetsPayload/name`.
+                public var name: Swift.String?
+                /// Creates a new `targetsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                ///   - coverage: Null when only the baseline has the entry.
+                ///   - covered_lines:
+                ///   - delta: Percentage points; null when the entry cannot be compared.
+                ///   - executable_lines:
+                ///   - name:
+                public init(
+                    baseline_coverage: Swift.Double? = nil,
+                    coverage: Swift.Double? = nil,
+                    covered_lines: Swift.Int? = nil,
+                    delta: Swift.Double? = nil,
+                    executable_lines: Swift.Int? = nil,
+                    name: Swift.String? = nil
+                ) {
+                    self.baseline_coverage = baseline_coverage
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.delta = delta
+                    self.executable_lines = executable_lines
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case baseline_coverage
+                    case coverage
+                    case covered_lines
+                    case delta
+                    case executable_lines
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/targets`.
+            public typealias targetsPayload = [Components.Schemas.CoverageComparison.targetsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/targets`.
+            public var targets: Components.Schemas.CoverageComparison.targetsPayload
+            /// Percentage points against the baseline; null on a partial run or without a baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageComparison/total_delta`.
+            public var total_delta: Swift.Double?
+            /// Creates a new `CoverageComparison`.
+            ///
+            /// - Parameters:
+            ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+            ///   - files: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+            ///   - gaps: Changed files with executable lines in their hunks none of which ran.
+            ///   - patch: The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+            ///   - run:
+            ///   - targets:
+            ///   - total_delta: Percentage points against the baseline; null on a partial run or without a baseline.
+            public init(
+                baseline: Components.Schemas.CoverageComparison.baselinePayload? = nil,
+                baseline_reason: Components.Schemas.CoverageComparison.baseline_reasonPayload? = nil,
+                files: Components.Schemas.CoverageComparison.filesPayload,
+                gaps: Components.Schemas.CoverageComparison.gapsPayload,
+                patch: Components.Schemas.CoverageComparison.patchPayload,
+                run: Components.Schemas.CoverageComparison.runPayload,
+                targets: Components.Schemas.CoverageComparison.targetsPayload,
+                total_delta: Swift.Double? = nil
+            ) {
+                self.baseline = baseline
+                self.baseline_reason = baseline_reason
+                self.files = files
+                self.gaps = gaps
+                self.patch = patch
+                self.run = run
+                self.targets = targets
+                self.total_delta = total_delta
+            }
+            public enum CodingKeys: String, CodingKey {
+                case baseline
+                case baseline_reason
+                case files
+                case gaps
+                case patch
+                case run
+                case targets
+                case total_delta
             }
         }
         /// Token to authenticate the user with.
@@ -6580,6 +7301,309 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestTargetsPageSize`.
         public typealias TestTargetsPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/TestRunCoverage`.
+        public struct TestRunCoverage: Codable, Hashable, Sendable {
+            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline`.
+            public struct baselinePayload: Codable, Hashable, Sendable {
+                /// The base branch the baseline was taken from.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/branch`.
+                public var branch: Swift.String
+                /// The commit the baseline run tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/commit`.
+                public var commit: Swift.String
+                /// Line coverage, in percent.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/depth`.
+                public var depth: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/ran_at`.
+                public var ran_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `baselinePayload`.
+                ///
+                /// - Parameters:
+                ///   - branch: The base branch the baseline was taken from.
+                ///   - commit: The commit the baseline run tested.
+                ///   - coverage: Line coverage, in percent.
+                ///   - covered_lines:
+                ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                ///   - executable_lines:
+                ///   - ran_at:
+                ///   - test_run_id:
+                public init(
+                    branch: Swift.String,
+                    commit: Swift.String,
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    depth: Swift.Int,
+                    executable_lines: Swift.Int,
+                    ran_at: Foundation.Date? = nil,
+                    test_run_id: Swift.String
+                ) {
+                    self.branch = branch
+                    self.commit = commit
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.depth = depth
+                    self.executable_lines = executable_lines
+                    self.ran_at = ran_at
+                    self.test_run_id = test_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case branch
+                    case commit
+                    case coverage
+                    case covered_lines
+                    case depth
+                    case executable_lines
+                    case ran_at
+                    case test_run_id
+                }
+            }
+            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline`.
+            public var baseline: Components.Schemas.TestRunCoverage.baselinePayload?
+            /// Why a figure is missing: a machine-readable kind and a sentence.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason`.
+            public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason/kind`.
+                public var kind: Swift.String
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason/message`.
+                public var message: Swift.String
+                /// Creates a new `baseline_reasonPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - message:
+                public init(
+                    kind: Swift.String,
+                    message: Swift.String
+                ) {
+                    self.kind = kind
+                    self.message = message
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case message
+                }
+            }
+            /// Why a figure is missing: a machine-readable kind and a sentence.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason`.
+            public var baseline_reason: Components.Schemas.TestRunCoverage.baseline_reasonPayload?
+            /// Line coverage over the run's product files, in percent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/coverage`.
+            public var coverage: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/covered_lines`.
+            public var covered_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/executable_lines`.
+            public var executable_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_branch`.
+            public var git_branch: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_commit_sha`.
+            public var git_commit_sha: Swift.String
+            /// Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history`.
+            public struct git_historyPayload: Codable, Hashable, Sendable {
+                /// The branch the run's commit will merge into; empty when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/base_branch`.
+                public var base_branch: Swift.String
+                /// `sha1` or `sha256`; empty when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/git_object_format`.
+                public var git_object_format: Swift.String
+                /// What could not be collected, and why; empty when everything was.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/history_fallback_reason`.
+                public var history_fallback_reason: Swift.String
+                /// `client`, `provider`, `mixed` or `none`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/history_source`.
+                public var history_source: Swift.String
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/is_pull_request`.
+                public var is_pull_request: Swift.Bool
+                /// The merge base with the base branch; empty when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/merge_base_sha`.
+                public var merge_base_sha: Swift.String
+                /// 0 when the run is not a pull request's.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history/pull_request_number`.
+                public var pull_request_number: Swift.Int
+                /// Creates a new `git_historyPayload`.
+                ///
+                /// - Parameters:
+                ///   - base_branch: The branch the run's commit will merge into; empty when unknown.
+                ///   - git_object_format: `sha1` or `sha256`; empty when unknown.
+                ///   - history_fallback_reason: What could not be collected, and why; empty when everything was.
+                ///   - history_source: `client`, `provider`, `mixed` or `none`.
+                ///   - is_pull_request:
+                ///   - merge_base_sha: The merge base with the base branch; empty when unknown.
+                ///   - pull_request_number: 0 when the run is not a pull request's.
+                public init(
+                    base_branch: Swift.String,
+                    git_object_format: Swift.String,
+                    history_fallback_reason: Swift.String,
+                    history_source: Swift.String,
+                    is_pull_request: Swift.Bool,
+                    merge_base_sha: Swift.String,
+                    pull_request_number: Swift.Int
+                ) {
+                    self.base_branch = base_branch
+                    self.git_object_format = git_object_format
+                    self.history_fallback_reason = history_fallback_reason
+                    self.history_source = history_source
+                    self.is_pull_request = is_pull_request
+                    self.merge_base_sha = merge_base_sha
+                    self.pull_request_number = pull_request_number
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case base_branch
+                    case git_object_format
+                    case history_fallback_reason
+                    case history_source
+                    case is_pull_request
+                    case merge_base_sha
+                    case pull_request_number
+                }
+            }
+            /// Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_history`.
+            public var git_history: Components.Schemas.TestRunCoverage.git_historyPayload
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/partial`.
+            public var partial: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/ran_at`.
+            public var ran_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/scheme`.
+            public var scheme: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload`.
+            public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload/files_count`.
+                public var files_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targetsPayload/name`.
+                public var name: Swift.String
+                /// Creates a new `targetsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines:
+                ///   - files_count:
+                ///   - name:
+                public init(
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    files_count: Swift.Int,
+                    name: Swift.String
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.files_count = files_count
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case files_count
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targets`.
+            public typealias targetsPayload = [Components.Schemas.TestRunCoverage.targetsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/targets`.
+            public var targets: Components.Schemas.TestRunCoverage.targetsPayload
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/test_run_id`.
+            public var test_run_id: Swift.String
+            /// Creates a new `TestRunCoverage`.
+            ///
+            /// - Parameters:
+            ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+            ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+            ///   - coverage: Line coverage over the run's product files, in percent.
+            ///   - covered_lines:
+            ///   - executable_lines:
+            ///   - git_branch:
+            ///   - git_commit_sha:
+            ///   - git_history: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+            ///   - partial:
+            ///   - ran_at:
+            ///   - scheme:
+            ///   - targets:
+            ///   - test_run_id:
+            public init(
+                baseline: Components.Schemas.TestRunCoverage.baselinePayload? = nil,
+                baseline_reason: Components.Schemas.TestRunCoverage.baseline_reasonPayload? = nil,
+                coverage: Swift.Double,
+                covered_lines: Swift.Int,
+                executable_lines: Swift.Int,
+                git_branch: Swift.String,
+                git_commit_sha: Swift.String,
+                git_history: Components.Schemas.TestRunCoverage.git_historyPayload,
+                partial: Swift.Bool,
+                ran_at: Foundation.Date? = nil,
+                scheme: Swift.String,
+                targets: Components.Schemas.TestRunCoverage.targetsPayload,
+                test_run_id: Swift.String
+            ) {
+                self.baseline = baseline
+                self.baseline_reason = baseline_reason
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.executable_lines = executable_lines
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_history = git_history
+                self.partial = partial
+                self.ran_at = ran_at
+                self.scheme = scheme
+                self.targets = targets
+                self.test_run_id = test_run_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case baseline
+                case baseline_reason
+                case coverage
+                case covered_lines
+                case executable_lines
+                case git_branch
+                case git_commit_sha
+                case git_history
+                case partial
+                case ran_at
+                case scheme
+                case targets
+                case test_run_id
+            }
+        }
         /// Represents an action item stored in the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
@@ -7849,6 +8873,177 @@ public enum Components {
                 case project_id
                 case state
                 case suite_name
+            }
+        }
+        /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PatchCoverage`.
+        public struct PatchCoverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/coverage`.
+            public var coverage: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/covered_lines`.
+            public var covered_lines: Swift.Int?
+            /// Changed lines the compiler instrumented; 0 when the change touched no executable line.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/executable_lines`.
+            public var executable_lines: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/path`.
+                public var path: Swift.String
+                /// `added`, `modified` or `renamed`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/status`.
+                public var status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/filesPayload/uncovered_ranges`.
+                public var uncovered_ranges: [[Swift.Int]]
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines:
+                ///   - path:
+                ///   - status: `added`, `modified` or `renamed`.
+                ///   - uncovered_ranges:
+                public init(
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    path: Swift.String,
+                    status: Swift.String,
+                    uncovered_ranges: [[Swift.Int]]
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.path = path
+                    self.status = status
+                    self.uncovered_ranges = uncovered_ranges
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case path
+                    case status
+                    case uncovered_ranges
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/files`.
+            public typealias filesPayload = [Components.Schemas.PatchCoverage.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/files`.
+            public var files: Components.Schemas.PatchCoverage.filesPayload?
+            /// Present when unavailable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason`.
+            public struct reasonPayload: Codable, Hashable, Sendable {
+                /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason/kind`.
+                public var kind: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason/message`.
+                public var message: Swift.String
+                /// Creates a new `reasonPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - message:
+                public init(
+                    kind: Swift.String,
+                    message: Swift.String
+                ) {
+                    self.kind = kind
+                    self.message = message
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case message
+                }
+            }
+            /// Present when unavailable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason`.
+            public var reason: Components.Schemas.PatchCoverage.reasonPayload?
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/skippedPayload`.
+            public struct skippedPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/skippedPayload/path`.
+                public var path: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PatchCoverage/skippedPayload/reason`.
+                public var reason: Swift.String
+                /// Creates a new `skippedPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - path:
+                ///   - reason:
+                public init(
+                    path: Swift.String,
+                    reason: Swift.String
+                ) {
+                    self.path = path
+                    self.reason = reason
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case path
+                    case reason
+                }
+            }
+            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/skipped`.
+            public typealias skippedPayload = [Components.Schemas.PatchCoverage.skippedPayloadPayload]
+            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/skipped`.
+            public var skipped: Components.Schemas.PatchCoverage.skippedPayload?
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/PatchCoverage/status`.
+            public var status: Components.Schemas.PatchCoverage.statusPayload
+            /// Creates a new `PatchCoverage`.
+            ///
+            /// - Parameters:
+            ///   - coverage:
+            ///   - covered_lines:
+            ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+            ///   - files:
+            ///   - reason: Present when unavailable.
+            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            ///   - status:
+            public init(
+                coverage: Swift.Double? = nil,
+                covered_lines: Swift.Int? = nil,
+                executable_lines: Swift.Int? = nil,
+                files: Components.Schemas.PatchCoverage.filesPayload? = nil,
+                reason: Components.Schemas.PatchCoverage.reasonPayload? = nil,
+                skipped: Components.Schemas.PatchCoverage.skippedPayload? = nil,
+                status: Components.Schemas.PatchCoverage.statusPayload
+            ) {
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.executable_lines = executable_lines
+                self.files = files
+                self.reason = reason
+                self.skipped = skipped
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case coverage
+                case covered_lines
+                case executable_lines
+                case files
+                case reason
+                case skipped
+                case status
             }
         }
         /// A paginated list of test case runs.
@@ -11223,6 +12418,73 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexBefore`.
         public typealias RunsIndexBefore = Swift.String
+        /// Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestRunGitHistory`.
+        public struct TestRunGitHistory: Codable, Hashable, Sendable {
+            /// The branch the run's commit will merge into; empty when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/base_branch`.
+            public var base_branch: Swift.String
+            /// `sha1` or `sha256`; empty when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/git_object_format`.
+            public var git_object_format: Swift.String
+            /// What could not be collected, and why; empty when everything was.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/history_fallback_reason`.
+            public var history_fallback_reason: Swift.String
+            /// `client`, `provider`, `mixed` or `none`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/history_source`.
+            public var history_source: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/is_pull_request`.
+            public var is_pull_request: Swift.Bool
+            /// The merge base with the base branch; empty when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/merge_base_sha`.
+            public var merge_base_sha: Swift.String
+            /// 0 when the run is not a pull request's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunGitHistory/pull_request_number`.
+            public var pull_request_number: Swift.Int
+            /// Creates a new `TestRunGitHistory`.
+            ///
+            /// - Parameters:
+            ///   - base_branch: The branch the run's commit will merge into; empty when unknown.
+            ///   - git_object_format: `sha1` or `sha256`; empty when unknown.
+            ///   - history_fallback_reason: What could not be collected, and why; empty when everything was.
+            ///   - history_source: `client`, `provider`, `mixed` or `none`.
+            ///   - is_pull_request:
+            ///   - merge_base_sha: The merge base with the base branch; empty when unknown.
+            ///   - pull_request_number: 0 when the run is not a pull request's.
+            public init(
+                base_branch: Swift.String,
+                git_object_format: Swift.String,
+                history_fallback_reason: Swift.String,
+                history_source: Swift.String,
+                is_pull_request: Swift.Bool,
+                merge_base_sha: Swift.String,
+                pull_request_number: Swift.Int
+            ) {
+                self.base_branch = base_branch
+                self.git_object_format = git_object_format
+                self.history_fallback_reason = history_fallback_reason
+                self.history_source = history_source
+                self.is_pull_request = is_pull_request
+                self.merge_base_sha = merge_base_sha
+                self.pull_request_number = pull_request_number
+            }
+            public enum CodingKeys: String, CodingKey {
+                case base_branch
+                case git_object_format
+                case history_fallback_reason
+                case history_source
+                case is_pull_request
+                case merge_base_sha
+                case pull_request_number
+            }
+        }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
@@ -11332,6 +12594,628 @@ public enum Components {
                 case test_case_run_attachment_id
                 case test_case_run_id
                 case triggered_thread_frames
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage`.
+        public struct PullRequestCoverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison`.
+            public struct comparisonPayload: Codable, Hashable, Sendable {
+                /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline`.
+                public struct baselinePayload: Codable, Hashable, Sendable {
+                    /// The base branch the baseline was taken from.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/branch`.
+                    public var branch: Swift.String
+                    /// The commit the baseline run tested.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/commit`.
+                    public var commit: Swift.String
+                    /// Line coverage, in percent.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/coverage`.
+                    public var coverage: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/depth`.
+                    public var depth: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/ran_at`.
+                    public var ran_at: Foundation.Date?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline/test_run_id`.
+                    public var test_run_id: Swift.String
+                    /// Creates a new `baselinePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - branch: The base branch the baseline was taken from.
+                    ///   - commit: The commit the baseline run tested.
+                    ///   - coverage: Line coverage, in percent.
+                    ///   - covered_lines:
+                    ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                    ///   - executable_lines:
+                    ///   - ran_at:
+                    ///   - test_run_id:
+                    public init(
+                        branch: Swift.String,
+                        commit: Swift.String,
+                        coverage: Swift.Double,
+                        covered_lines: Swift.Int,
+                        depth: Swift.Int,
+                        executable_lines: Swift.Int,
+                        ran_at: Foundation.Date? = nil,
+                        test_run_id: Swift.String
+                    ) {
+                        self.branch = branch
+                        self.commit = commit
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.depth = depth
+                        self.executable_lines = executable_lines
+                        self.ran_at = ran_at
+                        self.test_run_id = test_run_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case branch
+                        case commit
+                        case coverage
+                        case covered_lines
+                        case depth
+                        case executable_lines
+                        case ran_at
+                        case test_run_id
+                    }
+                }
+                /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline`.
+                public var baseline: Components.Schemas.PullRequestCoverage.comparisonPayload.baselinePayload?
+                /// Why a figure is missing: a machine-readable kind and a sentence.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason`.
+                public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                    /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason/kind`.
+                    public var kind: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason/message`.
+                    public var message: Swift.String
+                    /// Creates a new `baseline_reasonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///   - message:
+                    public init(
+                        kind: Swift.String,
+                        message: Swift.String
+                    ) {
+                        self.kind = kind
+                        self.message = message
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case kind
+                        case message
+                    }
+                }
+                /// Why a figure is missing: a machine-readable kind and a sentence.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason`.
+                public var baseline_reason: Components.Schemas.PullRequestCoverage.comparisonPayload.baseline_reasonPayload?
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload`.
+                public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                    /// Null when only the run has the entry, or there is no baseline.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/baseline_coverage`.
+                    public var baseline_coverage: Swift.Double?
+                    /// Null when only the baseline has the entry.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/coverage`.
+                    public var coverage: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/covered_lines`.
+                    public var covered_lines: Swift.Int?
+                    /// Percentage points; null when the entry cannot be compared.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/delta`.
+                    public var delta: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/executable_lines`.
+                    public var executable_lines: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/filesPayload/path`.
+                    public var path: Swift.String?
+                    /// Creates a new `filesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                    ///   - coverage: Null when only the baseline has the entry.
+                    ///   - covered_lines:
+                    ///   - delta: Percentage points; null when the entry cannot be compared.
+                    ///   - executable_lines:
+                    ///   - path:
+                    public init(
+                        baseline_coverage: Swift.Double? = nil,
+                        coverage: Swift.Double? = nil,
+                        covered_lines: Swift.Int? = nil,
+                        delta: Swift.Double? = nil,
+                        executable_lines: Swift.Int? = nil,
+                        path: Swift.String? = nil
+                    ) {
+                        self.baseline_coverage = baseline_coverage
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.delta = delta
+                        self.executable_lines = executable_lines
+                        self.path = path
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case baseline_coverage
+                        case coverage
+                        case covered_lines
+                        case delta
+                        case executable_lines
+                        case path
+                    }
+                }
+                /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/files`.
+                public typealias filesPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.filesPayloadPayload]
+                /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/files`.
+                public var files: Components.Schemas.PullRequestCoverage.comparisonPayload.filesPayload
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/gapsPayload`.
+                public struct gapsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/gapsPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/gapsPayload/path`.
+                    public var path: Swift.String
+                    /// Creates a new `gapsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - executable_lines:
+                    ///   - path:
+                    public init(
+                        executable_lines: Swift.Int,
+                        path: Swift.String
+                    ) {
+                        self.executable_lines = executable_lines
+                        self.path = path
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case executable_lines
+                        case path
+                    }
+                }
+                /// Changed files with executable lines in their hunks none of which ran.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/gaps`.
+                public typealias gapsPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.gapsPayloadPayload]
+                /// Changed files with executable lines in their hunks none of which ran.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/gaps`.
+                public var gaps: Components.Schemas.PullRequestCoverage.comparisonPayload.gapsPayload
+                /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch`.
+                public struct patchPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/coverage`.
+                    public var coverage: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/covered_lines`.
+                    public var covered_lines: Swift.Int?
+                    /// Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/executable_lines`.
+                    public var executable_lines: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload`.
+                    public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/coverage`.
+                        public var coverage: Swift.Double
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/covered_lines`.
+                        public var covered_lines: Swift.Int
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/executable_lines`.
+                        public var executable_lines: Swift.Int
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/path`.
+                        public var path: Swift.String
+                        /// `added`, `modified` or `renamed`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/status`.
+                        public var status: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/filesPayload/uncovered_ranges`.
+                        public var uncovered_ranges: [[Swift.Int]]
+                        /// Creates a new `filesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - coverage:
+                        ///   - covered_lines:
+                        ///   - executable_lines:
+                        ///   - path:
+                        ///   - status: `added`, `modified` or `renamed`.
+                        ///   - uncovered_ranges:
+                        public init(
+                            coverage: Swift.Double,
+                            covered_lines: Swift.Int,
+                            executable_lines: Swift.Int,
+                            path: Swift.String,
+                            status: Swift.String,
+                            uncovered_ranges: [[Swift.Int]]
+                        ) {
+                            self.coverage = coverage
+                            self.covered_lines = covered_lines
+                            self.executable_lines = executable_lines
+                            self.path = path
+                            self.status = status
+                            self.uncovered_ranges = uncovered_ranges
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case coverage
+                            case covered_lines
+                            case executable_lines
+                            case path
+                            case status
+                            case uncovered_ranges
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/files`.
+                    public typealias filesPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.filesPayloadPayload]
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/files`.
+                    public var files: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.filesPayload?
+                    /// Present when unavailable.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason`.
+                    public struct reasonPayload: Codable, Hashable, Sendable {
+                        /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason/kind`.
+                        public var kind: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason/message`.
+                        public var message: Swift.String
+                        /// Creates a new `reasonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                        ///   - message:
+                        public init(
+                            kind: Swift.String,
+                            message: Swift.String
+                        ) {
+                            self.kind = kind
+                            self.message = message
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case kind
+                            case message
+                        }
+                    }
+                    /// Present when unavailable.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason`.
+                    public var reason: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.reasonPayload?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skippedPayload`.
+                    public struct skippedPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skippedPayload/path`.
+                        public var path: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skippedPayload/reason`.
+                        public var reason: Swift.String
+                        /// Creates a new `skippedPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - path:
+                        ///   - reason:
+                        public init(
+                            path: Swift.String,
+                            reason: Swift.String
+                        ) {
+                            self.path = path
+                            self.reason = reason
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case path
+                            case reason
+                        }
+                    }
+                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skipped`.
+                    public typealias skippedPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.skippedPayloadPayload]
+                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skipped`.
+                    public var skipped: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.skippedPayload?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case available = "available"
+                        case unavailable = "unavailable"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/status`.
+                    public var status: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.statusPayload
+                    /// Creates a new `patchPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - coverage:
+                    ///   - covered_lines:
+                    ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                    ///   - files:
+                    ///   - reason: Present when unavailable.
+                    ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    ///   - status:
+                    public init(
+                        coverage: Swift.Double? = nil,
+                        covered_lines: Swift.Int? = nil,
+                        executable_lines: Swift.Int? = nil,
+                        files: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.filesPayload? = nil,
+                        reason: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.reasonPayload? = nil,
+                        skipped: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.skippedPayload? = nil,
+                        status: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.statusPayload
+                    ) {
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.files = files
+                        self.reason = reason
+                        self.skipped = skipped
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case coverage
+                        case covered_lines
+                        case executable_lines
+                        case files
+                        case reason
+                        case skipped
+                        case status
+                    }
+                }
+                /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch`.
+                public var patch: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run`.
+                public struct runPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run/coverage`.
+                    public var coverage: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run/id`.
+                    public var id: Swift.String
+                    /// Whether the run left tests out on purpose; a partial run has no total delta.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run/partial`.
+                    public var partial: Swift.Bool
+                    /// Creates a new `runPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - coverage:
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - id:
+                    ///   - partial: Whether the run left tests out on purpose; a partial run has no total delta.
+                    public init(
+                        coverage: Swift.Double,
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        id: Swift.String,
+                        partial: Swift.Bool
+                    ) {
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.id = id
+                        self.partial = partial
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case coverage
+                        case covered_lines
+                        case executable_lines
+                        case id
+                        case partial
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/run`.
+                public var run: Components.Schemas.PullRequestCoverage.comparisonPayload.runPayload
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload`.
+                public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                    /// Null when only the run has the entry, or there is no baseline.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/baseline_coverage`.
+                    public var baseline_coverage: Swift.Double?
+                    /// Null when only the baseline has the entry.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/coverage`.
+                    public var coverage: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/covered_lines`.
+                    public var covered_lines: Swift.Int?
+                    /// Percentage points; null when the entry cannot be compared.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/delta`.
+                    public var delta: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/executable_lines`.
+                    public var executable_lines: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targetsPayload/name`.
+                    public var name: Swift.String?
+                    /// Creates a new `targetsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                    ///   - coverage: Null when only the baseline has the entry.
+                    ///   - covered_lines:
+                    ///   - delta: Percentage points; null when the entry cannot be compared.
+                    ///   - executable_lines:
+                    ///   - name:
+                    public init(
+                        baseline_coverage: Swift.Double? = nil,
+                        coverage: Swift.Double? = nil,
+                        covered_lines: Swift.Int? = nil,
+                        delta: Swift.Double? = nil,
+                        executable_lines: Swift.Int? = nil,
+                        name: Swift.String? = nil
+                    ) {
+                        self.baseline_coverage = baseline_coverage
+                        self.coverage = coverage
+                        self.covered_lines = covered_lines
+                        self.delta = delta
+                        self.executable_lines = executable_lines
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case baseline_coverage
+                        case coverage
+                        case covered_lines
+                        case delta
+                        case executable_lines
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targets`.
+                public typealias targetsPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.targetsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/targets`.
+                public var targets: Components.Schemas.PullRequestCoverage.comparisonPayload.targetsPayload
+                /// Percentage points against the baseline; null on a partial run or without a baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/total_delta`.
+                public var total_delta: Swift.Double?
+                /// Creates a new `comparisonPayload`.
+                ///
+                /// - Parameters:
+                ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+                ///   - files: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                ///   - gaps: Changed files with executable lines in their hunks none of which ran.
+                ///   - patch: The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                ///   - run:
+                ///   - targets:
+                ///   - total_delta: Percentage points against the baseline; null on a partial run or without a baseline.
+                public init(
+                    baseline: Components.Schemas.PullRequestCoverage.comparisonPayload.baselinePayload? = nil,
+                    baseline_reason: Components.Schemas.PullRequestCoverage.comparisonPayload.baseline_reasonPayload? = nil,
+                    files: Components.Schemas.PullRequestCoverage.comparisonPayload.filesPayload,
+                    gaps: Components.Schemas.PullRequestCoverage.comparisonPayload.gapsPayload,
+                    patch: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload,
+                    run: Components.Schemas.PullRequestCoverage.comparisonPayload.runPayload,
+                    targets: Components.Schemas.PullRequestCoverage.comparisonPayload.targetsPayload,
+                    total_delta: Swift.Double? = nil
+                ) {
+                    self.baseline = baseline
+                    self.baseline_reason = baseline_reason
+                    self.files = files
+                    self.gaps = gaps
+                    self.patch = patch
+                    self.run = run
+                    self.targets = targets
+                    self.total_delta = total_delta
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case baseline
+                    case baseline_reason
+                    case files
+                    case gaps
+                    case patch
+                    case run
+                    case targets
+                    case total_delta
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison`.
+            public var comparison: Components.Schemas.PullRequestCoverage.comparisonPayload
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/pull_request_number`.
+            public var pull_request_number: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload`.
+            public struct runsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/base_branch`.
+                public var base_branch: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/git_branch`.
+                public var git_branch: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/partial`.
+                public var partial: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/ran_at`.
+                public var ran_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/scheme`.
+                public var scheme: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runsPayload/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `runsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - base_branch:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines:
+                ///   - git_branch:
+                ///   - git_commit_sha:
+                ///   - partial:
+                ///   - ran_at:
+                ///   - scheme:
+                ///   - test_run_id:
+                public init(
+                    base_branch: Swift.String,
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    git_branch: Swift.String,
+                    git_commit_sha: Swift.String,
+                    partial: Swift.Bool,
+                    ran_at: Foundation.Date,
+                    scheme: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.base_branch = base_branch
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.partial = partial
+                    self.ran_at = ran_at
+                    self.scheme = scheme
+                    self.test_run_id = test_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case base_branch
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case git_branch
+                    case git_commit_sha
+                    case partial
+                    case ran_at
+                    case scheme
+                    case test_run_id
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runs`.
+            public typealias runsPayload = [Components.Schemas.PullRequestCoverage.runsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/runs`.
+            public var runs: Components.Schemas.PullRequestCoverage.runsPayload
+            /// Creates a new `PullRequestCoverage`.
+            ///
+            /// - Parameters:
+            ///   - comparison:
+            ///   - pull_request_number:
+            ///   - runs:
+            public init(
+                comparison: Components.Schemas.PullRequestCoverage.comparisonPayload,
+                pull_request_number: Swift.Int,
+                runs: Components.Schemas.PullRequestCoverage.runsPayload
+            ) {
+                self.comparison = comparison
+                self.pull_request_number = pull_request_number
+                self.runs = runs
+            }
+            public enum CodingKeys: String, CodingKey {
+                case comparison
+                case pull_request_number
+                case runs
             }
         }
         /// - Remark: Generated from `#/components/schemas/BuildFileSortBy`.
@@ -11527,6 +13411,98 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case storage_key
                 case upload_url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CoverageFile`.
+        public struct CoverageFile: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/coverage`.
+            public var coverage: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/covered_lines`.
+            public var covered_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/executable_lines`.
+            public var executable_lines: Swift.Int
+            /// The Git blob of the file the run measured; empty when Git did not track it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/git_blob_id`.
+            public var git_blob_id: Swift.String
+            /// Repository-relative path.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/path`.
+            public var path: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CoverageFile/targets`.
+            public var targets: [Swift.String]
+            /// Creates a new `CoverageFile`.
+            ///
+            /// - Parameters:
+            ///   - coverage:
+            ///   - covered_lines:
+            ///   - executable_lines:
+            ///   - git_blob_id: The Git blob of the file the run measured; empty when Git did not track it.
+            ///   - path: Repository-relative path.
+            ///   - targets:
+            public init(
+                coverage: Swift.Double,
+                covered_lines: Swift.Int,
+                executable_lines: Swift.Int,
+                git_blob_id: Swift.String,
+                path: Swift.String,
+                targets: [Swift.String]
+            ) {
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.executable_lines = executable_lines
+                self.git_blob_id = git_blob_id
+                self.path = path
+                self.targets = targets
+            }
+            public enum CodingKeys: String, CodingKey {
+                case coverage
+                case covered_lines
+                case executable_lines
+                case git_blob_id
+                case path
+                case targets
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CoverageTarget`.
+        public struct CoverageTarget: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CoverageTarget/coverage`.
+            public var coverage: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/CoverageTarget/covered_lines`.
+            public var covered_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageTarget/executable_lines`.
+            public var executable_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageTarget/files_count`.
+            public var files_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageTarget/name`.
+            public var name: Swift.String
+            /// Creates a new `CoverageTarget`.
+            ///
+            /// - Parameters:
+            ///   - coverage:
+            ///   - covered_lines:
+            ///   - executable_lines:
+            ///   - files_count:
+            ///   - name:
+            public init(
+                coverage: Swift.Double,
+                covered_lines: Swift.Int,
+                executable_lines: Swift.Int,
+                files_count: Swift.Int,
+                name: Swift.String
+            ) {
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.executable_lines = executable_lines
+                self.files_count = files_count
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case coverage
+                case covered_lines
+                case executable_lines
+                case files_count
+                case name
             }
         }
         /// The maximum number of suite runs to return in a single page.
@@ -12343,6 +14319,117 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPage`.
         public typealias BuildIssuesIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles`.
+        public struct TestRunCoverageFiles: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// The Git blob of the file the run measured; empty when Git did not track it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String
+                /// Repository-relative path.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/path`.
+                public var path: Swift.String
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/filesPayload/targets`.
+                public var targets: [Swift.String]
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - executable_lines:
+                ///   - git_blob_id: The Git blob of the file the run measured; empty when Git did not track it.
+                ///   - path: Repository-relative path.
+                ///   - targets:
+                public init(
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    git_blob_id: Swift.String,
+                    path: Swift.String,
+                    targets: [Swift.String]
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.git_blob_id = git_blob_id
+                    self.path = path
+                    self.targets = targets
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case executable_lines
+                    case git_blob_id
+                    case path
+                    case targets
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/files`.
+            public typealias filesPayload = [Components.Schemas.TestRunCoverageFiles.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/files`.
+            public var files: Components.Schemas.TestRunCoverageFiles.filesPayload
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata`.
+            public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata/current_page`.
+                public var current_page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `pagination_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - current_page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    current_page: Swift.Int,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.current_page = current_page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case current_page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverageFiles/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.TestRunCoverageFiles.pagination_metadataPayload
+            /// Creates a new `TestRunCoverageFiles`.
+            ///
+            /// - Parameters:
+            ///   - files:
+            ///   - pagination_metadata:
+            public init(
+                files: Components.Schemas.TestRunCoverageFiles.filesPayload,
+                pagination_metadata: Components.Schemas.TestRunCoverageFiles.pagination_metadataPayload
+            ) {
+                self.files = files
+                self.pagination_metadata = pagination_metadata
+            }
+            public enum CodingKeys: String, CodingKey {
+                case files
+                case pagination_metadata
+            }
+        }
         /// The schema for a test case.
         ///
         /// - Remark: Generated from `#/components/schemas/TestCase`.
@@ -12760,6 +14847,124 @@ public enum Components {
                 case multipart_upload_parts
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CoverageFileDetail`.
+        public struct CoverageFileDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/coverage`.
+            public var coverage: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/covered_lines`.
+            public var covered_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/executable_lines`.
+            public var executable_lines: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload`.
+            public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                /// Null when several shards covered the function and the union cannot be told.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload/covered_lines`.
+                public var covered_lines: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload/execution_count`.
+                public var execution_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload/line_number`.
+                public var line_number: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functionsPayload/name`.
+                public var name: Swift.String
+                /// Creates a new `functionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - covered_lines: Null when several shards covered the function and the union cannot be told.
+                ///   - executable_lines:
+                ///   - execution_count:
+                ///   - line_number:
+                ///   - name:
+                public init(
+                    covered_lines: Swift.Int? = nil,
+                    executable_lines: Swift.Int,
+                    execution_count: Swift.Int,
+                    line_number: Swift.Int,
+                    name: Swift.String
+                ) {
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.execution_count = execution_count
+                    self.line_number = line_number
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case covered_lines
+                    case executable_lines
+                    case execution_count
+                    case line_number
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functions`.
+            public typealias functionsPayload = [Components.Schemas.CoverageFileDetail.functionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/functions`.
+            public var functions: Components.Schemas.CoverageFileDetail.functionsPayload
+            /// The Git blob of the file the run measured; empty when Git did not track it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/git_blob_id`.
+            public var git_blob_id: Swift.String
+            /// Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/lines`.
+            public var lines: [[Swift.Int]]
+            /// Repository-relative path.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/path`.
+            public var path: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/targets`.
+            public var targets: [Swift.String]
+            /// Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageFileDetail/uncovered_ranges`.
+            public var uncovered_ranges: [[Swift.Int]]?
+            /// Creates a new `CoverageFileDetail`.
+            ///
+            /// - Parameters:
+            ///   - coverage:
+            ///   - covered_lines:
+            ///   - executable_lines:
+            ///   - functions:
+            ///   - git_blob_id: The Git blob of the file the run measured; empty when Git did not track it.
+            ///   - lines: Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+            ///   - path: Repository-relative path.
+            ///   - targets:
+            ///   - uncovered_ranges: Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+            public init(
+                coverage: Swift.Double,
+                covered_lines: Swift.Int,
+                executable_lines: Swift.Int,
+                functions: Components.Schemas.CoverageFileDetail.functionsPayload,
+                git_blob_id: Swift.String,
+                lines: [[Swift.Int]],
+                path: Swift.String,
+                targets: [Swift.String],
+                uncovered_ranges: [[Swift.Int]]? = nil
+            ) {
+                self.coverage = coverage
+                self.covered_lines = covered_lines
+                self.executable_lines = executable_lines
+                self.functions = functions
+                self.git_blob_id = git_blob_id
+                self.lines = lines
+                self.path = path
+                self.targets = targets
+                self.uncovered_ranges = uncovered_ranges
+            }
+            public enum CodingKeys: String, CodingKey {
+                case coverage
+                case covered_lines
+                case executable_lines
+                case functions
+                case git_blob_id
+                case lines
+                case path
+                case targets
+                case uncovered_ranges
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerJobMetric`.
         public struct RunnerJobMetric: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/cpu_iowait_percent`.
@@ -13082,6 +15287,94 @@ public enum Components {
                 case time_origin
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CoverageBranches`.
+        public struct CoverageBranches: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload`.
+            public struct branchesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/coverage`.
+                public var coverage: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// Against the default branch's newest full run; null when it has none.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/delta`.
+                public var delta: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/git_branch`.
+                public var git_branch: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/ran_at`.
+                public var ran_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/CoverageBranches/branchesPayload/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `branchesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - coverage:
+                ///   - covered_lines:
+                ///   - delta: Against the default branch's newest full run; null when it has none.
+                ///   - executable_lines:
+                ///   - git_branch:
+                ///   - git_commit_sha:
+                ///   - ran_at:
+                ///   - test_run_id:
+                public init(
+                    coverage: Swift.Double,
+                    covered_lines: Swift.Int,
+                    delta: Swift.Double? = nil,
+                    executable_lines: Swift.Int,
+                    git_branch: Swift.String,
+                    git_commit_sha: Swift.String,
+                    ran_at: Foundation.Date,
+                    test_run_id: Swift.String
+                ) {
+                    self.coverage = coverage
+                    self.covered_lines = covered_lines
+                    self.delta = delta
+                    self.executable_lines = executable_lines
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.ran_at = ran_at
+                    self.test_run_id = test_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case coverage
+                    case covered_lines
+                    case delta
+                    case executable_lines
+                    case git_branch
+                    case git_commit_sha
+                    case ran_at
+                    case test_run_id
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CoverageBranches/branches`.
+            public typealias branchesPayload = [Components.Schemas.CoverageBranches.branchesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CoverageBranches/branches`.
+            public var branches: Components.Schemas.CoverageBranches.branchesPayload
+            /// The scheme reported; null when no full run exists.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageBranches/scheme`.
+            public var scheme: Swift.String?
+            /// Creates a new `CoverageBranches`.
+            ///
+            /// - Parameters:
+            ///   - branches:
+            ///   - scheme: The scheme reported; null when no full run exists.
+            public init(
+                branches: Components.Schemas.CoverageBranches.branchesPayload,
+                scheme: Swift.String? = nil
+            ) {
+                self.branches = branches
+                self.scheme = scheme
+            }
+            public enum CodingKeys: String, CodingKey {
+                case branches
+                case scheme
+            }
+        }
         /// The maximum number of targets to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/ModuleCacheTargetsPageSize`.
@@ -13198,6 +15491,33 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case tokens
+            }
+        }
+        /// Why a figure is missing: a machine-readable kind and a sentence.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CoverageReason`.
+        public struct CoverageReason: Codable, Hashable, Sendable {
+            /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageReason/kind`.
+            public var kind: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CoverageReason/message`.
+            public var message: Swift.String
+            /// Creates a new `CoverageReason`.
+            ///
+            /// - Parameters:
+            ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+            ///   - message:
+            public init(
+                kind: Swift.String,
+                message: Swift.String
+            ) {
+                self.kind = kind
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case kind
+                case message
             }
         }
         /// The request to create a new account token.
@@ -30328,6 +32648,610 @@ public enum Operations {
             }
         }
     }
+    /// Get a test run's code coverage.
+    ///
+    /// The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its baseline (the newest full run of the same scheme on the base branch at the merge base or the nearest ancestor of it) or why there is none.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)`.
+    public enum getTestRunCoverage {
+        public static let id: Swift.String = "getTestRunCoverage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.getTestRunCoverage.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getTestRunCoverage.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getTestRunCoverage.Input.Path,
+                headers: Operations.getTestRunCoverage.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline`.
+                        public struct baselinePayload: Codable, Hashable, Sendable {
+                            /// The base branch the baseline was taken from.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/branch`.
+                            public var branch: Swift.String
+                            /// The commit the baseline run tested.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/commit`.
+                            public var commit: Swift.String
+                            /// Line coverage, in percent.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/depth`.
+                            public var depth: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/ran_at`.
+                            public var ran_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline/test_run_id`.
+                            public var test_run_id: Swift.String
+                            /// Creates a new `baselinePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - branch: The base branch the baseline was taken from.
+                            ///   - commit: The commit the baseline run tested.
+                            ///   - coverage: Line coverage, in percent.
+                            ///   - covered_lines:
+                            ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                            ///   - executable_lines:
+                            ///   - ran_at:
+                            ///   - test_run_id:
+                            public init(
+                                branch: Swift.String,
+                                commit: Swift.String,
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                depth: Swift.Int,
+                                executable_lines: Swift.Int,
+                                ran_at: Foundation.Date? = nil,
+                                test_run_id: Swift.String
+                            ) {
+                                self.branch = branch
+                                self.commit = commit
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.depth = depth
+                                self.executable_lines = executable_lines
+                                self.ran_at = ran_at
+                                self.test_run_id = test_run_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case branch
+                                case commit
+                                case coverage
+                                case covered_lines
+                                case depth
+                                case executable_lines
+                                case ran_at
+                                case test_run_id
+                            }
+                        }
+                        /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline`.
+                        public var baseline: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.baselinePayload?
+                        /// Why a figure is missing: a machine-readable kind and a sentence.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason`.
+                        public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                            /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason/kind`.
+                            public var kind: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason/message`.
+                            public var message: Swift.String
+                            /// Creates a new `baseline_reasonPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - message:
+                            public init(
+                                kind: Swift.String,
+                                message: Swift.String
+                            ) {
+                                self.kind = kind
+                                self.message = message
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case kind
+                                case message
+                            }
+                        }
+                        /// Why a figure is missing: a machine-readable kind and a sentence.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason`.
+                        public var baseline_reason: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.baseline_reasonPayload?
+                        /// Line coverage over the run's product files, in percent.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/coverage`.
+                        public var coverage: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/covered_lines`.
+                        public var covered_lines: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/executable_lines`.
+                        public var executable_lines: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String
+                        /// Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history`.
+                        public struct git_historyPayload: Codable, Hashable, Sendable {
+                            /// The branch the run's commit will merge into; empty when unknown.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/base_branch`.
+                            public var base_branch: Swift.String
+                            /// `sha1` or `sha256`; empty when unknown.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/git_object_format`.
+                            public var git_object_format: Swift.String
+                            /// What could not be collected, and why; empty when everything was.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/history_fallback_reason`.
+                            public var history_fallback_reason: Swift.String
+                            /// `client`, `provider`, `mixed` or `none`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/history_source`.
+                            public var history_source: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/is_pull_request`.
+                            public var is_pull_request: Swift.Bool
+                            /// The merge base with the base branch; empty when unknown.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/merge_base_sha`.
+                            public var merge_base_sha: Swift.String
+                            /// 0 when the run is not a pull request's.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history/pull_request_number`.
+                            public var pull_request_number: Swift.Int
+                            /// Creates a new `git_historyPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_branch: The branch the run's commit will merge into; empty when unknown.
+                            ///   - git_object_format: `sha1` or `sha256`; empty when unknown.
+                            ///   - history_fallback_reason: What could not be collected, and why; empty when everything was.
+                            ///   - history_source: `client`, `provider`, `mixed` or `none`.
+                            ///   - is_pull_request:
+                            ///   - merge_base_sha: The merge base with the base branch; empty when unknown.
+                            ///   - pull_request_number: 0 when the run is not a pull request's.
+                            public init(
+                                base_branch: Swift.String,
+                                git_object_format: Swift.String,
+                                history_fallback_reason: Swift.String,
+                                history_source: Swift.String,
+                                is_pull_request: Swift.Bool,
+                                merge_base_sha: Swift.String,
+                                pull_request_number: Swift.Int
+                            ) {
+                                self.base_branch = base_branch
+                                self.git_object_format = git_object_format
+                                self.history_fallback_reason = history_fallback_reason
+                                self.history_source = history_source
+                                self.is_pull_request = is_pull_request
+                                self.merge_base_sha = merge_base_sha
+                                self.pull_request_number = pull_request_number
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_branch
+                                case git_object_format
+                                case history_fallback_reason
+                                case history_source
+                                case is_pull_request
+                                case merge_base_sha
+                                case pull_request_number
+                            }
+                        }
+                        /// Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_history`.
+                        public var git_history: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.git_historyPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/partial`.
+                        public var partial: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/ran_at`.
+                        public var ran_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/scheme`.
+                        public var scheme: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload`.
+                        public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload/files_count`.
+                            public var files_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targetsPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - executable_lines:
+                            ///   - files_count:
+                            ///   - name:
+                            public init(
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                executable_lines: Swift.Int,
+                                files_count: Swift.Int,
+                                name: Swift.String
+                            ) {
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.files_count = files_count
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case coverage
+                                case covered_lines
+                                case executable_lines
+                                case files_count
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targets`.
+                        public typealias targetsPayload = [Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.targetsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/targets`.
+                        public var targets: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.targetsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/test_run_id`.
+                        public var test_run_id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+                        ///   - coverage: Line coverage over the run's product files, in percent.
+                        ///   - covered_lines:
+                        ///   - executable_lines:
+                        ///   - git_branch:
+                        ///   - git_commit_sha:
+                        ///   - git_history: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+                        ///   - partial:
+                        ///   - ran_at:
+                        ///   - scheme:
+                        ///   - targets:
+                        ///   - test_run_id:
+                        public init(
+                            baseline: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.baselinePayload? = nil,
+                            baseline_reason: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.baseline_reasonPayload? = nil,
+                            coverage: Swift.Double,
+                            covered_lines: Swift.Int,
+                            executable_lines: Swift.Int,
+                            git_branch: Swift.String,
+                            git_commit_sha: Swift.String,
+                            git_history: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.git_historyPayload,
+                            partial: Swift.Bool,
+                            ran_at: Foundation.Date? = nil,
+                            scheme: Swift.String,
+                            targets: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.targetsPayload,
+                            test_run_id: Swift.String
+                        ) {
+                            self.baseline = baseline
+                            self.baseline_reason = baseline_reason
+                            self.coverage = coverage
+                            self.covered_lines = covered_lines
+                            self.executable_lines = executable_lines
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_history = git_history
+                            self.partial = partial
+                            self.ran_at = ran_at
+                            self.scheme = scheme
+                            self.targets = targets
+                            self.test_run_id = test_run_id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case baseline
+                            case baseline_reason
+                            case coverage
+                            case covered_lines
+                            case executable_lines
+                            case git_branch
+                            case git_commit_sha
+                            case git_history
+                            case partial
+                            case ran_at
+                            case scheme
+                            case targets
+                            case test_run_id
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverage.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The run's coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getTestRunCoverage.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getTestRunCoverage.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverage.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverage.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getTestRunCoverage.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getTestRunCoverage.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverage.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getTestRunCoverage.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getTestRunCoverage.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverage.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverage.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The run was not found, or gathered no coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/get(getTestRunCoverage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getTestRunCoverage.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getTestRunCoverage.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -39781,6 +42705,443 @@ public enum Operations {
             }
         }
     }
+    /// List a test run's files with their coverage, least covered first.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)`.
+    public enum listTestRunCoverageFiles {
+        public static let id: Swift.String = "listTestRunCoverageFiles"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.listTestRunCoverageFiles.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The page number, starting at 1.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/query/page`.
+                public var page: Swift.Int?
+                /// Files per page (default 20, at most 100).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page: The page number, starting at 1.
+                ///   - page_size: Files per page (default 20, at most 100).
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                }
+            }
+            public var query: Operations.listTestRunCoverageFiles.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestRunCoverageFiles.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestRunCoverageFiles.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listTestRunCoverageFiles.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listTestRunCoverageFiles.Input.Path,
+                query: Operations.listTestRunCoverageFiles.Input.Query = .init(),
+                headers: Operations.listTestRunCoverageFiles.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload`.
+                        public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// The Git blob of the file the run measured; empty when Git did not track it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/git_blob_id`.
+                            public var git_blob_id: Swift.String
+                            /// Repository-relative path.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/path`.
+                            public var path: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/filesPayload/targets`.
+                            public var targets: [Swift.String]
+                            /// Creates a new `filesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - executable_lines:
+                            ///   - git_blob_id: The Git blob of the file the run measured; empty when Git did not track it.
+                            ///   - path: Repository-relative path.
+                            ///   - targets:
+                            public init(
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                executable_lines: Swift.Int,
+                                git_blob_id: Swift.String,
+                                path: Swift.String,
+                                targets: [Swift.String]
+                            ) {
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.git_blob_id = git_blob_id
+                                self.path = path
+                                self.targets = targets
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case coverage
+                                case covered_lines
+                                case executable_lines
+                                case git_blob_id
+                                case path
+                                case targets
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/files`.
+                        public typealias filesPayload = [Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload.filesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/files`.
+                        public var files: Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload.filesPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata`.
+                        public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata/current_page`.
+                            public var current_page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `pagination_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                current_page: Swift.Int,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.current_page = current_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - files:
+                        ///   - pagination_metadata:
+                        public init(
+                            files: Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload.filesPayload,
+                            pagination_metadata: Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        ) {
+                            self.files = files
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case files
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/200/content/application\/json`.
+                    case json(Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listTestRunCoverageFiles.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestRunCoverageFiles.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestRunCoverageFiles.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The files
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listTestRunCoverageFiles.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listTestRunCoverageFiles.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestRunCoverageFiles.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestRunCoverageFiles.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listTestRunCoverageFiles.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listTestRunCoverageFiles.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestRunCoverageFiles.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestRunCoverageFiles.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listTestRunCoverageFiles.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listTestRunCoverageFiles.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestRunCoverageFiles.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestRunCoverageFiles.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The run was not found, or gathered no coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files/get(listTestRunCoverageFiles)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listTestRunCoverageFiles.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listTestRunCoverageFiles.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List cacheable tasks for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
@@ -42155,6 +45516,415 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List every branch's newest full-run coverage.
+    ///
+    /// For the given scheme (by default the one with most full runs on the default branch), every branch with a full run in the period, newest first, with its difference from the default branch in percentage points.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/branches`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)`.
+    public enum listCoverageBranches {
+        public static let id: Swift.String = "listCoverageBranches"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listCoverageBranches.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The scheme to report; figures are never pooled across schemes.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/query/scheme`.
+                public var scheme: Swift.String?
+                /// How many days back to look (default 30).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/query/days`.
+                public var days: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - scheme: The scheme to report; figures are never pooled across schemes.
+                ///   - days: How many days back to look (default 30).
+                public init(
+                    scheme: Swift.String? = nil,
+                    days: Swift.Int? = nil
+                ) {
+                    self.scheme = scheme
+                    self.days = days
+                }
+            }
+            public var query: Operations.listCoverageBranches.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listCoverageBranches.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listCoverageBranches.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listCoverageBranches.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listCoverageBranches.Input.Path,
+                query: Operations.listCoverageBranches.Input.Query = .init(),
+                headers: Operations.listCoverageBranches.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload`.
+                        public struct branchesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// Against the default branch's newest full run; null when it has none.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/delta`.
+                            public var delta: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/git_branch`.
+                            public var git_branch: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/ran_at`.
+                            public var ran_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branchesPayload/test_run_id`.
+                            public var test_run_id: Swift.String
+                            /// Creates a new `branchesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - delta: Against the default branch's newest full run; null when it has none.
+                            ///   - executable_lines:
+                            ///   - git_branch:
+                            ///   - git_commit_sha:
+                            ///   - ran_at:
+                            ///   - test_run_id:
+                            public init(
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                delta: Swift.Double? = nil,
+                                executable_lines: Swift.Int,
+                                git_branch: Swift.String,
+                                git_commit_sha: Swift.String,
+                                ran_at: Foundation.Date,
+                                test_run_id: Swift.String
+                            ) {
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.delta = delta
+                                self.executable_lines = executable_lines
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.ran_at = ran_at
+                                self.test_run_id = test_run_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case coverage
+                                case covered_lines
+                                case delta
+                                case executable_lines
+                                case git_branch
+                                case git_commit_sha
+                                case ran_at
+                                case test_run_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branches`.
+                        public typealias branchesPayload = [Operations.listCoverageBranches.Output.Ok.Body.jsonPayload.branchesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/branches`.
+                        public var branches: Operations.listCoverageBranches.Output.Ok.Body.jsonPayload.branchesPayload
+                        /// The scheme reported; null when no full run exists.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/json/scheme`.
+                        public var scheme: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - branches:
+                        ///   - scheme: The scheme reported; null when no full run exists.
+                        public init(
+                            branches: Operations.listCoverageBranches.Output.Ok.Body.jsonPayload.branchesPayload,
+                            scheme: Swift.String? = nil
+                        ) {
+                            self.branches = branches
+                            self.scheme = scheme
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case branches
+                            case scheme
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/200/content/application\/json`.
+                    case json(Operations.listCoverageBranches.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listCoverageBranches.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCoverageBranches.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCoverageBranches.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The branches
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listCoverageBranches.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listCoverageBranches.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCoverageBranches.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCoverageBranches.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listCoverageBranches.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listCoverageBranches.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCoverageBranches.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCoverageBranches.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listCoverageBranches.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listCoverageBranches.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/branches/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCoverageBranches.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCoverageBranches.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/branches/get(listCoverageBranches)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listCoverageBranches.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listCoverageBranches.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -59805,6 +63575,441 @@ public enum Operations {
             }
         }
     }
+    /// Get one file's coverage in a test run, line by line.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)`.
+    public enum getTestRunCoverageFile {
+        public static let id: Swift.String = "getTestRunCoverageFile"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.getTestRunCoverageFile.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The file's repository-relative path.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/query/path`.
+                public var path: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - path: The file's repository-relative path.
+                public init(path: Swift.String) {
+                    self.path = path
+                }
+            }
+            public var query: Operations.getTestRunCoverageFile.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverageFile.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverageFile.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getTestRunCoverageFile.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getTestRunCoverageFile.Input.Path,
+                query: Operations.getTestRunCoverageFile.Input.Query,
+                headers: Operations.getTestRunCoverageFile.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/coverage`.
+                        public var coverage: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/covered_lines`.
+                        public var covered_lines: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/executable_lines`.
+                        public var executable_lines: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload`.
+                        public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null when several shards covered the function and the union cannot be told.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload/covered_lines`.
+                            public var covered_lines: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload/execution_count`.
+                            public var execution_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload/line_number`.
+                            public var line_number: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functionsPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `functionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - covered_lines: Null when several shards covered the function and the union cannot be told.
+                            ///   - executable_lines:
+                            ///   - execution_count:
+                            ///   - line_number:
+                            ///   - name:
+                            public init(
+                                covered_lines: Swift.Int? = nil,
+                                executable_lines: Swift.Int,
+                                execution_count: Swift.Int,
+                                line_number: Swift.Int,
+                                name: Swift.String
+                            ) {
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.execution_count = execution_count
+                                self.line_number = line_number
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case covered_lines
+                                case executable_lines
+                                case execution_count
+                                case line_number
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functions`.
+                        public typealias functionsPayload = [Operations.getTestRunCoverageFile.Output.Ok.Body.jsonPayload.functionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/functions`.
+                        public var functions: Operations.getTestRunCoverageFile.Output.Ok.Body.jsonPayload.functionsPayload
+                        /// The Git blob of the file the run measured; empty when Git did not track it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/git_blob_id`.
+                        public var git_blob_id: Swift.String
+                        /// Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/lines`.
+                        public var lines: [[Swift.Int]]
+                        /// Repository-relative path.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/path`.
+                        public var path: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/targets`.
+                        public var targets: [Swift.String]
+                        /// Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/json/uncovered_ranges`.
+                        public var uncovered_ranges: [[Swift.Int]]?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - coverage:
+                        ///   - covered_lines:
+                        ///   - executable_lines:
+                        ///   - functions:
+                        ///   - git_blob_id: The Git blob of the file the run measured; empty when Git did not track it.
+                        ///   - lines: Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+                        ///   - path: Repository-relative path.
+                        ///   - targets:
+                        ///   - uncovered_ranges: Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+                        public init(
+                            coverage: Swift.Double,
+                            covered_lines: Swift.Int,
+                            executable_lines: Swift.Int,
+                            functions: Operations.getTestRunCoverageFile.Output.Ok.Body.jsonPayload.functionsPayload,
+                            git_blob_id: Swift.String,
+                            lines: [[Swift.Int]],
+                            path: Swift.String,
+                            targets: [Swift.String],
+                            uncovered_ranges: [[Swift.Int]]? = nil
+                        ) {
+                            self.coverage = coverage
+                            self.covered_lines = covered_lines
+                            self.executable_lines = executable_lines
+                            self.functions = functions
+                            self.git_blob_id = git_blob_id
+                            self.lines = lines
+                            self.path = path
+                            self.targets = targets
+                            self.uncovered_ranges = uncovered_ranges
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case coverage
+                            case covered_lines
+                            case executable_lines
+                            case functions
+                            case git_blob_id
+                            case lines
+                            case path
+                            case targets
+                            case uncovered_ranges
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/200/content/application\/json`.
+                    case json(Operations.getTestRunCoverageFile.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getTestRunCoverageFile.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageFile.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageFile.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The file's coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getTestRunCoverageFile.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getTestRunCoverageFile.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageFile.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageFile.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getTestRunCoverageFile.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getTestRunCoverageFile.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageFile.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageFile.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getTestRunCoverageFile.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getTestRunCoverageFile.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageFile.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageFile.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The run was not found, or gathered no coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file/get(getTestRunCoverageFile)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getTestRunCoverageFile.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getTestRunCoverageFile.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// It initiates a multipart upload in the cache.
     ///
     /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
@@ -70912,6 +75117,827 @@ public enum Operations {
             }
         }
     }
+    /// Compare a test run's coverage with its baseline.
+    ///
+    /// The total delta (full runs only), the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)`.
+    public enum getTestRunCoverageComparison {
+        public static let id: Swift.String = "getTestRunCoverageComparison"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.getTestRunCoverageComparison.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverageComparison.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getTestRunCoverageComparison.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getTestRunCoverageComparison.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getTestRunCoverageComparison.Input.Path,
+                headers: Operations.getTestRunCoverageComparison.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline`.
+                        public struct baselinePayload: Codable, Hashable, Sendable {
+                            /// The base branch the baseline was taken from.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/branch`.
+                            public var branch: Swift.String
+                            /// The commit the baseline run tested.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/commit`.
+                            public var commit: Swift.String
+                            /// Line coverage, in percent.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/depth`.
+                            public var depth: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/ran_at`.
+                            public var ran_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline/test_run_id`.
+                            public var test_run_id: Swift.String
+                            /// Creates a new `baselinePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - branch: The base branch the baseline was taken from.
+                            ///   - commit: The commit the baseline run tested.
+                            ///   - coverage: Line coverage, in percent.
+                            ///   - covered_lines:
+                            ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                            ///   - executable_lines:
+                            ///   - ran_at:
+                            ///   - test_run_id:
+                            public init(
+                                branch: Swift.String,
+                                commit: Swift.String,
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                depth: Swift.Int,
+                                executable_lines: Swift.Int,
+                                ran_at: Foundation.Date? = nil,
+                                test_run_id: Swift.String
+                            ) {
+                                self.branch = branch
+                                self.commit = commit
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.depth = depth
+                                self.executable_lines = executable_lines
+                                self.ran_at = ran_at
+                                self.test_run_id = test_run_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case branch
+                                case commit
+                                case coverage
+                                case covered_lines
+                                case depth
+                                case executable_lines
+                                case ran_at
+                                case test_run_id
+                            }
+                        }
+                        /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline`.
+                        public var baseline: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.baselinePayload?
+                        /// Why a figure is missing: a machine-readable kind and a sentence.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason`.
+                        public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                            /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason/kind`.
+                            public var kind: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason/message`.
+                            public var message: Swift.String
+                            /// Creates a new `baseline_reasonPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - message:
+                            public init(
+                                kind: Swift.String,
+                                message: Swift.String
+                            ) {
+                                self.kind = kind
+                                self.message = message
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case kind
+                                case message
+                            }
+                        }
+                        /// Why a figure is missing: a machine-readable kind and a sentence.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason`.
+                        public var baseline_reason: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.baseline_reasonPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload`.
+                        public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null when only the run has the entry, or there is no baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/baseline_coverage`.
+                            public var baseline_coverage: Swift.Double?
+                            /// Null when only the baseline has the entry.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/coverage`.
+                            public var coverage: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/covered_lines`.
+                            public var covered_lines: Swift.Int?
+                            /// Percentage points; null when the entry cannot be compared.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/delta`.
+                            public var delta: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/executable_lines`.
+                            public var executable_lines: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/filesPayload/path`.
+                            public var path: Swift.String?
+                            /// Creates a new `filesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                            ///   - coverage: Null when only the baseline has the entry.
+                            ///   - covered_lines:
+                            ///   - delta: Percentage points; null when the entry cannot be compared.
+                            ///   - executable_lines:
+                            ///   - path:
+                            public init(
+                                baseline_coverage: Swift.Double? = nil,
+                                coverage: Swift.Double? = nil,
+                                covered_lines: Swift.Int? = nil,
+                                delta: Swift.Double? = nil,
+                                executable_lines: Swift.Int? = nil,
+                                path: Swift.String? = nil
+                            ) {
+                                self.baseline_coverage = baseline_coverage
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.delta = delta
+                                self.executable_lines = executable_lines
+                                self.path = path
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case baseline_coverage
+                                case coverage
+                                case covered_lines
+                                case delta
+                                case executable_lines
+                                case path
+                            }
+                        }
+                        /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/files`.
+                        public typealias filesPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.filesPayloadPayload]
+                        /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/files`.
+                        public var files: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.filesPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/gapsPayload`.
+                        public struct gapsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/gapsPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/gapsPayload/path`.
+                            public var path: Swift.String
+                            /// Creates a new `gapsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - executable_lines:
+                            ///   - path:
+                            public init(
+                                executable_lines: Swift.Int,
+                                path: Swift.String
+                            ) {
+                                self.executable_lines = executable_lines
+                                self.path = path
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case executable_lines
+                                case path
+                            }
+                        }
+                        /// Changed files with executable lines in their hunks none of which ran.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/gaps`.
+                        public typealias gapsPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.gapsPayloadPayload]
+                        /// Changed files with executable lines in their hunks none of which ran.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/gaps`.
+                        public var gaps: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.gapsPayload
+                        /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch`.
+                        public struct patchPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/coverage`.
+                            public var coverage: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/covered_lines`.
+                            public var covered_lines: Swift.Int?
+                            /// Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/executable_lines`.
+                            public var executable_lines: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload`.
+                            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/coverage`.
+                                public var coverage: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/covered_lines`.
+                                public var covered_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/executable_lines`.
+                                public var executable_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/path`.
+                                public var path: Swift.String
+                                /// `added`, `modified` or `renamed`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/status`.
+                                public var status: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/filesPayload/uncovered_ranges`.
+                                public var uncovered_ranges: [[Swift.Int]]
+                                /// Creates a new `filesPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - coverage:
+                                ///   - covered_lines:
+                                ///   - executable_lines:
+                                ///   - path:
+                                ///   - status: `added`, `modified` or `renamed`.
+                                ///   - uncovered_ranges:
+                                public init(
+                                    coverage: Swift.Double,
+                                    covered_lines: Swift.Int,
+                                    executable_lines: Swift.Int,
+                                    path: Swift.String,
+                                    status: Swift.String,
+                                    uncovered_ranges: [[Swift.Int]]
+                                ) {
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.executable_lines = executable_lines
+                                    self.path = path
+                                    self.status = status
+                                    self.uncovered_ranges = uncovered_ranges
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case coverage
+                                    case covered_lines
+                                    case executable_lines
+                                    case path
+                                    case status
+                                    case uncovered_ranges
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/files`.
+                            public typealias filesPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.filesPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/files`.
+                            public var files: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.filesPayload?
+                            /// Present when unavailable.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason`.
+                            public struct reasonPayload: Codable, Hashable, Sendable {
+                                /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason/kind`.
+                                public var kind: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason/message`.
+                                public var message: Swift.String
+                                /// Creates a new `reasonPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///   - message:
+                                public init(
+                                    kind: Swift.String,
+                                    message: Swift.String
+                                ) {
+                                    self.kind = kind
+                                    self.message = message
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case kind
+                                    case message
+                                }
+                            }
+                            /// Present when unavailable.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason`.
+                            public var reason: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.reasonPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skippedPayload`.
+                            public struct skippedPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skippedPayload/path`.
+                                public var path: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skippedPayload/reason`.
+                                public var reason: Swift.String
+                                /// Creates a new `skippedPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - path:
+                                ///   - reason:
+                                public init(
+                                    path: Swift.String,
+                                    reason: Swift.String
+                                ) {
+                                    self.path = path
+                                    self.reason = reason
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case path
+                                    case reason
+                                }
+                            }
+                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skipped`.
+                            public typealias skippedPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.skippedPayloadPayload]
+                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skipped`.
+                            public var skipped: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.skippedPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case available = "available"
+                                case unavailable = "unavailable"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/status`.
+                            public var status: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.statusPayload
+                            /// Creates a new `patchPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                            ///   - files:
+                            ///   - reason: Present when unavailable.
+                            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            ///   - status:
+                            public init(
+                                coverage: Swift.Double? = nil,
+                                covered_lines: Swift.Int? = nil,
+                                executable_lines: Swift.Int? = nil,
+                                files: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.filesPayload? = nil,
+                                reason: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.reasonPayload? = nil,
+                                skipped: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.skippedPayload? = nil,
+                                status: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.statusPayload
+                            ) {
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.files = files
+                                self.reason = reason
+                                self.skipped = skipped
+                                self.status = status
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case coverage
+                                case covered_lines
+                                case executable_lines
+                                case files
+                                case reason
+                                case skipped
+                                case status
+                            }
+                        }
+                        /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch`.
+                        public var patch: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run`.
+                        public struct runPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run/id`.
+                            public var id: Swift.String
+                            /// Whether the run left tests out on purpose; a partial run has no total delta.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run/partial`.
+                            public var partial: Swift.Bool
+                            /// Creates a new `runPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - executable_lines:
+                            ///   - id:
+                            ///   - partial: Whether the run left tests out on purpose; a partial run has no total delta.
+                            public init(
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                executable_lines: Swift.Int,
+                                id: Swift.String,
+                                partial: Swift.Bool
+                            ) {
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.id = id
+                                self.partial = partial
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case coverage
+                                case covered_lines
+                                case executable_lines
+                                case id
+                                case partial
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/run`.
+                        public var run: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.runPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload`.
+                        public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null when only the run has the entry, or there is no baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/baseline_coverage`.
+                            public var baseline_coverage: Swift.Double?
+                            /// Null when only the baseline has the entry.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/coverage`.
+                            public var coverage: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/covered_lines`.
+                            public var covered_lines: Swift.Int?
+                            /// Percentage points; null when the entry cannot be compared.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/delta`.
+                            public var delta: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/executable_lines`.
+                            public var executable_lines: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targetsPayload/name`.
+                            public var name: Swift.String?
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                            ///   - coverage: Null when only the baseline has the entry.
+                            ///   - covered_lines:
+                            ///   - delta: Percentage points; null when the entry cannot be compared.
+                            ///   - executable_lines:
+                            ///   - name:
+                            public init(
+                                baseline_coverage: Swift.Double? = nil,
+                                coverage: Swift.Double? = nil,
+                                covered_lines: Swift.Int? = nil,
+                                delta: Swift.Double? = nil,
+                                executable_lines: Swift.Int? = nil,
+                                name: Swift.String? = nil
+                            ) {
+                                self.baseline_coverage = baseline_coverage
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.delta = delta
+                                self.executable_lines = executable_lines
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case baseline_coverage
+                                case coverage
+                                case covered_lines
+                                case delta
+                                case executable_lines
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targets`.
+                        public typealias targetsPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.targetsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/targets`.
+                        public var targets: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.targetsPayload
+                        /// Percentage points against the baseline; null on a partial run or without a baseline.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/total_delta`.
+                        public var total_delta: Swift.Double?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                        ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+                        ///   - files: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                        ///   - gaps: Changed files with executable lines in their hunks none of which ran.
+                        ///   - patch: The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                        ///   - run:
+                        ///   - targets:
+                        ///   - total_delta: Percentage points against the baseline; null on a partial run or without a baseline.
+                        public init(
+                            baseline: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.baselinePayload? = nil,
+                            baseline_reason: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.baseline_reasonPayload? = nil,
+                            files: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.filesPayload,
+                            gaps: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.gapsPayload,
+                            patch: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload,
+                            run: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.runPayload,
+                            targets: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.targetsPayload,
+                            total_delta: Swift.Double? = nil
+                        ) {
+                            self.baseline = baseline
+                            self.baseline_reason = baseline_reason
+                            self.files = files
+                            self.gaps = gaps
+                            self.patch = patch
+                            self.run = run
+                            self.targets = targets
+                            self.total_delta = total_delta
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case baseline
+                            case baseline_reason
+                            case files
+                            case gaps
+                            case patch
+                            case run
+                            case targets
+                            case total_delta
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/application\/json`.
+                    case json(Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageComparison.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageComparison.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The comparison
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getTestRunCoverageComparison.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getTestRunCoverageComparison.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageComparison.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageComparison.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getTestRunCoverageComparison.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getTestRunCoverageComparison.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageComparison.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageComparison.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getTestRunCoverageComparison.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getTestRunCoverageComparison.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getTestRunCoverageComparison.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getTestRunCoverageComparison.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The run was not found, or gathered no coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/get(getTestRunCoverageComparison)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getTestRunCoverageComparison.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getTestRunCoverageComparison.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List targets for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
@@ -76274,6 +81300,947 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.getCoverageSettings.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a pull request's code coverage against its baseline.
+    ///
+    /// Every run of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `test_run_id`) with its baseline: deltas, patch coverage and gaps.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)`.
+    public enum getPullRequestCoverage {
+        public static let id: Swift.String = "getPullRequestCoverage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The pull request number.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/path/pull_request_number`.
+                public var pull_request_number: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - pull_request_number: The pull request number.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    pull_request_number: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.pull_request_number = pull_request_number
+                }
+            }
+            public var path: Operations.getPullRequestCoverage.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The run to compare; the newest by default.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/query/test_run_id`.
+                public var test_run_id: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - test_run_id: The run to compare; the newest by default.
+                public init(test_run_id: Swift.String? = nil) {
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var query: Operations.getPullRequestCoverage.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPullRequestCoverage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPullRequestCoverage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getPullRequestCoverage.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getPullRequestCoverage.Input.Path,
+                query: Operations.getPullRequestCoverage.Input.Query = .init(),
+                headers: Operations.getPullRequestCoverage.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison`.
+                        public struct comparisonPayload: Codable, Hashable, Sendable {
+                            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline`.
+                            public struct baselinePayload: Codable, Hashable, Sendable {
+                                /// The base branch the baseline was taken from.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/branch`.
+                                public var branch: Swift.String
+                                /// The commit the baseline run tested.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/commit`.
+                                public var commit: Swift.String
+                                /// Line coverage, in percent.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/coverage`.
+                                public var coverage: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/covered_lines`.
+                                public var covered_lines: Swift.Int
+                                /// How many commits before the merge base the baseline commit is (0 at the merge base).
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/depth`.
+                                public var depth: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/executable_lines`.
+                                public var executable_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/ran_at`.
+                                public var ran_at: Foundation.Date?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline/test_run_id`.
+                                public var test_run_id: Swift.String
+                                /// Creates a new `baselinePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - branch: The base branch the baseline was taken from.
+                                ///   - commit: The commit the baseline run tested.
+                                ///   - coverage: Line coverage, in percent.
+                                ///   - covered_lines:
+                                ///   - depth: How many commits before the merge base the baseline commit is (0 at the merge base).
+                                ///   - executable_lines:
+                                ///   - ran_at:
+                                ///   - test_run_id:
+                                public init(
+                                    branch: Swift.String,
+                                    commit: Swift.String,
+                                    coverage: Swift.Double,
+                                    covered_lines: Swift.Int,
+                                    depth: Swift.Int,
+                                    executable_lines: Swift.Int,
+                                    ran_at: Foundation.Date? = nil,
+                                    test_run_id: Swift.String
+                                ) {
+                                    self.branch = branch
+                                    self.commit = commit
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.depth = depth
+                                    self.executable_lines = executable_lines
+                                    self.ran_at = ran_at
+                                    self.test_run_id = test_run_id
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case branch
+                                    case commit
+                                    case coverage
+                                    case covered_lines
+                                    case depth
+                                    case executable_lines
+                                    case ran_at
+                                    case test_run_id
+                                }
+                            }
+                            /// The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline`.
+                            public var baseline: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.baselinePayload?
+                            /// Why a figure is missing: a machine-readable kind and a sentence.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason`.
+                            public struct baseline_reasonPayload: Codable, Hashable, Sendable {
+                                /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason/kind`.
+                                public var kind: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason/message`.
+                                public var message: Swift.String
+                                /// Creates a new `baseline_reasonPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///   - message:
+                                public init(
+                                    kind: Swift.String,
+                                    message: Swift.String
+                                ) {
+                                    self.kind = kind
+                                    self.message = message
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case kind
+                                    case message
+                                }
+                            }
+                            /// Why a figure is missing: a machine-readable kind and a sentence.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason`.
+                            public var baseline_reason: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.baseline_reasonPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload`.
+                            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                                /// Null when only the run has the entry, or there is no baseline.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/baseline_coverage`.
+                                public var baseline_coverage: Swift.Double?
+                                /// Null when only the baseline has the entry.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/coverage`.
+                                public var coverage: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/covered_lines`.
+                                public var covered_lines: Swift.Int?
+                                /// Percentage points; null when the entry cannot be compared.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/delta`.
+                                public var delta: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/executable_lines`.
+                                public var executable_lines: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/filesPayload/path`.
+                                public var path: Swift.String?
+                                /// Creates a new `filesPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                                ///   - coverage: Null when only the baseline has the entry.
+                                ///   - covered_lines:
+                                ///   - delta: Percentage points; null when the entry cannot be compared.
+                                ///   - executable_lines:
+                                ///   - path:
+                                public init(
+                                    baseline_coverage: Swift.Double? = nil,
+                                    coverage: Swift.Double? = nil,
+                                    covered_lines: Swift.Int? = nil,
+                                    delta: Swift.Double? = nil,
+                                    executable_lines: Swift.Int? = nil,
+                                    path: Swift.String? = nil
+                                ) {
+                                    self.baseline_coverage = baseline_coverage
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.delta = delta
+                                    self.executable_lines = executable_lines
+                                    self.path = path
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case baseline_coverage
+                                    case coverage
+                                    case covered_lines
+                                    case delta
+                                    case executable_lines
+                                    case path
+                                }
+                            }
+                            /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/files`.
+                            public typealias filesPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.filesPayloadPayload]
+                            /// Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/files`.
+                            public var files: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.filesPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/gapsPayload`.
+                            public struct gapsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/gapsPayload/executable_lines`.
+                                public var executable_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/gapsPayload/path`.
+                                public var path: Swift.String
+                                /// Creates a new `gapsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - executable_lines:
+                                ///   - path:
+                                public init(
+                                    executable_lines: Swift.Int,
+                                    path: Swift.String
+                                ) {
+                                    self.executable_lines = executable_lines
+                                    self.path = path
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case executable_lines
+                                    case path
+                                }
+                            }
+                            /// Changed files with executable lines in their hunks none of which ran.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/gaps`.
+                            public typealias gapsPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.gapsPayloadPayload]
+                            /// Changed files with executable lines in their hunks none of which ran.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/gaps`.
+                            public var gaps: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.gapsPayload
+                            /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch`.
+                            public struct patchPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/coverage`.
+                                public var coverage: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/covered_lines`.
+                                public var covered_lines: Swift.Int?
+                                /// Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/executable_lines`.
+                                public var executable_lines: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload`.
+                                public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/coverage`.
+                                    public var coverage: Swift.Double
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/covered_lines`.
+                                    public var covered_lines: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/executable_lines`.
+                                    public var executable_lines: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/path`.
+                                    public var path: Swift.String
+                                    /// `added`, `modified` or `renamed`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/status`.
+                                    public var status: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/filesPayload/uncovered_ranges`.
+                                    public var uncovered_ranges: [[Swift.Int]]
+                                    /// Creates a new `filesPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - coverage:
+                                    ///   - covered_lines:
+                                    ///   - executable_lines:
+                                    ///   - path:
+                                    ///   - status: `added`, `modified` or `renamed`.
+                                    ///   - uncovered_ranges:
+                                    public init(
+                                        coverage: Swift.Double,
+                                        covered_lines: Swift.Int,
+                                        executable_lines: Swift.Int,
+                                        path: Swift.String,
+                                        status: Swift.String,
+                                        uncovered_ranges: [[Swift.Int]]
+                                    ) {
+                                        self.coverage = coverage
+                                        self.covered_lines = covered_lines
+                                        self.executable_lines = executable_lines
+                                        self.path = path
+                                        self.status = status
+                                        self.uncovered_ranges = uncovered_ranges
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case coverage
+                                        case covered_lines
+                                        case executable_lines
+                                        case path
+                                        case status
+                                        case uncovered_ranges
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/files`.
+                                public typealias filesPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.filesPayloadPayload]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/files`.
+                                public var files: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.filesPayload?
+                                /// Present when unavailable.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason`.
+                                public struct reasonPayload: Codable, Hashable, Sendable {
+                                    /// `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason/kind`.
+                                    public var kind: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason/message`.
+                                    public var message: Swift.String
+                                    /// Creates a new `reasonPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - kind: `no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                    ///   - message:
+                                    public init(
+                                        kind: Swift.String,
+                                        message: Swift.String
+                                    ) {
+                                        self.kind = kind
+                                        self.message = message
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case kind
+                                        case message
+                                    }
+                                }
+                                /// Present when unavailable.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason`.
+                                public var reason: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.reasonPayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skippedPayload`.
+                                public struct skippedPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skippedPayload/path`.
+                                    public var path: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skippedPayload/reason`.
+                                    public var reason: Swift.String
+                                    /// Creates a new `skippedPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - path:
+                                    ///   - reason:
+                                    public init(
+                                        path: Swift.String,
+                                        reason: Swift.String
+                                    ) {
+                                        self.path = path
+                                        self.reason = reason
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case path
+                                        case reason
+                                    }
+                                }
+                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skipped`.
+                                public typealias skippedPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.skippedPayloadPayload]
+                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skipped`.
+                                public var skipped: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.skippedPayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case available = "available"
+                                    case unavailable = "unavailable"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/status`.
+                                public var status: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.statusPayload
+                                /// Creates a new `patchPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - coverage:
+                                ///   - covered_lines:
+                                ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                                ///   - files:
+                                ///   - reason: Present when unavailable.
+                                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                ///   - status:
+                                public init(
+                                    coverage: Swift.Double? = nil,
+                                    covered_lines: Swift.Int? = nil,
+                                    executable_lines: Swift.Int? = nil,
+                                    files: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.filesPayload? = nil,
+                                    reason: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.reasonPayload? = nil,
+                                    skipped: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.skippedPayload? = nil,
+                                    status: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.statusPayload
+                                ) {
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.executable_lines = executable_lines
+                                    self.files = files
+                                    self.reason = reason
+                                    self.skipped = skipped
+                                    self.status = status
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case coverage
+                                    case covered_lines
+                                    case executable_lines
+                                    case files
+                                    case reason
+                                    case skipped
+                                    case status
+                                }
+                            }
+                            /// The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch`.
+                            public var patch: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run`.
+                            public struct runPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run/coverage`.
+                                public var coverage: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run/covered_lines`.
+                                public var covered_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run/executable_lines`.
+                                public var executable_lines: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run/id`.
+                                public var id: Swift.String
+                                /// Whether the run left tests out on purpose; a partial run has no total delta.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run/partial`.
+                                public var partial: Swift.Bool
+                                /// Creates a new `runPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - coverage:
+                                ///   - covered_lines:
+                                ///   - executable_lines:
+                                ///   - id:
+                                ///   - partial: Whether the run left tests out on purpose; a partial run has no total delta.
+                                public init(
+                                    coverage: Swift.Double,
+                                    covered_lines: Swift.Int,
+                                    executable_lines: Swift.Int,
+                                    id: Swift.String,
+                                    partial: Swift.Bool
+                                ) {
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.executable_lines = executable_lines
+                                    self.id = id
+                                    self.partial = partial
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case coverage
+                                    case covered_lines
+                                    case executable_lines
+                                    case id
+                                    case partial
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/run`.
+                            public var run: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.runPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload`.
+                            public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                                /// Null when only the run has the entry, or there is no baseline.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/baseline_coverage`.
+                                public var baseline_coverage: Swift.Double?
+                                /// Null when only the baseline has the entry.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/coverage`.
+                                public var coverage: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/covered_lines`.
+                                public var covered_lines: Swift.Int?
+                                /// Percentage points; null when the entry cannot be compared.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/delta`.
+                                public var delta: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/executable_lines`.
+                                public var executable_lines: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targetsPayload/name`.
+                                public var name: Swift.String?
+                                /// Creates a new `targetsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - baseline_coverage: Null when only the run has the entry, or there is no baseline.
+                                ///   - coverage: Null when only the baseline has the entry.
+                                ///   - covered_lines:
+                                ///   - delta: Percentage points; null when the entry cannot be compared.
+                                ///   - executable_lines:
+                                ///   - name:
+                                public init(
+                                    baseline_coverage: Swift.Double? = nil,
+                                    coverage: Swift.Double? = nil,
+                                    covered_lines: Swift.Int? = nil,
+                                    delta: Swift.Double? = nil,
+                                    executable_lines: Swift.Int? = nil,
+                                    name: Swift.String? = nil
+                                ) {
+                                    self.baseline_coverage = baseline_coverage
+                                    self.coverage = coverage
+                                    self.covered_lines = covered_lines
+                                    self.delta = delta
+                                    self.executable_lines = executable_lines
+                                    self.name = name
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case baseline_coverage
+                                    case coverage
+                                    case covered_lines
+                                    case delta
+                                    case executable_lines
+                                    case name
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targets`.
+                            public typealias targetsPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.targetsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/targets`.
+                            public var targets: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.targetsPayload
+                            /// Percentage points against the baseline; null on a partial run or without a baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/total_delta`.
+                            public var total_delta: Swift.Double?
+                            /// Creates a new `comparisonPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - baseline: The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.
+                            ///   - baseline_reason: Why a figure is missing: a machine-readable kind and a sentence.
+                            ///   - files: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                            ///   - gaps: Changed files with executable lines in their hunks none of which ran.
+                            ///   - patch: The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts.
+                            ///   - run:
+                            ///   - targets:
+                            ///   - total_delta: Percentage points against the baseline; null on a partial run or without a baseline.
+                            public init(
+                                baseline: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.baselinePayload? = nil,
+                                baseline_reason: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.baseline_reasonPayload? = nil,
+                                files: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.filesPayload,
+                                gaps: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.gapsPayload,
+                                patch: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload,
+                                run: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.runPayload,
+                                targets: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.targetsPayload,
+                                total_delta: Swift.Double? = nil
+                            ) {
+                                self.baseline = baseline
+                                self.baseline_reason = baseline_reason
+                                self.files = files
+                                self.gaps = gaps
+                                self.patch = patch
+                                self.run = run
+                                self.targets = targets
+                                self.total_delta = total_delta
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case baseline
+                                case baseline_reason
+                                case files
+                                case gaps
+                                case patch
+                                case run
+                                case targets
+                                case total_delta
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison`.
+                        public var comparison: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/pull_request_number`.
+                        public var pull_request_number: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload`.
+                        public struct runsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/base_branch`.
+                            public var base_branch: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/coverage`.
+                            public var coverage: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/covered_lines`.
+                            public var covered_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/executable_lines`.
+                            public var executable_lines: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/git_branch`.
+                            public var git_branch: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/partial`.
+                            public var partial: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/ran_at`.
+                            public var ran_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/scheme`.
+                            public var scheme: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runsPayload/test_run_id`.
+                            public var test_run_id: Swift.String
+                            /// Creates a new `runsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_branch:
+                            ///   - coverage:
+                            ///   - covered_lines:
+                            ///   - executable_lines:
+                            ///   - git_branch:
+                            ///   - git_commit_sha:
+                            ///   - partial:
+                            ///   - ran_at:
+                            ///   - scheme:
+                            ///   - test_run_id:
+                            public init(
+                                base_branch: Swift.String,
+                                coverage: Swift.Double,
+                                covered_lines: Swift.Int,
+                                executable_lines: Swift.Int,
+                                git_branch: Swift.String,
+                                git_commit_sha: Swift.String,
+                                partial: Swift.Bool,
+                                ran_at: Foundation.Date,
+                                scheme: Swift.String,
+                                test_run_id: Swift.String
+                            ) {
+                                self.base_branch = base_branch
+                                self.coverage = coverage
+                                self.covered_lines = covered_lines
+                                self.executable_lines = executable_lines
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.partial = partial
+                                self.ran_at = ran_at
+                                self.scheme = scheme
+                                self.test_run_id = test_run_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_branch
+                                case coverage
+                                case covered_lines
+                                case executable_lines
+                                case git_branch
+                                case git_commit_sha
+                                case partial
+                                case ran_at
+                                case scheme
+                                case test_run_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runs`.
+                        public typealias runsPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.runsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/runs`.
+                        public var runs: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.runsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - comparison:
+                        ///   - pull_request_number:
+                        ///   - runs:
+                        public init(
+                            comparison: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload,
+                            pull_request_number: Swift.Int,
+                            runs: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.runsPayload
+                        ) {
+                            self.comparison = comparison
+                            self.pull_request_number = pull_request_number
+                            self.runs = runs
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case comparison
+                            case pull_request_number
+                            case runs
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPullRequestCoverage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPullRequestCoverage.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The pull request's coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getPullRequestCoverage.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getPullRequestCoverage.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPullRequestCoverage.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPullRequestCoverage.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getPullRequestCoverage.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getPullRequestCoverage.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPullRequestCoverage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPullRequestCoverage.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getPullRequestCoverage.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getPullRequestCoverage.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPullRequestCoverage.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPullRequestCoverage.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The run was not found, or gathered no coverage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/get(getPullRequestCoverage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getPullRequestCoverage.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getPullRequestCoverage.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

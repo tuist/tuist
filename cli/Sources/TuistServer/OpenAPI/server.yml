@@ -925,6 +925,411 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageBaseline:
+      description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+      nullable: true
+      properties:
+        branch:
+          description: The base branch the baseline was taken from.
+          type: string
+          x-struct:
+          x-validate:
+        commit:
+          description: The commit the baseline run tested.
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        depth:
+          description: How many commits before the merge base the baseline commit is (0 at the merge base).
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        ran_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        test_run_id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_run_id
+        - commit
+        - branch
+        - depth
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: CoverageBaseline
+      type: object
+      x-struct:
+      x-validate:
+    CoverageComparison:
+      properties:
+        baseline:
+          description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+          nullable: true
+          properties:
+            branch:
+              description: The base branch the baseline was taken from.
+              type: string
+              x-struct:
+              x-validate:
+            commit:
+              description: The commit the baseline run tested.
+              type: string
+              x-struct:
+              x-validate:
+            coverage:
+              description: Line coverage, in percent.
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            depth:
+              description: How many commits before the merge base the baseline commit is (0 at the merge base).
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            ran_at:
+              format: date-time
+              type: string
+              x-struct:
+              x-validate:
+            test_run_id:
+              format: uuid
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - test_run_id
+            - commit
+            - branch
+            - depth
+            - covered_lines
+            - executable_lines
+            - coverage
+          title: CoverageBaseline
+          type: object
+          x-struct:
+          x-validate:
+        baseline_reason:
+          description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+          nullable: true
+          properties:
+            kind:
+              description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+              type: string
+              x-struct:
+              x-validate:
+            message:
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - message
+          title: CoverageReason
+          type: object
+          x-struct:
+          x-validate:
+        files:
+          description: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+          items:
+            properties:
+              baseline_coverage:
+                description: Null when only the run has the entry, or there is no baseline.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              coverage:
+                description: Null when only the baseline has the entry.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              delta:
+                description: Percentage points; null when the entry cannot be compared.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              executable_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                type: string
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        gaps:
+          description: Changed files with executable lines in their hunks none of which ran.
+          items:
+            properties:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - executable_lines
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        patch:
+          description: "The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts."
+          properties:
+            coverage:
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              description: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+              type: integer
+              x-struct:
+              x-validate:
+            files:
+              items:
+                properties:
+                  coverage:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  path:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: '`added`, `modified` or `renamed`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  uncovered_ranges:
+                    items:
+                      items:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - path
+                  - status
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - uncovered_ranges
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            reason:
+              description: Present when unavailable.
+              nullable: true
+              properties:
+                kind:
+                  description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                  type: string
+                  x-struct:
+                  x-validate:
+                message:
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - kind
+                - message
+              title: CoverageReason
+              type: object
+              x-struct:
+              x-validate:
+            skipped:
+              description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+              items:
+                properties:
+                  path:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  reason:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - path
+                  - reason
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            status:
+              enum:
+                - available
+                - unavailable
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - status
+          title: PatchCoverage
+          type: object
+          x-struct:
+          x-validate:
+        run:
+          properties:
+            coverage:
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            id:
+              format: uuid
+              type: string
+              x-struct:
+              x-validate:
+            partial:
+              description: Whether the run left tests out on purpose; a partial run has no total delta.
+              type: boolean
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - partial
+            - covered_lines
+            - executable_lines
+            - coverage
+          type: object
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            properties:
+              baseline_coverage:
+                description: Null when only the run has the entry, or there is no baseline.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              coverage:
+                description: Null when only the baseline has the entry.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              delta:
+                description: Percentage points; null when the entry cannot be compared.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              executable_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        total_delta:
+          description: Percentage points against the baseline; null on a partial run or without a baseline.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - run
+        - baseline
+        - baseline_reason
+        - total_delta
+        - targets
+        - files
+        - patch
+        - gaps
+      title: CoverageComparison
+      type: object
+      x-struct:
+      x-validate:
     DeviceCodeAuthenticationTokens:
       description: Token to authenticate the user with.
       properties:
@@ -2364,6 +2769,223 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestRunCoverage:
+      properties:
+        baseline:
+          description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+          nullable: true
+          properties:
+            branch:
+              description: The base branch the baseline was taken from.
+              type: string
+              x-struct:
+              x-validate:
+            commit:
+              description: The commit the baseline run tested.
+              type: string
+              x-struct:
+              x-validate:
+            coverage:
+              description: Line coverage, in percent.
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            depth:
+              description: How many commits before the merge base the baseline commit is (0 at the merge base).
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            ran_at:
+              format: date-time
+              type: string
+              x-struct:
+              x-validate:
+            test_run_id:
+              format: uuid
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - test_run_id
+            - commit
+            - branch
+            - depth
+            - covered_lines
+            - executable_lines
+            - coverage
+          title: CoverageBaseline
+          type: object
+          x-struct:
+          x-validate:
+        baseline_reason:
+          description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+          nullable: true
+          properties:
+            kind:
+              description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+              type: string
+              x-struct:
+              x-validate:
+            message:
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - message
+          title: CoverageReason
+          type: object
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage over the run's product files, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        git_history:
+          description: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+          properties:
+            base_branch:
+              description: The branch the run's commit will merge into; empty when unknown.
+              type: string
+              x-struct:
+              x-validate:
+            git_object_format:
+              description: '`sha1` or `sha256`; empty when unknown.'
+              type: string
+              x-struct:
+              x-validate:
+            history_fallback_reason:
+              description: What could not be collected, and why; empty when everything was.
+              type: string
+              x-struct:
+              x-validate:
+            history_source:
+              description: '`client`, `provider`, `mixed` or `none`.'
+              type: string
+              x-struct:
+              x-validate:
+            is_pull_request:
+              type: boolean
+              x-struct:
+              x-validate:
+            merge_base_sha:
+              description: The merge base with the base branch; empty when unknown.
+              type: string
+              x-struct:
+              x-validate:
+            pull_request_number:
+              description: 0 when the run is not a pull request's.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - base_branch
+            - merge_base_sha
+            - is_pull_request
+            - pull_request_number
+            - git_object_format
+            - history_source
+            - history_fallback_reason
+          title: TestRunGitHistory
+          type: object
+          x-struct:
+          x-validate:
+        partial:
+          type: boolean
+          x-struct:
+          x-validate:
+        ran_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          type: string
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              files_count:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - files_count
+              - covered_lines
+              - executable_lines
+              - coverage
+            title: CoverageTarget
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        test_run_id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_run_id
+        - scheme
+        - git_branch
+        - git_commit_sha
+        - partial
+        - covered_lines
+        - executable_lines
+        - coverage
+        - targets
+        - git_history
+        - baseline
+        - baseline_reason
+      title: TestRunCoverage
+      type: object
+      x-struct:
+      x-validate:
     CacheActionItem:
       description: Represents an action item stored in the cache.
       properties:
@@ -3278,6 +3900,125 @@ components:
       title: WebhookTestCase
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCase
+      x-validate:
+    PatchCoverage:
+      description: "The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts."
+      properties:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          description: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+          type: integer
+          x-struct:
+          x-validate:
+        files:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: '`added`, `modified` or `renamed`.'
+                type: string
+                x-struct:
+                x-validate:
+              uncovered_ranges:
+                items:
+                  items:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+              - covered_lines
+              - executable_lines
+              - coverage
+              - uncovered_ranges
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        reason:
+          description: Present when unavailable.
+          nullable: true
+          properties:
+            kind:
+              description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+              type: string
+              x-struct:
+              x-validate:
+            message:
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - message
+          title: CoverageReason
+          type: object
+          x-struct:
+          x-validate:
+        skipped:
+          description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+          items:
+            properties:
+              path:
+                type: string
+                x-struct:
+                x-validate:
+              reason:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - reason
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - available
+            - unavailable
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - status
+      title: PatchCoverage
+      type: object
+      x-struct:
       x-validate:
     TestCaseRunsList:
       description: A paginated list of test case runs.
@@ -5626,6 +6367,55 @@ components:
       type: string
       x-struct:
       x-validate:
+    TestRunGitHistory:
+      description: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+      properties:
+        base_branch:
+          description: The branch the run's commit will merge into; empty when unknown.
+          type: string
+          x-struct:
+          x-validate:
+        git_object_format:
+          description: '`sha1` or `sha256`; empty when unknown.'
+          type: string
+          x-struct:
+          x-validate:
+        history_fallback_reason:
+          description: What could not be collected, and why; empty when everything was.
+          type: string
+          x-struct:
+          x-validate:
+        history_source:
+          description: '`client`, `provider`, `mixed` or `none`.'
+          type: string
+          x-struct:
+          x-validate:
+        is_pull_request:
+          type: boolean
+          x-struct:
+          x-validate:
+        merge_base_sha:
+          description: The merge base with the base branch; empty when unknown.
+          type: string
+          x-struct:
+          x-validate:
+        pull_request_number:
+          description: 0 when the run is not a pull request's.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - base_branch
+        - merge_base_sha
+        - is_pull_request
+        - pull_request_number
+        - git_object_format
+        - history_source
+        - history_fallback_reason
+      title: TestRunGitHistory
+      type: object
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -5693,6 +6483,433 @@ components:
         - test_case_run_id
         - test_case_run_attachment_id
       title: CrashReportParams
+      type: object
+      x-struct:
+      x-validate:
+    PullRequestCoverage:
+      properties:
+        comparison:
+          properties:
+            baseline:
+              description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+              nullable: true
+              properties:
+                branch:
+                  description: The base branch the baseline was taken from.
+                  type: string
+                  x-struct:
+                  x-validate:
+                commit:
+                  description: The commit the baseline run tested.
+                  type: string
+                  x-struct:
+                  x-validate:
+                coverage:
+                  description: Line coverage, in percent.
+                  type: number
+                  x-struct:
+                  x-validate:
+                covered_lines:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                depth:
+                  description: How many commits before the merge base the baseline commit is (0 at the merge base).
+                  type: integer
+                  x-struct:
+                  x-validate:
+                executable_lines:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                ran_at:
+                  format: date-time
+                  type: string
+                  x-struct:
+                  x-validate:
+                test_run_id:
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - test_run_id
+                - commit
+                - branch
+                - depth
+                - covered_lines
+                - executable_lines
+                - coverage
+              title: CoverageBaseline
+              type: object
+              x-struct:
+              x-validate:
+            baseline_reason:
+              description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+              nullable: true
+              properties:
+                kind:
+                  description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                  type: string
+                  x-struct:
+                  x-validate:
+                message:
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - kind
+                - message
+              title: CoverageReason
+              type: object
+              x-struct:
+              x-validate:
+            files:
+              description: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+              items:
+                properties:
+                  baseline_coverage:
+                    description: Null when only the run has the entry, or there is no baseline.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Null when only the baseline has the entry.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  delta:
+                    description: Percentage points; null when the entry cannot be compared.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  path:
+                    type: string
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            gaps:
+              description: Changed files with executable lines in their hunks none of which ran.
+              items:
+                properties:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  path:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - path
+                  - executable_lines
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            patch:
+              description: "The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts."
+              properties:
+                coverage:
+                  type: number
+                  x-struct:
+                  x-validate:
+                covered_lines:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                executable_lines:
+                  description: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                files:
+                  items:
+                    properties:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        description: '`added`, `modified` or `renamed`.'
+                        type: string
+                        x-struct:
+                        x-validate:
+                      uncovered_ranges:
+                        items:
+                          items:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - status
+                      - covered_lines
+                      - executable_lines
+                      - coverage
+                      - uncovered_ranges
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                reason:
+                  description: Present when unavailable.
+                  nullable: true
+                  properties:
+                    kind:
+                      description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                      type: string
+                      x-struct:
+                      x-validate:
+                    message:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - kind
+                    - message
+                  title: CoverageReason
+                  type: object
+                  x-struct:
+                  x-validate:
+                skipped:
+                  description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                  items:
+                    properties:
+                      path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      reason:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - reason
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                status:
+                  enum:
+                    - available
+                    - unavailable
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - status
+              title: PatchCoverage
+              type: object
+              x-struct:
+              x-validate:
+            run:
+              properties:
+                coverage:
+                  type: number
+                  x-struct:
+                  x-validate:
+                covered_lines:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                executable_lines:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                id:
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                partial:
+                  description: Whether the run left tests out on purpose; a partial run has no total delta.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+              required:
+                - id
+                - partial
+                - covered_lines
+                - executable_lines
+                - coverage
+              type: object
+              x-struct:
+              x-validate:
+            targets:
+              items:
+                properties:
+                  baseline_coverage:
+                    description: Null when only the run has the entry, or there is no baseline.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Null when only the baseline has the entry.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  delta:
+                    description: Percentage points; null when the entry cannot be compared.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            total_delta:
+              description: Percentage points against the baseline; null on a partial run or without a baseline.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - run
+            - baseline
+            - baseline_reason
+            - total_delta
+            - targets
+            - files
+            - patch
+            - gaps
+          title: CoverageComparison
+          type: object
+          x-struct:
+          x-validate:
+        pull_request_number:
+          type: integer
+          x-struct:
+          x-validate:
+        runs:
+          items:
+            properties:
+              base_branch:
+                type: string
+                x-struct:
+                x-validate:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              git_branch:
+                type: string
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                type: string
+                x-struct:
+                x-validate:
+              partial:
+                type: boolean
+                x-struct:
+                x-validate:
+              ran_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              scheme:
+                type: string
+                x-struct:
+                x-validate:
+              test_run_id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - test_run_id
+              - scheme
+              - git_branch
+              - base_branch
+              - git_commit_sha
+              - ran_at
+              - partial
+              - covered_lines
+              - executable_lines
+              - coverage
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - pull_request_number
+        - runs
+        - comparison
+      title: PullRequestCoverage
       type: object
       x-struct:
       x-validate:
@@ -5855,6 +7072,81 @@ components:
         - storage_key
         - upload_url
       title: CoverageUpload
+      type: object
+      x-struct:
+      x-validate:
+    CoverageFile:
+      properties:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        git_blob_id:
+          description: The Git blob of the file the run measured; empty when Git did not track it.
+          type: string
+          x-struct:
+          x-validate:
+        path:
+          description: Repository-relative path.
+          type: string
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - path
+        - git_blob_id
+        - targets
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: CoverageFile
+      type: object
+      x-struct:
+      x-validate:
+    CoverageTarget:
+      properties:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        files_count:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - files_count
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: CoverageTarget
       type: object
       x-struct:
       x-validate:
@@ -6580,6 +7872,88 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestRunCoverageFiles:
+      properties:
+        files:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              git_blob_id:
+                description: The Git blob of the file the run measured; empty when Git did not track it.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: Repository-relative path.
+                type: string
+                x-struct:
+                x-validate:
+              targets:
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - git_blob_id
+              - targets
+              - covered_lines
+              - executable_lines
+              - coverage
+            title: CoverageFile
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          properties:
+            current_page:
+              type: integer
+              x-struct:
+              x-validate:
+            page_size:
+              type: integer
+              x-struct:
+              x-validate:
+            total_count:
+              type: integer
+              x-struct:
+              x-validate:
+            total_pages:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - current_page
+            - page_size
+            - total_count
+            - total_pages
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - files
+        - pagination_metadata
+      title: TestRunCoverageFiles
+      type: object
+      x-struct:
+      x-validate:
     TestCase:
       description: The schema for a test case.
       properties:
@@ -6903,6 +8277,114 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageFileDetail:
+      properties:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        functions:
+          items:
+            properties:
+              covered_lines:
+                description: Null when several shards covered the function and the union cannot be told.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              execution_count:
+                type: integer
+                x-struct:
+                x-validate:
+              line_number:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - line_number
+              - execution_count
+              - executable_lines
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_blob_id:
+          description: The Git blob of the file the run measured; empty when Git did not track it.
+          type: string
+          x-struct:
+          x-validate:
+        lines:
+          description: Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+          items:
+            items:
+              type: integer
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        path:
+          description: Repository-relative path.
+          type: string
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        uncovered_ranges:
+          description: Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+          items:
+            items:
+              type: integer
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          nullable: true
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - path
+        - git_blob_id
+        - targets
+        - covered_lines
+        - executable_lines
+        - coverage
+        - lines
+        - functions
+      title: CoverageFileDetail
+      type: object
+      x-struct:
+      x-validate:
     RunnerJobMetric:
       properties:
         cpu_iowait_percent:
@@ -7156,6 +8638,75 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageBranches:
+      properties:
+        branches:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              delta:
+                description: Against the default branch's newest full run; null when it has none.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              git_branch:
+                type: string
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                type: string
+                x-struct:
+                x-validate:
+              ran_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              test_run_id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - git_branch
+              - test_run_id
+              - git_commit_sha
+              - ran_at
+              - covered_lines
+              - executable_lines
+              - coverage
+              - delta
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme reported; null when no full run exists.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - scheme
+        - branches
+      title: CoverageBranches
+      type: object
+      x-struct:
+      x-validate:
     ModuleCacheTargetsPageSize:
       default: 20
       description: The maximum number of targets to return in a single page.
@@ -7278,6 +8829,26 @@ components:
       required:
         - tokens
       title: Tokens
+      type: object
+      x-struct:
+      x-validate:
+    CoverageReason:
+      description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+      nullable: true
+      properties:
+        kind:
+          description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+          type: string
+          x-struct:
+          x-validate:
+        message:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - kind
+        - message
+      title: CoverageReason
       type: object
       x-struct:
       x-validate:
@@ -13221,6 +14792,280 @@ paths:
       summary: It initiates a multipart upload for a run artifact
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}:
+    get:
+      callbacks: {}
+      description: The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its baseline (the newest full run of the same scheme on the base branch at the merge base or the nearest ancestor of it) or why there is none.
+      operationId: getTestRunCoverage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  baseline:
+                    description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+                    nullable: true
+                    properties:
+                      branch:
+                        description: The base branch the baseline was taken from.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      commit:
+                        description: The commit the baseline run tested.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      coverage:
+                        description: Line coverage, in percent.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      depth:
+                        description: How many commits before the merge base the baseline commit is (0 at the merge base).
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      ran_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      test_run_id:
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - test_run_id
+                      - commit
+                      - branch
+                      - depth
+                      - covered_lines
+                      - executable_lines
+                      - coverage
+                    title: CoverageBaseline
+                    type: object
+                    x-struct:
+                    x-validate:
+                  baseline_reason:
+                    description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+                    nullable: true
+                    properties:
+                      kind:
+                        description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                        type: string
+                        x-struct:
+                        x-validate:
+                      message:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kind
+                      - message
+                    title: CoverageReason
+                    type: object
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Line coverage over the run's product files, in percent.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_history:
+                    description: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
+                    properties:
+                      base_branch:
+                        description: The branch the run's commit will merge into; empty when unknown.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      git_object_format:
+                        description: '`sha1` or `sha256`; empty when unknown.'
+                        type: string
+                        x-struct:
+                        x-validate:
+                      history_fallback_reason:
+                        description: What could not be collected, and why; empty when everything was.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      history_source:
+                        description: '`client`, `provider`, `mixed` or `none`.'
+                        type: string
+                        x-struct:
+                        x-validate:
+                      is_pull_request:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      merge_base_sha:
+                        description: The merge base with the base branch; empty when unknown.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      pull_request_number:
+                        description: 0 when the run is not a pull request's.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - base_branch
+                      - merge_base_sha
+                      - is_pull_request
+                      - pull_request_number
+                      - git_object_format
+                      - history_source
+                      - history_fallback_reason
+                    title: TestRunGitHistory
+                    type: object
+                    x-struct:
+                    x-validate:
+                  partial:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  ran_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  scheme:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        files_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - files_count
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageTarget
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_run_id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_run_id
+                  - scheme
+                  - git_branch
+                  - git_commit_sha
+                  - partial
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - targets
+                  - git_history
+                  - baseline
+                  - baseline_reason
+                title: TestRunCoverage
+                type: object
+                x-struct:
+                x-validate:
+          description: The run's coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run was not found, or gathered no coverage
+      summary: Get a test run's code coverage.
+      tags:
+        - Tests
   /api/analytics:
     post:
       callbacks: {}
@@ -16688,6 +18533,160 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/files:
+    get:
+      callbacks: {}
+      operationId: listTestRunCoverageFiles
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: The page number, starting at 1.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Files per page (default 20, at most 100).
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  files:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_blob_id:
+                          description: The Git blob of the file the run measured; empty when Git did not track it.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: Repository-relative path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        targets:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                      required:
+                        - path
+                        - git_blob_id
+                        - targets
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageFile
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    properties:
+                      current_page:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - current_page
+                      - page_size
+                      - total_count
+                      - total_pages
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - files
+                  - pagination_metadata
+                title: TestRunCoverageFiles
+                type: object
+                x-struct:
+                x-validate:
+          description: The files
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run was not found, or gathered no coverage
+      summary: List a test run's files with their coverage, least covered first.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks:
     get:
       callbacks: {}
@@ -17616,6 +19615,139 @@ paths:
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/branches:
+    get:
+      callbacks: {}
+      description: For the given scheme (by default the one with most full runs on the default branch), every branch with a full run in the period, newest first, with its difference from the default branch in percentage points.
+      operationId: listCoverageBranches
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The scheme to report; figures are never pooled across schemes.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: How many days back to look (default 30).
+          in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  branches:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        delta:
+                          description: Against the default branch's newest full run; null when it has none.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_run_id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - git_branch
+                        - test_run_id
+                        - git_commit_sha
+                        - ran_at
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                        - delta
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  scheme:
+                    description: The scheme reported; null when no full run exists.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - scheme
+                  - branches
+                title: CoverageBranches
+                type: object
+                x-struct:
+                x-validate:
+          description: The branches
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List every branch's newest full-run coverage.
+      tags:
+        - Tests
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/steps:
     get:
       callbacks: {}
@@ -23067,6 +25199,178 @@ paths:
       summary: List a project's notification alert rules.
       tags:
         - Project Notification Alerts
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/file:
+    get:
+      callbacks: {}
+      operationId: getTestRunCoverageFile
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: The file's repository-relative path.
+          in: query
+          name: path
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  coverage:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  functions:
+                    items:
+                      properties:
+                        covered_lines:
+                          description: Null when several shards covered the function and the union cannot be told.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        execution_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        line_number:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - line_number
+                        - execution_count
+                        - executable_lines
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  git_blob_id:
+                    description: The Git blob of the file the run measured; empty when Git did not track it.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  lines:
+                    description: Every executable line with its execution count, as `[line, count]` pairs in line order; empty when the run has no per-line data for the file.
+                    items:
+                      items:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  path:
+                    description: Repository-relative path.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  uncovered_ranges:
+                    description: Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.
+                    items:
+                      items:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - path
+                  - git_blob_id
+                  - targets
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - lines
+                  - functions
+                title: CoverageFileDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: The file's coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run was not found, or gathered no coverage
+      summary: Get one file's coverage in a test run, line by line.
+      tags:
+        - Tests
   /api/cache/multipart/start:
     post:
       callbacks: {}
@@ -26568,6 +28872,414 @@ paths:
       summary: Updates a member in an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison:
+    get:
+      callbacks: {}
+      description: 'The total delta (full runs only), the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another run.'
+      operationId: getTestRunCoverageComparison
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  baseline:
+                    description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+                    nullable: true
+                    properties:
+                      branch:
+                        description: The base branch the baseline was taken from.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      commit:
+                        description: The commit the baseline run tested.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      coverage:
+                        description: Line coverage, in percent.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      depth:
+                        description: How many commits before the merge base the baseline commit is (0 at the merge base).
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      ran_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      test_run_id:
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - test_run_id
+                      - commit
+                      - branch
+                      - depth
+                      - covered_lines
+                      - executable_lines
+                      - coverage
+                    title: CoverageBaseline
+                    type: object
+                    x-struct:
+                    x-validate:
+                  baseline_reason:
+                    description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+                    nullable: true
+                    properties:
+                      kind:
+                        description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                        type: string
+                        x-struct:
+                        x-validate:
+                      message:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kind
+                      - message
+                    title: CoverageReason
+                    type: object
+                    x-struct:
+                    x-validate:
+                  files:
+                    description: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                    items:
+                      properties:
+                        baseline_coverage:
+                          description: Null when only the run has the entry, or there is no baseline.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        coverage:
+                          description: Null when only the baseline has the entry.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        delta:
+                          description: Percentage points; null when the entry cannot be compared.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  gaps:
+                    description: Changed files with executable lines in their hunks none of which ran.
+                    items:
+                      properties:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - path
+                        - executable_lines
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  patch:
+                    description: "The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts."
+                    properties:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        description: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      files:
+                        items:
+                          properties:
+                            coverage:
+                              type: number
+                              x-struct:
+                              x-validate:
+                            covered_lines:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            executable_lines:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            path:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            status:
+                              description: '`added`, `modified` or `renamed`.'
+                              type: string
+                              x-struct:
+                              x-validate:
+                            uncovered_ranges:
+                              items:
+                                items:
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                type: array
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                          required:
+                            - path
+                            - status
+                            - covered_lines
+                            - executable_lines
+                            - coverage
+                            - uncovered_ranges
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      reason:
+                        description: Present when unavailable.
+                        nullable: true
+                        properties:
+                          kind:
+                            description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                            type: string
+                            x-struct:
+                            x-validate:
+                          message:
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - kind
+                          - message
+                        title: CoverageReason
+                        type: object
+                        x-struct:
+                        x-validate:
+                      skipped:
+                        description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                        items:
+                          properties:
+                            path:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            reason:
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - path
+                            - reason
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      status:
+                        enum:
+                          - available
+                          - unavailable
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - status
+                    title: PatchCoverage
+                    type: object
+                    x-struct:
+                    x-validate:
+                  run:
+                    properties:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      id:
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                      partial:
+                        description: Whether the run left tests out on purpose; a partial run has no total delta.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - partial
+                      - covered_lines
+                      - executable_lines
+                      - coverage
+                    type: object
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      properties:
+                        baseline_coverage:
+                          description: Null when only the run has the entry, or there is no baseline.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        coverage:
+                          description: Null when only the baseline has the entry.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        delta:
+                          description: Percentage points; null when the entry cannot be compared.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  total_delta:
+                    description: Percentage points against the baseline; null on a partial run or without a baseline.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                required:
+                  - run
+                  - baseline
+                  - baseline_reason
+                  - total_delta
+                  - targets
+                  - files
+                  - patch
+                  - gaps
+                title: CoverageComparison
+                type: object
+                x-struct:
+                x-validate:
+          description: The comparison
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run was not found, or gathered no coverage
+      summary: Compare a test run's coverage with its baseline.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets:
     get:
       callbacks: {}
@@ -28634,6 +31346,498 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
       summary: Get the code coverage upload settings for a project.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}:
+    get:
+      callbacks: {}
+      description: 'Every run of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `test_run_id`) with its baseline: deltas, patch coverage and gaps.'
+      operationId: getPullRequestCoverage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The pull request number.
+          in: path
+          name: pull_request_number
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The run to compare; the newest by default.
+          in: query
+          name: test_run_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  comparison:
+                    properties:
+                      baseline:
+                        description: "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history."
+                        nullable: true
+                        properties:
+                          branch:
+                            description: The base branch the baseline was taken from.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          commit:
+                            description: The commit the baseline run tested.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          coverage:
+                            description: Line coverage, in percent.
+                            type: number
+                            x-struct:
+                            x-validate:
+                          covered_lines:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          depth:
+                            description: How many commits before the merge base the baseline commit is (0 at the merge base).
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          executable_lines:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          ran_at:
+                            format: date-time
+                            type: string
+                            x-struct:
+                            x-validate:
+                          test_run_id:
+                            format: uuid
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - test_run_id
+                          - commit
+                          - branch
+                          - depth
+                          - covered_lines
+                          - executable_lines
+                          - coverage
+                        title: CoverageBaseline
+                        type: object
+                        x-struct:
+                        x-validate:
+                      baseline_reason:
+                        description: 'Why a figure is missing: a machine-readable kind and a sentence.'
+                        nullable: true
+                        properties:
+                          kind:
+                            description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                            type: string
+                            x-struct:
+                            x-validate:
+                          message:
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - kind
+                          - message
+                        title: CoverageReason
+                        type: object
+                        x-struct:
+                        x-validate:
+                      files:
+                        description: Only the files whose coverage moved or that one side lacks; on a partial run only files some test executed.
+                        items:
+                          properties:
+                            baseline_coverage:
+                              description: Null when only the run has the entry, or there is no baseline.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            coverage:
+                              description: Null when only the baseline has the entry.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            covered_lines:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            delta:
+                              description: Percentage points; null when the entry cannot be compared.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            executable_lines:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            path:
+                              type: string
+                              x-struct:
+                              x-validate:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      gaps:
+                        description: Changed files with executable lines in their hunks none of which ran.
+                        items:
+                          properties:
+                            executable_lines:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            path:
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - path
+                            - executable_lines
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      patch:
+                        description: "The share of the changed executable lines the run covered, from the changed files' hunks against the merge base and the run's per-line counts."
+                        properties:
+                          coverage:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          covered_lines:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          executable_lines:
+                            description: Changed lines the compiler instrumented; 0 when the change touched no executable line.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          files:
+                            items:
+                              properties:
+                                coverage:
+                                  type: number
+                                  x-struct:
+                                  x-validate:
+                                covered_lines:
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                executable_lines:
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                path:
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: '`added`, `modified` or `renamed`.'
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                uncovered_ranges:
+                                  items:
+                                    items:
+                                      type: integer
+                                      x-struct:
+                                      x-validate:
+                                    type: array
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - path
+                                - status
+                                - covered_lines
+                                - executable_lines
+                                - coverage
+                                - uncovered_ranges
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          reason:
+                            description: Present when unavailable.
+                            nullable: true
+                            properties:
+                              kind:
+                                description: '`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.'
+                                type: string
+                                x-struct:
+                                x-validate:
+                              message:
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - kind
+                              - message
+                            title: CoverageReason
+                            type: object
+                            x-struct:
+                            x-validate:
+                          skipped:
+                            description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                            items:
+                              properties:
+                                path:
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                reason:
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - path
+                                - reason
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          status:
+                            enum:
+                              - available
+                              - unavailable
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - status
+                        title: PatchCoverage
+                        type: object
+                        x-struct:
+                        x-validate:
+                      run:
+                        properties:
+                          coverage:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          covered_lines:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          executable_lines:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          id:
+                            format: uuid
+                            type: string
+                            x-struct:
+                            x-validate:
+                          partial:
+                            description: Whether the run left tests out on purpose; a partial run has no total delta.
+                            type: boolean
+                            x-struct:
+                            x-validate:
+                        required:
+                          - id
+                          - partial
+                          - covered_lines
+                          - executable_lines
+                          - coverage
+                        type: object
+                        x-struct:
+                        x-validate:
+                      targets:
+                        items:
+                          properties:
+                            baseline_coverage:
+                              description: Null when only the run has the entry, or there is no baseline.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            coverage:
+                              description: Null when only the baseline has the entry.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            covered_lines:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            delta:
+                              description: Percentage points; null when the entry cannot be compared.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            executable_lines:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            name:
+                              type: string
+                              x-struct:
+                              x-validate:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      total_delta:
+                        description: Percentage points against the baseline; null on a partial run or without a baseline.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - run
+                      - baseline
+                      - baseline_reason
+                      - total_delta
+                      - targets
+                      - files
+                      - patch
+                      - gaps
+                    title: CoverageComparison
+                    type: object
+                    x-struct:
+                    x-validate:
+                  pull_request_number:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  runs:
+                    items:
+                      properties:
+                        base_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        partial:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_run_id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - test_run_id
+                        - scheme
+                        - git_branch
+                        - base_branch
+                        - git_commit_sha
+                        - ran_at
+                        - partial
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - pull_request_number
+                  - runs
+                  - comparison
+                title: PullRequestCoverage
+                type: object
+                x-struct:
+                x-validate:
+          description: The pull request's coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run was not found, or gathered no coverage
+      summary: Get a pull request's code coverage against its baseline.
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events:
