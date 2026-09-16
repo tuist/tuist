@@ -67,10 +67,25 @@ defmodule TuistWeb.GoogleOneTapTest do
     assert %{"nonce" => _} = json_response(conn, 200)
   end
 
+  test "matches the origin against the public origin forwarded by the proxy", %{conn: conn} do
+    conn =
+      conn
+      |> enforce_csrf()
+      |> put_req_header("x-forwarded-proto", "https")
+      |> put_req_header("x-forwarded-host", "tuist.dev")
+      |> put_req_header("origin", "https://tuist.dev")
+      |> start()
+
+    assert %{"nonce" => _} = json_response(conn, 200)
+  end
+
   test "rejects start requests that are not provably same-origin", %{conn: conn} do
     for headers <- [
           [],
           [{"origin", "https://evil.example"}],
+          [{"origin", "https://www.example.com"}],
+          [{"origin", "http://www.example.com:3000"}],
+          [{"origin", "http://www.example.com"}, {"x-forwarded-host", "tuist.dev"}],
           [{"sec-fetch-site", "cross-site"}],
           [{"sec-fetch-site", "same-site"}, {"origin", "http://www.example.com"}]
         ] do

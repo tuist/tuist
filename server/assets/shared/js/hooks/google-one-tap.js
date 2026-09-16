@@ -28,11 +28,9 @@ export const GoogleOneTap = {
       this.onPageHide = () => this.destroyed();
       window.addEventListener("pagehide", this.onPageHide, { once: true });
 
-      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const response = await fetch(this.el.dataset.startUrl, {
         method: "POST",
         credentials: "same-origin",
-        headers: { "x-csrf-token": csrfToken },
         signal: this.abortController.signal,
       });
       if (!response.ok) return;

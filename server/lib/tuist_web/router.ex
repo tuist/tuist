@@ -21,6 +21,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
+  alias TuistWeb.RequestOrigin
 
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
@@ -149,7 +150,7 @@ defmodule TuistWeb.Router do
   # instead and receives a fresh token for the credential form, which stays
   # fully CSRF-protected.
   pipeline :google_one_tap_start do
-    plug :skip_csrf_for_same_origin_request
+    plug :skip_csrf_for_same_origin_google_one_tap_start
   end
 
   pipeline :browser_app_image do
@@ -1102,10 +1103,6 @@ defmodule TuistWeb.Router do
   scope "/auth", TuistWeb do
     pipe_through [:google_one_tap_start, :browser_app]
     post "/google/one-tap/start", AuthController, :google_one_tap_start
-  end
-
-  scope "/auth", TuistWeb do
-    pipe_through [:browser_app]
     post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
@@ -1451,7 +1448,12 @@ defmodule TuistWeb.Router do
 
   defp skip_csrf_for_fun_with_flags_assets(conn, _opts), do: conn
 
-  defp skip_csrf_for_same_origin_request(conn, _opts) do
+  # Constrained to the start request so no other route under the same scope
+  # inherits the exemption.
+  defp skip_csrf_for_same_origin_google_one_tap_start(
+         %Plug.Conn{method: "POST", path_info: ["auth", "google", "one-tap", "start"]} = conn,
+         _opts
+       ) do
     if same_origin_request?(conn) do
       Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
     else
@@ -1459,12 +1461,15 @@ defmodule TuistWeb.Router do
     end
   end
 
-  # Browsers set both headers themselves; scripts cannot forge them.
+  defp skip_csrf_for_same_origin_google_one_tap_start(conn, _opts), do: conn
+
+  # Both headers are set by the browser and cannot be forged by page scripts.
+  # Sec-Fetch-Site is authoritative when present; older browsers only send
+  # Origin, which must match the public origin of this request exactly.
   defp same_origin_request?(conn) do
-    case {get_req_header(conn, "sec-fetch-site"), get_req_header(conn, "origin")} do
-      {["same-origin"], _} -> true
-      {[_], _} -> false
-      {[], [origin]} -> URI.parse(origin).host == conn.host
+    case get_req_header(conn, "sec-fetch-site") do
+      ["same-origin"] -> true
+      [] -> get_req_header(conn, "origin") == [RequestOrigin.from_conn(conn)]
       _ -> false
     end
   end

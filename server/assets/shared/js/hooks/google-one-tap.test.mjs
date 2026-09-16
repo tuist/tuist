@@ -12,7 +12,7 @@ function fixture() {
   const state = { submitted: 0, cancelled: 0, listeners: new Set() };
   const form = {
     isConnected: true,
-    elements: { credential: { value: "" }, nonce: { value: "" } },
+    elements: { _csrf_token: { value: "stale-token" }, credential: { value: "" }, nonce: { value: "" } },
     requestSubmit() {
       state.submitted++;
     },
@@ -40,11 +40,13 @@ function fixture() {
     google: window.google,
     AbortController,
     document: {
-      querySelector: () => ({ content: "test-token" }),
       createElement: () => ({ remove() {} }),
       head: { appendChild: (script) => queueMicrotask(() => script.onerror()) },
     },
-    fetch: async () => ({ ok: true, json: async () => ({ client_id: "test-client", nonce: "test-nonce" }) }),
+    fetch: async () => ({
+      ok: true,
+      json: async () => ({ client_id: "test-client", nonce: "test-nonce", csrf_token: "fresh-token" }),
+    }),
   };
   runInNewContext(source, context);
   const hook = Object.assign(Object.create(context.hook), {
@@ -92,9 +94,18 @@ test("valid credentials still submit the protected form", async () => {
   const { hook, state, form } = fixture();
   await hook.mounted();
   state.callback({ credential: "signed-token" });
+  assert.equal(form.elements._csrf_token.value, "fresh-token");
   assert.equal(form.elements.credential.value, "signed-token");
   assert.equal(form.elements.nonce.value, "test-nonce");
   assert.equal(state.submitted, 1);
+});
+
+test("does not prompt when the start response omits the fresh CSRF token", async () => {
+  const { hook, context, state } = fixture();
+  context.fetch = async () => ({ ok: true, json: async () => ({ client_id: "test-client", nonce: "test-nonce" }) });
+  await hook.mounted();
+  assert.equal(state.callback, undefined);
+  assert.equal(hook.prompted, undefined);
 });
 
 test("throwing cancellation still cleans up and prevents late submission", async () => {
