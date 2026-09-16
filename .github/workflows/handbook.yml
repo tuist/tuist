@@ -33,7 +33,7 @@ jobs:
     name: Build & Deploy
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
@@ -51,12 +51,10 @@ jobs:
       - name: Build handbook
         working-directory: handbook
         run: mise run build
-      # Guarded on the repository too, so a fork syncing `main` still builds
-      # the handbook but never attempts a deploy it has no credentials for.
       - uses: 1password/install-cli-action@v2
-        if: github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+        if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
-        if: github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+        if: github.ref == 'refs/heads/main'
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN

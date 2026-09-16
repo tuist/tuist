@@ -36,7 +36,7 @@ jobs:
     name: Build and health check
     runs-on: tuist-linux
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
