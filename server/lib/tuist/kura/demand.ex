@@ -12,7 +12,7 @@ defmodule Tuist.Kura.Demand do
 
   It is deliberately a proxy for cache traffic rather than a measure of it, and
   it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
+  `RunAtLoad`, so the CAS proxy resolves an endpoint on every login: an
   account whose agent is installed but idle keeps refreshing its clock without
   anyone building, and may never reach a full inactive window. In the other
   direction the CLI caches a resolved endpoint for an hour, so most requests
