@@ -565,7 +565,12 @@ defmodule Tuist.Tests do
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
-      Coverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
+      expected_shards = (shard_plan && shard_plan.shard_count) || 1
+      Coverage.publish(test, xcode_coverage, shard_index, expected_shards)
+
+      if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
+        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+      end
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(test, test_modules, shard_index, shard_plan)

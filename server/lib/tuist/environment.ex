@@ -359,6 +359,20 @@ defmodule Tuist.Environment do
     end)
   end
 
+  @doc """
+  The size, in bytes of the DEFLATE-compressed coverage, above which a client
+  that processed the result bundle itself uploads the coverage to object
+  storage instead of sending it inline with the run. Set with
+  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 5 MB by default, well under the
+  request body limit the inline form is held to.
+  """
+  def coverage_inline_threshold_bytes(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") do
+      nil -> 5_000_000
+      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 5_000_000
+    end
+  end
+
   @git_history_environment_variables %{
     window_days: "TUIST_GIT_HISTORY_WINDOW_DAYS",
     window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",

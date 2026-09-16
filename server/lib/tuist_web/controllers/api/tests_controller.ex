@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestsController do
   alias OpenApiSpex.Schema
   alias Tuist.GitHistory
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
   alias Tuist.VCS.RemoteURL
@@ -382,6 +383,15 @@ defmodule TuistWeb.API.TestsController do
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
            xcode_coverage: XcodeCoverage,
+           xcode_coverage_storage_key: %Schema{
+             type: :string,
+             description:
+               "The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline."
+           },
+           xcode_coverage_partial: %Schema{
+             type: :boolean,
+             description: "With `xcode_coverage_storage_key`: whether the run left tests out on purpose."
+           },
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -703,6 +713,11 @@ defmodule TuistWeb.API.TestsController do
 
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
 
+      {:error, :invalid_coverage_storage_key} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "xcode_coverage_storage_key must be the key createCoverageUpload returned for this run's id"})
+
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
     end
@@ -875,6 +890,24 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
+    with :ok <- validate_coverage_storage_key(params, test_id) do
+      get_or_create_test(params, test_id)
+    end
+  end
+
+  # An uploaded coverage file is only ever read back under the run's own key
+  # (`Tuist.Tests.Coverage.storage_key/2`), so a run cannot point at another's.
+  defp validate_coverage_storage_key(params, test_id) do
+    case Map.get(params, :xcode_coverage_storage_key) do
+      nil ->
+        :ok
+
+      key ->
+        if key == Coverage.storage_key(params.project, test_id), do: :ok, else: {:error, :invalid_coverage_storage_key}
+    end
+  end
+
+  defp get_or_create_test(params, test_id) do
     case Tests.get_test(test_id, preload: [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]) do
       {:ok, %{project_id: project_id} = test_run} when project_id == params.project.id ->
         {:ok, test_run}
@@ -920,7 +953,9 @@ defmodule TuistWeb.API.TestsController do
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
           stress_new_tests: Map.get(params, :stress_new_tests),
-          xcode_coverage: Map.get(params, :xcode_coverage)
+          xcode_coverage: Map.get(params, :xcode_coverage),
+          xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
+          xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)
         })
     end
   end

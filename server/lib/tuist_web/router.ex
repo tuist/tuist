@@ -788,6 +788,11 @@ defmodule TuistWeb.Router do
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 
+          scope "/coverage" do
+            get "/settings", CoverageController, :settings
+            post "/uploads", CoverageController, :create_upload
+          end
+
           scope "/git-history" do
             get "/settings", GitHistoryController, :settings
             post "/commits/missing", GitHistoryController, :missing_commits
