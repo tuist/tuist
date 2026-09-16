@@ -2,9 +2,10 @@ package dev.tuist.gradle
 
 import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.OkHttpClient
-import org.gradle.api.logging.Logging
 import okhttp3.Request
+import org.gradle.api.logging.Logging
 import java.io.File
+import java.io.InterruptedIOException
 import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -75,32 +76,45 @@ object CacheEndpointResolver {
         getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients),
         provisioningWaitMs: Long = PROVISIONING_WAIT_MS,
         provisioningPollIntervalMs: Long = PROVISIONING_POLL_INTERVAL_MS,
-        sleeper: (Long) -> Unit = { Thread.sleep(it) }
+        sleeper: (Long) -> Unit = { Thread.sleep(it) },
+        nanoTime: () -> Long = System::nanoTime
     ): String {
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
             return envEndpoint
         }
 
-        val fetch = {
+        val fetch = { timeoutMs: Long? ->
             getCacheEndpointsService.getCacheEndpoints(
                 serverURL = serverURL,
                 accountHandle = accountHandle,
-                tokenProvider = tokenProvider
+                tokenProvider = tokenProvider,
+                timeoutMs = timeoutMs
             )
         }
-        var resolution = fetch()
+        var resolution = fetch(null)
         val beingPrepared = { resolution.endpoints.isEmpty() && resolution.provisioning == true }
         if (beingPrepared() && provisioningWaitMs > 0 && provisioningPollIntervalMs > 0) {
             logger.lifecycle(
                 "Tuist: The remote cache for account '$accountHandle' is being prepared. " +
                     "Waiting up to ${provisioningWaitMs / 1_000} seconds for it to be ready."
             )
-            var waitedMs = 0L
-            while (beingPrepared() && waitedMs < provisioningWaitMs) {
-                sleeper(provisioningPollIntervalMs)
-                waitedMs += provisioningPollIntervalMs
-                resolution = fetch()
+            // Wall-clock budget from the first answer: requests count against it as much as the
+            // pauses between them, and neither is allowed to run past it.
+            val deadline = nanoTime() + TimeUnit.MILLISECONDS.toNanos(provisioningWaitMs)
+            val remainingMs = { TimeUnit.NANOSECONDS.toMillis(deadline - nanoTime()) }
+            while (beingPrepared()) {
+                val untilDeadlineMs = remainingMs()
+                if (untilDeadlineMs <= 0) break
+                sleeper(minOf(provisioningPollIntervalMs, untilDeadlineMs))
+
+                val budgetMs = remainingMs()
+                if (budgetMs <= 0) break
+                resolution = try {
+                    fetch(budgetMs)
+                } catch (_: InterruptedIOException) {
+                    break
+                }
             }
         }
         val endpoints = resolution.endpoints

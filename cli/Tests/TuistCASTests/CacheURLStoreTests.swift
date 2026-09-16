@@ -270,8 +270,7 @@
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
                 provisioningWait: .seconds(30),
-                provisioningPollInterval: .seconds(1),
-                sleep: { _ in }
+                provisioningPollInterval: .milliseconds(10)
             )
             var lookups = 0
             given(getCacheEndpoints)
@@ -301,21 +300,70 @@
                 cachedValueStore: cachedValueStore,
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
-                provisioningWait: .seconds(3),
-                provisioningPollInterval: .seconds(1),
-                sleep: { _ in }
+                provisioningWait: .milliseconds(100),
+                provisioningPollInterval: .milliseconds(20)
             )
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
                 .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true))
+            let clock = ContinuousClock()
+            let start = clock.now
 
             // When/Then
             await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
                 _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
             }
-            verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
-                .called(4)
+            #expect(start.duration(to: clock.now) >= .milliseconds(100))
+        }
+
+        @Test(.withMockedEnvironment())
+        func counts_the_time_requests_take_against_the_wait() async throws {
+            // Given: every answer takes 300ms. Counting only the pauses, a 500ms wait
+            // polled every 100ms would make five more requests and run for about 2.3s.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: SlowGetCacheEndpointsService(
+                    delay: .milliseconds(300),
+                    resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                ),
+                endpointLatencyService: latencyService,
+                provisioningWait: .milliseconds(500),
+                provisioningPollInterval: .milliseconds(100)
+            )
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            #expect(start.duration(to: clock.now) < .milliseconds(1200))
+        }
+
+        @Test(.withMockedEnvironment())
+        func does_not_let_a_request_outlast_the_wait() async throws {
+            // Given: every answer takes 1s, longer than the whole 200ms wait. The first
+            // answer is what starts the wait; the next request is cut off when it ends.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: SlowGetCacheEndpointsService(
+                    delay: .seconds(1),
+                    resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                ),
+                endpointLatencyService: latencyService,
+                provisioningWait: .milliseconds(200),
+                provisioningPollInterval: .milliseconds(50)
+            )
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            #expect(start.duration(to: clock.now) < .milliseconds(1800))
         }
 
         @Test(.withMockedEnvironment())
@@ -327,8 +375,7 @@
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
                 provisioningWait: .seconds(30),
-                provisioningPollInterval: .seconds(1),
-                sleep: { _ in }
+                provisioningPollInterval: .milliseconds(10)
             )
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
@@ -525,6 +572,16 @@
             verify(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
                 .called(1)
+        }
+    }
+
+    private struct SlowGetCacheEndpointsService: GetCacheEndpointsServicing {
+        let delay: Duration
+        let resolution: CacheEndpointsResolution
+
+        func getCacheEndpoints(serverURL _: URL, accountHandle _: String?) async throws -> CacheEndpointsResolution {
+            try await Task.sleep(for: delay)
+            return resolution
         }
     }
 #endif

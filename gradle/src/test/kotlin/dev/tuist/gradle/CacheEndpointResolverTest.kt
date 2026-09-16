@@ -5,6 +5,7 @@ import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Test
+import java.io.InterruptedIOException
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
@@ -26,7 +27,8 @@ class CacheEndpointResolverTest {
             override fun getCacheEndpoints(
                 serverURL: URI,
                 accountHandle: String,
-                tokenProvider: TokenProvider
+                tokenProvider: TokenProvider,
+                timeoutMs: Long?
             ): CacheEndpoints = CacheEndpoints(endpoints = endpoints, provisioning = provisioning)
         }
     }
@@ -62,49 +64,100 @@ class CacheEndpointResolverTest {
         }
     }
 
-    @Test
-    fun `no endpoints after waiting for the cache being prepared throws CacheEndpointBeingPreparedException`() {
-        var sleeps = 0
-        assertFailsWith<CacheEndpointBeingPreparedException> {
-            CacheEndpointResolver.resolve(
-                serverURL, accountHandle, stubTokenProvider,
-                envProvider = { null },
-                getCacheEndpointsService = stubService(emptyList(), provisioning = true),
-                provisioningWaitMs = 3_000,
-                provisioningPollIntervalMs = 1_000,
-                sleeper = { sleeps++ }
-            )
+    /** A server whose answers take [responseMs] of simulated time, honoring the call timeout. */
+    private class SlowService(
+        private val clock: FakeClock,
+        private val responseMs: Long,
+        private val readyAfterCalls: Int = Int.MAX_VALUE
+    ) : GetCacheEndpointsService() {
+        var calls = 0
+
+        override fun getCacheEndpoints(
+            serverURL: URI,
+            accountHandle: String,
+            tokenProvider: TokenProvider,
+            timeoutMs: Long?
+        ): CacheEndpoints {
+            if (timeoutMs != null && responseMs > timeoutMs) {
+                clock.advance(timeoutMs)
+                throw InterruptedIOException("timeout")
+            }
+            clock.advance(responseMs)
+            calls++
+            return if (calls >= readyAfterCalls) {
+                CacheEndpoints(endpoints = listOf("https://acme-us-east-1.kura.tuist.dev"), provisioning = false)
+            } else {
+                CacheEndpoints(endpoints = emptyList(), provisioning = true)
+            }
         }
-        assertEquals(3, sleeps)
+    }
+
+    private class FakeClock {
+        var nanos = 0L
+        fun advance(ms: Long) {
+            nanos += TimeUnit.MILLISECONDS.toNanos(ms)
+        }
+        val elapsedMs get() = TimeUnit.NANOSECONDS.toMillis(nanos)
     }
 
     @Test
     fun `waits for an endpoint the server is preparing`() {
-        var calls = 0
-        val service = object : GetCacheEndpointsService() {
-            override fun getCacheEndpoints(
-                serverURL: URI,
-                accountHandle: String,
-                tokenProvider: TokenProvider
-            ): CacheEndpoints {
-                calls++
-                return if (calls < 3) {
-                    CacheEndpoints(endpoints = emptyList(), provisioning = true)
-                } else {
-                    CacheEndpoints(endpoints = listOf("https://acme-us-east-1.kura.tuist.dev"), provisioning = false)
-                }
-            }
-        }
+        val clock = FakeClock()
+        val service = SlowService(clock, responseMs = 0, readyAfterCalls = 3)
 
         val result = CacheEndpointResolver.resolve(
             serverURL, accountHandle, stubTokenProvider,
             envProvider = { null },
             getCacheEndpointsService = service,
-            sleeper = { }
+            sleeper = clock::advance,
+            nanoTime = { clock.nanos }
         )
 
         assertEquals("https://acme-us-east-1.kura.tuist.dev", result)
-        assertEquals(3, calls)
+        assertEquals(3, service.calls)
+    }
+
+    @Test
+    fun `counts the time requests take against the wait`() {
+        // Every answer takes 500ms. Counting only the pauses, a 3s wait polled every second
+        // would make three more requests and run for 4.5s after the first answer.
+        val clock = FakeClock()
+        val service = SlowService(clock, responseMs = 500)
+
+        assertFailsWith<CacheEndpointBeingPreparedException> {
+            CacheEndpointResolver.resolve(
+                serverURL, accountHandle, stubTokenProvider,
+                envProvider = { null },
+                getCacheEndpointsService = service,
+                provisioningWaitMs = 3_000,
+                provisioningPollIntervalMs = 1_000,
+                sleeper = clock::advance,
+                nanoTime = { clock.nanos }
+            )
+        }
+        assertEquals(3, service.calls)
+        assertEquals(3_500, clock.elapsedMs)
+    }
+
+    @Test
+    fun `does not let a request outlast the wait`() {
+        // Every answer takes 2.5s. The first one starts the 3s wait; after a 1s pause only 2s
+        // remain, so the next request is cut off when the wait ends.
+        val clock = FakeClock()
+        val service = SlowService(clock, responseMs = 2_500)
+
+        assertFailsWith<CacheEndpointBeingPreparedException> {
+            CacheEndpointResolver.resolve(
+                serverURL, accountHandle, stubTokenProvider,
+                envProvider = { null },
+                getCacheEndpointsService = service,
+                provisioningWaitMs = 3_000,
+                provisioningPollIntervalMs = 1_000,
+                sleeper = clock::advance,
+                nanoTime = { clock.nanos }
+            )
+        }
+        assertEquals(5_500, clock.elapsedMs)
     }
 
     @Test
@@ -157,7 +210,8 @@ class CacheEndpointResolverTest {
             override fun getCacheEndpoints(
                 serverURL: URI,
                 accountHandle: String,
-                tokenProvider: TokenProvider
+                tokenProvider: TokenProvider,
+                timeoutMs: Long?
             ): CacheEndpoints {
                 callCount++
                 return CacheEndpoints(endpoints = listOf("https://cache.dev"))
