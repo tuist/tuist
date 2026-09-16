@@ -40,6 +40,16 @@ defmodule Tuist.Tests.Test do
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"
     field :git_ref, Ch, type: "String"
+    # Where the run sits in the repository's history (see Tuist.GitHistory):
+    # the branch it will merge into, the merge base it was diffed against,
+    # and how much of that the client could tell.
+    field :base_branch, Ch, type: "String", default: ""
+    field :merge_base_sha, Ch, type: "String", default: ""
+    field :is_pull_request, :boolean, default: false
+    field :pull_request_number, Ch, type: "UInt32", default: 0
+    field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
+    field :history_source, Ch, type: "LowCardinality(String)", default: ""
+    field :history_fallback_reason, Ch, type: "String", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
@@ -89,6 +99,13 @@ defmodule Tuist.Tests.Test do
       :git_branch,
       :git_commit_sha,
       :git_ref,
+      :base_branch,
+      :merge_base_sha,
+      :is_pull_request,
+      :pull_request_number,
+      :git_object_format,
+      :history_source,
+      :history_fallback_reason,
       :ran_at,
       :inserted_at,
       :build_run_id,

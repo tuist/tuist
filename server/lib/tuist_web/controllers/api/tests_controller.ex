@@ -273,6 +273,66 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The git remote URL origin."
            },
+           base_branch: %Schema{
+             type: :string,
+             description:
+               "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+           },
+           merge_base_sha: %Schema{
+             type: :string,
+             description: "The merge base between the run's commit and the base branch, when the client could resolve it."
+           },
+           is_pull_request: %Schema{type: :boolean, description: "Whether the run was for a pull or merge request."},
+           pull_request_number: %Schema{type: :integer, description: "The pull or merge request number, when known."},
+           git_object_format: %Schema{
+             type: :string,
+             enum: ["sha1", "sha256"],
+             description: "The repository's Git object format."
+           },
+           history_source: %Schema{
+             type: :string,
+             enum: ["client", "none"],
+             description:
+               "Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards."
+           },
+           history_fallback_reason: %Schema{
+             type: :string,
+             description:
+               "Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time."
+           },
+           changed_files: %Schema{
+             type: :array,
+             description:
+               "The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, description: "The path at the head, relative to the repository root."},
+                 previous_path: %Schema{type: :string, nullable: true, description: "The path before a rename."},
+                 status: %Schema{type: :string, enum: ["added", "modified", "deleted", "renamed"]},
+                 git_blob_id: %Schema{
+                   type: :string,
+                   nullable: true,
+                   description: "The file's Git blob at the head; absent for a deleted file."
+                 },
+                 hunks: %Schema{
+                   type: :array,
+                   description: "The changed line ranges in the file at the head, inclusive.",
+                   items: %Schema{
+                     type: :object,
+                     properties: %{start: %Schema{type: :integer}, end: %Schema{type: :integer}},
+                     required: [:start, :end]
+                   }
+                 },
+                 truncated: %Schema{
+                   type: :boolean,
+                   description:
+                     "Whether the client stopped listing this file's hunks because the diff exceeded its limits."
+                 }
+               },
+               required: [:path, :status]
+             }
+           },
            build_run_id: %Schema{
              type: :string,
              description: "The UUID of an associated build run."
@@ -832,6 +892,14 @@ defmodule TuistWeb.API.TestsController do
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),
+          base_branch: Map.get(params, :base_branch),
+          merge_base_sha: Map.get(params, :merge_base_sha),
+          is_pull_request: Map.get(params, :is_pull_request),
+          pull_request_number: Map.get(params, :pull_request_number),
+          git_object_format: Map.get(params, :git_object_format),
+          history_source: Map.get(params, :history_source),
+          history_fallback_reason: Map.get(params, :history_fallback_reason),
+          changed_files: Map.get(params, :changed_files, []),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           ci_run_id: Map.get(params, :ci_run_id),
           ci_project_handle: Map.get(params, :ci_project_handle),
