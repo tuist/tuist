@@ -41,9 +41,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/mise-install
         with:
-          install_args: "erlang elixir node"
+          install: erlang elixir node
+          working-directory: atlas
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -74,9 +75,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/mise-install
         with:
-          install_args: "erlang elixir node"
+          install: erlang elixir node
+          working-directory: atlas
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -107,9 +109,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/mise-install
         with:
-          install_args: "erlang elixir node"
+          install: erlang elixir node
+          working-directory: atlas
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -155,9 +158,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/mise-install
         with:
-          install_args: "erlang elixir node"
+          install: erlang elixir node
+          working-directory: atlas
 
       - name: Install PDF text extraction tools
         run: sudo apt-get update -y && sudo apt-get install -y poppler-utils
@@ -190,9 +194,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/mise-install
         with:
-          install_args: "node aube"
+          install: node aube
+          working-directory: atlas/workers/inbox
 
       - name: Restore Aube cache
         uses: actions/cache@v6

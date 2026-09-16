@@ -116,38 +116,31 @@ jobs:
             --rollback-on-failure --timeout 15m --wait
 
       - name: Diagnostics on failure
-        # Public-repo CI logs are viewable by anyone. Deliberately avoid
-        # dumping `kubectl logs` for pods and migration jobs from here:
-        # Atlas' application log lines routinely contain customer emails,
-        # account names, and other PII. Cluster-level state (helm
-        # history, pod status, events, describe output, ExternalSecret
-        # sync status) is enough to pinpoint most rollout failures.
-        # Operators pull actual pod logs from the cluster directly.
+        # Public-repo CI logs are viewable by anyone. Keep this step to
+        # high-level rollout state only. Anything richer than status +
+        # events risks leaking Atlas application log lines (customer
+        # emails, account names) or the shape of ExternalSecret wiring
+        # (1Password vault + item names). Operators fetch describe/logs
+        # from the cluster directly when they actually need them.
         if: failure()
         run: |
           set +e
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
-          echo "::group::pods"
-          kubectl -n "$NAMESPACE" get pods -o wide || true
+          echo "::group::pod status"
+          kubectl -n "$NAMESPACE" get pods --no-headers 2>&1 \
+            | awk '{print $1, $2, $3, $4, $5}' || true
           echo "::endgroup::"
-          echo "::group::events"
-          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::group::rollout status"
+          kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=30s || true
           echo "::endgroup::"
-          echo "::group::migration job"
-          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=migration -o name 2>/dev/null); do
-            kubectl -n "$NAMESPACE" describe "$job" || true
-          done
-          echo "::endgroup::"
-          echo "::group::deployment + pods"
-          kubectl -n "$NAMESPACE" describe deploy/atlas || true
-          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=atlas -o name 2>/dev/null); do
-            kubectl -n "$NAMESPACE" describe "$pod" || true
-          done
-          echo "::endgroup::"
-          echo "::group::external secrets"
-          kubectl -n "$NAMESPACE" get externalsecret 2>&1 || true
+          echo "::group::recent Warning events (reasons only)"
+          kubectl -n "$NAMESPACE" get events \
+            --field-selector type=Warning \
+            --sort-by=.lastTimestamp \
+            -o custom-columns=LAST:.lastTimestamp,REASON:.reason,KIND:.involvedObject.kind 2>&1 \
+            | tail -30 || true
           echo "::endgroup::"
 
       - name: Smoke test
