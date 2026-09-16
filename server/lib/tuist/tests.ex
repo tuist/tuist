@@ -388,9 +388,6 @@ defmodule Tuist.Tests do
 
       {{:in, coverage}, project_id} ->
         from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
-
-      {coverage, project_id} ->
-        from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
     end
   end
 
