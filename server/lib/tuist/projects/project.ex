@@ -54,6 +54,10 @@ defmodule Tuist.Projects.Project do
     # the project has none. The suffix (`.png` / `.jpg` / `.webp`) doubles as
     # the content-type hint when serving.
     field :logo_storage_key, :string
+    # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
+    field :git_history_window_days, :integer
+    field :git_history_window_commits, :integer
+    field :git_history_provider_fallback, :boolean
 
     belongs_to :account, Account
 
@@ -111,8 +115,13 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
       :build_system,
-      :bundle_size_approval_policy
+      :bundle_size_approval_policy,
+      :git_history_window_days,
+      :git_history_window_commits,
+      :git_history_provider_fallback
     ])
+    |> validate_number(:git_history_window_days, greater_than: 0)
+    |> validate_number(:git_history_window_commits, greater_than: 0)
     |> validate_name()
     |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
