@@ -8,6 +8,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Workers.AwaitActivationWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -178,6 +179,19 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Deployment{status: :running} =
              Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+
+    # A rollout reaches the whole fleet at once; the minute tick activates it.
+    refute_enqueued(worker: AwaitActivationWorker)
+  end
+
+  test "checks a provisioning server's activation every second once its deployment is applied" do
+    {_account, server, _deployment} = create_server()
+    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+    stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert_enqueued(worker: AwaitActivationWorker, args: %{"server_id" => server.id})
   end
 
   test "reapplies a succeeded server when the backing KuraInstance is missing" do

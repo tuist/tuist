@@ -63,6 +63,7 @@ defmodule Tuist.Kura.Reconciler do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Workers.AwaitActivationWorker
   alias Tuist.Repo
 
   require Logger
@@ -491,7 +492,7 @@ defmodule Tuist.Kura.Reconciler do
 
       case Provisioner.rollout(server, inputs) do
         :ok ->
-          :ok
+          await_activation(server)
 
         {:error, :not_found} ->
           fail(deployment, server, "region #{server.region} is no longer in the catalog")
@@ -501,6 +502,17 @@ defmodule Tuist.Kura.Reconciler do
       end
     end
   end
+
+  # An instance coming up for the first time, or back from archive, is checked
+  # every second until it activates instead of on this minute's tick. Rollouts
+  # of serving instances are left to the tick: they reach the whole fleet at
+  # once, and a serving instance is not waiting on its activation.
+  defp await_activation(%Server{status: :provisioning, move_phase: :none} = server) do
+    {:ok, _job} = AwaitActivationWorker.enqueue(server)
+    :ok
+  end
+
+  defp await_activation(%Server{}), do: :ok
 
   defp promote_when_caught_up(%Server{} = server, image_tag) do
     case Provisioner.caught_up?(server) do
