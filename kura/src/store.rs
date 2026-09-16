@@ -9003,7 +9003,8 @@ fn estimated_manifest_working_bytes(manifest: &ArtifactManifest) -> usize {
         .saturating_add(manifest.key.len())
         .saturating_add(manifest.content_type.len())
         .saturating_add(manifest.blob_path.as_ref().map_or(0, String::len))
-        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len));
+        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.content_sha256.as_ref().map_or(0, String::len));
     std::mem::size_of::<ArtifactManifest>()
         .saturating_add(strings)
         .saturating_mul(2)
@@ -9333,6 +9334,11 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
+    let optional_content_sha256 = manifest
+        .content_sha256
+        .as_deref()
+        .map(str::len)
+        .unwrap_or(0);
     // The artifact id has one allocation inside the manifest and one shared
     // by the HashMap key and AccessOrder's BTreeMap value. The retained
     // manifest has one allocation header for its reference counts.
@@ -9342,6 +9348,7 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + manifest.content_type.len()
         + optional_blob_path
         + optional_segment_id
+        + optional_content_sha256
         + std::mem::size_of::<ArtifactManifest>()
         + std::mem::size_of::<usize>() * 2
 }
@@ -13428,6 +13435,41 @@ mod tests {
         let second = cache.get("artifact").expect("manifest should stay cached");
 
         assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn manifest_size_estimates_count_the_content_digest() {
+        let undeclared = ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+            origin_region: None,
+            content_sha256: None,
+        };
+        let declared = ArtifactManifest {
+            content_sha256: Some("0".repeat(64)),
+            ..undeclared.clone()
+        };
+
+        assert_eq!(
+            estimated_manifest_bytes(&declared) - estimated_manifest_bytes(&undeclared),
+            64
+        );
+        assert_eq!(
+            estimated_manifest_working_bytes(&declared)
+                - estimated_manifest_working_bytes(&undeclared),
+            128
+        );
     }
 
     #[test]
