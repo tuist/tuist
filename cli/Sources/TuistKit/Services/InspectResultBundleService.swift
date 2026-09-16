@@ -66,6 +66,7 @@ public protocol UploadResultBundleServicing {
 public struct UploadResultBundleService: UploadResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
+    private let gitHistoryService: GitHistoryServicing
     private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
     private let dateService: DateServicing
@@ -83,6 +84,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
         dateService: DateServicing = DateService(),
@@ -99,6 +101,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
+        self.gitHistoryService = gitHistoryService
         self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
         self.dateService = dateService
@@ -166,6 +169,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -188,8 +197,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests
+            stressNewTests: stressNewTests,
+            gitHistory: gitHistory?.payload
         )
+        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
 
@@ -268,6 +279,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         let testRunId = UUID().uuidString.lowercased()
 
@@ -326,8 +343,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests
+            stressNewTests: stressNewTests,
+            gitHistory: gitHistory?.payload
         )
+        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
 
         return test
     }

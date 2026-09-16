@@ -121,6 +121,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadResultBundleService: UploadResultBundleServicing
     private let derivedDataLocator: DerivedDataLocating
     private let createTestService: CreateTestServicing
+    private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let ciController: CIControlling
@@ -165,6 +166,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         createTestService: CreateTestServicing = CreateTestService(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
@@ -196,6 +198,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.uploadResultBundleService = uploadResultBundleService
         self.derivedDataLocator = derivedDataLocator
         self.createTestService = createTestService
+        self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
         self.serverEnvironmentService = serverEnvironmentService
         self.ciController = ciController
@@ -2472,6 +2475,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
         let buildRunId = await RunMetadataStorage.current.buildRunId
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
@@ -2497,10 +2506,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             // the suite inventory either way.
             onlyTestIdentifiers: [],
             skipTestIdentifiers: [],
-            stressNewTests: nil
+            stressNewTests: nil,
+            gitHistory: gitHistory?.payload
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
     }
 
     private func passedValue(for option: String, arguments: [String]) -> String? {

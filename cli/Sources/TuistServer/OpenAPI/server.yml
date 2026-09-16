@@ -61,17 +61,26 @@ components:
     TestParams:
       description: Parameters to create a single test run.
       properties:
-        build_run_id:
-          description: The UUID of an associated build run.
+        git_branch:
+          description: The git branch.
           type: string
           x-struct:
           x-validate:
-        build_system:
-          default: xcode
-          description: The build system used by the test run.
+        git_object_format:
+          description: The repository's Git object format.
           enum:
-            - xcode
-            - gradle
+            - sha1
+            - sha256
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme used for the test run.
+          type: string
+          x-struct:
+          x-validate:
+        merge_base_sha:
+          description: The merge base between the run's commit and the base branch, when the client could resolve it.
           type: string
           x-struct:
           x-validate:
@@ -80,8 +89,86 @@ components:
           type: string
           x-struct:
           x-validate:
-        ci_project_handle:
-          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+        git_remote_url_origin:
+          description: The git remote URL origin.
+          type: string
+          x-struct:
+          x-validate:
+        history_fallback_reason:
+          description: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+          type: string
+          x-struct:
+          x-validate:
+        is_pull_request:
+          description: Whether the run was for a pull or merge request.
+          type: boolean
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the test run.
+          enum:
+            - success
+            - failure
+            - skipped
+            - processing
+            - failed_processing
+          type: string
+          x-struct:
+          x-validate:
+        shard_index:
+          description: The zero-based shard index for this test result.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        history_source:
+          description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+          enum:
+            - client
+            - none
+          type: string
+          x-struct:
+          x-validate:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_ref:
+          description: The git reference.
+          type: string
+          x-struct:
+          x-validate:
+        base_branch:
+          description: "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+          type: string
+          x-struct:
+          x-validate:
+        model_identifier:
+          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
           type: string
           x-struct:
           x-validate:
@@ -97,38 +184,25 @@ components:
           type: string
           x-struct:
           x-validate:
-        ci_run_id:
-          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+        ci_project_handle:
+          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
           type: string
           x-struct:
           x-validate:
-        duration:
-          description: Duration of the run in milliseconds.
+        pull_request_number:
+          description: The pull or merge request number, when known.
           type: integer
-          x-struct:
-          x-validate:
-        git_branch:
-          description: The git branch.
-          type: string
-          x-struct:
-          x-validate:
-        git_commit_sha:
-          description: The commit SHA.
-          type: string
-          x-struct:
-          x-validate:
-        git_ref:
-          description: The git reference.
-          type: string
-          x-struct:
-          x-validate:
-        git_remote_url_origin:
-          description: The git remote URL origin.
-          type: string
           x-struct:
           x-validate:
         gradle_build_id:
           description: The UUID of an associated Gradle build.
+          type: string
+          x-struct:
+          x-validate:
+        stress_new_tests:
+          $ref: '#/components/schemas/StressNewTestsResult'
+        macos_version:
+          description: The version of macOS used during the run.
           type: string
           x-struct:
           x-validate:
@@ -138,68 +212,102 @@ components:
           type: string
           x-struct:
           x-validate:
-        is_ci:
-          description: Indicates if the run was executed on a Continuous Integration (CI) system.
-          type: boolean
-          x-struct:
-          x-validate:
-        macos_version:
-          description: The version of macOS used during the run.
-          type: string
-          x-struct:
-          x-validate:
-        model_identifier:
-          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
-          type: string
-          x-struct:
-          x-validate:
-        only_test_identifiers:
-          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+        changed_files:
+          description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
           items:
-            type: string
+            properties:
+              git_blob_id:
+                description: The file's Git blob at the head; absent for a deleted file.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              hunks:
+                description: The changed line ranges in the file at the head, inclusive.
+                items:
+                  properties:
+                    end:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    start:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                  required:
+                    - start
+                    - end
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: The path at the head, relative to the repository root.
+                type: string
+                x-struct:
+                x-validate:
+              previous_path:
+                description: The path before a rename.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                enum:
+                  - added
+                  - modified
+                  - deleted
+                  - renamed
+                type: string
+                x-struct:
+                x-validate:
+              truncated:
+                description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                type: boolean
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+            type: object
             x-struct:
             x-validate:
           type: array
           x-struct:
           x-validate:
-        scheme:
-          description: The scheme used for the test run.
-          type: string
-          x-struct:
-          x-validate:
-        shard_index:
-          description: The zero-based shard index for this test result.
-          nullable: true
-          type: integer
-          x-struct:
-          x-validate:
+        xcode_coverage:
+          $ref: '#/components/schemas/XcodeCoverage'
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
           x-struct:
           x-validate:
-        skip_test_identifiers:
-          description: The tests the caller asked this run to exclude.
-          items:
-            type: string
-            x-struct:
-            x-validate:
-          type: array
+        duration:
+          description: Duration of the run in milliseconds.
+          type: integer
           x-struct:
           x-validate:
-        status:
-          description: The status of the test run.
-          enum:
-            - success
-            - failure
-            - skipped
-            - processing
-            - failed_processing
+        xcode_version:
+          description: The version of Xcode used during the run.
           type: string
           x-struct:
           x-validate:
-        stress_new_tests:
-          $ref: '#/components/schemas/StressNewTestsResult'
+        build_system:
+          default: xcode
+          description: The build system used by the test run.
+          enum:
+            - xcode
+            - gradle
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit SHA.
+          type: string
+          x-struct:
+          x-validate:
         test_modules:
           description: The test modules associated with the test run.
           items:
@@ -506,11 +614,9 @@ components:
           type: array
           x-struct:
           x-validate:
-        xcode_coverage:
-          $ref: '#/components/schemas/XcodeCoverage'
-        xcode_version:
-          description: The version of Xcode used during the run.
-          type: string
+        is_ci:
+          description: Indicates if the run was executed on a Continuous Integration (CI) system.
+          type: boolean
           x-struct:
           x-validate:
       required:
@@ -2261,6 +2367,54 @@ components:
       title: CacheActionItem
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+      x-validate:
+    GitHistorySettings:
+      properties:
+        deepen_budget_seconds:
+          description: How long the client may spend deepening a shallow clone to find the merge base.
+          type: integer
+          x-struct:
+          x-validate:
+        upload_batch_size:
+          description: How many commits to send per upload request.
+          type: integer
+          x-struct:
+          x-validate:
+        window_commits:
+          description: How many commits back history is collected and kept.
+          type: integer
+          x-struct:
+          x-validate:
+        window_days:
+          description: How many days back history is collected and kept.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - window_days
+        - window_commits
+        - deepen_budget_seconds
+        - upload_batch_size
+      title: GitHistorySettings
+      type: object
+      x-struct:
+      x-validate:
+    MissingCommitsResponse:
+      properties:
+        missing:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - missing
+      title: MissingCommitsResponse
+      type: object
+      x-struct:
       x-validate:
     CreateShardPlanParams:
       properties:
@@ -4301,6 +4455,80 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
+      x-validate:
+    UploadCommitsRequest:
+      properties:
+        branch_heads:
+          description: The newest commit the client saw on each branch.
+          items:
+            properties:
+              branch:
+                type: string
+                x-struct:
+                x-validate:
+              sha:
+                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - branch
+              - sha
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        commits:
+          items:
+            properties:
+              committed_at:
+                description: The committer date.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              parents:
+                description: The parent SHAs, first parent first.
+                items:
+                  description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              sha:
+                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - sha
+              - parents
+              - committed_at
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 10000
+          type: array
+          x-struct:
+          x-validate:
+        object_format:
+          description: The repository's Git object format.
+          enum:
+            - sha1
+            - sha256
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - object_format
+        - commits
+      title: UploadCommitsRequest
+      type: object
+      x-struct:
       x-validate:
     AccountToken:
       properties:
@@ -7185,6 +7413,24 @@ components:
       type: integer
       x-struct:
       x-validate:
+    MissingCommitsRequest:
+      properties:
+        shas:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          maxItems: 10000
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - shas
+      title: MissingCommitsRequest
+      type: object
+      x-struct:
+      x-validate:
     BuildFilesIndexPageSize:
       default: 20
       description: The maximum number of files to return in a single page.
@@ -9989,6 +10235,85 @@ paths:
       summary: List runner profiles for an account.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/settings:
+    get:
+      callbacks: {}
+      description: "How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, and how many commits to send per upload request. Server defaults with the project's overrides applied."
+      operationId: getGitHistorySettings
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  deepen_budget_seconds:
+                    description: How long the client may spend deepening a shallow clone to find the merge base.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  upload_batch_size:
+                    description: How many commits to send per upload request.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  window_commits:
+                    description: How many commits back history is collected and kept.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  window_days:
+                    description: How many days back history is collected and kept.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - window_days
+                  - window_commits
+                  - deepen_budget_seconds
+                  - upload_batch_size
+                title: GitHistorySettings
+                type: object
+                x-struct:
+                x-validate:
+          description: The settings
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the Git history settings in effect for a project.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests:
     get:
       callbacks: {}
@@ -10234,17 +10559,26 @@ paths:
             schema:
               description: Parameters to create a single test run.
               properties:
-                build_run_id:
-                  description: The UUID of an associated build run.
+                git_branch:
+                  description: The git branch.
                   type: string
                   x-struct:
                   x-validate:
-                build_system:
-                  default: xcode
-                  description: The build system used by the test run.
+                git_object_format:
+                  description: The repository's Git object format.
                   enum:
-                    - xcode
-                    - gradle
+                    - sha1
+                    - sha256
+                  type: string
+                  x-struct:
+                  x-validate:
+                scheme:
+                  description: The scheme used for the test run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                merge_base_sha:
+                  description: The merge base between the run's commit and the base branch, when the client could resolve it.
                   type: string
                   x-struct:
                   x-validate:
@@ -10253,8 +10587,86 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                ci_project_handle:
-                  description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                git_remote_url_origin:
+                  description: The git remote URL origin.
+                  type: string
+                  x-struct:
+                  x-validate:
+                history_fallback_reason:
+                  description: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+                  type: string
+                  x-struct:
+                  x-validate:
+                is_pull_request:
+                  description: Whether the run was for a pull or merge request.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                status:
+                  description: The status of the test run.
+                  enum:
+                    - success
+                    - failure
+                    - skipped
+                    - processing
+                    - failed_processing
+                  type: string
+                  x-struct:
+                  x-validate:
+                shard_index:
+                  description: The zero-based shard index for this test result.
+                  nullable: true
+                  type: integer
+                  x-struct:
+                  x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                history_source:
+                  description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+                  enum:
+                    - client
+                    - none
+                  type: string
+                  x-struct:
+                  x-validate:
+                build_run_id:
+                  description: The UUID of an associated build run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  description: The git reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                base_branch:
+                  description: "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+                  type: string
+                  x-struct:
+                  x-validate:
+                model_identifier:
+                  description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_run_id:
+                  description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                   type: string
                   x-struct:
                   x-validate:
@@ -10270,38 +10682,25 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                ci_run_id:
-                  description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                ci_project_handle:
+                  description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
                   type: string
                   x-struct:
                   x-validate:
-                duration:
-                  description: Duration of the run in milliseconds.
+                pull_request_number:
+                  description: The pull or merge request number, when known.
                   type: integer
-                  x-struct:
-                  x-validate:
-                git_branch:
-                  description: The git branch.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_commit_sha:
-                  description: The commit SHA.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_ref:
-                  description: The git reference.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_remote_url_origin:
-                  description: The git remote URL origin.
-                  type: string
                   x-struct:
                   x-validate:
                 gradle_build_id:
                   description: The UUID of an associated Gradle build.
+                  type: string
+                  x-struct:
+                  x-validate:
+                stress_new_tests:
+                  $ref: '#/components/schemas/StressNewTestsResult'
+                macos_version:
+                  description: The version of macOS used during the run.
                   type: string
                   x-struct:
                   x-validate:
@@ -10311,68 +10710,102 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                is_ci:
-                  description: Indicates if the run was executed on a Continuous Integration (CI) system.
-                  type: boolean
-                  x-struct:
-                  x-validate:
-                macos_version:
-                  description: The version of macOS used during the run.
-                  type: string
-                  x-struct:
-                  x-validate:
-                model_identifier:
-                  description: Identifier for the model where the run was executed, such as MacBookAir10,1.
-                  type: string
-                  x-struct:
-                  x-validate:
-                only_test_identifiers:
-                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                changed_files:
+                  description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                   items:
-                    type: string
+                    properties:
+                      git_blob_id:
+                        description: The file's Git blob at the head; absent for a deleted file.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      hunks:
+                        description: The changed line ranges in the file at the head, inclusive.
+                        items:
+                          properties:
+                            end:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            start:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - start
+                            - end
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: The path at the head, relative to the repository root.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      previous_path:
+                        description: The path before a rename.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        enum:
+                          - added
+                          - modified
+                          - deleted
+                          - renamed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      truncated:
+                        description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - status
+                    type: object
                     x-struct:
                     x-validate:
                   type: array
                   x-struct:
                   x-validate:
-                scheme:
-                  description: The scheme used for the test run.
-                  type: string
-                  x-struct:
-                  x-validate:
-                shard_index:
-                  description: The zero-based shard index for this test result.
-                  nullable: true
-                  type: integer
-                  x-struct:
-                  x-validate:
+                xcode_coverage:
+                  $ref: '#/components/schemas/XcodeCoverage'
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
                   x-struct:
                   x-validate:
-                skip_test_identifiers:
-                  description: The tests the caller asked this run to exclude.
-                  items:
-                    type: string
-                    x-struct:
-                    x-validate:
-                  type: array
+                duration:
+                  description: Duration of the run in milliseconds.
+                  type: integer
                   x-struct:
                   x-validate:
-                status:
-                  description: The status of the test run.
-                  enum:
-                    - success
-                    - failure
-                    - skipped
-                    - processing
-                    - failed_processing
+                xcode_version:
+                  description: The version of Xcode used during the run.
                   type: string
                   x-struct:
                   x-validate:
-                stress_new_tests:
-                  $ref: '#/components/schemas/StressNewTestsResult'
+                build_system:
+                  default: xcode
+                  description: The build system used by the test run.
+                  enum:
+                    - xcode
+                    - gradle
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  description: The commit SHA.
+                  type: string
+                  x-struct:
+                  x-validate:
                 test_modules:
                   description: The test modules associated with the test run.
                   items:
@@ -10679,11 +11112,9 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                xcode_coverage:
-                  $ref: '#/components/schemas/XcodeCoverage'
-                xcode_version:
-                  description: The version of Xcode used during the run.
-                  type: string
+                is_ci:
+                  description: Indicates if the run was executed on a Continuous Integration (CI) system.
+                  type: boolean
                   x-struct:
                   x-validate:
               required:
@@ -16297,6 +16728,94 @@ paths:
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing:
+    post:
+      callbacks: {}
+      description: Given the SHAs of the commits a client can see, returns the ones the project's commit graph lacks, so the client uploads only those.
+      operationId: findMissingCommits
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                shas:
+                  items:
+                    description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10000
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - shas
+              title: MissingCommitsRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The SHAs to check
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  missing:
+                    items:
+                      description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - missing
+                title: MissingCommitsResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The SHAs the server lacks
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Find which commits the server has not stored yet.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
@@ -19802,6 +20321,131 @@ paths:
       summary: Time-bucketed test run duration percentiles for a project.
       tags:
         - Metrics
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/commits:
+    post:
+      callbacks: {}
+      description: Adds commits and their parent edges to the project's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.
+      operationId: uploadCommits
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                branch_heads:
+                  description: The newest commit the client saw on each branch.
+                  items:
+                    properties:
+                      branch:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      sha:
+                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - branch
+                      - sha
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                commits:
+                  items:
+                    properties:
+                      committed_at:
+                        description: The committer date.
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      parents:
+                        description: The parent SHAs, first parent first.
+                        items:
+                          description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      sha:
+                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - sha
+                      - parents
+                      - committed_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 10000
+                  type: array
+                  x-struct:
+                  x-validate:
+                object_format:
+                  description: The repository's Git object format.
+                  enum:
+                    - sha1
+                    - sha256
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - object_format
+                - commits
+              title: UploadCommitsRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The commits
+        required: false
+      responses:
+        '204':
+          description: The commits were stored
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Upload commits to the project's commit graph.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/previews/latest:
     get:
       callbacks: {}

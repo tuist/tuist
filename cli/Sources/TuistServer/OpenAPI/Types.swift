@@ -100,6 +100,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/profiles`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/get(listRunnerProfiles)`.
     func listRunnerProfiles(_ input: Operations.listRunnerProfiles.Input) async throws -> Operations.listRunnerProfiles.Output
+    /// Get the Git history settings in effect for a project.
+    ///
+    /// How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, and how many commits to send per upload request. Server defaults with the project's overrides applied.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/git-history/settings`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)`.
+    func getGitHistorySettings(_ input: Operations.getGitHistorySettings.Input) async throws -> Operations.getGitHistorySettings.Output
     /// List test runs for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests`.
@@ -329,6 +336,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks/get(listBuildCacheTasks)`.
     func listBuildCacheTasks(_ input: Operations.listBuildCacheTasks.Input) async throws -> Operations.listBuildCacheTasks.Output
+    /// Find which commits the server has not stored yet.
+    ///
+    /// Given the SHAs of the commits a client can see, returns the ones the project's commit graph lacks, so the client uploads only those.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)`.
+    func findMissingCommits(_ input: Operations.findMissingCommits.Input) async throws -> Operations.findMissingCommits.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -451,6 +465,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/duration`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)`.
     func testDurationMetrics(_ input: Operations.testDurationMetrics.Input) async throws -> Operations.testDurationMetrics.Output
+    /// Upload commits to the project's commit graph.
+    ///
+    /// Adds commits and their parent edges to the project's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)`.
+    func uploadCommits(_ input: Operations.uploadCommits.Input) async throws -> Operations.uploadCommits.Output
     /// Get the latest preview for a binary.
     ///
     /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
@@ -1106,6 +1127,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get the Git history settings in effect for a project.
+    ///
+    /// How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, and how many commits to send per upload request. Server defaults with the project's overrides applied.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/git-history/settings`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)`.
+    public func getGitHistorySettings(
+        path: Operations.getGitHistorySettings.Input.Path,
+        headers: Operations.getGitHistorySettings.Input.Headers = .init()
+    ) async throws -> Operations.getGitHistorySettings.Output {
+        try await getGitHistorySettings(Operations.getGitHistorySettings.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List test runs for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests`.
@@ -1677,6 +1713,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Find which commits the server has not stored yet.
+    ///
+    /// Given the SHAs of the commits a client can see, returns the ones the project's commit graph lacks, so the client uploads only those.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)`.
+    public func findMissingCommits(
+        path: Operations.findMissingCommits.Input.Path,
+        headers: Operations.findMissingCommits.Input.Headers = .init(),
+        body: Operations.findMissingCommits.Input.Body? = nil
+    ) async throws -> Operations.findMissingCommits.Output {
+        try await findMissingCommits(Operations.findMissingCommits.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -1995,6 +2048,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Upload commits to the project's commit graph.
+    ///
+    /// Adds commits and their parent edges to the project's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)`.
+    public func uploadCommits(
+        path: Operations.uploadCommits.Input.Path,
+        headers: Operations.uploadCommits.Input.Headers = .init(),
+        body: Operations.uploadCommits.Input.Body? = nil
+    ) async throws -> Operations.uploadCommits.Output {
+        try await uploadCommits(Operations.uploadCommits.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Get the latest preview for a binary.
@@ -3178,29 +3248,102 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestParams`.
         public struct TestParams: Codable, Hashable, Sendable {
-            /// The UUID of an associated build run.
+            /// The git branch.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
-            public var build_run_id: Swift.String?
-            /// The build system used by the test run.
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_branch`.
+            public var git_branch: Swift.String?
+            /// The repository's Git object format.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
-            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case xcode = "xcode"
-                case gradle = "gradle"
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_object_format`.
+            @frozen public enum git_object_formatPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case sha1 = "sha1"
+                case sha256 = "sha256"
             }
-            /// The build system used by the test run.
+            /// The repository's Git object format.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
-            public var build_system: Components.Schemas.TestParams.build_systemPayload?
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_object_format`.
+            public var git_object_format: Components.Schemas.TestParams.git_object_formatPayload?
+            /// The scheme used for the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
+            public var scheme: Swift.String?
+            /// The merge base between the run's commit and the base branch, when the client could resolve it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/merge_base_sha`.
+            public var merge_base_sha: Swift.String?
             /// The CI host URL (optional, for self-hosted instances).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/ci_host`.
             public var ci_host: Swift.String?
-            /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            /// The git remote URL origin.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/ci_project_handle`.
-            public var ci_project_handle: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_remote_url_origin`.
+            public var git_remote_url_origin: Swift.String?
+            /// Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/history_fallback_reason`.
+            public var history_fallback_reason: Swift.String?
+            /// Whether the run was for a pull or merge request.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/is_pull_request`.
+            public var is_pull_request: Swift.Bool?
+            /// The status of the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+                case skipped = "skipped"
+                case processing = "processing"
+                case failed_processing = "failed_processing"
+            }
+            /// The status of the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/status`.
+            public var status: Components.Schemas.TestParams.statusPayload?
+            /// The zero-based shard index for this test result.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
+            public var shard_index: Swift.Int?
+            /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
+            public var only_test_identifiers: [Swift.String]?
+            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
+            @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case client = "client"
+                case none = "none"
+            }
+            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
+            public var history_source: Components.Schemas.TestParams.history_sourcePayload?
+            /// The UUID of an associated build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
+            public var build_run_id: Swift.String?
+            /// The tests the caller asked this run to exclude.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
+            public var skip_test_identifiers: [Swift.String]?
+            /// The git reference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_ref`.
+            public var git_ref: Swift.String?
+            /// The branch the run's commit will merge into: the pull request's base, or the project's default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/base_branch`.
+            public var base_branch: Swift.String?
+            /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
+            public var model_identifier: Swift.String?
+            /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/ci_run_id`.
+            public var ci_run_id: Swift.String?
             /// The CI provider.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/ci_provider`.
@@ -3216,86 +3359,156 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/ci_provider`.
             public var ci_provider: Components.Schemas.TestParams.ci_providerPayload?
-            /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/ci_run_id`.
-            public var ci_run_id: Swift.String?
-            /// Duration of the run in milliseconds.
+            /// - Remark: Generated from `#/components/schemas/TestParams/ci_project_handle`.
+            public var ci_project_handle: Swift.String?
+            /// The pull or merge request number, when known.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/duration`.
-            public var duration: Swift.Int
-            /// The git branch.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/git_branch`.
-            public var git_branch: Swift.String?
-            /// The commit SHA.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/git_commit_sha`.
-            public var git_commit_sha: Swift.String?
-            /// The git reference.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/git_ref`.
-            public var git_ref: Swift.String?
-            /// The git remote URL origin.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/git_remote_url_origin`.
-            public var git_remote_url_origin: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/TestParams/pull_request_number`.
+            public var pull_request_number: Swift.Int?
             /// The UUID of an associated Gradle build.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
-            /// Optional client-generated UUID for the test run. If not provided, the server generates one.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/id`.
-            public var id: Swift.String?
-            /// Indicates if the run was executed on a Continuous Integration (CI) system.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/is_ci`.
-            public var is_ci: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
+            public var stress_new_tests: Components.Schemas.StressNewTestsResult?
             /// The version of macOS used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/macos_version`.
             public var macos_version: Swift.String?
-            /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+            /// Optional client-generated UUID for the test run. If not provided, the server generates one.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
-            public var model_identifier: Swift.String?
-            /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            /// - Remark: Generated from `#/components/schemas/TestParams/id`.
+            public var id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload`.
+            public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The file's Git blob at the head; absent for a deleted file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload`.
+                public struct hunksPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/end`.
+                    public var end: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/start`.
+                    public var start: Swift.Int
+                    /// Creates a new `hunksPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - end:
+                    ///   - start:
+                    public init(
+                        end: Swift.Int,
+                        start: Swift.Int
+                    ) {
+                        self.end = end
+                        self.start = start
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case end
+                        case start
+                    }
+                }
+                /// The changed line ranges in the file at the head, inclusive.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
+                public typealias hunksPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayloadPayload]
+                /// The changed line ranges in the file at the head, inclusive.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
+                public var hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload?
+                /// The path at the head, relative to the repository root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/path`.
+                public var path: Swift.String
+                /// The path before a rename.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/previous_path`.
+                public var previous_path: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case added = "added"
+                    case modified = "modified"
+                    case deleted = "deleted"
+                    case renamed = "renamed"
+                }
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
+                public var status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload
+                /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/truncated`.
+                public var truncated: Swift.Bool?
+                /// Creates a new `changed_filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
+                ///   - hunks: The changed line ranges in the file at the head, inclusive.
+                ///   - path: The path at the head, relative to the repository root.
+                ///   - previous_path: The path before a rename.
+                ///   - status:
+                ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                public init(
+                    git_blob_id: Swift.String? = nil,
+                    hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload? = nil,
+                    path: Swift.String,
+                    previous_path: Swift.String? = nil,
+                    status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload,
+                    truncated: Swift.Bool? = nil
+                ) {
+                    self.git_blob_id = git_blob_id
+                    self.hunks = hunks
+                    self.path = path
+                    self.previous_path = previous_path
+                    self.status = status
+                    self.truncated = truncated
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case git_blob_id
+                    case hunks
+                    case path
+                    case previous_path
+                    case status
+                    case truncated
+                }
+            }
+            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
-            public var only_test_identifiers: [Swift.String]?
-            /// The scheme used for the test run.
+            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
+            public typealias changed_filesPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload]
+            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
-            public var scheme: Swift.String?
-            /// The zero-based shard index for this test result.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
-            public var shard_index: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
+            public var changed_files: Components.Schemas.TestParams.changed_filesPayload?
+            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
+            public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The shard plan ID if this test run is part of a sharded execution.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
             public var shard_plan_id: Swift.String?
-            /// The tests the caller asked this run to exclude.
+            /// Duration of the run in milliseconds.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
-            public var skip_test_identifiers: [Swift.String]?
-            /// The status of the test run.
+            /// - Remark: Generated from `#/components/schemas/TestParams/duration`.
+            public var duration: Swift.Int
+            /// The version of Xcode used during the run.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/status`.
-            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-                case failure = "failure"
-                case skipped = "skipped"
-                case processing = "processing"
-                case failed_processing = "failed_processing"
+            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
+            public var xcode_version: Swift.String?
+            /// The build system used by the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
+            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case xcode = "xcode"
+                case gradle = "gradle"
             }
-            /// The status of the test run.
+            /// The build system used by the test run.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/status`.
-            public var status: Components.Schemas.TestParams.statusPayload?
-            /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
-            public var stress_new_tests: Components.Schemas.StressNewTestsResult?
+            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
+            public var build_system: Components.Schemas.TestParams.build_systemPayload?
+            /// The commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/git_commit_sha`.
+            public var git_commit_sha: Swift.String?
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload`.
             public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                 /// The duration of the test module in milliseconds.
@@ -3811,123 +4024,153 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modules`.
             public var test_modules: Components.Schemas.TestParams.test_modulesPayload
-            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
-            public var xcode_coverage: Components.Schemas.XcodeCoverage?
-            /// The version of Xcode used during the run.
+            /// Indicates if the run was executed on a Continuous Integration (CI) system.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
-            public var xcode_version: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/TestParams/is_ci`.
+            public var is_ci: Swift.Bool
             /// Creates a new `TestParams`.
             ///
             /// - Parameters:
-            ///   - build_run_id: The UUID of an associated build run.
-            ///   - build_system: The build system used by the test run.
-            ///   - ci_host: The CI host URL (optional, for self-hosted instances).
-            ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
-            ///   - ci_provider: The CI provider.
-            ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
-            ///   - duration: Duration of the run in milliseconds.
             ///   - git_branch: The git branch.
-            ///   - git_commit_sha: The commit SHA.
-            ///   - git_ref: The git reference.
-            ///   - git_remote_url_origin: The git remote URL origin.
-            ///   - gradle_build_id: The UUID of an associated Gradle build.
-            ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-            ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
-            ///   - macos_version: The version of macOS used during the run.
-            ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
-            ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///   - git_object_format: The repository's Git object format.
             ///   - scheme: The scheme used for the test run.
-            ///   - shard_index: The zero-based shard index for this test result.
-            ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
-            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+            ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
+            ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+            ///   - git_remote_url_origin: The git remote URL origin.
+            ///   - history_fallback_reason: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+            ///   - is_pull_request: Whether the run was for a pull or merge request.
             ///   - status: The status of the test run.
+            ///   - shard_index: The zero-based shard index for this test result.
+            ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+            ///   - build_run_id: The UUID of an associated build run.
+            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+            ///   - git_ref: The git reference.
+            ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
+            ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            ///   - ci_provider: The CI provider.
+            ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            ///   - pull_request_number: The pull or merge request number, when known.
+            ///   - gradle_build_id: The UUID of an associated Gradle build.
             ///   - stress_new_tests:
-            ///   - test_modules: The test modules associated with the test run.
+            ///   - macos_version: The version of macOS used during the run.
+            ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
+            ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
             ///   - xcode_coverage:
+            ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+            ///   - duration: Duration of the run in milliseconds.
             ///   - xcode_version: The version of Xcode used during the run.
+            ///   - build_system: The build system used by the test run.
+            ///   - git_commit_sha: The commit SHA.
+            ///   - test_modules: The test modules associated with the test run.
+            ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             public init(
-                build_run_id: Swift.String? = nil,
-                build_system: Components.Schemas.TestParams.build_systemPayload? = nil,
-                ci_host: Swift.String? = nil,
-                ci_project_handle: Swift.String? = nil,
-                ci_provider: Components.Schemas.TestParams.ci_providerPayload? = nil,
-                ci_run_id: Swift.String? = nil,
-                duration: Swift.Int,
                 git_branch: Swift.String? = nil,
-                git_commit_sha: Swift.String? = nil,
-                git_ref: Swift.String? = nil,
-                git_remote_url_origin: Swift.String? = nil,
-                gradle_build_id: Swift.String? = nil,
-                id: Swift.String? = nil,
-                is_ci: Swift.Bool,
-                macos_version: Swift.String? = nil,
-                model_identifier: Swift.String? = nil,
-                only_test_identifiers: [Swift.String]? = nil,
+                git_object_format: Components.Schemas.TestParams.git_object_formatPayload? = nil,
                 scheme: Swift.String? = nil,
-                shard_index: Swift.Int? = nil,
-                shard_plan_id: Swift.String? = nil,
-                skip_test_identifiers: [Swift.String]? = nil,
+                merge_base_sha: Swift.String? = nil,
+                ci_host: Swift.String? = nil,
+                git_remote_url_origin: Swift.String? = nil,
+                history_fallback_reason: Swift.String? = nil,
+                is_pull_request: Swift.Bool? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
+                shard_index: Swift.Int? = nil,
+                only_test_identifiers: [Swift.String]? = nil,
+                history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
+                build_run_id: Swift.String? = nil,
+                skip_test_identifiers: [Swift.String]? = nil,
+                git_ref: Swift.String? = nil,
+                base_branch: Swift.String? = nil,
+                model_identifier: Swift.String? = nil,
+                ci_run_id: Swift.String? = nil,
+                ci_provider: Components.Schemas.TestParams.ci_providerPayload? = nil,
+                ci_project_handle: Swift.String? = nil,
+                pull_request_number: Swift.Int? = nil,
+                gradle_build_id: Swift.String? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
-                test_modules: Components.Schemas.TestParams.test_modulesPayload,
+                macos_version: Swift.String? = nil,
+                id: Swift.String? = nil,
+                changed_files: Components.Schemas.TestParams.changed_filesPayload? = nil,
                 xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
-                xcode_version: Swift.String? = nil
+                shard_plan_id: Swift.String? = nil,
+                duration: Swift.Int,
+                xcode_version: Swift.String? = nil,
+                build_system: Components.Schemas.TestParams.build_systemPayload? = nil,
+                git_commit_sha: Swift.String? = nil,
+                test_modules: Components.Schemas.TestParams.test_modulesPayload,
+                is_ci: Swift.Bool
             ) {
-                self.build_run_id = build_run_id
-                self.build_system = build_system
-                self.ci_host = ci_host
-                self.ci_project_handle = ci_project_handle
-                self.ci_provider = ci_provider
-                self.ci_run_id = ci_run_id
-                self.duration = duration
                 self.git_branch = git_branch
-                self.git_commit_sha = git_commit_sha
-                self.git_ref = git_ref
-                self.git_remote_url_origin = git_remote_url_origin
-                self.gradle_build_id = gradle_build_id
-                self.id = id
-                self.is_ci = is_ci
-                self.macos_version = macos_version
-                self.model_identifier = model_identifier
-                self.only_test_identifiers = only_test_identifiers
+                self.git_object_format = git_object_format
                 self.scheme = scheme
-                self.shard_index = shard_index
-                self.shard_plan_id = shard_plan_id
-                self.skip_test_identifiers = skip_test_identifiers
+                self.merge_base_sha = merge_base_sha
+                self.ci_host = ci_host
+                self.git_remote_url_origin = git_remote_url_origin
+                self.history_fallback_reason = history_fallback_reason
+                self.is_pull_request = is_pull_request
                 self.status = status
+                self.shard_index = shard_index
+                self.only_test_identifiers = only_test_identifiers
+                self.history_source = history_source
+                self.build_run_id = build_run_id
+                self.skip_test_identifiers = skip_test_identifiers
+                self.git_ref = git_ref
+                self.base_branch = base_branch
+                self.model_identifier = model_identifier
+                self.ci_run_id = ci_run_id
+                self.ci_provider = ci_provider
+                self.ci_project_handle = ci_project_handle
+                self.pull_request_number = pull_request_number
+                self.gradle_build_id = gradle_build_id
                 self.stress_new_tests = stress_new_tests
-                self.test_modules = test_modules
+                self.macos_version = macos_version
+                self.id = id
+                self.changed_files = changed_files
                 self.xcode_coverage = xcode_coverage
+                self.shard_plan_id = shard_plan_id
+                self.duration = duration
                 self.xcode_version = xcode_version
+                self.build_system = build_system
+                self.git_commit_sha = git_commit_sha
+                self.test_modules = test_modules
+                self.is_ci = is_ci
             }
             public enum CodingKeys: String, CodingKey {
-                case build_run_id
-                case build_system
-                case ci_host
-                case ci_project_handle
-                case ci_provider
-                case ci_run_id
-                case duration
                 case git_branch
-                case git_commit_sha
-                case git_ref
-                case git_remote_url_origin
-                case gradle_build_id
-                case id
-                case is_ci
-                case macos_version
-                case model_identifier
-                case only_test_identifiers
+                case git_object_format
                 case scheme
-                case shard_index
-                case shard_plan_id
-                case skip_test_identifiers
+                case merge_base_sha
+                case ci_host
+                case git_remote_url_origin
+                case history_fallback_reason
+                case is_pull_request
                 case status
+                case shard_index
+                case only_test_identifiers
+                case history_source
+                case build_run_id
+                case skip_test_identifiers
+                case git_ref
+                case base_branch
+                case model_identifier
+                case ci_run_id
+                case ci_provider
+                case ci_project_handle
+                case pull_request_number
+                case gradle_build_id
                 case stress_new_tests
-                case test_modules
+                case macos_version
+                case id
+                case changed_files
                 case xcode_coverage
+                case shard_plan_id
+                case duration
                 case xcode_version
+                case build_system
+                case git_commit_sha
+                case test_modules
+                case is_ci
             }
         }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
@@ -6292,6 +6535,64 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case hash
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/GitHistorySettings`.
+        public struct GitHistorySettings: Codable, Hashable, Sendable {
+            /// How long the client may spend deepening a shallow clone to find the merge base.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/deepen_budget_seconds`.
+            public var deepen_budget_seconds: Swift.Int
+            /// How many commits to send per upload request.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/upload_batch_size`.
+            public var upload_batch_size: Swift.Int
+            /// How many commits back history is collected and kept.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/window_commits`.
+            public var window_commits: Swift.Int
+            /// How many days back history is collected and kept.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/window_days`.
+            public var window_days: Swift.Int
+            /// Creates a new `GitHistorySettings`.
+            ///
+            /// - Parameters:
+            ///   - deepen_budget_seconds: How long the client may spend deepening a shallow clone to find the merge base.
+            ///   - upload_batch_size: How many commits to send per upload request.
+            ///   - window_commits: How many commits back history is collected and kept.
+            ///   - window_days: How many days back history is collected and kept.
+            public init(
+                deepen_budget_seconds: Swift.Int,
+                upload_batch_size: Swift.Int,
+                window_commits: Swift.Int,
+                window_days: Swift.Int
+            ) {
+                self.deepen_budget_seconds = deepen_budget_seconds
+                self.upload_batch_size = upload_batch_size
+                self.window_commits = window_commits
+                self.window_days = window_days
+            }
+            public enum CodingKeys: String, CodingKey {
+                case deepen_budget_seconds
+                case upload_batch_size
+                case window_commits
+                case window_days
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MissingCommitsResponse`.
+        public struct MissingCommitsResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MissingCommitsResponse/missing`.
+            public var missing: [Swift.String]
+            /// Creates a new `MissingCommitsResponse`.
+            ///
+            /// - Parameters:
+            ///   - missing:
+            public init(missing: [Swift.String]) {
+                self.missing = missing
+            }
+            public enum CodingKeys: String, CodingKey {
+                case missing
             }
         }
         /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams`.
@@ -9235,6 +9536,112 @@ public enum Components {
                 case project_id
                 case test_run_url
                 case url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest`.
+        public struct UploadCommitsRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload`.
+            public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/branch`.
+                public var branch: Swift.String
+                /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                ///
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/sha`.
+                public var sha: Swift.String
+                /// Creates a new `branch_headsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - branch:
+                ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                public init(
+                    branch: Swift.String,
+                    sha: Swift.String
+                ) {
+                    self.branch = branch
+                    self.sha = sha
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case branch
+                    case sha
+                }
+            }
+            /// The newest commit the client saw on each branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_heads`.
+            public typealias branch_headsPayload = [Components.Schemas.UploadCommitsRequest.branch_headsPayloadPayload]
+            /// The newest commit the client saw on each branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_heads`.
+            public var branch_heads: Components.Schemas.UploadCommitsRequest.branch_headsPayload?
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload`.
+            public struct commitsPayloadPayload: Codable, Hashable, Sendable {
+                /// The committer date.
+                ///
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload/committed_at`.
+                public var committed_at: Foundation.Date
+                /// The parent SHAs, first parent first.
+                ///
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload/parents`.
+                public var parents: [Swift.String]
+                /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                ///
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload/sha`.
+                public var sha: Swift.String
+                /// Creates a new `commitsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - committed_at: The committer date.
+                ///   - parents: The parent SHAs, first parent first.
+                ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                public init(
+                    committed_at: Foundation.Date,
+                    parents: [Swift.String],
+                    sha: Swift.String
+                ) {
+                    self.committed_at = committed_at
+                    self.parents = parents
+                    self.sha = sha
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case committed_at
+                    case parents
+                    case sha
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commits`.
+            public typealias commitsPayload = [Components.Schemas.UploadCommitsRequest.commitsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commits`.
+            public var commits: Components.Schemas.UploadCommitsRequest.commitsPayload
+            /// The repository's Git object format.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/object_format`.
+            @frozen public enum object_formatPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case sha1 = "sha1"
+                case sha256 = "sha256"
+            }
+            /// The repository's Git object format.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/object_format`.
+            public var object_format: Components.Schemas.UploadCommitsRequest.object_formatPayload
+            /// Creates a new `UploadCommitsRequest`.
+            ///
+            /// - Parameters:
+            ///   - branch_heads: The newest commit the client saw on each branch.
+            ///   - commits:
+            ///   - object_format: The repository's Git object format.
+            public init(
+                branch_heads: Components.Schemas.UploadCommitsRequest.branch_headsPayload? = nil,
+                commits: Components.Schemas.UploadCommitsRequest.commitsPayload,
+                object_format: Components.Schemas.UploadCommitsRequest.object_formatPayload
+            ) {
+                self.branch_heads = branch_heads
+                self.commits = commits
+                self.object_format = object_format
+            }
+            public enum CodingKeys: String, CodingKey {
+                case branch_heads
+                case commits
+                case object_format
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountToken`.
@@ -12915,6 +13322,21 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildFilesIndexPage`.
         public typealias BuildFilesIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/MissingCommitsRequest`.
+        public struct MissingCommitsRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MissingCommitsRequest/shas`.
+            public var shas: [Swift.String]
+            /// Creates a new `MissingCommitsRequest`.
+            ///
+            /// - Parameters:
+            ///   - shas:
+            public init(shas: [Swift.String]) {
+                self.shas = shas
+            }
+            public enum CodingKeys: String, CodingKey {
+                case shas
+            }
+        }
         /// The maximum number of files to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildFilesIndexPageSize`.
@@ -20480,6 +20902,343 @@ public enum Operations {
             }
         }
     }
+    /// Get the Git history settings in effect for a project.
+    ///
+    /// How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, and how many commits to send per upload request. Server defaults with the project's overrides applied.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/git-history/settings`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)`.
+    public enum getGitHistorySettings {
+        public static let id: Swift.String = "getGitHistorySettings"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getGitHistorySettings.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGitHistorySettings.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGitHistorySettings.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getGitHistorySettings.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getGitHistorySettings.Input.Path,
+                headers: Operations.getGitHistorySettings.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// How long the client may spend deepening a shallow clone to find the merge base.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/deepen_budget_seconds`.
+                        public var deepen_budget_seconds: Swift.Int
+                        /// How many commits to send per upload request.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/upload_batch_size`.
+                        public var upload_batch_size: Swift.Int
+                        /// How many commits back history is collected and kept.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/window_commits`.
+                        public var window_commits: Swift.Int
+                        /// How many days back history is collected and kept.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/window_days`.
+                        public var window_days: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - deepen_budget_seconds: How long the client may spend deepening a shallow clone to find the merge base.
+                        ///   - upload_batch_size: How many commits to send per upload request.
+                        ///   - window_commits: How many commits back history is collected and kept.
+                        ///   - window_days: How many days back history is collected and kept.
+                        public init(
+                            deepen_budget_seconds: Swift.Int,
+                            upload_batch_size: Swift.Int,
+                            window_commits: Swift.Int,
+                            window_days: Swift.Int
+                        ) {
+                            self.deepen_budget_seconds = deepen_budget_seconds
+                            self.upload_batch_size = upload_batch_size
+                            self.window_commits = window_commits
+                            self.window_days = window_days
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case deepen_budget_seconds
+                            case upload_batch_size
+                            case window_commits
+                            case window_days
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/application\/json`.
+                    case json(Operations.getGitHistorySettings.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getGitHistorySettings.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGitHistorySettings.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGitHistorySettings.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The settings
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getGitHistorySettings.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getGitHistorySettings.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGitHistorySettings.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGitHistorySettings.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getGitHistorySettings.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getGitHistorySettings.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGitHistorySettings.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGitHistorySettings.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getGitHistorySettings.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getGitHistorySettings.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGitHistorySettings.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGitHistorySettings.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/settings/get(getGitHistorySettings)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getGitHistorySettings.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getGitHistorySettings.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List test runs for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests`.
@@ -21052,29 +21811,102 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The UUID of an associated build run.
+                    /// The git branch.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
-                    public var build_run_id: Swift.String?
-                    /// The build system used by the test run.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// The repository's Git object format.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
-                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case xcode = "xcode"
-                        case gradle = "gradle"
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_object_format`.
+                    @frozen public enum git_object_formatPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case sha1 = "sha1"
+                        case sha256 = "sha256"
                     }
-                    /// The build system used by the test run.
+                    /// The repository's Git object format.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
-                    public var build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_object_format`.
+                    public var git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload?
+                    /// The scheme used for the test run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
+                    public var scheme: Swift.String?
+                    /// The merge base between the run's commit and the base branch, when the client could resolve it.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/merge_base_sha`.
+                    public var merge_base_sha: Swift.String?
                     /// The CI host URL (optional, for self-hosted instances).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_host`.
                     public var ci_host: Swift.String?
-                    /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                    /// The git remote URL origin.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_project_handle`.
-                    public var ci_project_handle: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
+                    /// Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_fallback_reason`.
+                    public var history_fallback_reason: Swift.String?
+                    /// Whether the run was for a pull or merge request.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_pull_request`.
+                    public var is_pull_request: Swift.Bool?
+                    /// The status of the test run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case skipped = "skipped"
+                        case processing = "processing"
+                        case failed_processing = "failed_processing"
+                    }
+                    /// The status of the test run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
+                    public var status: Operations.createTest.Input.Body.jsonPayload.statusPayload?
+                    /// The zero-based shard index for this test result.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
+                    public var shard_index: Swift.Int?
+                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
+                    public var only_test_identifiers: [Swift.String]?
+                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
+                    @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case client = "client"
+                        case none = "none"
+                    }
+                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
+                    public var history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload?
+                    /// The UUID of an associated build run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
+                    public var build_run_id: Swift.String?
+                    /// The tests the caller asked this run to exclude.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
+                    public var skip_test_identifiers: [Swift.String]?
+                    /// The git reference.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// The branch the run's commit will merge into: the pull request's base, or the project's default branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/base_branch`.
+                    public var base_branch: Swift.String?
+                    /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
+                    public var model_identifier: Swift.String?
+                    /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_run_id`.
+                    public var ci_run_id: Swift.String?
                     /// The CI provider.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_provider`.
@@ -21090,86 +21922,156 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_provider`.
                     public var ci_provider: Operations.createTest.Input.Body.jsonPayload.ci_providerPayload?
-                    /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                    /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_run_id`.
-                    public var ci_run_id: Swift.String?
-                    /// Duration of the run in milliseconds.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_project_handle`.
+                    public var ci_project_handle: Swift.String?
+                    /// The pull or merge request number, when known.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/duration`.
-                    public var duration: Swift.Int
-                    /// The git branch.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_branch`.
-                    public var git_branch: Swift.String?
-                    /// The commit SHA.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_commit_sha`.
-                    public var git_commit_sha: Swift.String?
-                    /// The git reference.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_ref`.
-                    public var git_ref: Swift.String?
-                    /// The git remote URL origin.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_remote_url_origin`.
-                    public var git_remote_url_origin: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/pull_request_number`.
+                    public var pull_request_number: Swift.Int?
                     /// The UUID of an associated Gradle build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
-                    /// Optional client-generated UUID for the test run. If not provided, the server generates one.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
-                    public var id: Swift.String?
-                    /// Indicates if the run was executed on a Continuous Integration (CI) system.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_ci`.
-                    public var is_ci: Swift.Bool
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
+                    public var stress_new_tests: Components.Schemas.StressNewTestsResult?
                     /// The version of macOS used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/macos_version`.
                     public var macos_version: Swift.String?
-                    /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    /// Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
-                    public var model_identifier: Swift.String?
-                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
+                    public var id: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload`.
+                    public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The file's Git blob at the head; absent for a deleted file.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/git_blob_id`.
+                        public var git_blob_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload`.
+                        public struct hunksPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/end`.
+                            public var end: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/start`.
+                            public var start: Swift.Int
+                            /// Creates a new `hunksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - end:
+                            ///   - start:
+                            public init(
+                                end: Swift.Int,
+                                start: Swift.Int
+                            ) {
+                                self.end = end
+                                self.start = start
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case end
+                                case start
+                            }
+                        }
+                        /// The changed line ranges in the file at the head, inclusive.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
+                        public typealias hunksPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayloadPayload]
+                        /// The changed line ranges in the file at the head, inclusive.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
+                        public var hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload?
+                        /// The path at the head, relative to the repository root.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/path`.
+                        public var path: Swift.String
+                        /// The path before a rename.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/previous_path`.
+                        public var previous_path: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case added = "added"
+                            case modified = "modified"
+                            case deleted = "deleted"
+                            case renamed = "renamed"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
+                        public var status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload
+                        /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/truncated`.
+                        public var truncated: Swift.Bool?
+                        /// Creates a new `changed_filesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
+                        ///   - hunks: The changed line ranges in the file at the head, inclusive.
+                        ///   - path: The path at the head, relative to the repository root.
+                        ///   - previous_path: The path before a rename.
+                        ///   - status:
+                        ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                        public init(
+                            git_blob_id: Swift.String? = nil,
+                            hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload? = nil,
+                            path: Swift.String,
+                            previous_path: Swift.String? = nil,
+                            status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload,
+                            truncated: Swift.Bool? = nil
+                        ) {
+                            self.git_blob_id = git_blob_id
+                            self.hunks = hunks
+                            self.path = path
+                            self.previous_path = previous_path
+                            self.status = status
+                            self.truncated = truncated
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case git_blob_id
+                            case hunks
+                            case path
+                            case previous_path
+                            case status
+                            case truncated
+                        }
+                    }
+                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
-                    public var only_test_identifiers: [Swift.String]?
-                    /// The scheme used for the test run.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
+                    public typealias changed_filesPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload]
+                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
-                    public var scheme: Swift.String?
-                    /// The zero-based shard index for this test result.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
-                    public var shard_index: Swift.Int?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
+                    public var changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
+                    public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The shard plan ID if this test run is part of a sharded execution.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
                     public var shard_plan_id: Swift.String?
-                    /// The tests the caller asked this run to exclude.
+                    /// Duration of the run in milliseconds.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
-                    public var skip_test_identifiers: [Swift.String]?
-                    /// The status of the test run.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/duration`.
+                    public var duration: Swift.Int
+                    /// The version of Xcode used during the run.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
-                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case success = "success"
-                        case failure = "failure"
-                        case skipped = "skipped"
-                        case processing = "processing"
-                        case failed_processing = "failed_processing"
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
+                    /// The build system used by the test run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
+                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case xcode = "xcode"
+                        case gradle = "gradle"
                     }
-                    /// The status of the test run.
+                    /// The build system used by the test run.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
-                    public var status: Operations.createTest.Input.Body.jsonPayload.statusPayload?
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
-                    public var stress_new_tests: Components.Schemas.StressNewTestsResult?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
+                    public var build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload?
+                    /// The commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload`.
                     public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                         /// The duration of the test module in milliseconds.
@@ -21685,123 +22587,153 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modules`.
                     public var test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
-                    public var xcode_coverage: Components.Schemas.XcodeCoverage?
-                    /// The version of Xcode used during the run.
+                    /// Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
-                    public var xcode_version: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_ci`.
+                    public var is_ci: Swift.Bool
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - build_run_id: The UUID of an associated build run.
-                    ///   - build_system: The build system used by the test run.
-                    ///   - ci_host: The CI host URL (optional, for self-hosted instances).
-                    ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
-                    ///   - ci_provider: The CI provider.
-                    ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
-                    ///   - duration: Duration of the run in milliseconds.
                     ///   - git_branch: The git branch.
-                    ///   - git_commit_sha: The commit SHA.
-                    ///   - git_ref: The git reference.
-                    ///   - git_remote_url_origin: The git remote URL origin.
-                    ///   - gradle_build_id: The UUID of an associated Gradle build.
-                    ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-                    ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
-                    ///   - macos_version: The version of macOS used during the run.
-                    ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
-                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///   - git_object_format: The repository's Git object format.
                     ///   - scheme: The scheme used for the test run.
-                    ///   - shard_index: The zero-based shard index for this test result.
-                    ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
-                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+                    ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
+                    ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+                    ///   - git_remote_url_origin: The git remote URL origin.
+                    ///   - history_fallback_reason: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+                    ///   - is_pull_request: Whether the run was for a pull or merge request.
                     ///   - status: The status of the test run.
+                    ///   - shard_index: The zero-based shard index for this test result.
+                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
+                    ///   - build_run_id: The UUID of an associated build run.
+                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+                    ///   - git_ref: The git reference.
+                    ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
+                    ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                    ///   - ci_provider: The CI provider.
+                    ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                    ///   - pull_request_number: The pull or merge request number, when known.
+                    ///   - gradle_build_id: The UUID of an associated Gradle build.
                     ///   - stress_new_tests:
-                    ///   - test_modules: The test modules associated with the test run.
+                    ///   - macos_version: The version of macOS used during the run.
+                    ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
+                    ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                     ///   - xcode_coverage:
+                    ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+                    ///   - duration: Duration of the run in milliseconds.
                     ///   - xcode_version: The version of Xcode used during the run.
+                    ///   - build_system: The build system used by the test run.
+                    ///   - git_commit_sha: The commit SHA.
+                    ///   - test_modules: The test modules associated with the test run.
+                    ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     public init(
-                        build_run_id: Swift.String? = nil,
-                        build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
-                        ci_host: Swift.String? = nil,
-                        ci_project_handle: Swift.String? = nil,
-                        ci_provider: Operations.createTest.Input.Body.jsonPayload.ci_providerPayload? = nil,
-                        ci_run_id: Swift.String? = nil,
-                        duration: Swift.Int,
                         git_branch: Swift.String? = nil,
-                        git_commit_sha: Swift.String? = nil,
-                        git_ref: Swift.String? = nil,
-                        git_remote_url_origin: Swift.String? = nil,
-                        gradle_build_id: Swift.String? = nil,
-                        id: Swift.String? = nil,
-                        is_ci: Swift.Bool,
-                        macos_version: Swift.String? = nil,
-                        model_identifier: Swift.String? = nil,
-                        only_test_identifiers: [Swift.String]? = nil,
+                        git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? = nil,
                         scheme: Swift.String? = nil,
-                        shard_index: Swift.Int? = nil,
-                        shard_plan_id: Swift.String? = nil,
-                        skip_test_identifiers: [Swift.String]? = nil,
+                        merge_base_sha: Swift.String? = nil,
+                        ci_host: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
+                        history_fallback_reason: Swift.String? = nil,
+                        is_pull_request: Swift.Bool? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
+                        shard_index: Swift.Int? = nil,
+                        only_test_identifiers: [Swift.String]? = nil,
+                        history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
+                        build_run_id: Swift.String? = nil,
+                        skip_test_identifiers: [Swift.String]? = nil,
+                        git_ref: Swift.String? = nil,
+                        base_branch: Swift.String? = nil,
+                        model_identifier: Swift.String? = nil,
+                        ci_run_id: Swift.String? = nil,
+                        ci_provider: Operations.createTest.Input.Body.jsonPayload.ci_providerPayload? = nil,
+                        ci_project_handle: Swift.String? = nil,
+                        pull_request_number: Swift.Int? = nil,
+                        gradle_build_id: Swift.String? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
-                        test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
+                        macos_version: Swift.String? = nil,
+                        id: Swift.String? = nil,
+                        changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload? = nil,
                         xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
-                        xcode_version: Swift.String? = nil
+                        shard_plan_id: Swift.String? = nil,
+                        duration: Swift.Int,
+                        xcode_version: Swift.String? = nil,
+                        build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
+                        git_commit_sha: Swift.String? = nil,
+                        test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
+                        is_ci: Swift.Bool
                     ) {
-                        self.build_run_id = build_run_id
-                        self.build_system = build_system
-                        self.ci_host = ci_host
-                        self.ci_project_handle = ci_project_handle
-                        self.ci_provider = ci_provider
-                        self.ci_run_id = ci_run_id
-                        self.duration = duration
                         self.git_branch = git_branch
-                        self.git_commit_sha = git_commit_sha
-                        self.git_ref = git_ref
-                        self.git_remote_url_origin = git_remote_url_origin
-                        self.gradle_build_id = gradle_build_id
-                        self.id = id
-                        self.is_ci = is_ci
-                        self.macos_version = macos_version
-                        self.model_identifier = model_identifier
-                        self.only_test_identifiers = only_test_identifiers
+                        self.git_object_format = git_object_format
                         self.scheme = scheme
-                        self.shard_index = shard_index
-                        self.shard_plan_id = shard_plan_id
-                        self.skip_test_identifiers = skip_test_identifiers
+                        self.merge_base_sha = merge_base_sha
+                        self.ci_host = ci_host
+                        self.git_remote_url_origin = git_remote_url_origin
+                        self.history_fallback_reason = history_fallback_reason
+                        self.is_pull_request = is_pull_request
                         self.status = status
+                        self.shard_index = shard_index
+                        self.only_test_identifiers = only_test_identifiers
+                        self.history_source = history_source
+                        self.build_run_id = build_run_id
+                        self.skip_test_identifiers = skip_test_identifiers
+                        self.git_ref = git_ref
+                        self.base_branch = base_branch
+                        self.model_identifier = model_identifier
+                        self.ci_run_id = ci_run_id
+                        self.ci_provider = ci_provider
+                        self.ci_project_handle = ci_project_handle
+                        self.pull_request_number = pull_request_number
+                        self.gradle_build_id = gradle_build_id
                         self.stress_new_tests = stress_new_tests
-                        self.test_modules = test_modules
+                        self.macos_version = macos_version
+                        self.id = id
+                        self.changed_files = changed_files
                         self.xcode_coverage = xcode_coverage
+                        self.shard_plan_id = shard_plan_id
+                        self.duration = duration
                         self.xcode_version = xcode_version
+                        self.build_system = build_system
+                        self.git_commit_sha = git_commit_sha
+                        self.test_modules = test_modules
+                        self.is_ci = is_ci
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case build_run_id
-                        case build_system
-                        case ci_host
-                        case ci_project_handle
-                        case ci_provider
-                        case ci_run_id
-                        case duration
                         case git_branch
-                        case git_commit_sha
-                        case git_ref
-                        case git_remote_url_origin
-                        case gradle_build_id
-                        case id
-                        case is_ci
-                        case macos_version
-                        case model_identifier
-                        case only_test_identifiers
+                        case git_object_format
                         case scheme
-                        case shard_index
-                        case shard_plan_id
-                        case skip_test_identifiers
+                        case merge_base_sha
+                        case ci_host
+                        case git_remote_url_origin
+                        case history_fallback_reason
+                        case is_pull_request
                         case status
+                        case shard_index
+                        case only_test_identifiers
+                        case history_source
+                        case build_run_id
+                        case skip_test_identifiers
+                        case git_ref
+                        case base_branch
+                        case model_identifier
+                        case ci_run_id
+                        case ci_provider
+                        case ci_project_handle
+                        case pull_request_number
+                        case gradle_build_id
                         case stress_new_tests
-                        case test_modules
+                        case macos_version
+                        case id
+                        case changed_files
                         case xcode_coverage
+                        case shard_plan_id
+                        case duration
                         case xcode_version
+                        case build_system
+                        case git_commit_sha
+                        case test_modules
+                        case is_ci
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/content/application\/json`.
@@ -38851,6 +39783,339 @@ public enum Operations {
             }
         }
     }
+    /// Find which commits the server has not stored yet.
+    ///
+    /// Given the SHAs of the commits a client can see, returns the ones the project's commit graph lacks, so the client uploads only those.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)`.
+    public enum findMissingCommits {
+        public static let id: Swift.String = "findMissingCommits"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.findMissingCommits.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.findMissingCommits.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.findMissingCommits.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.findMissingCommits.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/requestBody/json/shas`.
+                    public var shas: [Swift.String]
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - shas:
+                    public init(shas: [Swift.String]) {
+                        self.shas = shas
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case shas
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/requestBody/content/application\/json`.
+                case json(Operations.findMissingCommits.Input.Body.jsonPayload)
+            }
+            public var body: Operations.findMissingCommits.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.findMissingCommits.Input.Path,
+                headers: Operations.findMissingCommits.Input.Headers = .init(),
+                body: Operations.findMissingCommits.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/200/content/json/missing`.
+                        public var missing: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - missing:
+                        public init(missing: [Swift.String]) {
+                            self.missing = missing
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case missing
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/200/content/application\/json`.
+                    case json(Operations.findMissingCommits.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.findMissingCommits.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.findMissingCommits.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.findMissingCommits.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The SHAs the server lacks
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.findMissingCommits.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.findMissingCommits.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.findMissingCommits.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.findMissingCommits.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.findMissingCommits.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.findMissingCommits.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.findMissingCommits.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.findMissingCommits.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.findMissingCommits.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.findMissingCommits.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.findMissingCommits.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.findMissingCommits.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.findMissingCommits.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.findMissingCommits.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -49128,6 +50393,399 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Upload commits to the project's commit graph.
+    ///
+    /// Adds commits and their parent edges to the project's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)`.
+    public enum uploadCommits {
+        public static let id: Swift.String = "uploadCommits"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.uploadCommits.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCommits.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCommits.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.uploadCommits.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload`.
+                    public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/branch`.
+                        public var branch: Swift.String
+                        /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/sha`.
+                        public var sha: Swift.String
+                        /// Creates a new `branch_headsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - branch:
+                        ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        public init(
+                            branch: Swift.String,
+                            sha: Swift.String
+                        ) {
+                            self.branch = branch
+                            self.sha = sha
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case branch
+                            case sha
+                        }
+                    }
+                    /// The newest commit the client saw on each branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_heads`.
+                    public typealias branch_headsPayload = [Operations.uploadCommits.Input.Body.jsonPayload.branch_headsPayloadPayload]
+                    /// The newest commit the client saw on each branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_heads`.
+                    public var branch_heads: Operations.uploadCommits.Input.Body.jsonPayload.branch_headsPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload`.
+                    public struct commitsPayloadPayload: Codable, Hashable, Sendable {
+                        /// The committer date.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload/committed_at`.
+                        public var committed_at: Foundation.Date
+                        /// The parent SHAs, first parent first.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload/parents`.
+                        public var parents: [Swift.String]
+                        /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload/sha`.
+                        public var sha: Swift.String
+                        /// Creates a new `commitsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - committed_at: The committer date.
+                        ///   - parents: The parent SHAs, first parent first.
+                        ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        public init(
+                            committed_at: Foundation.Date,
+                            parents: [Swift.String],
+                            sha: Swift.String
+                        ) {
+                            self.committed_at = committed_at
+                            self.parents = parents
+                            self.sha = sha
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case committed_at
+                            case parents
+                            case sha
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commits`.
+                    public typealias commitsPayload = [Operations.uploadCommits.Input.Body.jsonPayload.commitsPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commits`.
+                    public var commits: Operations.uploadCommits.Input.Body.jsonPayload.commitsPayload
+                    /// The repository's Git object format.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/object_format`.
+                    @frozen public enum object_formatPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case sha1 = "sha1"
+                        case sha256 = "sha256"
+                    }
+                    /// The repository's Git object format.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/object_format`.
+                    public var object_format: Operations.uploadCommits.Input.Body.jsonPayload.object_formatPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - branch_heads: The newest commit the client saw on each branch.
+                    ///   - commits:
+                    ///   - object_format: The repository's Git object format.
+                    public init(
+                        branch_heads: Operations.uploadCommits.Input.Body.jsonPayload.branch_headsPayload? = nil,
+                        commits: Operations.uploadCommits.Input.Body.jsonPayload.commitsPayload,
+                        object_format: Operations.uploadCommits.Input.Body.jsonPayload.object_formatPayload
+                    ) {
+                        self.branch_heads = branch_heads
+                        self.commits = commits
+                        self.object_format = object_format
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case branch_heads
+                        case commits
+                        case object_format
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/content/application\/json`.
+                case json(Operations.uploadCommits.Input.Body.jsonPayload)
+            }
+            public var body: Operations.uploadCommits.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.uploadCommits.Input.Path,
+                headers: Operations.uploadCommits.Input.Headers = .init(),
+                body: Operations.uploadCommits.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The commits were stored
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.uploadCommits.Output.NoContent)
+            /// The commits were stored
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.uploadCommits.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCommits.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadCommits.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadCommits.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.uploadCommits.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCommits.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadCommits.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.uploadCommits.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.uploadCommits.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCommits.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadCommits.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/post(uploadCommits)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.uploadCommits.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.uploadCommits.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

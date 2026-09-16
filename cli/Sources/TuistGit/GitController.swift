@@ -73,6 +73,23 @@ public protocol GitControlling {
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
 
+    /// What the checkout can tell about `headSHA`'s place in the repository's history: the merge
+    /// base with `baseBranch`, the commits reachable from the head within `limits`, and the files
+    /// changed since the merge base with their hunks. A shallow clone is deepened within the budget
+    /// to find the merge base. Nothing here throws for a missing piece: it comes back nil with a
+    /// reason, and the server may complete it from the VCS provider.
+    /// - Parameters:
+    ///   - workingDirectory: The repository's top level.
+    ///   - headSHA: The commit the run is for; HEAD when nil.
+    ///   - baseBranch: The branch the commit will merge into.
+    ///   - limits: How much to collect.
+    func gitHistory(
+        workingDirectory: AbsolutePath,
+        headSHA: String?,
+        baseBranch: String?,
+        limits: GitHistoryLimits
+    ) async throws -> GitHistory
+
     /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
     /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
     /// working tree has changed, and untracked files Git does not ignore, are hashed from the
@@ -227,6 +244,24 @@ public struct GitController: GitControlling {
         "CIRCLE_PR_NUMBER",
     ]
 
+    private static let baseBranchEnvironmentVariables = [
+        // GitHub Actions
+        "GITHUB_BASE_REF",
+        // GitLab CI
+        "CI_MERGE_REQUEST_TARGET_BRANCH_NAME",
+        "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME",
+        // Bitrise
+        "BITRISEIO_GIT_BRANCH_DEST",
+        // Buildkite
+        "BUILDKITE_PULL_REQUEST_BASE_BRANCH",
+        // Codemagic
+        "CM_PULL_REQUEST_DEST",
+        // Xcode Cloud
+        "CI_PULL_REQUEST_TARGET_BRANCH",
+        // Azure DevOps (a full ref, refs/heads/main)
+        "SYSTEM_PULLREQUEST_TARGETBRANCH",
+    ]
+
     private static let branchEnvironmentVariables = [
         // GitHub Actions
         "GITHUB_HEAD_REF",
@@ -292,6 +327,14 @@ public struct GitController: GitControlling {
             gitRef = nil
         }
 
+        // The base branch and pull request number, from the CI provider only: a checkout does not
+        // know what its commit will merge into.
+        let baseBranch = Self.baseBranchEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { !$0.isEmpty }
+            .map { $0.hasPrefix("refs/heads/") ? String($0.dropFirst("refs/heads/".count)) : $0 }
+        let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
+
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
@@ -325,7 +368,9 @@ public struct GitController: GitControlling {
                 ref: gitRef,
                 branch: branchName,
                 sha: nil,
-                remoteURLOrigin: nil
+                remoteURLOrigin: nil,
+                baseBranch: baseBranch,
+                pullRequestNumber: pullRequestNumber
             )
         }
 
@@ -360,8 +405,19 @@ public struct GitController: GitControlling {
             ref: gitRef,
             branch: branchName,
             sha: commitSHA,
-            remoteURLOrigin: remoteURLOrigin
+            remoteURLOrigin: remoteURLOrigin,
+            baseBranch: baseBranch,
+            pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are
+    /// folded into), or GitLab's merge request id.
+    static func pullRequestNumber(ref: String?, environment: [String: String]) -> Int? {
+        if let ref, let match = ref.wholeMatch(of: /refs\/(?:pull|merge-requests)\/(\d+)\/.*/) {
+            return Int(match.1)
+        }
+        return ["CI_MERGE_REQUEST_IID"].compactMap { environment[$0] }.compactMap(Int.init).first
     }
 
     private func run(command: String...) async throws {
@@ -376,7 +432,7 @@ public struct GitController: GitControlling {
         try await capture(arguments: command)
     }
 
-    private func capture(arguments: [String]) async throws -> String {
+    func capture(arguments: [String]) async throws -> String {
         try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
     }
 
