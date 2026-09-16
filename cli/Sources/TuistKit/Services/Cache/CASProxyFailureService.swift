@@ -46,7 +46,7 @@ extension CASProxyFailureServicing {
         AlertController.current.warning(
             .alert(
                 "The Xcode cache proxy at \(failure.socket) failed during this build: \(failure.error)",
-                takeaway: "Compilations that needed it used the local cache only, with no remote cache hits or uploads. Run \(.command("tuist setup cache")) if the proxy is not running."
+                takeaway: "Compilations that needed it used the local cache only, without remote cache hits. Their uploads are kept on disk and sent once the proxy is reachable again. Run \(.command("tuist setup cache")) if the proxy is not running."
             )
         )
     }

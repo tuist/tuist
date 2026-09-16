@@ -81,8 +81,9 @@ pub fn note(socket_path: &str, error: &str) {
 fn warning(socket_path: &str, error: &str) -> String {
     format!(
         "warning: The Tuist Xcode cache proxy at {socket_path} failed ({error}). Compilations \
-         that needed it used the local cache only, with no remote cache hits or uploads. Run \
-         `tuist setup cache` if the proxy is not running."
+         that needed it used the local cache only, without remote cache hits. Their uploads are \
+         kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the \
+         proxy is not running."
     )
 }
 

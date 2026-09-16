@@ -191,10 +191,10 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 If the build output contains a warning like:
 
 ```
-warning: The Tuist Xcode cache proxy at /Users/you/.local/state/tuist/cas-proxy.sock failed (proxy connect: No such file or directory (os error 2)). Compilations that needed it used the local cache only, with no remote cache hits or uploads. Run `tuist setup cache` if the proxy is not running.
+warning: The Tuist Xcode cache proxy at /Users/you/.local/state/tuist/cas-proxy.sock failed (proxy connect: No such file or directory (os error 2)). Compilations that needed it used the local cache only, without remote cache hits. Their uploads are kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the proxy is not running.
 ```
 
-then the compilation cache could not reach the local cache proxy that `tuist setup cache` installs. The build still succeeds, but the affected compilations neither download from nor upload to the remote cache, so it runs like a build with an empty cache. The warning appears once per build, and `tuist xcodebuild` and `tuist test` repeat it after the build finishes.
+then the compilation cache could not reach the local cache proxy that `tuist setup cache` installs. The build still succeeds, but the affected compilations get no remote cache hits, so it runs like a build with an empty cache. Their uploads are kept on disk and sent once the proxy handles requests again: later in the same build if it comes back in time, otherwise during the next build on the same machine. A CI machine that is discarded after the job loses them. The warning appears once per build, and `tuist xcodebuild` and `tuist test` repeat it after the build finishes.
 
 To check whether the proxy is running, look for a process listening on the socket named in the warning:
 
