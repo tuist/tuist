@@ -63,7 +63,7 @@ defmodule TuistWeb.API.CacheController do
         headers: %{
           "cache-control" => %OpenApiSpex.Header{
             description:
-              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.",
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving. While one is being provisioned the answer is `no-cache`, so a client waiting for the instance asks the server again rather than reusing it.",
             schema: %Schema{type: :string}
           }
         },
@@ -113,10 +113,16 @@ defmodule TuistWeb.API.CacheController do
       |> authorized_account_handle(conn)
       |> Accounts.get_cache_resolution_for_handle(RemoteIp.attributed_origin(conn))
 
-    max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
+    # `no-cache` while provisioning: clients poll this endpoint until the instance
+    # serves, and an HTTP cache honoring the max-age would answer every poll with
+    # the same empty list.
+    cache_control =
+      if provisioning,
+        do: "private, no-cache, max-age=#{@provisioning_cache_max_age}",
+        else: "private, max-age=#{Kura.endpoint_freshness_seconds()}"
 
     conn
-    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> put_resp_header("cache-control", cache_control)
     |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
   end
 
