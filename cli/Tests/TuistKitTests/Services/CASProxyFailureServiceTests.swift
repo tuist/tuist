@@ -9,23 +9,58 @@ struct CASProxyFailureServiceTests {
     private let subject = CASProxyFailureService()
 
     @Test(.withMockedEnvironment())
-    func returnsTheFailureRecordedDuringTheBuild() async throws {
-        let buildStartedAt = Date().addingTimeInterval(-60)
-        let error = "proxy connect: Connection refused (os error 61)"
-        try writeRecord(socket: "/tmp/cas-proxy.sock", error: error)
+    func returnsTheLatestFailureRecordedDuringTheBuild() async throws {
+        let buildStartedAt = Date()
+        try writeRecord(
+            named: "build-100-1111",
+            error: "proxy connect: Connection refused (os error 61)",
+            failedAt: buildStartedAt.addingTimeInterval(1)
+        )
+        try writeRecord(
+            named: "service-100",
+            error: "proxy recv: Resource temporarily unavailable (os error 35)",
+            failedAt: buildStartedAt.addingTimeInterval(2)
+        )
 
         let failure = try await subject.failure(since: buildStartedAt)
 
-        #expect(failure == CASProxyFailure(socket: "/tmp/cas-proxy.sock", error: error))
+        #expect(
+            failure == CASProxyFailure(
+                socket: "/tmp/cas-proxy.sock",
+                error: "proxy recv: Resource temporarily unavailable (os error 35)"
+            )
+        )
     }
 
     @Test(.withMockedEnvironment())
-    func ignoresAFailureRecordedBeforeTheBuildStarted() async throws {
-        try writeRecord(socket: "/tmp/cas-proxy.sock", error: "proxy connect: Connection refused (os error 61)")
+    func ignoresFailuresRecordedBeforeTheBuildStarted() async throws {
+        let buildStartedAt = Date()
+        try writeRecord(
+            named: "build-100-1111",
+            error: "proxy connect: Connection refused (os error 61)",
+            failedAt: buildStartedAt.addingTimeInterval(-60)
+        )
 
-        let failure = try await subject.failure(since: Date().addingTimeInterval(60))
+        let failure = try await subject.failure(since: buildStartedAt)
 
         #expect(failure == nil)
+    }
+
+    @Test(.withMockedEnvironment())
+    func skipsARecordItCannotRead() async throws {
+        let buildStartedAt = Date()
+        let directory = try recordDirectory()
+        try FileManager.default.createDirectory(at: directory.url, withIntermediateDirectories: true)
+        try Data("not a record".utf8).write(to: directory.appending(component: "build-100-2222.json").url)
+        try writeRecord(
+            named: "build-100-1111",
+            error: "proxy connect: Connection refused (os error 61)",
+            failedAt: buildStartedAt.addingTimeInterval(1)
+        )
+
+        let failure = try await subject.failure(since: buildStartedAt)
+
+        #expect(failure?.error == "proxy connect: Connection refused (os error 61)")
     }
 
     @Test(.withMockedEnvironment())
@@ -35,12 +70,18 @@ struct CASProxyFailureServiceTests {
         #expect(failure == nil)
     }
 
-    /// The shape `cas-plugin/src/proxy_failure.rs` writes beside the proxy socket.
-    private func writeRecord(socket: String, error: String) throws {
+    private func recordDirectory() throws -> AbsolutePath {
         let environment = try #require(Environment.mocked)
-        let recordPath = environment.casProxySocketPath().parentDirectory
-            .appending(component: CASProxyFailureService.recordFileName)
-        let record = #"{"socket":"\#(socket)","error":"\#(error)","builder_pid":4242}"#
-        try Data(record.utf8).write(to: recordPath.url)
+        return environment.casProxySocketPath().parentDirectory
+            .appending(component: "cas-proxy-failures")
+    }
+
+    /// The shape `cas-plugin/src/proxy_failure.rs` writes.
+    private func writeRecord(named name: String, error: String, failedAt: Date) throws {
+        let directory = try recordDirectory()
+        try FileManager.default.createDirectory(at: directory.url, withIntermediateDirectories: true)
+        let failedAtMilliseconds = Int(failedAt.timeIntervalSince1970 * 1000)
+        let record = #"{"socket":"/tmp/cas-proxy.sock","error":"\#(error)","failed_at_ms":\#(failedAtMilliseconds)}"#
+        try Data(record.utf8).write(to: directory.appending(component: "\(name).json").url)
     }
 }

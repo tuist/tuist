@@ -6,22 +6,22 @@ import TuistAlert
 import TuistEnvironment
 
 /// A request the Xcode cache proxy failed during a build, as the CAS plugin recorded it.
-struct CASProxyFailure: Decodable, Equatable {
+struct CASProxyFailure: Equatable {
     let socket: String
     let error: String
 }
 
 @Mockable
 protocol CASProxyFailureServicing {
-    /// The failure the CAS plugin recorded at or after `date`, or `nil` when it recorded none.
+    /// The most recent failure the CAS plugin recorded at or after `date`, or `nil` when it recorded none.
     func failure(since date: Date) async throws -> CASProxyFailure?
 }
 
-/// Reads the record `cas-plugin` writes beside the proxy socket when a compiler process gets no answer from
-/// the proxy. Inside the build that failure degrades to a cache miss, so a build without a remote cache
-/// otherwise looks like one with a cold cache.
+/// Reads the records `cas-plugin` writes beside the proxy socket when a process gets no answer from the proxy,
+/// one per build and one per build service. Inside the build that failure degrades to a cache miss, so a build
+/// without a remote cache otherwise looks like one with a cold cache.
 struct CASProxyFailureService: CASProxyFailureServicing {
-    static let recordFileName = "cas-proxy-failure.json"
+    static let recordDirectoryName = "cas-proxy-failures"
 
     private let fileSystem: FileSysteming
 
@@ -30,12 +30,32 @@ struct CASProxyFailureService: CASProxyFailureServicing {
     }
 
     func failure(since date: Date) async throws -> CASProxyFailure? {
-        let recordPath = Environment.current.casProxySocketPath().parentDirectory
-            .appending(component: Self.recordFileName)
-        guard let metadata = try await fileSystem.fileMetadata(at: recordPath),
-              metadata.lastModificationDate >= date
-        else { return nil }
-        return try await fileSystem.readJSONFile(at: recordPath)
+        let directory = Environment.current.casProxySocketPath().parentDirectory
+            .appending(component: Self.recordDirectoryName)
+        guard try await fileSystem.exists(directory) else { return nil }
+
+        let sinceMilliseconds = date.timeIntervalSince1970 * 1000
+        var latest: Record?
+        for path in try await fileSystem.glob(directory: directory, include: ["*.json"]).collect() {
+            guard let record: Record = try? await fileSystem.readJSONFile(at: path),
+                  Double(record.failedAtMilliseconds) >= sinceMilliseconds
+            else { continue }
+            if let current = latest, current.failedAtMilliseconds >= record.failedAtMilliseconds { continue }
+            latest = record
+        }
+        return latest.map { CASProxyFailure(socket: $0.socket, error: $0.error) }
+    }
+
+    private struct Record: Decodable {
+        let socket: String
+        let error: String
+        let failedAtMilliseconds: UInt64
+
+        enum CodingKeys: String, CodingKey {
+            case socket
+            case error
+            case failedAtMilliseconds = "failed_at_ms"
+        }
     }
 }
 
