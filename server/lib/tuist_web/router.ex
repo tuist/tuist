@@ -955,6 +955,11 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/cache/download", RunnerJobCacheController, :download
+    post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
+    post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
+    post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
+    post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
   end
 
   scope "/api/internal", TuistWeb.Internal do
