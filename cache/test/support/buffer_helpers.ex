@@ -65,14 +65,6 @@ defmodule Cache.BufferTestHelpers do
       CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at, name)
     end)
 
-    stub(CacheArtifactsBuffer, :enqueue_content_sha256, fn key, size_bytes, last_accessed_at, digest ->
-      CacheArtifactsBuffer.enqueue_content_sha256(key, size_bytes, last_accessed_at, digest, name)
-    end)
-
-    stub(CacheArtifactsBuffer, :pending_content_sha256, fn key ->
-      CacheArtifactsBuffer.pending_content_sha256(key, name)
-    end)
-
     stub(CacheArtifactsBuffer, :enqueue_delete, fn key ->
       CacheArtifactsBuffer.enqueue_delete(key, name)
     end)

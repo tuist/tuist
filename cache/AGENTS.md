@@ -24,18 +24,6 @@ cache read goes through a 10-minute Cachex TTL — the stale snapshot is taken b
 lock is acquired, so the lock cannot protect it. That reverts release checksums while the
 archive objects keep the newer bytes, which surfaces to users as `invalidChecksum`.
 
-## Content digests
-Xcode CAS, Gradle and module artifacts carry the uploader's declared SHA-256 (`Cache.ContentDigest`):
-the `tuist-checksum-sha256` request header on single-request saves, `checksum_sha256` in the module
-multipart completion. A declared digest is verified before the artifact is persisted (malformed 400,
-mismatch 422, an existing artifact is not checked), recorded on the `cache_artifacts` row (nil when
-none was declared, so a re-upload clears a stale one), written to the S3 object's metadata, restored
-from it on pull-back, and served as `tuist-checksum-sha256` on disk hits and, through nginx, on
-S3-served reads. The server never records a digest it computed from bytes it holds. Keyvalue entries
-carry none. Artifacts are published by hard link (`Cache.Disk.move_file/2`, `write_new_file/2`), which refuses an
-existing destination atomically, so of racing uploads only the one that published records its digest. A queued
-digest stays in the buffer until its row commits, so reads never fall back to the row it is replacing.
-
 ## Related Context (Downlinks)
 - Cache web layer: `cache/lib/cache_web/AGENTS.md`
 - Cache domain and storage: `cache/lib/cache/AGENTS.md`

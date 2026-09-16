@@ -1,6 +1,5 @@
 defmodule Cache.XcodeModule.DiskTest do
   use ExUnit.Case, async: true
-  use Mimic
 
   import ExUnit.CaptureLog
 
@@ -130,68 +129,6 @@ defmodule Cache.XcodeModule.DiskTest do
 
       dest_path = dest_path_for(account, "project", "tests", hash, "new.zip")
       assert File.exists?(dest_path)
-    end
-  end
-
-  describe "complete_assembly/4" do
-    setup do
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-      hash = unique_hash("feed")
-      name = "Module.zip"
-      destination = dest_path_for(account, "project", "builds", hash, name)
-      File.mkdir_p!(Path.dirname(destination))
-      assembly = destination <> ".tmp.test-upload"
-      File.write!(assembly, "HEAD-")
-      {:ok, part} = Briefly.create()
-      File.write!(part, "TAIL")
-
-      upload = %{account_handle: account, project_handle: "project", category: "builds", hash: hash, name: name}
-      digest = :sha256 |> :crypto.hash("HEAD-TAIL") |> Base.encode16(case: :lower)
-
-      {:ok, upload: upload, assembly: assembly, part: part, destination: destination, digest: digest}
-    end
-
-    test "publishes an assembly that matches the declared checksum", context do
-      assert :ok = XcodeModule.Disk.complete_assembly(context.assembly, context.upload, [context.part], context.digest)
-      assert File.read!(context.destination) == "HEAD-TAIL"
-      refute File.exists?(context.assembly)
-    end
-
-    test "refuses a mismatching assembly without publishing it", context do
-      declared = String.duplicate("0", 64)
-
-      assert {:error, {:checksum_mismatch, ^declared, actual}} =
-               XcodeModule.Disk.complete_assembly(context.assembly, context.upload, [context.part], declared)
-
-      assert actual == context.digest
-      refute File.exists?(context.destination)
-    end
-
-    test "leaves an already published artifact alone without comparing digests", context do
-      File.write!(context.destination, "someone else's upload")
-
-      assert {:error, :exists} =
-               XcodeModule.Disk.complete_assembly(
-                 context.assembly,
-                 context.upload,
-                 [context.part],
-                 String.duplicate("0", 64)
-               )
-
-      assert File.read!(context.destination) == "someone else's upload"
-    end
-
-    test "does not replace an artifact another completion published after the existence check", context do
-      File.write!(context.destination, "the other completion's upload")
-      # What a completion observes when it checked just before the other one published.
-      stub(File, :exists?, fn _path -> false end)
-
-      assert {:error, :exists} =
-               XcodeModule.Disk.complete_assembly(context.assembly, context.upload, [context.part], context.digest)
-
-      assert File.read!(context.destination) == "the other completion's upload"
-      refute File.regular?(context.assembly)
     end
   end
 end

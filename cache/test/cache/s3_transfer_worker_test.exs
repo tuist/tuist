@@ -23,7 +23,7 @@ defmodule Cache.S3TransferWorkerTest do
   end
 
   describe "perform/1" do
-    test "processes pending CAS uploads via upload_file with type: :xcode_cache and the recorded digest" do
+    test "processes pending CAS uploads via upload_file with type: :xcode_cache" do
       suffix = :erlang.unique_integer([:positive])
       key_one = "account/project/xcode/ar/ti/artifact1-#{suffix}"
       key_two = "account/project/xcode/ar/ti/artifact2-#{suffix}"
@@ -38,21 +38,9 @@ defmodule Cache.S3TransferWorkerTest do
 
       expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
 
-      digest = String.duplicate("ab", 32)
-
-      stub(Cache.CacheArtifacts, :content_sha256, fn
-        ^key_one -> digest
-        ^key_two -> nil
-      end)
-
-      expect(Cache.S3, :upload_file, 2, fn
-        ^key_one, _path, opts ->
-          assert opts == [type: :xcode_cache, content_sha256: digest]
-          :ok
-
-        ^key_two, _path, opts ->
-          assert opts == [type: :xcode_cache, content_sha256: nil]
-          :ok
+      expect(Cache.S3, :upload_file, 2, fn _key, _path, opts ->
+        assert opts == [type: :xcode_cache]
+        :ok
       end)
 
       capture_log(fn ->
@@ -110,10 +98,8 @@ defmodule Cache.S3TransferWorkerTest do
 
       expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
 
-      stub(Cache.CacheArtifacts, :content_sha256, fn _key -> nil end)
-
       expect(Cache.S3, :upload_file, fn _key, _path, opts ->
-        assert opts == [type: :xcode_cache, content_sha256: nil]
+        assert opts == [type: :xcode_cache]
         :ok
       end)
 
@@ -144,9 +130,8 @@ defmodule Cache.S3TransferWorkerTest do
       File.write!(tmp_file, "test content")
 
       expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
-      stub(Cache.CacheArtifacts, :content_sha256, fn _key -> nil end)
 
-      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache, content_sha256: nil] ->
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :timeout}
       end)
 
@@ -174,9 +159,8 @@ defmodule Cache.S3TransferWorkerTest do
       File.write!(tmp_file, "test content")
 
       expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
-      stub(Cache.CacheArtifacts, :content_sha256, fn _key -> nil end)
 
-      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache, content_sha256: nil] ->
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :rate_limited}
       end)
 

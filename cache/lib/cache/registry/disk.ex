@@ -9,6 +9,8 @@ defmodule Cache.Registry.Disk do
   alias Cache.Disk
   alias Cache.Registry.KeyNormalizer
 
+  require Logger
+
   @doc """
   Constructs a normalized registry key from scope, name, version, and filename.
 
@@ -70,8 +72,13 @@ defmodule Cache.Registry.Disk do
   def put(scope, name, version, filename, data) when is_binary(data) do
     path = scope |> key(name, version, filename) |> Disk.artifact_path()
 
-    with :ok <- Disk.ensure_directory(path) do
-      Disk.write_new_file(path, data)
+    with :ok <- Disk.ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write registry artifact to #{path}: #{inspect(reason)}")
+        error
     end
   end
 

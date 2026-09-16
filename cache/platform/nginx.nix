@@ -235,9 +235,6 @@
             # alternate registry manifests). X-Accel-Redirect to a static-file
             # location otherwise drops it.
             add_header Link $upstream_http_link always;
-            # The uploader's declared digest of the whole artifact, set by Phoenix;
-            # dropped by X-Accel-Redirect unless re-emitted. Empty when none.
-            add_header tuist-checksum-sha256 $upstream_http_tuist_checksum_sha256 always;
 
             # CAS artifacts are immutable (content-addressed), so we can
             # cache many more FDs and revalidate less often.
@@ -281,9 +278,6 @@
             # discovers alternate registry manifests when the file is being
             # streamed from S3 (cold cache node).
             add_header Link $saved_link always;
-            # The same digest from the object's own metadata, so an artifact that
-            # has left local disk still carries it. Empty when none.
-            add_header tuist-checksum-sha256 $upstream_http_x_amz_meta_tuist_checksum_sha256 always;
             gzip off;
             proxy_request_buffering off;
 
@@ -323,7 +317,6 @@
             default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
             add_header Content-Version $registry_content_version;
-            add_header tuist-checksum-sha256 $upstream_http_x_amz_meta_tuist_checksum_sha256 always;
           '';
         };
       };

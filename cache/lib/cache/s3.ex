@@ -20,7 +20,6 @@ defmodule Cache.S3 do
   @exists_cache :s3_exists_cache
   @exists_positive_ttl to_timeout(hour: 6)
   @exists_negative_ttl to_timeout(second: 30)
-  @content_sha256_metadata_header "x-amz-meta-tuist-checksum-sha256"
 
   def child_spec(_) do
     %{
@@ -118,7 +117,7 @@ defmodule Cache.S3 do
 
       bucket ->
         case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
-          {:exists, _response} -> {:ok, true}
+          :exists -> {:ok, true}
           :not_found -> {:ok, false}
           {:error, reason} -> {:error, reason}
         end
@@ -138,7 +137,7 @@ defmodule Cache.S3 do
     Logger.info("Starting S3 upload for artifact: #{key}")
 
     if File.exists?(local_path) do
-      case upload_file(key, local_path, content_sha256: Cache.CacheArtifacts.content_sha256(key)) do
+      case upload_file(key, local_path) do
         :ok ->
           Logger.info("Successfully uploaded artifact to S3: #{key}")
           :ok
@@ -181,8 +180,8 @@ defmodule Cache.S3 do
     local_path = Cache.Disk.artifact_path(key)
 
     case head_object_status(bucket, key) do
-      {:exists, head_response} ->
-        download_existing_object(key, bucket, local_path, head_response)
+      :exists ->
+        download_existing_object(key, bucket, local_path)
 
       :not_found ->
         {:ok, :miss}
@@ -196,7 +195,7 @@ defmodule Cache.S3 do
     end
   end
 
-  defp download_existing_object(key, bucket, local_path, head_response) do
+  defp download_existing_object(key, bucket, local_path) do
     tmp_path = tmp_download_path(local_path)
 
     local_path |> Path.dirname() |> File.mkdir_p!()
@@ -208,34 +207,12 @@ defmodule Cache.S3 do
         |> ExAws.request()
       end)
 
-    handle_download_result(key, local_path, tmp_path, dl_duration, dl_result, head_response)
+    handle_download_result(key, local_path, tmp_path, dl_duration, dl_result)
   end
 
-  # An installed download is exactly the object, so the digest in the object's
-  # metadata is the only one that describes those bytes, and it is recorded even
-  # when there is none: a row can outlive its file (a project clean removes files
-  # and objects but not rows), and the previous upload's digest would describe
-  # different bytes. Only for a download that was installed: when a local copy was
-  # already in place the download is discarded, and that copy can be a different
-  # upload under the same key, whose own digest must stand.
-  defp restore_content_sha256(key, head_response) do
-    headers = if is_map(head_response), do: Map.get(head_response, :headers, []), else: []
-    Cache.CacheArtifacts.record_content_sha256(key, content_sha256_from_headers(headers))
-  end
-
-  defp content_sha256_from_headers(headers) do
-    Enum.find_value(headers, fn {name, value} ->
-      if String.downcase(name) == @content_sha256_metadata_header do
-        normalized = value |> List.wrap() |> List.first() |> to_string() |> String.downcase()
-        if Regex.match?(~r/\A[0-9a-f]{64}\z/, normalized), do: normalized
-      end
-    end)
-  end
-
-  defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}, head_response) do
+  defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}) do
     case publish_download(tmp_path, local_path) do
-      {:ok, published} ->
-        if published == :installed, do: restore_content_sha256(key, head_response)
+      :ok ->
         :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
         {:ok, :hit}
 
@@ -246,14 +223,14 @@ defmodule Cache.S3 do
     end
   end
 
-  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, {:http_error, 429, _}}, _head_response) do
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, {:http_error, 429, _}}) do
     cleanup_tmp_download(tmp_path)
     :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
     Logger.warning("S3 download rate limited for artifact: #{key}")
     {:error, :rate_limited}
   end
 
-  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, reason}, _head_response) do
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, reason}) do
     cleanup_tmp_download(tmp_path)
     :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
     Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
@@ -263,11 +240,11 @@ defmodule Cache.S3 do
   defp publish_download(tmp_path, local_path) do
     case Cache.Disk.move_file(tmp_path, local_path) do
       :ok ->
-        {:ok, :installed}
+        :ok
 
       {:error, :exists} ->
         cleanup_tmp_download(tmp_path)
-        {:ok, :existing}
+        :ok
 
       {:error, reason} ->
         cleanup_tmp_download(tmp_path)
@@ -347,7 +324,6 @@ defmodule Cache.S3 do
 
     * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
-    * `:content_sha256` - The uploader's declared SHA-256, stored as `tuist-checksum-sha256` object metadata
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
   """
@@ -361,14 +337,6 @@ defmodule Cache.S3 do
       if content_type_opt,
         do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
         else: [timeout: 120_000, max_concurrency: 8]
-
-    # The uploader's declared digest travels with the object, so an artifact
-    # served from (or pulled back from) object storage still carries it.
-    upload_opts =
-      case Keyword.get(opts, :content_sha256) do
-        nil -> upload_opts
-        content_sha256 -> upload_opts ++ [meta: [{"tuist-checksum-sha256", content_sha256}]]
-      end
 
     {duration, result} =
       :timer.tc(fn ->
@@ -467,9 +435,9 @@ defmodule Cache.S3 do
       end)
 
     case result do
-      {:ok, response} ->
+      {:ok, _response} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
-        {:exists, response}
+        :exists
 
       {:error, {:http_error, 404, _}} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})

@@ -70,15 +70,15 @@ defmodule Cache.Xcode.DiskTest do
       assert File.read!(path) == data
     end
 
-    test "does not replace an artifact another upload already published" do
+    test "overwrites existing file" do
       path = Disk.artifact_path(@test_key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, "old content")
 
       new_data = "new content"
-      assert Xcode.Disk.put(@test_account, @test_project, @test_id, new_data) == {:error, :exists}
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, new_data) == :ok
 
-      assert File.read!(path) == "old content"
+      assert File.read!(path) == new_data
     end
 
     test "handles binary data" do

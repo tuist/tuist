@@ -5,11 +5,9 @@ defmodule CacheWeb.XcodeController do
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
   alias Cache.Config
-  alias Cache.ContentDigest
   alias Cache.S3
   alias Cache.S3Transfers
   alias Cache.Xcode
-  alias CacheWeb.API.ContentDigestSpec
   alias CacheWeb.API.Schemas.Error
   alias CacheWeb.API.Schemas.SafePathComponent
 
@@ -65,18 +63,9 @@ defmodule CacheWeb.XcodeController do
     ]
   ]
 
-  @artifact_content %OpenApiSpex.Response{
-    description: "Artifact content",
-    headers: %{"tuist-checksum-sha256" => ContentDigestSpec.response_header()},
-    content: %{
-      "application/octet-stream" => %OpenApiSpex.MediaType{}
-    }
-  }
-
   @partial_content %OpenApiSpex.Response{
     description: "The requested range of the artifact",
     headers: %{
-      "tuist-checksum-sha256" => ContentDigestSpec.response_header(),
       "content-range" => %OpenApiSpex.Header{
         description: "The range served, as `bytes <first>-<last>/<total>`",
         schema: %OpenApiSpex.Schema{type: :string}
@@ -129,7 +118,7 @@ defmodule CacheWeb.XcodeController do
         ]
       ] ++ @range_parameters,
     responses: %{
-      ok: @artifact_content,
+      ok: {"Artifact content", "application/octet-stream", nil},
       partial_content: @partial_content,
       requested_range_not_satisfiable: @range_not_satisfiable,
       not_found: {"Artifact not found", "application/json", Error},
@@ -162,7 +151,6 @@ defmodule CacheWeb.XcodeController do
         })
 
         conn
-        |> ContentDigest.put_header(CacheArtifacts.content_sha256(key))
         |> put_resp_header("x-accel-redirect", local_path)
         |> send_resp(:ok, "")
 
@@ -213,19 +201,15 @@ defmodule CacheWeb.XcodeController do
         schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
-      ],
-      "tuist-checksum-sha256": ContentDigestSpec.request_parameter()
+      ]
     ],
     request_body: {"The Xcode cache artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       no_content: {"Upload successful", nil, nil},
-      bad_request: {"The declared tuist-checksum-sha256 is malformed", "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
-      unprocessable_entity:
-        {"Invalid request parameters, or a body that does not match its declared tuist-checksum-sha256",
-         "application/json", Error},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
@@ -233,19 +217,10 @@ defmodule CacheWeb.XcodeController do
   )
 
   def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    case ContentDigest.declared(conn) do
-      {:ok, checksum_sha256} ->
-        # An existing artifact is another upload's, stored with its own digest,
-        # so the body is drained without being checked against this one.
-        if Xcode.Disk.exists?(account_handle, project_handle, id) do
-          handle_existing_artifact(conn)
-        else
-          save_new_artifact(conn, account_handle, project_handle, id, checksum_sha256)
-        end
-
-      {:error, :invalid_checksum} ->
-        :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :invalid_checksum})
-        send_error(conn, :bad_request, "#{ContentDigest.header()} must be 64 hex characters")
+    if Xcode.Disk.exists?(account_handle, project_handle, id) do
+      handle_existing_artifact(conn)
+    else
+      save_new_artifact(conn, account_handle, project_handle, id)
     end
   end
 
@@ -256,14 +231,14 @@ defmodule CacheWeb.XcodeController do
     send_resp(conn_after, :no_content, "")
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, id, checksum_sha256) do
+  defp save_new_artifact(conn, account_handle, project_handle, id) do
     case Xcode.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
       {:ok, target_dir} ->
         case BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
             :telemetry.execute([:cache, :xcode, :upload, :attempt], %{size: size}, %{})
-            verify_and_persist_artifact(conn_after, account_handle, project_handle, id, data, size, checksum_sha256)
+            persist_artifact(conn_after, account_handle, project_handle, id, data, size)
 
           {:error, :too_large, conn_after} ->
             :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :too_large})
@@ -289,25 +264,7 @@ defmodule CacheWeb.XcodeController do
     end
   end
 
-  defp verify_and_persist_artifact(conn, account_handle, project_handle, id, data, size, checksum_sha256) do
-    case ContentDigest.verify(data, checksum_sha256) do
-      :ok ->
-        persist_artifact(conn, account_handle, project_handle, id, data, size, checksum_sha256)
-
-      {:error, {:checksum_mismatch, expected, actual}} ->
-        cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :checksum_mismatch})
-        send_error(conn, :unprocessable_entity, ContentDigest.mismatch_message(expected, actual))
-
-      {:error, reason} ->
-        Logger.error("Failed to hash Xcode cache artifact upload: #{inspect(reason)}")
-        cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :persist_error})
-        send_error(conn, :internal_server_error, "Failed to persist artifact")
-    end
-  end
-
-  defp persist_artifact(conn, account_handle, project_handle, id, data, size, checksum_sha256) do
+  defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
     case Xcode.Disk.put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :xcode, :upload, :success], %{size: size}, %{
@@ -317,7 +274,7 @@ defmodule CacheWeb.XcodeController do
         })
 
         key = Xcode.Disk.key(account_handle, project_handle, id)
-        :ok = CacheArtifacts.record_content_sha256(key, checksum_sha256)
+        :ok = CacheArtifacts.track_artifact_access(key)
         enqueue_xcode_upload_if_missing(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")
 

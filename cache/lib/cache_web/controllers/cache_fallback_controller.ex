@@ -44,18 +44,6 @@ defmodule CacheWeb.CacheFallbackController do
     |> json(%{message: "Parts mismatch or missing parts"})
   end
 
-  def call(conn, {:error, :invalid_checksum}) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{message: "checksum_sha256 must be 64 hex characters"})
-  end
-
-  def call(conn, {:error, {:checksum_mismatch, expected, actual}}) do
-    conn
-    |> put_status(:unprocessable_entity)
-    |> json(%{message: "Assembled artifact does not match checksum_sha256: declared #{expected}, assembled #{actual}"})
-  end
-
   def call(conn, {:error, :timeout}) do
     conn
     |> put_status(:request_timeout)

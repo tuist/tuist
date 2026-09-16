@@ -4,12 +4,10 @@ defmodule CacheWeb.XcodeModuleController do
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
-  alias Cache.ContentDigest
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
   alias Cache.XcodeModule.Disk
-  alias CacheWeb.API.ContentDigestSpec
   alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
   alias CacheWeb.API.Schemas.Error
   alias CacheWeb.API.Schemas.SafePathComponent
@@ -68,23 +66,9 @@ defmodule CacheWeb.XcodeModuleController do
     ]
   ]
 
-  # The uploader's declared digest of the whole artifact, when it declared one.
-  # Present on full and partial responses alike, so a client that resumed can
-  # check the body it reassembled. Absent means the client skips the check.
-  @checksum_header ContentDigestSpec.response_header()
-
-  @artifact_content %OpenApiSpex.Response{
-    description: "Artifact content",
-    headers: %{"tuist-checksum-sha256" => @checksum_header},
-    content: %{
-      "application/octet-stream" => %OpenApiSpex.MediaType{}
-    }
-  }
-
   @partial_content %OpenApiSpex.Response{
     description: "The requested range of the artifact",
     headers: %{
-      "tuist-checksum-sha256" => @checksum_header,
       "content-range" => %OpenApiSpex.Header{
         description: "The range served, as `bytes <first>-<last>/<total>`",
         schema: %OpenApiSpex.Schema{type: :string}
@@ -155,7 +139,7 @@ defmodule CacheWeb.XcodeModuleController do
         ]
       ] ++ @range_parameters,
     responses: %{
-      ok: @artifact_content,
+      ok: {"Artifact content", "application/octet-stream", nil},
       partial_content: @partial_content,
       requested_range_not_satisfiable: @range_not_satisfiable,
       not_found: {"Artifact not found", "application/json", Error},
@@ -190,7 +174,6 @@ defmodule CacheWeb.XcodeModuleController do
         })
 
         conn
-        |> ContentDigest.put_header(CacheArtifacts.content_sha256(key))
         |> put_resp_header("x-accel-redirect", local_path)
         |> send_resp(:ok, "")
 
@@ -486,8 +469,7 @@ defmodule CacheWeb.XcodeModuleController do
     responses: %{
       no_content: {"Upload completed successfully", nil, nil},
       not_found: {"Upload not found", "application/json", Error},
-      bad_request: {"Parts mismatch or missing parts, or a malformed checksum_sha256", "application/json", Error},
-      unprocessable_entity: {"The assembled artifact does not match checksum_sha256", "application/json", Error},
+      bad_request: {"Parts mismatch or missing parts", "application/json", Error},
       internal_server_error: {"Failed to assemble artifact", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
@@ -496,12 +478,6 @@ defmodule CacheWeb.XcodeModuleController do
   )
 
   def complete_multipart(conn, %{upload_id: upload_id}) do
-    with {:ok, checksum_sha256} <- declared_checksum_sha256(conn.body_params) do
-      complete_multipart_upload(conn, upload_id, checksum_sha256)
-    end
-  end
-
-  defp complete_multipart_upload(conn, upload_id, checksum_sha256) do
     case MultipartUploads.complete_upload(upload_id) do
       {:ok, upload} ->
         parts_from_client =
@@ -511,12 +487,42 @@ defmodule CacheWeb.XcodeModuleController do
           with {:ok, validated_parts} <- validate_part_numbers(parts_from_client),
                :ok <- verify_parts(upload.parts, validated_parts),
                {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, validated_parts),
-               :ok <- Disk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, checksum_sha256) do
+               :ok <- Disk.complete_assembly(upload.assembly_path, upload, buffered_part_paths) do
             Enum.each(buffered_part_paths, &File.rm/1)
             :ok
           end
 
-        finish_completion(conn, upload, checksum_sha256, result)
+        case result do
+          :ok ->
+            key =
+              Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+
+            :ok = CacheArtifacts.track_artifact_access(key)
+            S3Transfers.enqueue_upload_if_missing(upload.account_handle, upload.project_handle, :xcode_module, key)
+
+            :telemetry.execute(
+              [:cache, :xcode_module, :multipart, :complete],
+              %{
+                size: upload.total_bytes,
+                parts_count: map_size(upload.parts)
+              },
+              %{}
+            )
+
+            send_resp(conn, :no_content, "")
+
+          {:error, :parts_mismatch} ->
+            cleanup_failed_completion(upload)
+            {:error, :parts_mismatch}
+
+          {:error, :exists} ->
+            cleanup_failed_completion(upload)
+            send_resp(conn, :no_content, "")
+
+          {:error, _reason} ->
+            cleanup_failed_completion(upload)
+            {:error, :persist_error}
+        end
 
       {:error, :not_found} ->
         {:error, :not_found}
@@ -524,48 +530,6 @@ defmodule CacheWeb.XcodeModuleController do
       {:error, :write_in_progress} ->
         {:error, :persist_error}
     end
-  end
-
-  defp finish_completion(conn, upload, checksum_sha256, :ok) do
-    key = Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
-
-    :ok = CacheArtifacts.record_content_sha256(key, checksum_sha256)
-    S3Transfers.enqueue_upload_if_missing(upload.account_handle, upload.project_handle, :xcode_module, key)
-
-    :telemetry.execute(
-      [:cache, :xcode_module, :multipart, :complete],
-      %{
-        size: upload.total_bytes,
-        parts_count: map_size(upload.parts)
-      },
-      %{}
-    )
-
-    send_resp(conn, :no_content, "")
-  end
-
-  defp finish_completion(_conn, upload, _checksum_sha256, {:error, :parts_mismatch}) do
-    cleanup_failed_completion(upload)
-    {:error, :parts_mismatch}
-  end
-
-  defp finish_completion(conn, upload, _checksum_sha256, {:error, :exists}) do
-    cleanup_failed_completion(upload)
-    send_resp(conn, :no_content, "")
-  end
-
-  # The session is already gone, and a whole-object digest cannot say which
-  # part is wrong, so the parts go too: the client's retry uploads the artifact
-  # again from a fresh session.
-  defp finish_completion(_conn, upload, _checksum_sha256, {:error, {:checksum_mismatch, _expected, _actual} = mismatch}) do
-    cleanup_failed_completion(upload)
-    :telemetry.execute([:cache, :xcode_module, :multipart, :checksum_mismatch], %{}, %{})
-    {:error, mismatch}
-  end
-
-  defp finish_completion(_conn, upload, _checksum_sha256, {:error, _reason}) do
-    cleanup_failed_completion(upload)
-    {:error, :persist_error}
   end
 
   defp handle_buffered_part_upload(conn, upload_id, part_number) do
@@ -680,10 +644,6 @@ defmodule CacheWeb.XcodeModuleController do
       {:ok, paths} -> {:ok, Enum.reverse(paths)}
       error -> error
     end)
-  end
-
-  defp declared_checksum_sha256(body_params) do
-    ContentDigest.normalize(Map.get(body_params, :checksum_sha256) || Map.get(body_params, "checksum_sha256"))
   end
 
   defp cleanup_failed_completion(upload) do

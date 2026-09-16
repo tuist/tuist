@@ -12,7 +12,6 @@ defmodule Cache.S3TransferWorker do
 
   use Oban.Worker, queue: :s3_transfers
 
-  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
@@ -66,7 +65,7 @@ defmodule Cache.S3TransferWorker do
     local_path = Disk.artifact_path(key)
 
     if File.exists?(local_path) do
-      S3.upload_file(key, local_path, type: :xcode_cache, content_sha256: CacheArtifacts.content_sha256(key))
+      S3.upload_file(key, local_path, type: :xcode_cache)
     else
       :ok
     end

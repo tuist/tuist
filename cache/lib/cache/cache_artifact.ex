@@ -9,14 +9,13 @@ defmodule Cache.CacheArtifact do
     field :key, :string
     field :size_bytes, :integer
     field :last_accessed_at, :utc_datetime_usec
-    field :content_sha256, :string
 
     timestamps(type: :utc_datetime)
   end
 
   def changeset(artifact, attrs) do
     artifact
-    |> cast(attrs, [:key, :size_bytes, :last_accessed_at, :content_sha256])
+    |> cast(attrs, [:key, :size_bytes, :last_accessed_at])
     |> validate_required([:key, :last_accessed_at])
   end
 end
