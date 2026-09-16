@@ -6,7 +6,9 @@ This follows the fetch/CAS separation defined by the [Remote Asset API](https://
 
 ## Client configuration
 
-`tuist bazel setup` configures the remote cache and build insights. Dependency downloading is opt-in: after deploying Remote Asset support in Kura and its gateway, run `tuist bazel setup --remote-downloader` to configure the downloader and local fallback. Running setup again without this flag removes the generated downloader configuration. Credential-helper endpoint refresh only moves an already-configured managed downloader; it never enables one. For standalone Kura:
+`tuist bazel setup` configures the remote cache and build insights, then enables dependency downloads with local fallback when the selected endpoint supports Remote Asset. Setup sends an authenticated FetchBlob request without URIs and accepts only the expected `INVALID_ARGUMENT` response as evidence that the actual asset route is available. The probe performs no origin download and has a five-second deadline. Missing routes, authorization failures, timeouts and other unexpected responses leave dependency downloads disabled while retaining the working action cache.
+
+Use `tuist bazel setup --no-remote-downloader` to opt out or remove previously generated downloader configuration. `--remote-downloader` forces enablement without probing, preserving explicit opt-in for endpoints whose validation differs. These explicit preferences bypass discovery. Ordinary setup reevaluates support each time; no capability result is persisted. Credential-helper endpoint refresh only moves an already-configured managed downloader; it never probes or enables one. Repository downloader preferences after the managed import still take precedence. For standalone Kura:
 
 ```bazelrc
 build --remote_cache=grpcs://cache.example.com
@@ -15,7 +17,7 @@ build --experimental_remote_downloader_local_fallback=true
 build --remote_instance_name=my-project
 ```
 
-Use the same remote headers or scoped credential helper as the cache. Local fallback is explicitly enabled because Bazel 9.1.1 defaults it to false. It allows builds to use their usual downloader when an older Kura node returns `UNIMPLEMENTED`, an origin is unsupported, or fetching fails. Remove fallback for validation that requires every download to pass through Kura. CI enablement is deferred to a follow-up after the runtime and gateway support are deployed; this change does not enable the downloader in CI workflows.
+Use the same remote headers or scoped credential helper as the cache. Local fallback is explicitly enabled because Bazel 9.1.1 defaults it to false. It allows builds to use their usual downloader when an older Kura node returns `UNIMPLEMENTED`, an origin is unsupported, or fetching fails. Remove fallback for validation that requires every download to pass through Kura. Automatic discovery checks the selected route at setup time, but a mixed-version rollout or later endpoint move can still require local fallback. Deploy runtime and gateway support before relying on cache reuse.
 
 Origin credentials are separate from Kura credentials. Setup does not enable `--experimental_remote_downloader_propagate_credentials`; private downloads can use Bazel's local fallback. Users explicitly enabling propagation can send the supported HTTP-header qualifiers. Kura credentials are never forwarded to an origin.
 

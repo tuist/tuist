@@ -46,7 +46,7 @@ Compatibility surfaces:
 
 ## Bazel dependency downloads
 
-Kura supports Remote Asset `FetchBlob`: it fetches and verifies dependency archives once, stores them in the project CAS, and serves subsequent builds without contacting the origin while the bytes remain cached. `tuist bazel setup --remote-downloader` explicitly enables it with local fallback after the runtime and gateway are deployed. Ordinary setup leaves it disabled. Fetches are capped at three minutes overall and 60 seconds per mirror. See [configuration, supported qualifiers, limits and rollout](docs/remote-assets.md).
+Kura supports Remote Asset `FetchBlob`: it fetches and verifies dependency archives once, stores them in the project CAS, and serves subsequent builds without contacting the origin while the bytes remain cached. `tuist bazel setup` automatically enables it with local fallback when the selected endpoint supports Remote Asset. Use `--no-remote-downloader` to opt out or `--remote-downloader` to force enablement. Fetches are capped at three minutes overall and 60 seconds per mirror. See [configuration, supported qualifiers, limits and rollout](docs/remote-assets.md).
 
 ## Local stack 🧪
 

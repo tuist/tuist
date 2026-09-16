@@ -390,7 +390,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
+             .runCommand, .shareCommand, .inspectCommand, .android:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -1721,6 +1721,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .reapi:
+                [
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .bazelCommand:
                 [

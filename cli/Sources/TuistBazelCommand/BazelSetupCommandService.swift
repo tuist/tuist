@@ -143,6 +143,7 @@ private struct BazelSetupConfiguration {
     let accountHandle: String
     let projectHandle: String
     let fullHandle: String
+    let remoteDownloader: Bool
 }
 
 public struct BazelSetupCommandService {
@@ -150,6 +151,7 @@ public struct BazelSetupCommandService {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheURLStore: CacheURLStoring
     private let remoteCacheProbeService: RemoteCacheProbing
+    private let remoteAssetProbeService: RemoteAssetProbing
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -159,6 +161,7 @@ public struct BazelSetupCommandService {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
+        remoteAssetProbeService: RemoteAssetProbing = RemoteAssetProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -167,6 +170,7 @@ public struct BazelSetupCommandService {
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
         self.remoteCacheProbeService = remoteCacheProbeService
+        self.remoteAssetProbeService = remoteAssetProbeService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
@@ -175,12 +179,13 @@ public struct BazelSetupCommandService {
     public func run(
         directory: String?,
         buildInsights: Bool = true,
-        remoteDownloader: Bool = false,
+        remoteDownloader: Bool? = nil,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let canonicalDirectoryPath = try canonicalPath(directoryPath)
-        let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
+        let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath, remoteDownloader: remoteDownloader)
+        try Task.checkCancellation()
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
@@ -196,7 +201,7 @@ public struct BazelSetupCommandService {
             projectHandle: setupConfiguration.projectHandle,
             credentialHelperPath: credentialHelperPath,
             buildInsights: buildInsights,
-            remoteDownloader: remoteDownloader
+            remoteDownloader: setupConfiguration.remoteDownloader
         )
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
 
@@ -216,7 +221,10 @@ public struct BazelSetupCommandService {
         )
     }
 
-    private func setupConfiguration(directoryPath: AbsolutePath) async throws -> BazelSetupConfiguration {
+    private func setupConfiguration(
+        directoryPath: AbsolutePath,
+        remoteDownloader: Bool?
+    ) async throws -> BazelSetupConfiguration {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else {
@@ -238,11 +246,23 @@ public struct BazelSetupCommandService {
             instanceName: projectHandle,
             token: token.value
         )
+        let enableRemoteDownloader: Bool
+        if let remoteDownloader {
+            enableRemoteDownloader = remoteDownloader
+        } else {
+            enableRemoteDownloader = await remoteAssetProbeService.isAvailable(
+                endpoint: endpoint,
+                accountHandle: accountHandle,
+                instanceName: projectHandle,
+                token: token.value
+            )
+        }
         return BazelSetupConfiguration(
             endpoint: endpoint,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
-            fullHandle: fullHandle
+            fullHandle: fullHandle,
+            remoteDownloader: enableRemoteDownloader
         )
     }
 

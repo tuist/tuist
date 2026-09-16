@@ -1,0 +1,17 @@
+// Minimal wire-compatible subset of the Remote Asset API for availability probes.
+// An empty URI list must return INVALID_ARGUMENT without fetching an origin.
+// Other fields are intentionally omitted; the probe never requests an asset.
+// Upstream: https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/asset/v1/remote_asset.proto
+syntax = "proto3";
+
+package build.bazel.remote.asset.v1;
+
+service Fetch {
+  rpc FetchBlob(FetchBlobRequest) returns (FetchBlobResponse) {}
+}
+
+message FetchBlobRequest {
+  string instance_name = 1;
+}
+
+message FetchBlobResponse {}
