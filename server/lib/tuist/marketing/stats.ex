@@ -54,16 +54,27 @@ defmodule Tuist.Marketing.Stats do
   end
 
   @impl true
-  def handle_info(:poll, _stats) do
-    stats = %{
-      cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
-      builds_last_24h: Tuist.Builds.last_24h_build_count(),
-      test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
-      test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
-      flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
-    }
-
+  def handle_cast({:update_stats, stats}, _old_stats) do
     Tuist.PubSub.broadcast(stats, @topic, :marketing_stats_updated)
+    {:noreply, stats}
+  end
+
+  @impl true
+  def handle_info(:poll, stats) do
+    pid = self()
+
+    Task.start(fn ->
+      new_stats = %{
+        cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
+        builds_last_24h: Tuist.Builds.last_24h_build_count(),
+        test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
+        test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
+        flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
+      }
+
+      GenServer.cast(pid, {:update_stats, new_stats})
+    end)
+
     Process.send_after(self(), :poll, @poll_interval)
     {:noreply, stats}
   end
