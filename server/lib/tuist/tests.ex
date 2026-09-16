@@ -362,12 +362,33 @@ defmodule Tuist.Tests do
     end
   end
 
-  def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+  def list_test_runs(attrs, opts \\ []) do
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(test_runs_query(opts), attrs, for: Test)
 
     results = Repo.preload(results, :ran_by_account)
 
     {results, meta}
+  end
+
+  # `:coverage` narrows the listing to the runs that gathered coverage, and to
+  # the full or partial ones. Those figures live in their own table, which Flop
+  # cannot join, so they filter the run ids instead.
+  defp test_runs_query(opts) do
+    project_id = Keyword.get(opts, :project_id)
+
+    case {Keyword.get(opts, :coverage), project_id} do
+      {nil, _} ->
+        Test
+
+      {_coverage, nil} ->
+        Test
+
+      {{:not_in, coverage}, project_id} ->
+        from(t in Test, where: t.id not in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+
+      {{:in, coverage}, project_id} ->
+        from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+    end
   end
 
   def latest_completed_test_runs(project_id, limit \\ 40) do

@@ -236,6 +236,48 @@ defmodule Tuist.Tests.XcodeCoverage do
   end
 
   @doc """
+  The merged totals of the given runs, keyed by run id: the figures the
+  coverage trend reads. Runs that gathered no coverage are absent.
+  """
+  def totals_for_runs(_project_id, []), do: %{}
+
+  def totals_for_runs(project_id, test_run_ids) do
+    from(c in XcodeCoverageRun,
+      where: c.project_id == ^project_id and c.test_run_id in ^test_run_ids,
+      group_by: c.test_run_id,
+      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
+      select: %{
+        test_run_id: c.test_run_id,
+        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
+        partial: fragment("argMax(?, ?)", c.partial, c.version)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.test_run_id, Map.delete(&1, :test_run_id)})
+  end
+
+  @doc """
+  The ids of the project's runs that gathered coverage, narrowed to the full
+  (`:full`) or the partial (`:partial`) ones, or all of them for anything else.
+  """
+  def run_ids_query(project_id, coverage) do
+    query =
+      from(c in XcodeCoverageRun,
+        where: c.project_id == ^project_id,
+        group_by: c.test_run_id,
+        having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
+        select: c.test_run_id
+      )
+
+    case coverage do
+      :full -> from(c in query, having: fragment("argMax(?, ?)", c.partial, c.version) == false)
+      :partial -> from(c in query, having: fragment("argMax(?, ?)", c.partial, c.version) == true)
+      _ -> query
+    end
+  end
+
+  @doc """
   The run's targets with their file count and line totals, least covered
   first. A file compiled into several targets counts towards each, as `xccov`
   reports it.
