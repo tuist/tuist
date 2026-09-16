@@ -55,6 +55,12 @@ defmodule Tuist.Application.RuntimeChildren do
   ClickHouse every 5 seconds and broadcasts over PubSub purely to feed
   the marketing LiveViews, which only the Phoenix endpoint serves.
   """
-  def marketing_stats(:web), do: [Tuist.Marketing.Stats]
+  def marketing_stats(:web) do
+    [
+      {Task.Supervisor, name: Tuist.Marketing.Stats.TaskSupervisor},
+      Tuist.Marketing.Stats
+    ]
+  end
+
   def marketing_stats(_), do: []
 end

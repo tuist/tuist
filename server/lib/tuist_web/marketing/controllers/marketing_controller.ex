@@ -507,6 +507,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/changelog",
     "/customers",
     "/cache",
+    "/globe",
     "/build-insights",
     "/selective-testing",
     "/flaky-tests",

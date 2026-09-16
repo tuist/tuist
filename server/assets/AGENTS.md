@@ -11,6 +11,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
 - Asset builds for development and production.
+- `marketing/js/hooks/cache-globe.js` owns the conference globe renderer and its lifecycle. Keep motion pausable, honor reduced-motion preferences, stop rendering hidden tabs, and destroy resources on navigation. Regional pulses describe serving activity, not customer destinations. Its styling is scoped to `#cache-globe`.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
   `TuistWeb.LayoutComponents.head_analytics_scripts` renders, and every bundle

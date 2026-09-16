@@ -9,6 +9,7 @@ import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
 import { LogoTransition } from "./hooks/logo-transition.js";
 import { CounterAnimation } from "./hooks/counter-animation.js";
 import { KaTeX } from "./hooks/katex.js";
+import { CacheGlobe } from "./hooks/cache-globe.js";
 
 const Hooks = {
   NavbarDropdown,
@@ -22,6 +23,7 @@ const Hooks = {
   LogoTransition,
   CounterAnimation,
   KaTeX,
+  CacheGlobe,
 };
 
 export { Hooks };

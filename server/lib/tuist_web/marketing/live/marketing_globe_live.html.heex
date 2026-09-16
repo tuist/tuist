@@ -1,0 +1,167 @@
+<main
+  id="cache-globe"
+  phx-hook="CacheGlobe"
+  data-snapshot={JSON.encode!(@snapshot)}
+  data-demo={to_string(@demo)}
+>
+  <div class="globe-stars" aria-hidden="true"></div>
+  <header class="globe-header">
+    <a
+      href={TuistWeb.Marketing.MarketingHTML.localized_href("/")}
+      class="globe-brand"
+      aria-label="Tuist home"
+    >
+      <img src={~p"/marketing/images/components/navbar/logo.webp"} width="36" height="36" alt="" />
+      <span class="globe-wordmark">tuist</span>
+    </a>
+    <span class="globe-header-caption">{dgettext("marketing", "A world of faster builds")}</span>
+    <a class="globe-cache-link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/cache")}>
+      {dgettext("marketing", "Meet the cache")} <span aria-hidden="true">↗</span>
+    </a>
+  </header>
+
+  <section class="globe-experience" aria-labelledby="globe-title">
+    <div class="globe-story">
+      <div class="globe-eyebrow">
+        <span></span>{dgettext("marketing", "The Tuist cache, around the world")}
+      </div>
+      <h1 id="globe-title">
+        {dgettext("marketing", "Built once.")}<br /><span>{dgettext(
+          "marketing",
+          "Shared everywhere."
+        )}</span>
+      </h1>
+      <p class="globe-intro">
+        {dgettext("marketing", "Less time compiling. More time creating.")}<br />{dgettext(
+          "marketing",
+          "Watch compiled code find its next build."
+        )}
+      </p>
+
+      <div class="globe-counter-block">
+        <div id="globe-total" class="globe-total" phx-update="ignore">—</div>
+        <div class="globe-counter-caption">{dgettext("marketing", "Cache downloads today")}</div>
+        <div class="globe-period">
+          {dgettext("marketing", "Since midnight, Coordinated Universal Time")}
+        </div>
+      </div>
+
+      <div class="globe-secondary-stats">
+        <div>
+          <span id="globe-bytes" phx-update="ignore">—</span><span>{dgettext(
+            "marketing",
+            "of compiled work delivered"
+          )}</span>
+        </div>
+        <div>
+          <span id="globe-recent" phx-update="ignore">—</span><span>{dgettext(
+            "marketing",
+            "downloads in the last 5 minutes"
+          )}</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="globe-visual" class="globe-visual" phx-update="ignore">
+      <div class="globe-orbit globe-orbit-one" aria-hidden="true"></div>
+      <div class="globe-orbit globe-orbit-two" aria-hidden="true"></div>
+      <div class="globe-atmosphere" aria-hidden="true"></div>
+      <canvas
+        class="globe-canvas"
+        aria-label={dgettext("marketing", "Rotating Earth showing cache serving regions")}
+      ></canvas>
+      <canvas class="globe-particles" aria-hidden="true"></canvas>
+      <p class="globe-renderer-message">
+        {dgettext(
+          "marketing",
+          "This browser cannot display the globe. Cache totals are still available."
+        )}
+      </p>
+      <div class="globe-coordinate" aria-hidden="true">TUIST / GLOBAL CACHE NETWORK</div>
+      <span class="globe-visual-caption">{dgettext(
+        "marketing",
+        "A little less waiting. All around the world."
+      )}</span>
+    </div>
+  </section>
+
+  <section class="globe-network" aria-label={dgettext("marketing", "Cache serving regions")}>
+    <div class="globe-network-heading">
+      <span>{dgettext("marketing", "Served from")}</span>
+      <span class="globe-network-note">{dgettext("marketing", "Region activity · last 5 minutes")}</span>
+    </div>
+    <div class="globe-regions">
+      <div
+        :for={region <- @snapshot.regions}
+        class="globe-region"
+        data-region={region.id}
+        id={"globe-region-#{region.id}"}
+        phx-update="ignore"
+      >
+        <span class="globe-region-light" aria-hidden="true"></span>
+        <div>
+          <span class="globe-region-name">{region.name}</span><span class="globe-region-value">—</span>
+        </div>
+        <svg class="globe-region-wave" viewBox="0 0 80 24" aria-hidden="true"><path d="M0 20 H80" /></svg>
+      </div>
+    </div>
+  </section>
+
+  <footer class="globe-footer">
+    <div id="globe-status" class="globe-status" phx-update="ignore" role="status">
+      <span class="globe-status-dot"></span>
+      <span data-status="live" hidden>{dgettext("marketing", "Live activity")}</span>
+      <span data-status="demo" hidden>{dgettext("marketing", "Demo · illustrative data")}</span>
+      <span data-status="waiting">{dgettext("marketing", "Waiting for cache activity")}</span>
+      <span data-status="idle" hidden>{dgettext("marketing", "Waiting for new cache activity")}</span>
+      <span data-status="stale" hidden>{dgettext(
+        "marketing",
+        "Activity delayed · showing last update"
+      )}</span>
+      <span data-status="unavailable" hidden>{dgettext(
+        "marketing",
+        "Live activity temporarily unavailable"
+      )}</span>
+      <span data-status="offline" hidden>{dgettext(
+        "marketing",
+        "Reconnecting · showing last update"
+      )}</span>
+    </div>
+    <div id="globe-controls" class="globe-controls" phx-update="ignore">
+      <a
+        class="globe-mode-link"
+        href={if @demo, do: @current_path, else: @current_path <> "?demo=true"}
+      >
+        {if @demo,
+          do: dgettext("marketing", "View live activity"),
+          else: dgettext("marketing", "Try demo")}
+      </a>
+      <button type="button" data-action="motion" aria-pressed="false">
+        <span data-motion="pause">{dgettext("marketing", "Pause motion")}</span>
+        <span data-motion="resume" hidden>{dgettext("marketing", "Resume motion")}</span>
+      </button>
+      <button
+        type="button"
+        data-action="fullscreen"
+        aria-label={dgettext("marketing", "Enter full screen")}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true"
+        ><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" /></svg>
+      </button>
+    </div>
+  </footer>
+  <details class="globe-about">
+    <summary>{dgettext("marketing", "About this view")}</summary>
+    <p>
+      {dgettext(
+        "marketing",
+        "The counter shows download requests served by Tuist's managed cache regions, not unique binaries. Activity arrives in batches and refreshes every 30 seconds. Lights represent serving regions, not developer locations or routes between regions. No customer or project information is shown. Demo mode uses illustrative data."
+      )}
+    </p>
+  </details>
+</main>

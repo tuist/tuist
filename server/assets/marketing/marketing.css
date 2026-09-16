@@ -17,6 +17,7 @@
 @import "css/routes/changelog-entry.css";
 @import "css/routes/pricing.css";
 @import "css/routes/cache.css";
+@import "css/routes/globe.css";
 @import "css/routes/build-insights.css";
 @import "css/routes/selective-testing.css";
 @import "css/routes/flaky-tests.css";

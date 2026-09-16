@@ -6,6 +6,7 @@ This context owns marketing content aggregation (blog posts, case studies, chang
 - Load and aggregate content entries, categories, and metadata.
 - Provide helpers for blog, case study, and changelog content rendering.
 - Provide reusable Open Graph image template components without mapping routes to templates or variables.
+- `CacheGlobe` aggregates managed public-region download requests from existing Kura usage rollups. `Stats` polls it every 30 seconds through a supervised task and publishes on the separate `cache_globe` topic. Keep customer identifiers out of this public snapshot; see [cache-globe.md](cache-globe.md) for metric semantics and visual references.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
