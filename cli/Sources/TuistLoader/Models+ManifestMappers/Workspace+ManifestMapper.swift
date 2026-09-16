@@ -49,6 +49,7 @@ extension XcodeGraph.Workspace {
                 try await globProjects(
                     $0,
                     generatorPaths: generatorPaths,
+                    fileSystem: fileSystem,
                     swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
                 )
             },
@@ -62,10 +63,11 @@ extension XcodeGraph.Workspace {
     private static func globProjects(
         _ path: Path,
         generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming,
         swiftPackageManagerScratchDirectory: AbsolutePath?
     ) async throws -> [AbsolutePath] {
         let resolvedPath = try generatorPaths.resolve(path: path)
-        let projects = try await ManifestLookupExcludes.glob(
+        let projects = try await fileSystem.glob(
             directory: AbsolutePath.root,
             include: [
                 String(resolvedPath.appending(component: Manifest.package.fileName(resolvedPath)).pathString.dropFirst()),

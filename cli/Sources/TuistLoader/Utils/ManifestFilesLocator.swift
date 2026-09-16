@@ -109,13 +109,9 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         ]
 
         let tuistManifestsFilePaths = try await Set(
-            ManifestLookupExcludes.glob(
-                directory: path,
-                include: ["**/*.swift"],
-                exclude: ManifestLookupExcludes.frameworkSearchPathLinks
-            )
-            .collect()
-            .filter { fileNamesCandidates.contains($0.basename) }
+            fileSystem.glob(directory: path, include: ["**/*.swift"], exclude: ManifestLookupExcludes.frameworkSearchPathLinks)
+                .collect()
+                .filter { fileNamesCandidates.contains($0.basename) }
         )
         .concurrentFilter { [weak self] in
             await self?.hasValidManifestContent($0) ?? false

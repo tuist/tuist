@@ -77,7 +77,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
         let projectPaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.concurrentFlatMap {
-            try await ManifestLookupExcludes.glob(
+            try await fileSystem.glob(
                 directory: AbsolutePath.root,
                 include: [
                     String($0.appending(component: Manifest.project.fileName($0)).pathString.dropFirst()),
