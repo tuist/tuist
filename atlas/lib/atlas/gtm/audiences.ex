@@ -630,7 +630,7 @@ defmodule Atlas.GTM.Audiences do
         target_label: audience.name,
         metadata: %{
           membership_type: audience.membership_type,
-          dashboard_path: "/email"
+          dashboard_path: "/outbound/email"
         }
       },
       actor: actor

@@ -24,7 +24,7 @@ defmodule AtlasWeb.AccountOverviewSummaryLiveTest do
     })
     |> Repo.update!()
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#refresh-overview-summary-button", "Summarize")
     assert has_element?(view, "#overview-metadata-grid")
@@ -44,7 +44,7 @@ defmodule AtlasWeb.AccountOverviewSummaryLiveTest do
         segment: :customer
       })
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     view
     |> element("#refresh-overview-summary-button")

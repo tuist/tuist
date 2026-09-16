@@ -225,64 +225,64 @@ defmodule Atlas.Audit do
   def resource_path(_target_type, _target_id, %{path: path}) when is_binary(path) and path != "", do: path
 
   def resource_path("account", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/sales/accounts/#{target_id}"
+    do: "/commercial/sales/accounts/#{target_id}"
 
   def resource_path("document", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/documents/#{target_id}"
+    do: "/library/documents/#{target_id}"
 
   def resource_path("session", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/sessions/#{target_id}"
+    do: "/admin/sessions/#{target_id}"
 
   def resource_path("support_thread", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/support/#{target_id}"
+    do: "/commercial/support/#{target_id}"
 
   def resource_path("memory_node", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/memory/#{target_id}"
+    do: "/admin/memory/#{target_id}"
 
   def resource_path("note", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/notes/#{target_id}"
+    do: "/library/notes/#{target_id}"
 
-  def resource_path("memory_bulletin", _target_id, _metadata), do: "/memory"
+  def resource_path("memory_bulletin", _target_id, _metadata), do: "/admin/memory"
 
-  def resource_path("finance_source", _target_id, _metadata), do: "/finance"
+  def resource_path("finance_source", _target_id, _metadata), do: "/commercial/finance"
 
-  def resource_path("finance_category", _target_id, _metadata), do: "/finance"
+  def resource_path("finance_category", _target_id, _metadata), do: "/commercial/finance"
 
-  def resource_path("finance_transaction", _target_id, _metadata), do: "/finance"
+  def resource_path("finance_transaction", _target_id, _metadata), do: "/commercial/finance"
 
   def resource_path("blog_post_idea", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/gtm/content/#{target_id}"
+    do: "/commercial/gtm/content/#{target_id}"
 
   def resource_path("social_channel_idea", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/gtm/social/#{target_id}"
+    do: "/commercial/gtm/social/#{target_id}"
 
   def resource_path("gtm_opportunity", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/gtm/outreach"
+    do: "/commercial/gtm/outreach"
 
   def resource_path("contact", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/gtm/outreach/#{target_id}"
+    do: "/commercial/gtm/outreach/#{target_id}"
 
-  def resource_path("gtm_subscriber", _target_id, _metadata), do: "/email"
+  def resource_path("gtm_subscriber", _target_id, _metadata), do: "/outbound/email"
 
-  def resource_path("license", _target_id, _metadata), do: "/sales/licenses"
+  def resource_path("license", _target_id, _metadata), do: "/commercial/sales/licenses"
 
   def resource_path("gtm_audience", target_id, _metadata) when is_binary(target_id) and target_id != "",
-    do: "/email/audiences/#{target_id}"
+    do: "/outbound/email/audiences/#{target_id}"
 
   def resource_path("gtm_broadcast", _target_id, %{"audience_id" => audience_id}) when is_binary(audience_id),
-    do: "/email/audiences/#{audience_id}"
+    do: "/outbound/email/audiences/#{audience_id}"
 
   def resource_path("gtm_broadcast", _target_id, %{audience_id: audience_id}) when is_binary(audience_id),
-    do: "/email/audiences/#{audience_id}"
+    do: "/outbound/email/audiences/#{audience_id}"
 
   def resource_path("gtm_delivery", _target_id, %{"audience_id" => audience_id}) when is_binary(audience_id),
-    do: "/email/audiences/#{audience_id}"
+    do: "/outbound/email/audiences/#{audience_id}"
 
   def resource_path("gtm_delivery", _target_id, %{audience_id: audience_id}) when is_binary(audience_id),
-    do: "/email/audiences/#{audience_id}"
+    do: "/outbound/email/audiences/#{audience_id}"
 
   def resource_path("cross_domain_claim", _target_id, %{"account_id" => account_id}) when is_binary(account_id),
-    do: "/sales/accounts/#{account_id}"
+    do: "/commercial/sales/accounts/#{account_id}"
 
   def resource_path(_target_type, _target_id, _metadata), do: nil
 

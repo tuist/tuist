@@ -87,7 +87,7 @@ defmodule Atlas.GTM.AudienceMemberNotifier do
     |> Enum.join("\n")
   end
 
-  def dashboard_path(%Audience{} = audience), do: "/email/audiences/#{audience.id}"
+  def dashboard_path(%Audience{} = audience), do: "/outbound/email/audiences/#{audience.id}"
 
   defp post(%Audience{} = audience, %Subscriber{} = subscriber, notification_id) do
     case API.post_message(

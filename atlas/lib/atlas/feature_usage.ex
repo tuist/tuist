@@ -151,7 +151,7 @@ defmodule Atlas.FeatureUsage do
           target_id: account.id,
           target_label: account.name,
           metadata: %{
-            "path" => "/sales/accounts/#{account.id}",
+            "path" => "/commercial/sales/accounts/#{account.id}",
             "snapshot_count" => length(result.snapshots),
             "alert_count" => length(alerts),
             "computed_at" => now
@@ -236,7 +236,7 @@ defmodule Atlas.FeatureUsage do
       target_id: account.id,
       target_label: account.name,
       metadata: %{
-        "path" => "/sales/accounts/#{account.id}",
+        "path" => "/commercial/sales/accounts/#{account.id}",
         "feature" => snapshot.feature,
         "feature_label" => Catalog.label(snapshot.feature),
         "last_used_at" => snapshot.last_used_at && DateTime.to_iso8601(snapshot.last_used_at),

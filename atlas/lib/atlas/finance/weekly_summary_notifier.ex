@@ -219,7 +219,7 @@ defmodule Atlas.Finance.WeeklySummaryNotifier do
   end
 
   defp finance_url do
-    url(~p"/finance")
+    url(~p"/commercial/finance")
   rescue
     _error -> nil
   end

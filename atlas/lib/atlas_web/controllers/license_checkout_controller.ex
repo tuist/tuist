@@ -40,7 +40,7 @@ defmodule AtlasWeb.LicenseCheckoutController do
       {:error, reason} ->
         conn
         |> put_flash(:error, Licenses.error_message(reason))
-        |> redirect(to: ~p"/sales/licenses")
+        |> redirect(to: ~p"/commercial/sales/licenses")
     end
   end
 end

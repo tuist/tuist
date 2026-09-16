@@ -60,7 +60,7 @@ defmodule Atlas.Finance.PaymentDetection do
         target_id: account.id,
         target_label: account.name,
         metadata: %{
-          "path" => "/sales/accounts/#{account.id}",
+          "path" => "/commercial/sales/accounts/#{account.id}",
           "finance_transaction_id" => transaction.id,
           "provider" => transaction.provider,
           "amount_value" => Decimal.to_string(transaction.amount_value, :normal),

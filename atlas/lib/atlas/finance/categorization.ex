@@ -82,7 +82,7 @@ defmodule Atlas.Finance.Categorization do
               target_id: category.id,
               target_label: category.name,
               metadata: %{
-                "path" => "/finance",
+                "path" => "/commercial/finance",
                 "slug" => category.slug,
                 "direction" => category.direction,
                 "created_by_agent" => category.created_by_agent
@@ -123,7 +123,7 @@ defmodule Atlas.Finance.Categorization do
               target_id: updated.id,
               target_label: updated.counterparty_name || updated.external_id,
               metadata: %{
-                "path" => "/finance",
+                "path" => "/commercial/finance",
                 "category_id" => category.id,
                 "category_name" => category.name,
                 "confidence" => updated.categorization_confidence,

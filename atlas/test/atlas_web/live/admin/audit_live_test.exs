@@ -35,7 +35,7 @@ defmodule AtlasWeb.Admin.AuditLiveTest do
     assert has_element?(view, "#interface")
     assert has_element?(view, "#admin-audit-table")
     assert has_element?(view, "#admin-audit-count", "1 activity")
-    assert has_element?(view, ~s(a[data-part="target-link"][href="/gtm/content/idea-id"]))
+    assert has_element?(view, ~s(a[data-part="target-link"][href="/commercial/gtm/content/idea-id"]))
 
     view
     |> form("#admin-audit-search-form", search: %{query: "Slack User"})
@@ -50,6 +50,6 @@ defmodule AtlasWeb.Admin.AuditLiveTest do
   test "redirects employees away from the audit page", %{conn: conn} do
     {conn, _employee} = log_in_user(conn, %{email: "audit-employee@example.com", role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/admin/audit")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/admin/audit")
   end
 end

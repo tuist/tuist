@@ -24,7 +24,7 @@ defmodule AtlasWeb.DataCenterShowLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Data center not found."))
-         |> push_navigate(to: ~p"/hardware/data-centers")}
+         |> push_navigate(to: ~p"/operations/hardware/data-centers")}
     end
   end
 
@@ -84,7 +84,7 @@ defmodule AtlasWeb.DataCenterShowLive do
             <.breadcrumb
               id="data-center-breadcrumb-list"
               label={gettext("Data centers")}
-              phx-click={JS.navigate(~p"/hardware/data-centers")}
+              phx-click={JS.navigate(~p"/operations/hardware/data-centers")}
             />
             <.breadcrumb id="data-center-breadcrumb-current" label={@data_center.name} />
           </.breadcrumbs>
@@ -219,7 +219,7 @@ defmodule AtlasWeb.DataCenterShowLive do
             id="data-center-assets-table"
             rows={@assets}
             row_key={fn asset -> "data-center-asset-#{asset.id}" end}
-            row_navigate={fn asset -> ~p"/hardware/#{asset.id}" end}
+            row_navigate={fn asset -> ~p"/operations/hardware/#{asset.id}" end}
           >
             <:col :let={asset} label={gettext("Asset")}>
               <.text_and_description_cell label={asset.name} description={asset_description(asset)} />

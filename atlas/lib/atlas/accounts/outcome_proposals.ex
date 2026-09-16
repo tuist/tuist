@@ -491,7 +491,7 @@ defmodule Atlas.Accounts.OutcomeProposals do
             "account_id" => proposal.account_id,
             "outcome_id" => proposal.outcome_id,
             "proposal_type" => proposal.proposal_type,
-            "path" => "/sales/accounts/#{proposal.account_id}"
+            "path" => "/commercial/sales/accounts/#{proposal.account_id}"
           })
       },
       opts
@@ -509,7 +509,7 @@ defmodule Atlas.Accounts.OutcomeProposals do
           "created_count" => length(proposals),
           "discarded_count" => considered_count - length(proposals),
           "generated_by_agent" => @agent_name,
-          "path" => "/sales/accounts/#{account.id}"
+          "path" => "/commercial/sales/accounts/#{account.id}"
         }
       }
     )
@@ -525,7 +525,7 @@ defmodule Atlas.Accounts.OutcomeProposals do
         metadata: %{
           "account_id" => outcome.account_id,
           "proposal_id" => proposal.id,
-          "path" => "/sales/accounts/#{outcome.account_id}"
+          "path" => "/commercial/sales/accounts/#{outcome.account_id}"
         }
       },
       actor: actor
@@ -543,7 +543,7 @@ defmodule Atlas.Accounts.OutcomeProposals do
           "account_id" => proposal.account_id,
           "outcome_id" => proposal.outcome_id,
           "proposal_id" => proposal.id,
-          "path" => "/sales/accounts/#{proposal.account_id}"
+          "path" => "/commercial/sales/accounts/#{proposal.account_id}"
         }
       },
       actor: actor

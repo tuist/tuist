@@ -156,14 +156,14 @@ defmodule Atlas.Notes do
       opts
       |> Keyword.take([:interface, :audit_actor])
       |> Keyword.put_new(:actor, actor)
-      |> Keyword.put_new(:metadata, %{"path" => "/notes/#{note.id}"})
+      |> Keyword.put_new(:metadata, %{"path" => "/library/notes/#{note.id}"})
 
     Audit.with_context(context, fn ->
       Audit.record(action, %{
         target_type: "note",
         target_id: note.id,
         target_label: note.title,
-        metadata: %{"path" => "/notes/#{note.id}"}
+        metadata: %{"path" => "/library/notes/#{note.id}"}
       })
     end)
   end

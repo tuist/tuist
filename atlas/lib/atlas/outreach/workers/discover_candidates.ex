@@ -53,7 +53,7 @@ defmodule Atlas.Outreach.Workers.DiscoverCandidates do
         "excluded" => result.excluded,
         "returned" => result.returned,
         "total_matches" => result.total_matches,
-        "path" => "/gtm/outreach"
+        "path" => "/commercial/gtm/outreach"
       }
     })
   end

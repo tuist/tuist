@@ -59,7 +59,7 @@ defmodule AtlasWeb.FinanceLiveTest do
     invoice = insert_finance_invoice!(%{vendor_name: "Amazon Web Services", invoice_number: "AWS-2026-06"})
     insert_finance_invoice_line_item!(invoice, %{description: "Compute workloads"})
 
-    {:ok, view, _html} = live(conn, ~p"/finance")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance")
 
     assert has_element?(view, "#finance")
     assert has_element?(view, "#finance-filters-dropdown")
@@ -114,7 +114,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       })
     end
 
-    {:ok, view, _html} = live(conn, ~p"/finance")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance")
 
     assert has_element?(view, "#finance-transactions-pagination")
     assert has_element?(view, "#finance-transactions-result-count", "26 transactions")
@@ -125,7 +125,7 @@ defmodule AtlasWeb.FinanceLiveTest do
     |> element(~s(#finance-transactions-pagination a[data-part="page-button"][href*="transactions-page=2"]))
     |> render_click()
 
-    assert_patched(view, ~p"/finance?transactions-page=2")
+    assert_patched(view, ~p"/commercial/finance?transactions-page=2")
     assert has_element?(view, "#finance-transactions-table", "Oldest Vendor")
   end
 
@@ -203,7 +203,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       amount_value: Decimal.new("980.00")
     })
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors")
 
     assert has_element?(view, "#finance-vendors")
     assert has_element?(view, "#finance-vendors-date-range-picker")
@@ -215,17 +215,17 @@ defmodule AtlasWeb.FinanceLiveTest do
 
     render_click(view, "select_chart", %{"widget" => "vendors"})
 
-    assert_patched(view, ~p"/finance/vendors?vendors-chart=vendors")
+    assert_patched(view, ~p"/commercial/finance/vendors?vendors-chart=vendors")
     assert has_element?(view, "#finance-vendors-vendor-chart")
 
     render_click(view, "select_chart", %{"widget" => "categories"})
 
-    assert_patched(view, ~p"/finance/vendors?vendors-chart=categories")
+    assert_patched(view, ~p"/commercial/finance/vendors?vendors-chart=categories")
     assert has_element?(view, "#finance-vendors-category-chart")
     assert has_element?(view, "#finance-vendors-expenses-list", "Cloud Infrastructure")
     assert has_element?(view, "#finance-vendors-expenses-list", "EC2 compute")
     assert has_element?(view, "#finance-vendors-expenses-list", "S3 storage")
-    assert has_element?(view, ~s(a[href="/documents/#{document.id}"]), "Amazon Web Services")
+    assert has_element?(view, ~s(a[href="/library/documents/#{document.id}"]), "Amazon Web Services")
 
     assert has_element?(
              view,
@@ -233,7 +233,7 @@ defmodule AtlasWeb.FinanceLiveTest do
              "Amazon Web Services"
            )
 
-    refute has_element?(view, ~s(a[href="/finance?search=AWS-2026-06"]))
+    refute has_element?(view, ~s(a[href="/commercial/finance?search=AWS-2026-06"]))
     assert has_element?(view, "#finance-vendors-expenses-list", "Linear")
 
     render_hook(view, "vendors_period_changed", %{
@@ -243,7 +243,7 @@ defmodule AtlasWeb.FinanceLiveTest do
 
     assert_patched(
       view,
-      ~p"/finance/vendors?vendors-chart=categories&vendors-date-range=custom&vendors-end-date=2026-06-01&vendors-start-date=2026-05-02"
+      ~p"/commercial/finance/vendors?vendors-chart=categories&vendors-date-range=custom&vendors-end-date=2026-06-01&vendors-start-date=2026-05-02"
     )
 
     assert has_element?(view, "#finance-vendors-invoice-count", "1 invoice")
@@ -254,7 +254,7 @@ defmodule AtlasWeb.FinanceLiveTest do
   test "renders vendor cost expenses empty state", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "finance-vendors-empty@example.com", role: :executive})
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors")
 
     assert has_element?(view, "#finance-vendors-expenses-empty")
 
@@ -283,7 +283,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       })
     end
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors")
 
     assert has_element?(view, "#finance-vendors-expenses-pagination")
     assert has_element?(view, "#finance-vendors-expenses-list", "Paged Expense Vendor 11")
@@ -293,7 +293,7 @@ defmodule AtlasWeb.FinanceLiveTest do
     |> element(~s(#finance-vendors-expenses-pagination a[data-part="page-button"][href*="vendors-expenses-page=2"]))
     |> render_click()
 
-    assert_patched(view, ~p"/finance/vendors?vendors-expenses-page=2")
+    assert_patched(view, ~p"/commercial/finance/vendors?vendors-expenses-page=2")
     assert has_element?(view, "#finance-vendors-expenses-list", "Oldest Expense Vendor")
     refute has_element?(view, "#finance-vendors-expenses-list", "Paged Expense Vendor 11")
   end
@@ -333,7 +333,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       amount_value: Decimal.new("120.00")
     })
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors")
 
     assert has_element?(view, "#finance-vendors-expenses-filters-dropdown")
     assert has_element?(view, "#finance-vendors-expenses-search-form")
@@ -342,14 +342,14 @@ defmodule AtlasWeb.FinanceLiveTest do
     |> form("#finance-vendors-expenses-search-form", expenses_search: %{query: "linear"})
     |> render_change()
 
-    assert_patched(view, ~p"/finance/vendors?vendors-expenses-search=linear")
+    assert_patched(view, ~p"/commercial/finance/vendors?vendors-expenses-search=linear")
     assert has_element?(view, "#finance-vendors-expenses-list", "Linear")
     refute has_element?(view, "#finance-vendors-expenses-list", "Amazon Web Services")
 
     {:ok, filtered_view, _html} =
       live(
         conn,
-        ~p"/finance/vendors?#{%{"filter_category_op" => "==", "filter_category_val" => "Cloud Infrastructure"}}"
+        ~p"/commercial/finance/vendors?#{%{"filter_category_op" => "==", "filter_category_val" => "Cloud Infrastructure"}}"
       )
 
     assert has_element?(filtered_view, "#finance-vendors-expenses-list", "Amazon Web Services")
@@ -369,7 +369,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       })
     end
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors?vendors-chart=vendors")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors?vendors-chart=vendors")
 
     assert has_element?(view, "#finance-vendors-vendor-chart")
 
@@ -401,7 +401,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       total_amount_currency: "EUR"
     })
 
-    {:ok, view, _html} = live(conn, ~p"/finance/vendors?vendors-chart=vendors&vendors-currency=USD")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance/vendors?vendors-chart=vendors&vendors-currency=USD")
 
     refute has_element?(view, "#finance-vendors-currency-switcher")
     assert has_element?(view, "#finance-vendors-widget-spend [data-part='value']", "EUR 150.00")
@@ -409,7 +409,7 @@ defmodule AtlasWeb.FinanceLiveTest do
 
     render_click(view, "select_chart", %{"widget" => "categories"})
 
-    assert_patched(view, ~p"/finance/vendors?vendors-chart=categories")
+    assert_patched(view, ~p"/commercial/finance/vendors?vendors-chart=categories")
   end
 
   test "labels smoothed runway without trailing net burn", %{conn: conn} do
@@ -439,7 +439,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       provider_updated_at: ~U[2026-05-20 09:00:00Z]
     })
 
-    {:ok, view, _html} = live(conn, ~p"/finance")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance")
 
     assert has_element?(view, "#finance-widget-monthly-burn [data-part='value']", "EUR 0.00")
     assert has_element?(view, "#finance-widget-runway [data-part='value']", "No trailing net burn")
@@ -448,31 +448,31 @@ defmodule AtlasWeb.FinanceLiveTest do
   test "selecting a different overview widget swaps the chart", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "finance-widget@example.com", role: :executive})
 
-    {:ok, view, _html} = live(conn, ~p"/finance")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance")
 
     render_click(view, "select_overview_widget", %{"widget" => "available_cash"})
 
-    assert_patched(view, ~p"/finance?overview-widget=available_cash")
+    assert_patched(view, ~p"/commercial/finance?overview-widget=available_cash")
     assert has_element?(view, "#finance-balance-chart")
     refute has_element?(view, "#finance-runway-chart")
 
     render_click(view, "select_overview_widget", %{"widget" => "income"})
 
-    assert_patched(view, ~p"/finance?overview-widget=income")
+    assert_patched(view, ~p"/commercial/finance?overview-widget=income")
     assert has_element?(view, "#finance-cash-flow-chart")
   end
 
   test "selecting a runway period patches the URL", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "finance-period@example.com", role: :executive})
 
-    {:ok, view, _html} = live(conn, ~p"/finance")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance")
 
     render_hook(view, "runway_period_changed", %{
       "preset" => "last-30-days",
       "value" => %{"start" => "2026-04-27", "end" => "2026-05-27"}
     })
 
-    assert_patched(view, ~p"/finance?runway-date-range=last-30-days")
+    assert_patched(view, ~p"/commercial/finance?runway-date-range=last-30-days")
   end
 
   test "filters transactions by provider and direction", %{conn: conn} do
@@ -529,7 +529,7 @@ defmodule AtlasWeb.FinanceLiveTest do
       "filter_direction_val" => "debit"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/finance?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/finance?#{filter_params}")
 
     assert has_element?(view, ~s(#finance-transactions-table tr[id="#{debit.id}"]))
     assert has_element?(view, "#provider")
@@ -540,7 +540,7 @@ defmodule AtlasWeb.FinanceLiveTest do
   test "redirects employees away from the finance page", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "employee-finance@example.com", role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/finance")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/commercial/finance")
   end
 
   defp insert_document!(attrs) do

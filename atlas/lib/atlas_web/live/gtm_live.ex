@@ -73,7 +73,7 @@ defmodule AtlasWeb.GTMLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Blog post idea not found."))
-        |> push_navigate(to: ~p"/gtm/content")
+        |> push_navigate(to: ~p"/commercial/gtm/content")
 
       idea ->
         socket
@@ -98,7 +98,7 @@ defmodule AtlasWeb.GTMLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Social idea not found."))
-        |> push_navigate(to: ~p"/gtm/social")
+        |> push_navigate(to: ~p"/commercial/gtm/social")
 
       social_idea ->
         socket
@@ -475,7 +475,7 @@ defmodule AtlasWeb.GTMLive do
           <.table id="gtm-ideas-table" rows={@ideas}>
             <:col :let={idea} label={gettext("Idea")}>
               <div data-part="source-entry">
-                <.link navigate={~p"/gtm/content/#{idea.id}"} data-part="source-title">
+                <.link navigate={~p"/commercial/gtm/content/#{idea.id}"} data-part="source-title">
                   {idea.title}
                 </.link>
                 <span :if={idea.description} data-part="source-description">{idea.description}</span>
@@ -524,7 +524,7 @@ defmodule AtlasWeb.GTMLive do
         label={gettext("Content")}
         variant="secondary"
         size="medium"
-        navigate={~p"/gtm/content"}
+        navigate={~p"/commercial/gtm/content"}
         data-part="idea-back-button"
       >
         <:icon_left><.arrow_left /></:icon_left>
@@ -773,7 +773,7 @@ defmodule AtlasWeb.GTMLive do
           <.table id="gtm-social-ideas-table" rows={@social_ideas}>
             <:col :let={idea} label={gettext("Idea")}>
               <div data-part="source-entry">
-                <.link navigate={~p"/gtm/social/#{idea.id}"} data-part="source-title">
+                <.link navigate={~p"/commercial/gtm/social/#{idea.id}"} data-part="source-title">
                   {idea.title}
                 </.link>
                 <span :if={idea.description} data-part="source-description">{idea.description}</span>
@@ -842,7 +842,7 @@ defmodule AtlasWeb.GTMLive do
           label={gettext("Social")}
           variant="secondary"
           size="medium"
-          navigate={~p"/gtm/social"}
+          navigate={~p"/commercial/gtm/social"}
           data-part="idea-back-button"
         >
           <:icon_left><.arrow_left /></:icon_left>

@@ -785,7 +785,7 @@ defmodule Atlas.Slack.EventsTest do
         "type" => "link_shared",
         "channel" => "C_LINKS",
         "message_ts" => "1710000500.000100",
-        "links" => [%{"domain" => "localhost", "url" => "https://localhost/sessions"}]
+        "links" => [%{"domain" => "localhost", "url" => "https://localhost/admin/sessions"}]
       }
 
       assert :ignored = SlackEvents.handle_event(payload, :company)

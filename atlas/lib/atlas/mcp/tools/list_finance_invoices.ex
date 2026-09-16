@@ -237,7 +237,7 @@ defmodule Atlas.MCP.Tools.ListFinanceInvoices do
   defp serialize_document(nil), do: nil
 
   defp serialize_document(document) do
-    %{id: document.id, title: document.title, path: "/documents/#{document.id}"}
+    %{id: document.id, title: document.title, path: "/library/documents/#{document.id}"}
   end
 
   defp serialize_transaction(nil), do: nil

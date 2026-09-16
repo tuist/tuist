@@ -82,7 +82,7 @@ defmodule AtlasWeb.FinanceVendorLive do
       <div data-part="header">
         <div data-part="text">
           <div data-part="breadcrumbs">
-            <.link navigate={~p"/finance"}>{gettext("Finance")}</.link>
+            <.link navigate={~p"/commercial/finance"}>{gettext("Finance")}</.link>
             <span>{gettext("Vendor costs")}</span>
           </div>
           <h1 data-part="title">{gettext("Vendor costs")}</h1>
@@ -353,7 +353,7 @@ defmodule AtlasWeb.FinanceVendorLive do
                         <span data-part="expense-kicker">{gettext("Vendor")}</span>
                         <.link
                           :if={expense.document_id}
-                          navigate={~p"/documents/#{expense.document_id}"}
+                          navigate={~p"/library/documents/#{expense.document_id}"}
                           data-part="vendor-link"
                         >
                           {expense.vendor_name}
@@ -484,7 +484,7 @@ defmodule AtlasWeb.FinanceVendorLive do
         |> Map.drop(["#{@date_range_prefix}-start-date", "#{@date_range_prefix}-end-date"])
       end
 
-    {:noreply, push_patch(socket, to: ~p"/finance/vendors?#{query_params}")}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance/vendors?#{query_params}")}
   end
 
   def handle_event("select_chart", %{"widget" => widget}, socket) do
@@ -497,7 +497,7 @@ defmodule AtlasWeb.FinanceVendorLive do
         true -> Map.put(base, "vendors-chart", widget)
       end
 
-    {:noreply, push_patch(socket, to: ~p"/finance/vendors?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance/vendors?#{query_params}", replace: true)}
   end
 
   def handle_event("search_expenses", %{"expenses_search" => %{"query" => query}}, socket) do
@@ -507,7 +507,7 @@ defmodule AtlasWeb.FinanceVendorLive do
       |> put_expenses_search_param(query)
       |> reset_expense_pagination()
 
-    {:noreply, push_patch(socket, to: ~p"/finance/vendors?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance/vendors?#{query_params}", replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -518,7 +518,7 @@ defmodule AtlasWeb.FinanceVendorLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/finance/vendors?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/finance/vendors?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -531,7 +531,7 @@ defmodule AtlasWeb.FinanceVendorLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/finance/vendors?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/finance/vendors?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end

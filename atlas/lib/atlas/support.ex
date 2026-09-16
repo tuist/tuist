@@ -818,7 +818,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "message_id" => message.id,
         "sender_email" => message.sender_email
       }
@@ -834,7 +834,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "channel" => "chat",
         "email_verified" => chat_email_verified?(thread),
         "message_id" => message.id,
@@ -849,7 +849,7 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata: %{"dashboard_path" => "/support/#{thread.id}"}
+      metadata: %{"dashboard_path" => "/commercial/support/#{thread.id}"}
     })
   end
 
@@ -861,7 +861,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "account_id" => thread.account_id
       }
     })
@@ -874,7 +874,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "message_id" => message.id,
         "recipients" => message.to_emails
       }
@@ -888,7 +888,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "message_id" => message.id,
         "recipients" => message.to_emails
       }
@@ -902,7 +902,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "message_id" => message.id,
         "provider_message_id" => message.provider_message_id
       }
@@ -916,7 +916,7 @@ defmodule Atlas.Support do
       target_id: thread.id,
       target_label: thread.subject,
       metadata: %{
-        "dashboard_path" => "/support/#{thread.id}",
+        "dashboard_path" => "/commercial/support/#{thread.id}",
         "message_id" => message.id,
         "reason" => inspect(reason)
       }
@@ -929,7 +929,7 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata: %{"dashboard_path" => "/support/#{thread.id}", "message_id" => message.id}
+      metadata: %{"dashboard_path" => "/commercial/support/#{thread.id}", "message_id" => message.id}
     })
   end
 
@@ -939,7 +939,7 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata: %{"dashboard_path" => "/support/#{thread.id}", "status" => thread.status}
+      metadata: %{"dashboard_path" => "/commercial/support/#{thread.id}", "status" => thread.status}
     })
   end
 
@@ -949,7 +949,7 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata: %{"dashboard_path" => "/support/#{thread.id}", "owner_id" => thread.owner_id}
+      metadata: %{"dashboard_path" => "/commercial/support/#{thread.id}", "owner_id" => thread.owner_id}
     })
   end
 

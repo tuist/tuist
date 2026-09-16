@@ -11,7 +11,7 @@ defmodule AtlasWeb.SearchPaletteTest do
     user = insert_user!()
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, ~s(#search-palette[data-open="false"]))
     assert has_element?(view, "#search-palette-input")
@@ -37,7 +37,7 @@ defmodule AtlasWeb.SearchPaletteTest do
       })
 
     conn = init_test_session(conn, %{"user_id" => user.id})
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     view
     |> form("#search-palette-form", search_palette: %{query: "delivery"})
@@ -45,7 +45,7 @@ defmodule AtlasWeb.SearchPaletteTest do
 
     assert has_element?(
              view,
-             ~s(#search-palette a[data-result-link][href="/sales/accounts/#{delivery_hero.id}"])
+             ~s(#search-palette a[data-result-link][href="/commercial/sales/accounts/#{delivery_hero.id}"])
            )
 
     refute has_element?(view, ~s(#search-palette [data-part="empty"]))
@@ -55,7 +55,7 @@ defmodule AtlasWeb.SearchPaletteTest do
     user = insert_user!()
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, ~s(#search-palette [data-part="empty"]), "Type to search")
   end

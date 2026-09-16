@@ -18,7 +18,7 @@ defmodule Atlas.MemoryTest do
       refute node.forgotten
 
       activity = Repo.get_by!(Activity, action: "memory_node.created", target_id: node.id)
-      assert activity.metadata["path"] == "/memory/#{node.id}"
+      assert activity.metadata["path"] == "/admin/memory/#{node.id}"
     end
 
     test "honors an explicit importance" do

@@ -26,7 +26,7 @@ defmodule Atlas.Finance.Financings do
   alias Atlas.Finance.Transaction
   alias Atlas.Repo
 
-  @dashboard_prefix "/hardware/financings"
+  @dashboard_prefix "/operations/hardware/financings"
   @accepted_document_statuses ~w(uploaded processing ready)
 
   ## ------------------------------------------------------------------
