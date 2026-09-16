@@ -446,6 +446,82 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
+  describe "prepared instances" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    # An instance provisioned from demand its account did not send itself, then
+    # archived before anything uses it.
+    defp prepare(account) do
+      {:ok, _} = Demand.upsert(account.id, @region, ago(1))
+      server = active_instance(account, age_days: 0)
+
+      assert :ok = Lifecycle.archive_prepared(server)
+      assert reload(server).status == :drain_pending
+      assert %{drain_reason: :prepared} = reload_lifecycle(account)
+
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+
+      server
+    end
+
+    test "archives an active instance once its drain window passes" do
+      account = account()
+
+      server = prepare(account)
+
+      assert reload(server).status == :archived
+    end
+
+    test "archives an Enterprise instance too, because it holds no cache" do
+      account = account(plan: :enterprise, region: :usa)
+
+      server = prepare(account)
+
+      assert reload(server).status == :archived
+    end
+
+    test "is not provisioned again from the demand it was prepared from" do
+      account = account()
+      server = prepare(account)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "returns when the account asks for its cache" do
+      account = account()
+      server = prepare(account)
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+      |> Repo.update!()
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    test "stays in service when the account asks for its cache during the drain" do
+      account = account()
+      {:ok, _} = Demand.upsert(account.id, @region, ago(1))
+      server = active_instance(account, age_days: 0)
+      assert :ok = Lifecycle.archive_prepared(server)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :active
+    end
+  end
+
   describe "archive cancellation" do
     test "returns a draining instance to service when demand arrives mid-drain" do
       account = account()

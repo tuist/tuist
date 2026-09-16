@@ -20,7 +20,9 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   `drain_reason` is why the current or last drain started. It is cleared when
   the drain is cancelled or the instance returns from archive, so an `:unused`
   reason on a row without a serving instance means the instance was reclaimed
-  for never storing anything and has not been asked for since.
+  for never storing anything and has not been asked for since, and `:prepared`
+  that it was provisioned ahead of its account's demand and archived before
+  anything used it.
   """
   use Ecto.Schema
 
@@ -39,7 +41,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
     field :last_reclaimed_bytes, :integer
     field :last_drain_duration_ms, :integer
     field :last_returned_at, :utc_datetime
-    field :drain_reason, Ecto.Enum, values: [:inactive, :capacity_pressure, :unused, :placement_retirement]
+    field :drain_reason, Ecto.Enum, values: [:inactive, :capacity_pressure, :unused, :placement_retirement, :prepared]
 
     belongs_to :account, Account
 

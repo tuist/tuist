@@ -223,6 +223,22 @@ defmodule Tuist.Kura.Lifecycle do
     reconcile_drain_entries(region, Capacity.under_pressure?(region_id))
   end
 
+  @doc """
+  Archives an active instance that was provisioned ahead of its account's own
+  cache demand, so it holds no capacity until the account asks for it. It
+  drains and is archived like any other instance, on every plan because it
+  holds no cache, and is provisioned again only for demand recorded after its
+  archival.
+  """
+  def archive_prepared(%Server{status: :active} = server) do
+    server = Repo.preload(server, [account: :subscriptions], force: true)
+
+    case Demand.get(server.account_id, server.region) do
+      nil -> {:error, :no_demand}
+      lifecycle -> enter_drain(server, lifecycle, Billing.effective_plan(server.account), :prepared)
+    end
+  end
+
   ## Placement retirements
 
   defp retire_placement(%PlacerRegion{account: %Account{} = account, region: region_id} = placer_region) do
@@ -403,10 +419,11 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
         where: not exists(destroyed_since_demand_exists),
-        # An instance reclaimed for never storing anything comes back only for
-        # demand recorded after its archival, not for the demand it already had.
+        # An instance reclaimed for never storing anything, or archived before it
+        # was ever used, comes back only for demand recorded after its archival,
+        # not for the demand it already had.
         where:
-          is_nil(l.drain_reason) or l.drain_reason != :unused or is_nil(l.archived_at) or
+          is_nil(l.drain_reason) or l.drain_reason not in [:unused, :prepared] or is_nil(l.archived_at) or
             l.last_cache_demand_at > l.archived_at,
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
         limit: ^limit,
@@ -738,7 +755,7 @@ defmodule Tuist.Kura.Lifecycle do
 
       {:error, error} ->
         Logger.warning("[Kura.Lifecycle] could not drain instance #{server.id}: #{inspect(error)}")
-        :ok
+        {:error, error}
     end
   end
 
@@ -813,8 +830,9 @@ defmodule Tuist.Kura.Lifecycle do
     cond do
       # Re-read at resolution, not only at selection: an account that upgrades
       # to a plan that is never archived while its instance is mid-drain gets
-      # it back, rather than being reclaimed under the plan it just left.
-      not archivable_plan?(plan) ->
+      # it back, rather than being reclaimed under the plan it just left. A
+      # prepared instance holds no cache, so the plan does not keep it.
+      not archivable_plan?(plan) and lifecycle.drain_reason != :prepared ->
         Logger.info("[Kura.Lifecycle] instance #{server.id} is on a plan that is never archived; returning it to service")
 
         cancel_drain(server, lifecycle, plan)
