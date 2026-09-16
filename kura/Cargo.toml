@@ -68,6 +68,12 @@ tikv-jemallocator = { version = "0.6.0", features = ["stats", "unprefixed_malloc
 tikv-jemalloc-sys = "0.6.0"
 tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
 
+# sha2 0.10 hashes SHA-256 in software on aarch64 unless `asm` is enabled, which switches it to the
+# ARMv8 SHA-256 instructions behind a runtime CPU check. x86_64 already detects SHA-NI at runtime
+# without the feature, so it stays off there.
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+sha2 = { version = "0.10.9", features = ["asm"] }
+
 [dev-dependencies]
 tempfile = "3.23.0"
 tokio = { version = "1.48.0", features = ["test-util"] }
