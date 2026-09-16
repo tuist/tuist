@@ -34,6 +34,19 @@ defmodule Tuist.Tests.Coverage.History do
     )
   end
 
+  @doc "The branches with a full run in the period, the most recently run first."
+  def branch_names(project_id, opts \\ []) do
+    ClickHouseRepo.all(
+      from(c in subquery(Coverage.full_run_totals_query(project_id)),
+        join: t in subquery(runs_query(project_id, nil, opts)),
+        on: t.id == c.test_run_id,
+        group_by: t.git_branch,
+        select: t.git_branch,
+        order_by: [desc: max(t.ran_at)]
+      )
+    )
+  end
+
   @doc """
   One point per commit of the branch with a full run of the scheme in the
   period, oldest first: the commit, the newest run's id and time, and the

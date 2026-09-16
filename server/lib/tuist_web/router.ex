@@ -1401,6 +1401,8 @@ defmodule TuistWeb.Router do
       ] do
       live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive
+      live "/tests/coverage", CoverageLive
+      live "/tests/coverage/pull-requests/:pull_request_number", CoverageLive, :pull_request
       live "/tests/test-runs/:test_run_id", TestRunLive
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
