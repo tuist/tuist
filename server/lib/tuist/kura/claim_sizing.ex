@@ -17,9 +17,11 @@ defmodule Tuist.Kura.ClaimSizing do
   are the mechanism; give any reader a duration.
 
   A day that misses a growth threshold because the account was idle does not
-  break the streak: a day the account barely wrote to a full ring, or one
-  with such a day inside its shed age, is passed over. A day that meets the
-  threshold always counts. Shrinking still needs every day in its window.
+  break the streak: a day it wrote nothing to a full ring, one it barely wrote
+  to next to such a day, or one with either inside its shed age, is passed
+  over. A day that meets the threshold always counts, and an ordinary day of a
+  right-sized ring still breaks the streak. Shrinking still needs every day in
+  its window.
   """
 
   alias Tuist.Kura.Regions
@@ -275,22 +277,37 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # Idle is read from the account's own telemetry, never a calendar: weekends
   # and holidays differ by country, one account can build from several, and a
-  # local weekend straddles UTC dates. A full ring that cycled at most one ring
-  # per retention floor wrote so little that, at that rate, the ring would
-  # hold the floor, so a long shed age that day is older builds leaving rather
-  # than a reading of the claim. A ring under the shrink line that evicted
-  # nothing is the claim fitting.
+  # local weekend straddles UTC dates. A day the account wrote nothing to a
+  # full ring is idle. A day it barely wrote to one is idle only next to such
+  # a day, which is the UTC day a local weekend's edge falls into: a ring that
+  # already holds the retention floor sheds about one ring per floor on an
+  # ordinary day, so without that anchor every day of a right-sized ring would
+  # read as idle instead of saying the claim fits. A ring under the shrink
+  # line that evicted nothing is the claim fitting.
   defp idle_dates(by_date, policy) do
-    for {date, rollup} <- by_date, idle_day?(rollup, policy), into: MapSet.new(), do: date
+    blank_dates = for {date, rollup} <- by_date, blank_day?(rollup, policy), into: MapSet.new(), do: date
+
+    for {date, rollup} <- by_date,
+        quiet_day?(rollup, policy),
+        next_to_blank_day?(date, blank_dates),
+        into: blank_dates,
+        do: date
   end
 
-  defp idle_day?(rollup, policy) do
+  defp blank_day?(rollup, policy), do: full_ring?(rollup, policy) and rollup.eviction_count == 0
+
+  defp quiet_day?(rollup, policy) do
+    full_ring?(rollup, policy) and negligible_evictions?(rollup, policy)
+  end
+
+  defp full_ring?(rollup, policy) do
     rollup.snapshot_count > 0 and rollup.max_occupancy_percent != nil and
-      rollup.max_occupancy_percent >= policy.shrink_occupancy_percent and
-      negligible_evictions?(rollup, policy)
+      rollup.max_occupancy_percent >= policy.shrink_occupancy_percent
   end
 
-  defp negligible_evictions?(%{eviction_count: 0}, _policy), do: true
+  defp next_to_blank_day?(date, blank_dates) do
+    MapSet.member?(blank_dates, Date.add(date, -1)) or MapSet.member?(blank_dates, Date.add(date, 1))
+  end
 
   defp negligible_evictions?(%{last_ring_budget_bytes: budget_bytes} = rollup, policy)
        when is_integer(budget_bytes) and budget_bytes > 0,

@@ -180,6 +180,39 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert {:shrink, "10Gi", _evidence} = ClaimSizing.evaluate(context(rollups: fitting_days(30, @today)))
     end
 
+    test "ordinary days of a right-sized ring break the window rather than being passed over" do
+      # A ring that already holds the retention floor evicts about one ring per
+      # floor every ordinary day, which is the volume an idle day sheds. Those
+      # days say the claim fits, so they break the window, and two spikes ten
+      # days apart cannot confirm each other.
+      healthy =
+        11
+        |> churn_at(@today, 80 * 3_600, 80 * 3_600)
+        |> Enum.map(
+          &Map.merge(&1, %{
+            evicted_bytes: round(0.3 * 13 * @gibibyte),
+            snapshot_count: 96,
+            max_occupancy_percent: 98
+          })
+        )
+
+      spike = fn rollup ->
+        Map.merge(rollup, %{
+          evicted_bytes: round(1.2 * 13 * @gibibyte),
+          median_shed_age_seconds: 6 * 3_600,
+          median_ring_span_seconds: 12 * 3_600
+        })
+      end
+
+      rollups = healthy |> List.update_at(0, spike) |> List.update_at(10, spike)
+
+      assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+
+      # Two spike days in a row confirm each other, as they did before.
+      assert {:grow, "64Gi", %{"window_days" => 2}} =
+               ClaimSizing.evaluate(context(rollups: List.update_at(rollups, 9, spike)))
+    end
+
     test "a weekend the account did not build through neither confirms nor breaks growth" do
       # The ring holds about 21 hours on a busy day. Saturday cycled under a
       # quarter of a ring, a rate at which the ring would hold four days, so
