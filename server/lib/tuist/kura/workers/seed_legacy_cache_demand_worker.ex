@@ -75,6 +75,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   @legacy_endpoint_pattern "^https://cache-[a-z0-9-]+[.]tuist[.]dev/?$"
   @plan_order %{enterprise: 0, pro: 1, air: 2}
   @not_live [:destroyed, :archived]
+  # Whole-window scans of the cache event tables, far past the repo's per-request budget.
+  @scan_seconds 300
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -136,7 +138,10 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     WHERE #{timestamp} >= {since:DateTime} AND match(cache_endpoint, {pattern:String})
     GROUP BY project_id
     """
-    |> ClickHouseRepo.query!(%{"since" => DateTime.to_naive(since), "pattern" => @legacy_endpoint_pattern})
+    |> ClickHouseRepo.query!(%{"since" => DateTime.to_naive(since), "pattern" => @legacy_endpoint_pattern},
+      settings: [max_execution_time: @scan_seconds],
+      timeout: to_timeout(second: @scan_seconds + 30)
+    )
     |> Map.fetch!(:rows)
     |> Enum.map(fn [project_id, events, last_at] -> {project_id, lane, events, to_utc(last_at)} end)
   end
