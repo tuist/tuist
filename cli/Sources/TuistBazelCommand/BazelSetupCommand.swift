@@ -34,10 +34,17 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var addBazelrcImport = true
 
+    @Flag(
+        name: .long,
+        help: "Fetch dependencies through Kura with local fallback. Requires deployed Remote Asset support."
+    )
+    var remoteDownloader = false
+
     public func run() async throws {
         try await BazelSetupCommandService().run(
             directory: path,
             buildInsights: buildInsights,
+            remoteDownloader: remoteDownloader,
             addBazelrcImport: addBazelrcImport
         )
     }

@@ -8,6 +8,7 @@ defmodule TuistWeb.UserLoginLive do
   alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.GoogleOneTap
 
   def mount(_params, _session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
@@ -36,6 +37,7 @@ defmodule TuistWeb.UserLoginLive do
   def render(assigns) do
     ~H"""
     <div id="login">
+      <GoogleOneTap.prompt current_user={assigns[:current_user]} live />
       <div data-part="frame">
         <div data-part="content">
           <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />

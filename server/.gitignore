@@ -62,3 +62,6 @@ config.d
 .opencode/
 .claude/
 minio/
+
+# Built by native/xcresult_nif/build.sh
+/priv/native/

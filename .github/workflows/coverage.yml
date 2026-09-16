@@ -1,0 +1,123 @@
+name: Coverage
+
+# Gathers Xcode code coverage from full test runs on main, so the coverage
+# trend has complete runs to plot. Pull request runs use selective testing and
+# the module cache, which leave tests unrun and product code uninstrumented, so
+# their coverage is partial and stays out of the trend.
+#
+# Nothing depends on this workflow: it only runs after changes land on main, it
+# is not a required check, no deploy or release workflow waits on it, and
+# notify-failure.yml does not list it.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "cli/Templates/**"
+      - "cas-plugin/**"
+      - "swifterpm/**"
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
+      - "app/**"
+      - "*.swift"
+      - ".github/workflows/coverage.yml"
+      - "mise.toml"
+      - "mise.lock"
+      - "Tuist/**"
+      - ".xcode-version"
+      - ".swiftpm/**"
+      - "Package.swift"
+      - "Package.resolved"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: true
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_GITHUB_SLSA: 0
+  # Xcode code coverage is in early access behind this client flag.
+  TUIST_FEATURE_FLAG_COVERAGE: "1"
+
+# One run at a time on main. A run in progress finishes so its coverage lands;
+# commits merged meanwhile queue behind it, and GitHub keeps only the newest.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cli-unit-tests:
+    name: CLI Unit Tests
+    runs-on: tuist-macos
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+      TUIST_EE: "1"
+      MISE_LOCKED: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      # Every test runs, and every target is built from sources: selective
+      # testing would skip tests and cached binaries carry no coverage.
+      - name: Run tests with coverage
+        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+
+  app-tests:
+    name: App Tests
+    runs-on: tuist-macos
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+      - uses: ./.github/actions/mise
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Run tests with coverage
+        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO

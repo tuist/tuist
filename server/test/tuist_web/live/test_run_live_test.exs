@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -98,6 +99,222 @@ defmodule TuistWeb.TestRunLiveTest do
     # Then
     # The h1 shows the scheme name or "Unknown" if no scheme
     assert has_element?(lv, "h1")
+  end
+
+  test "shows the coverage tab with the run's targets, least covered files first, and a file's detail", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    file = fn path, lines, functions ->
+      %{
+        path: path,
+        git_blob_id: "blob-#{path}",
+        targets: ["Calculator"],
+        covered_lines: Enum.count(lines, fn {_line, count} -> count > 0 end),
+        executable_lines: length(lines),
+        line_numbers: Enum.map(lines, &elem(&1, 0)),
+        execution_counts: Enum.map(lines, &elem(&1, 1)),
+        functions: functions
+      }
+    end
+
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          partial: false,
+          files: [
+            file.("Sources/Calculator/Add.swift", [{2, 3}, {3, 0}, {4, 0}, {6, 1}], [
+              %{name: "add(_:_:)", line_number: 2, execution_count: 3, covered_lines: 2, executable_lines: 4}
+            ]),
+            file.("Sources/Calculator/Untested.swift", [{2, 0}, {3, 0}], [])
+          ]
+        }
+      })
+
+    base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
+
+    assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
+    refute has_element?(lv, "#coverage-partial-run")
+    assert has_element?(lv, "#coverage-targets-table", "Calculator")
+
+    files_html = lv |> element("#coverage-files-table") |> render()
+    untested = files_html |> :binary.match("Untested.swift") |> elem(0)
+    add = files_html |> :binary.match("Add.swift") |> elem(0)
+    assert untested < add
+
+    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Add.swift")
+
+    assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
+    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
+    assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
+  end
+
+  test "shows a file without line data with its reported counts and its uncovered lines as unavailable", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          partial: false,
+          files: [
+            %{
+              path: "Sources/Calculator/Legacy.swift",
+              git_blob_id: "legacy1",
+              targets: ["Calculator"],
+              covered_lines: 8,
+              executable_lines: 10,
+              line_numbers: [],
+              execution_counts: [],
+              functions: []
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Legacy.swift"
+      )
+
+    assert has_element?(lv, "#widget-coverage-file-percentage", "80.0%")
+    assert has_element?(lv, "#widget-coverage-file-lines", "8 / 10")
+    assert has_element?(lv, "#coverage-file-uncovered-lines", "Unavailable")
+  end
+
+  test "shows a function several shards covered as unavailable", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    shard = fn lines ->
+      %{
+        partial: false,
+        files: [
+          %{
+            path: "Sources/Calculator/Add.swift",
+            git_blob_id: "add1",
+            targets: ["Calculator"],
+            covered_lines: 1,
+            executable_lines: 2,
+            line_numbers: [2, 3],
+            execution_counts: lines,
+            functions: [%{name: "add(_:_:)", line_number: 2, execution_count: 1, covered_lines: 1, executable_lines: 2}]
+          }
+        ]
+      }
+    end
+
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: shard.([1, 0])
+      })
+
+    {:ok, stored} = Tuist.Tests.get_test(test_run.id)
+    XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([0, 1])), 1)
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Add.swift"
+      )
+
+    assert has_element?(lv, "#widget-coverage-file-lines", "2 / 2")
+    assert has_element?(lv, "#coverage-functions-table", "Unavailable")
+  end
+
+  test "hides the coverage tab from an account without the xcode_coverage flag", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [],
+        xcode_coverage: %{
+          partial: false,
+          files: [
+            %{
+              path: "Sources/Add.swift",
+              git_blob_id: "abc",
+              targets: ["App"],
+              covered_lines: 1,
+              executable_lines: 2,
+              line_numbers: [1, 2],
+              execution_counts: [1, 0],
+              functions: []
+            }
+          ]
+        }
+      })
+
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage")
+
+    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
+    refute has_element?(lv, "#widget-coverage-percentage")
+  end
+
+  test "hides the coverage tab for a run that gathered none", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
+    refute render(lv) =~ "tab=coverage"
   end
 
   test "shows the stress gate's verdict and the candidate that disagreed", %{

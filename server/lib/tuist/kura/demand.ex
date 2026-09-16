@@ -298,29 +298,50 @@ defmodule Tuist.Kura.Demand do
   defp upsert_all(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    rows =
-      Enum.map(rows, fn row ->
-        row
-        |> Map.put(:id, UUIDv7.generate())
-        |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
-        |> Map.put(:inserted_at, now)
-        |> Map.put(:updated_at, now)
-      end)
+    Repo.transaction(fn ->
+      live_account_ids = lock_live_account_ids(Enum.map(rows, & &1.account_id))
 
-    {count, _} =
-      Repo.insert_all(AccountRegionLifecycle, rows,
-        conflict_target: [:account_id, :service_region],
-        on_conflict:
-          from(l in AccountRegionLifecycle,
-            update: [
-              set: [
-                last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
-                updated_at: fragment("EXCLUDED.updated_at")
+      rows =
+        rows
+        |> Enum.filter(&MapSet.member?(live_account_ids, &1.account_id))
+        |> Enum.map(fn row ->
+          row
+          |> Map.put(:id, UUIDv7.generate())
+          |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
+          |> Map.put(:inserted_at, now)
+          |> Map.put(:updated_at, now)
+        end)
+
+      {count, _} =
+        Repo.insert_all(AccountRegionLifecycle, rows,
+          conflict_target: [:account_id, :service_region],
+          on_conflict:
+            from(l in AccountRegionLifecycle,
+              update: [
+                set: [
+                  last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                  updated_at: fragment("EXCLUDED.updated_at")
+                ]
               ]
-            ]
-          )
-      )
+            )
+        )
 
-    {:ok, count}
+      count
+    end)
+  end
+
+  # An account deleted between resolving its region and this insert would fail
+  # the foreign key and crash the buffer, dropping every other account's
+  # buffered demand with it. The key-share lock holds off a concurrent delete
+  # until the insert commits; an already-deleted account is simply skipped.
+  defp lock_live_account_ids(account_ids) do
+    from(a in Account,
+      where: a.id in ^Enum.uniq(account_ids),
+      order_by: a.id,
+      select: a.id,
+      lock: "FOR KEY SHARE"
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 end
