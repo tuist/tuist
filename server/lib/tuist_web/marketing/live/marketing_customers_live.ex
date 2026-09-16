@@ -6,7 +6,6 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Customers
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
 
@@ -18,17 +17,12 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   @grid_columns 3
 
   embed_templates "marketing_customers_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (customers_new/1) distinct from the legacy customers/1.
-  embed_templates "marketing_customers_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: customers_new(assigns)
   def render(assigns), do: customers(assigns)
 
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:new_design, Design.new?(socket.assigns[:current_user]))
       |> assign(:search_query, "")
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)
