@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Mockable
 import Path
 import ProjectDescription
@@ -126,6 +127,36 @@ struct ManifestLookupDerivedDirectoryTests {
 
         // Then
         #expect(try #require(got).resolvedFiles.map(\.path) == [projectPath.appending(component: "Project.swift")])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func projectRootedFileListGlobExcludes_doNotDescendIntoFrameworkSearchPathLinks() async throws {
+        // Given: excluding patterns such as `**/*.docc` resolve against the manifest directory, so each one is a glob
+        // over the whole project. The cached framework contains an unreadable directory: listing it fails, so the
+        // lookup only succeeds if the links are never followed.
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = workspacePath.appending(components: "Projects", "App")
+        try await createProjectWithFrameworkSearchPathLinks(at: projectPath, cacheDirectory: workspacePath)
+        let sourceFile = projectPath.appending(components: "Sources", "App.swift")
+        try await fileSystem.makeDirectory(at: sourceFile.parentDirectory)
+        try await fileSystem.touch(sourceFile)
+        let unreadableDirectory = workspacePath.appending(components: "Binaries", "hash", "Module.framework", "Unreadable")
+        try await fileSystem.makeDirectory(at: unreadableDirectory)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: unreadableDirectory.pathString)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: unreadableDirectory.pathString) }
+        let fileListGlob = ProjectDescription.FileListGlob.glob(
+            .relativeToManifest("Sources/**/*.swift"),
+            excluding: [.relativeToManifest("**/*.docc"), .relativeToManifest("**/*.docc/**")]
+        )
+
+        // When
+        let got = try await fileListGlob.unfold(
+            generatorPaths: GeneratorPaths(manifestDirectory: projectPath, rootDirectory: workspacePath),
+            fileSystem: fileSystem
+        )
+
+        // Then
+        #expect(got == [sourceFile])
     }
 
     /// Lays out a project whose `Derived/FrameworkSearchPaths/Swift/App` directory links many times into a sizeable
