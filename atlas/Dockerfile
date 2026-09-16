@@ -28,7 +28,12 @@ FROM node:22-slim AS noora-assets
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
 
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.41.0
+# aube 1.6.2 is the version server/Dockerfile uses to build noora
+# assets today. Atlas's inbox worker uses 1.41.0 for its own tests,
+# but that newer aube regressed how it invokes esbuild's binary in
+# this Docker layer (ELF vs. JS shim mismatch), and pinning to server's
+# proven version here keeps this build path stable.
+RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 
 COPY noora /noora
 WORKDIR /noora
