@@ -463,6 +463,28 @@ defmodule Tuist.RunnersTest do
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
+    test "hands a trusted job the download URL of the HEAD's content-keyed master object" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      content = String.duplicate("1", 64)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", tree, 0, nil, content)
+
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+      stub(CacheGrant, :mint, fn _account_id -> nil end)
+
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{tree}-#{content}.image"
+      url = "https://bucket.fly.storage.tigris.dev/#{key}?X-Amz-Signature=abc"
+
+      expect(Tuist.Storage, :generate_download_url, fn ^key, actor, _opts ->
+        assert actor.id == account.id
+        url
+      end)
+
+      assert {:ok, %{volume_head: %{generation: 1, digest: ^tree, content_digest: ^content, download_url: ^url}}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "excludes an untrusted fork job from the cache (no grant, no HEAD, untrusted label)" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
@@ -1109,7 +1131,7 @@ defmodule Tuist.RunnersTest do
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
-        args: %{account_id: account.id, tree_digest: old}
+        args: %{account_id: account.id, master_id: old}
       )
     end
 
@@ -1128,10 +1150,10 @@ defmodule Tuist.RunnersTest do
 
       assert_enqueued(
         worker: PruneVolumeMasterOrphanWorker,
-        args: %{account_id: account.id, tree_digest: rejected}
+        args: %{account_id: account.id, master_id: rejected}
       )
 
-      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{tree_digest: rejected})
+      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{master_id: rejected})
     end
 
     test "forgets an orphan once the same digest is later accepted as HEAD" do
@@ -1150,6 +1172,47 @@ defmodule Tuist.RunnersTest do
       refute VolumeMasterOrphans.exists?(account.id, digest)
     end
 
+    # Two jobs can end with the same entry names and sizes in images whose bytes
+    # differ. Keyed by inventory alone, the losing promote's upload would overwrite
+    # the object the winning HEAD's content digest describes, and every host would
+    # then reject it. Each image gets its own object, so the rejected one is
+    # reclaimed without touching the live master.
+    test "keys each image by its content digest so a rejected same-inventory promote reclaims only its own object" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      live_content = String.duplicate("1", 64)
+      rejected_content = String.duplicate("2", 64)
+      rejected = "#{tree}-#{rejected_content}"
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", tree, 0, nil, live_content)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", tree, 0, nil, rejected_content)
+
+      assert VolumeMasterOrphans.exists?(account.id, rejected)
+      refute VolumeMasterOrphans.exists?(account.id, "#{tree}-#{live_content}")
+      assert_enqueued(worker: PruneVolumeMasterOrphanWorker, args: %{account_id: account.id, master_id: rejected})
+
+      rejected_key = "runner-volume-masters/#{account.id}/tuist-cache/#{rejected}.image"
+      expect(Tuist.Storage, :delete_object, fn ^rejected_key, _actor -> :ok end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, rejected)
+    end
+
+    test "prunes the previous image when a same-inventory image with different bytes supersedes it" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      old_content = String.duplicate("1", 64)
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", tree, 0, nil, old_content)
+      refute_enqueued(worker: PruneVolumeMasterWorker)
+
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-2", tree, 1, nil, String.duplicate("2", 64))
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, master_id: "#{tree}-#{old_content}"}
+      )
+    end
+
     test "lets a cold promote retire a HEAD a host reported unverifiable, and reclaims its object" do
       account = account_fixture()
       poisoned = String.duplicate("a", 40)
@@ -1165,7 +1228,7 @@ defmodule Tuist.RunnersTest do
       # ordinary supersession path rather than lingering forever.
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
-        args: %{account_id: account.id, tree_digest: poisoned}
+        args: %{account_id: account.id, master_id: poisoned}
       )
     end
 
@@ -1253,6 +1316,17 @@ defmodule Tuist.RunnersTest do
 
       assert :ok = Runners.prune_superseded_volume_master(account.id, digest)
     end
+
+    test "skips deletion of the live master when it is keyed by its content digest" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      content = String.duplicate("1", 64)
+      Runners.report_volume_head(account.id, "node-1", tree, 0, nil, content)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, "#{tree}-#{content}")
+    end
   end
 
   describe "volume_master_upload_url/3" do
@@ -1290,6 +1364,27 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:ok, _url, ^expected_checksum} = Runners.volume_master_upload_url(account.id, digest, content_digest)
+    end
+
+    test "keys the object by the content digest as well when one is reported" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("ab", 32)
+      content_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}-#{content_digest}.image"
+      inventory_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      stub(Tuist.Storage, :generate_upload_url, fn key, _actor, _opts ->
+        send(self(), {:upload_key, key})
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, _url, _checksum} = Runners.volume_master_upload_url(account.id, digest, content_digest)
+      assert_received {:upload_key, ^content_key}
+
+      # A malformed digest reads as unreported, so the object keeps the
+      # inventory-only key its HEAD row, carrying no content digest, points at.
+      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, digest, "not-hex")
+      assert_received {:upload_key, ^inventory_key}
     end
 
     test "signs nothing for a malformed content digest or a provider without signed upload headers" do
