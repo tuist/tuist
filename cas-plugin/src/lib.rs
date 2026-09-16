@@ -247,6 +247,43 @@ fn resolve_upload(state: &OptionsState) -> bool {
     }
 }
 
+/// Whether a put hands its record to the proxy and moves on, rather than
+/// waiting for the upload.
+///
+/// A developer machine keeps its store and a proxy that outlives the build, so
+/// the upload finishes after the build does. A CI job's store, and usually its
+/// machine, go away with the job, taking any record still spooled with them.
+/// A Tuist runner is the exception for the store under `TUIST_CAS_DRAINED_STORE`,
+/// the directory its teardown drains before the machine goes away. Only a store
+/// inside it qualifies: a job that points its compilation cache anywhere else
+/// leaves a spool nothing waits for.
+fn resolve_upload_in_background(cas_dir: Option<&std::path::Path>) -> bool {
+    upload_in_background(
+        on_ci(),
+        cas_dir,
+        std::env::var_os("TUIST_CAS_DRAINED_STORE").as_deref(),
+    )
+}
+
+fn upload_in_background(
+    on_ci: bool,
+    cas_dir: Option<&std::path::Path>,
+    drained_store: Option<&std::ffi::OsStr>,
+) -> bool {
+    if !on_ci {
+        return true;
+    }
+    let (Some(cas_dir), Some(drained_store)) = (cas_dir, drained_store.filter(|store| !store.is_empty()))
+    else {
+        return false;
+    };
+    let resolved = |path: &std::path::Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    resolved(cas_dir).starts_with(resolved(std::path::Path::new(drained_store)))
+}
+
+/// How long a put waits for its upload before leaving it to the proxy.
+const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
@@ -264,6 +301,8 @@ struct CasState {
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
     // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
+    // See `resolve_upload_in_background`.
+    upload_in_background: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -539,12 +578,14 @@ pub unsafe extern "C" fn llcas_cas_create(
         .as_ref()
         .and_then(|p| p.to_str().ok())
         .map(std::path::PathBuf::from);
+    let upload_in_background = resolve_upload_in_background(cas_dir.as_deref());
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
+        upload_in_background,
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -670,6 +711,10 @@ static LOG_BYTES_SINCE_CHECK: AtomicU64 = AtomicU64::new(LOG_SIZE_CHECK_INTERVAL
 /// presence rather than value, exactly as it does.
 const CI_MARKERS: [&str; 3] = ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"];
 
+fn on_ci() -> bool {
+    CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some())
+}
+
 /// Where the diagnostics go, or `None` to write none.
 ///
 /// An explicitly set `TUIST_CAS_LOG` always wins, and setting it EMPTY is the way
@@ -705,7 +750,7 @@ fn log_path() -> Option<String> {
 /// would be state created on every build for a reader who never asked for it; a CI
 /// machine is ephemeral and the job bounds it.
 fn default_log_path() -> Option<String> {
-    if !CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some()) {
+    if !on_ci() {
         return None;
     }
     let state_directory = match std::env::var("XDG_STATE_HOME") {
@@ -1433,9 +1478,22 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            let record_path = path.to_string_lossy();
+            // Either answer is final: the proxy published the record, or it
+            // finishes it in the background. Without an answer (no proxy
+            // listening, one too old to know the op, or one past the budget) the
+            // put sends the plain notice, which a proxy that already took the
+            // record drops as a duplicate.
+            if !state.upload_in_background
+                && state
+                    .proxy
+                    .publish_and_wait(&cas_path, &state.proxy_instance, &record_path, UPLOAD_WAIT_BUDGET)
+                    .is_ok()
+            {
+                return;
+            }
             // Failure is fine: the record survives for the proxy sweep.
-            let _ =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
+            let _ = state.proxy.publish(&cas_path, &state.proxy_instance, &record_path);
         }
         return;
     }
@@ -1526,5 +1584,35 @@ mod tests {
         assert!(!is_cache_poisoned("No space left on device"));
         assert!(!is_cache_poisoned("failed to open the action cache"));
         assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
+
+    /// On CI only a store the runner's teardown drains may upload in the
+    /// background. A job pointing its own compilation cache elsewhere leaves a
+    /// spool nothing waits for, so its puts wait for their uploads.
+    #[test]
+    fn only_a_drained_store_uploads_in_the_background_on_ci() {
+        let dir = std::env::temp_dir().join(format!("tuist-drained-store-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let store = dir.join("cas");
+        let inside = store.join("plugin");
+        let sibling = dir.join("cas-other").join("plugin");
+        std::fs::create_dir_all(&inside).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        let linked = dir.join("linked");
+        std::os::unix::fs::symlink(&store, &linked).unwrap();
+        let store_path = store.as_os_str();
+
+        assert!(upload_in_background(false, Some(&sibling), None));
+        assert!(!upload_in_background(true, Some(&inside), None));
+        assert!(!upload_in_background(true, None, Some(store_path)));
+        assert!(upload_in_background(true, Some(&inside), Some(store_path)));
+        assert!(!upload_in_background(true, Some(&sibling), Some(store_path)));
+        assert!(
+            upload_in_background(true, Some(&linked.join("plugin")), Some(store_path)),
+            "a store spelled through a symlink is still the drained one"
+        );
+        assert!(!upload_in_background(true, Some(&inside), Some(std::ffi::OsStr::new(""))));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
