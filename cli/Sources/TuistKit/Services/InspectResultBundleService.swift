@@ -39,6 +39,7 @@ public enum UploadResultBundleServiceError: Equatable, LocalizedError {
 public protocol UploadResultBundleServicing {
     func uploadTestSummary(
         testSummary: TestSummary,
+        resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String?,
@@ -77,6 +78,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSysteming
     private let xcresultToolController: XCResultToolControlling
+    private let xcResultService: XCResultServicing
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -92,7 +94,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         fileSystem: FileSysteming = FileSystem(),
-        xcresultToolController: XCResultToolControlling = XCResultToolController()
+        xcresultToolController: XCResultToolControlling = XCResultToolController(),
+        xcResultService: XCResultServicing = XCResultService()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -108,10 +111,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
         self.xcresultToolController = xcresultToolController
+        self.xcResultService = xcResultService
     }
 
     public func uploadTestSummary(
         testSummary: TestSummary,
+        resultBundlePath: AbsolutePath? = nil,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
@@ -142,6 +147,21 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
            )
         {
             buildRunId = mostRecentActivityLogFile.path.basenameWithoutExt
+        }
+
+        // The server that receives a locally processed run has no Xcode to read the coverage
+        // with, so the client reads it, through the same parser the server runs on a bundle.
+        var testSummary = testSummary
+        if let resultBundlePath,
+           let manifest = await coverageManifest(
+               resultBundlePath: resultBundlePath,
+               config: config,
+               rootDirectory: gitInfoDirectory,
+               onlyTestIdentifiers: onlyTestIdentifiers,
+               skipTestIdentifiers: skipTestIdentifiers
+           )
+        {
+            testSummary.coverage = try await xcResultService.parseCoverage(path: resultBundlePath, manifest: manifest)
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
@@ -228,6 +248,24 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+
+        // The server reads the coverage from the bundle, but only this checkout can say which
+        // repository files its paths are and which Git blobs they had, so that travels inside the
+        // bundle, the way the quarantined tests do.
+        let coverageManifestPath = resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
+        if let manifest = await coverageManifest(
+            resultBundlePath: resolvedResultBundlePath,
+            config: config,
+            rootDirectory: gitInfoDirectory,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
+        ) {
+            try await fileSystem.writeAsJSON(manifest, at: coverageManifestPath)
+        } else if try await fileSystem.exists(coverageManifestPath) {
+            // An earlier upload of this bundle wrote one; the server reads coverage from whatever
+            // manifest the bundle carries.
+            try await fileSystem.remove(coverageManifestPath)
+        }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
 
@@ -392,6 +430,137 @@ private struct QuarantinedTestEntry: Codable {
 }
 
 extension UploadResultBundleService {
+    /// Source files whose Git blobs the manifest records: what the compiler instruments for
+    /// coverage in Xcode projects.
+    static let coverageSourceExtensions: Set<String> = [
+        "swift", "m", "mm", "c", "cc", "cp", "cpp", "cxx", "c++", "h", "hh", "hpp", "hxx", "inl",
+    ]
+
+    /// Nil when the bundle has no coverage, which is every run that did not enable it. Coverage
+    /// only enriches a run, so a manifest that cannot be built costs the run its coverage and
+    /// nothing else.
+    private func coverageManifest(
+        resultBundlePath: AbsolutePath,
+        config: Tuist,
+        rootDirectory: AbsolutePath,
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
+    ) async -> XcodeCoverageManifest? {
+        guard Self.uploadsCoverage(config: config) else { return nil }
+        do {
+            guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
+
+            // Test products built in another checkout carry that checkout: the compiler embedded its
+            // paths, and only the build knows which blobs it compiled. The current checkout may be
+            // at other content, so its blobs are never used for those products.
+            let buildSources = await RunMetadataStorage.current.coverageBuildSources
+            var rootSpellings = buildSources?.rootDirectories ?? []
+            for spelling in Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
+                where !rootSpellings.contains(spelling)
+            {
+                rootSpellings.append(spelling)
+            }
+            let coveredPaths = Set(coveredFilePaths.map { Self.relativize($0, to: rootSpellings) })
+            if !coveredPaths.isEmpty, coveredPaths.allSatisfy({ $0.hasPrefix("/") }) {
+                AlertController.current.warning(
+                    .alert(
+                        "None of the \(coveredPaths.count) files covered in \(resultBundlePath.pathString) are under \(rootSpellings.joined(separator: " or ")), so the run has no coverage. If the test products were built in another checkout, build them with 'tuist xcodebuild build-for-testing -testProductsPath' or 'tuist test --build-only' so Tuist records that checkout."
+                    )
+                )
+            }
+            let blobIds: [String: String]
+            if let buildSources {
+                blobIds = buildSources.files.filter { coveredPaths.contains($0.key) }
+            } else if await gitController.isInGitRepository(workingDirectory: rootDirectory) {
+                blobIds = try await gitController.sourceFileBlobIds(
+                    workingDirectory: rootDirectory,
+                    pathExtensions: Self.coverageSourceExtensions
+                ).filter { coveredPaths.contains($0.key) }
+            } else {
+                blobIds = [:]
+            }
+
+            // The run's coverage only describes the tests that ran. A selective-testing hit is a
+            // test target skipped because nothing it depends on changed.
+            let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
+                .contains { $0.values.contains { $0.source != .miss } }
+            let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
+            let partial = !onlyTestIdentifiers.isEmpty
+                || skipTestIdentifiers.contains { !skippedQuarantinedTests.contains($0) }
+                || selectiveTestingSkippedTargets
+
+            return XcodeCoverageManifest(
+                rootDirectories: rootSpellings,
+                partial: partial,
+                files: blobIds.map { XcodeCoverageSourceFile(path: $0.key, gitBlobId: $0.value) }
+                    .sorted { $0.path < $1.path }
+            )
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to prepare the code coverage of \(resultBundlePath.pathString): \(error.localizedDescription)")
+            )
+            return nil
+        }
+    }
+
+    static let coverageUploadVariable = "TUIST_COVERAGE_UPLOAD"
+
+    /// Coverage is in early access behind the `COVERAGE` client feature flag
+    /// (`TUIST_FEATURE_FLAG_COVERAGE=1`), so released CLIs do no coverage work until it ships. Once
+    /// on, the environment variable, when set, wins over `Tuist.swift`, so a single run or CI job can
+    /// opt out of, or back into, a team-wide setting.
+    static func uploadsCoverage(config: Tuist) -> Bool {
+        guard ClientFeatureFlags.contains("COVERAGE") else { return false }
+        guard Environment.current.variables[coverageUploadVariable] != nil else {
+            return config.testInsights.coverage.upload
+        }
+        return Environment.current.isVariableTruthy(coverageUploadVariable)
+    }
+
+    /// Every spelling of the root the covered files use. The compiler records the path the build
+    /// was invoked through, which is not always the one Git reports: `/tmp` is `/private/tmp` on
+    /// macOS, and a checkout can be reached through a symlink. A file whose canonical path is under
+    /// the root contributes the prefix it was recorded with.
+    static func rootSpellings(of root: AbsolutePath, coveredFilePaths: [String]) -> [String] {
+        let canonicalRoot = canonical(root.pathString)
+        var spellings = [root.pathString]
+        if canonicalRoot != root.pathString { spellings.append(canonicalRoot) }
+
+        for path in coveredFilePaths where path.hasPrefix("/") && !spellings.contains(where: { path.hasPrefix($0 + "/") }) {
+            let resolved = canonical(path)
+            guard resolved.hasPrefix(canonicalRoot + "/") else { continue }
+            let relative = resolved.dropFirst(canonicalRoot.count)
+            guard path.hasSuffix(relative) else { continue }
+            spellings.append(String(path.dropLast(relative.count)))
+        }
+        return spellings
+    }
+
+    /// The path relative to the longest root spelling it lives under, the way the parser
+    /// relativizes it, or the path unchanged.
+    private static func relativize(_ path: String, to roots: [String]) -> String {
+        for root in roots.sorted(by: { $0.count > $1.count }) where path.hasPrefix(root + "/") {
+            return String(path.dropFirst(root.count + 1))
+        }
+        return path
+    }
+
+    /// `realpath` of the longest existing prefix with the rest appended, so a file the bundle
+    /// names but the checkout no longer has still resolves through the directories that exist.
+    private static func canonical(_ path: String) -> String {
+        var existing = path
+        var rest: [String] = []
+        while !FileManager.default.fileExists(atPath: existing), existing != "/" {
+            rest.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = (existing as NSString).deletingLastPathComponent
+        }
+        guard let resolved = realpath(existing, nil) else { return path }
+        defer { free(resolved) }
+        let base = String(cString: resolved)
+        guard !rest.isEmpty else { return base }
+        return (base == "/" ? "" : base) + "/" + rest.joined(separator: "/")
+    }
+
     /// One bundle for the server to parse. A run whose candidates were priced at different
     /// repetition counts ran a pass per count, and those are merged the same way the
     /// per-scheme bundles of a multi-scheme run are.
