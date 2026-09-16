@@ -8,8 +8,6 @@ defmodule Cache.Xcode.Disk do
 
   alias Cache.Disk
 
-  require Logger
-
   @doc """
   Constructs a sharded Xcode compilation cache key from account handle, project handle, and artifact ID.
 
@@ -68,13 +66,8 @@ defmodule Cache.Xcode.Disk do
   def put(account_handle, project_handle, id, data) when is_binary(data) do
     path = account_handle |> key(project_handle, id) |> Disk.artifact_path()
 
-    with :ok <- Disk.ensure_directory(path),
-         :ok <- File.write(path, data) do
-      :ok
-    else
-      {:error, reason} = error ->
-        Logger.error("Failed to write Xcode cache artifact to #{path}: #{inspect(reason)}")
-        error
+    with :ok <- Disk.ensure_directory(path) do
+      Disk.write_new_file(path, data)
     end
   end
 

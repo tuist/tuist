@@ -728,6 +728,27 @@ defmodule CacheWeb.XcodeModuleControllerTest do
              )
     end
 
+    test "keeps the published bytes and the recorded digest from the same one of two racing uploads", %{conn: conn} do
+      hash = unique_hash()
+      name = "Raced.zip"
+      key = XcodeModule.Disk.key("test-account", "test-project", "builds", hash, name)
+      digest_of = fn body -> :sha256 |> :crypto.hash(body) |> Base.encode16(case: :lower) end
+      first = start_upload_with_part(hash, name, "first upload")
+      second = start_upload_with_part(hash, name, "second upload")
+      stub_project_access_and_existing_s3_copy()
+
+      assert complete_upload(conn, first, %{parts: [1], checksum_sha256: digest_of.("first upload")}).status == 204
+
+      # The second completion checked for the artifact before the first one published it.
+      stub(File, :exists?, fn _path -> false end)
+      conn = complete_upload(build_conn(), second, %{parts: [1], checksum_sha256: digest_of.("second upload")})
+      assert conn.status == 204
+
+      :ok = Cache.CacheArtifactsBuffer.flush()
+      assert File.read!(Disk.artifact_path(key)) == "first upload"
+      assert CacheArtifacts.content_sha256(key) == digest_of.("first upload")
+    end
+
     test "refuses a malformed checksum before touching the session", %{conn: conn} do
       upload_id = start_upload_with_part(unique_hash(), "Malformed.zip", "bytes")
       stub_project_access_and_existing_s3_copy()

@@ -143,11 +143,15 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Atomically moves a file from a temporary path to a target path.
+  Publishes a temporary file at a target path, unless an artifact is already there.
 
-  Checks that the target path doesn't already exist before performing the rename.
-  Returns `{:error, :exists}` if the target file already exists, or logs and returns
-  the error reason if the rename operation fails.
+  The file is hard-linked into place, which fails atomically when the target
+  exists, where a rename would silently replace it. Of several uploads racing
+  for one key exactly one publishes, so the bytes on disk and the digest
+  recorded for them come from the same upload. The temporary file is removed
+  once published; on `{:error, :exists}` it is left for the caller to clean up.
+  Other failures are logged and returned. Both paths must be on the same
+  filesystem.
 
   ## Examples
 
@@ -155,17 +159,45 @@ defmodule Cache.Disk do
       :ok
   """
   def move_file(tmp_path, target_path) do
-    with false <- File.exists?(target_path),
-         :ok <- File.rename(tmp_path, target_path) do
-      :ok
-    else
-      true ->
+    case File.ln(tmp_path, target_path) do
+      :ok ->
+        with {:error, reason} <- File.rm(tmp_path) do
+          Logger.warning("Published #{target_path} but could not remove #{tmp_path}: #{inspect(reason)}")
+        end
+
+        :ok
+
+      {:error, :eexist} ->
         {:error, :exists}
 
       {:error, reason} ->
         Logger.error("Failed to move artifact to #{target_path}: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  @doc """
+  Publishes `data` at `target_path` through a temporary file next to it, with
+  the same refusal of an existing artifact as `move_file/2`. A direct write
+  would let two uploads interleave into one file and expose a partial one to
+  readers.
+  """
+  def write_new_file(target_path, data) do
+    tmp_path =
+      Path.join(Path.dirname(target_path), ".tmp.#{Path.basename(target_path)}.#{System.unique_integer([:positive])}")
+
+    result =
+      case File.write(tmp_path, data) do
+        :ok ->
+          move_file(tmp_path, target_path)
+
+        {:error, reason} = error ->
+          Logger.error("Failed to write artifact to #{tmp_path}: #{inspect(reason)}")
+          error
+      end
+
+    if result != :ok, do: File.rm(tmp_path)
+    result
   end
 
   defp parse_df_output(output) do

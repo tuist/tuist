@@ -58,13 +58,8 @@ defmodule Cache.XcodeModule.Disk do
   def put(account_handle, project_handle, category, hash, name, data) when is_binary(data) do
     path = account_handle |> key(project_handle, category, hash, name) |> Disk.artifact_path()
 
-    with :ok <- Disk.ensure_directory(path),
-         :ok <- File.write(path, data) do
-      :ok
-    else
-      {:error, reason} = error ->
-        Logger.error("Failed to write Xcode module artifact to #{path}: #{inspect(reason)}")
-        error
+    with :ok <- Disk.ensure_directory(path) do
+      Disk.write_new_file(path, data)
     end
   end
 
@@ -93,10 +88,10 @@ defmodule Cache.XcodeModule.Disk do
       tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
 
       with :ok <- append_buffered_parts(tmp_dest, part_paths),
-           :ok <- File.rename(tmp_dest, dest_path) do
+           :ok <- Disk.move_file(tmp_dest, dest_path) do
         :ok
       else
-        {:error, :eexist} ->
+        {:error, :exists} ->
           File.rm(tmp_dest)
           {:error, :exists}
 
@@ -113,10 +108,10 @@ defmodule Cache.XcodeModule.Disk do
 
   @doc """
   Finalizes a multipart assembly file by appending buffered parts (if any)
-  and atomically renaming to the final artifact destination.
+  and atomically publishing it at the final artifact destination.
 
   When `checksum_sha256` is given (the lowercase hex SHA-256 the uploading
-  client declared), the assembled file is hashed before the rename and a
+  client declared), the assembled file is hashed before publication and a
   mismatch returns `{:error, {:checksum_mismatch, expected, actual}}` without
   publishing anything. An existing destination still returns `{:error, :exists}`
   without hashing: the stored object is another upload's, with its own digest.
@@ -131,14 +126,16 @@ defmodule Cache.XcodeModule.Disk do
          false <- File.exists?(dest_path),
          :ok <- append_buffered_parts(assembly_path, buffered_part_paths),
          :ok <- ContentDigest.verify_path(assembly_path, checksum_sha256),
-         :ok <- File.rename(assembly_path, dest_path) do
+         :ok <- Disk.move_file(assembly_path, dest_path) do
       :ok
     else
+      # The existence check before assembling only skips work; publication
+      # itself refuses an artifact another completion published meanwhile.
       true ->
         File.rm(assembly_path)
         {:error, :exists}
 
-      {:error, :eexist} ->
+      {:error, :exists} ->
         File.rm(assembly_path)
         {:error, :exists}
 

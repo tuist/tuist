@@ -70,15 +70,15 @@ defmodule Cache.Gradle.DiskTest do
       assert File.read!(path) == data
     end
 
-    test "overwrites existing file" do
+    test "does not replace an artifact another upload already published" do
       path = Disk.artifact_path(@test_key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, "old content")
 
       new_data = "new content"
-      assert GradleDisk.put(@test_account, @test_project, @test_cache_key, new_data) == :ok
+      assert GradleDisk.put(@test_account, @test_project, @test_cache_key, new_data) == {:error, :exists}
 
-      assert File.read!(path) == new_data
+      assert File.read!(path) == "old content"
     end
 
     test "handles binary data" do

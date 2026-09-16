@@ -79,10 +79,19 @@ defmodule Cache.CacheArtifactsBuffer do
 
     accesses = take_entries(table, access_spec, max_batch_size, fn {key, {:access, entry}} -> {key, entry} end)
 
+    # Digests stay queued until their rows commit (write_batch releases them),
+    # so `pending_content_sha256/2` never falls back to the database while it
+    # still holds the digest being replaced, a cleared one included.
     content_sha256s =
-      take_entries(table, content_sha256_spec, max_batch_size, fn {_entry_key, {:content_sha256, entry}} ->
-        {entry.key, entry}
-      end)
+      case :ets.select(table, content_sha256_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.map(entries, fn {_entry_key, {:content_sha256, entry}} = queued ->
+            {entry.key, Map.merge(entry, %{table: table, queued: queued})}
+          end)
+
+        :"$end_of_table" ->
+          []
+      end
 
     deletes = take_entries(table, delete_spec, max_batch_size, fn {key, :delete} -> key end)
 
@@ -138,10 +147,20 @@ defmodule Cache.CacheArtifactsBuffer do
         entry |> access_row(now) |> Map.put(:content_sha256, entry.content_sha256)
       end)
 
-    Repo.insert_all(CacheArtifact, rows,
-      conflict_target: :key,
-      on_conflict: {:replace, [:content_sha256, :updated_at]}
-    )
+    result =
+      Repo.insert_all(CacheArtifact, rows,
+        conflict_target: :key,
+        on_conflict: {:replace, [:content_sha256, :updated_at]}
+      )
+
+    # Deleting the exact queued object leaves a digest recorded for the same key
+    # during the write in place for the next flush.
+    Enum.each(entries, fn
+      {_key, %{table: table, queued: queued}} -> :ets.delete_object(table, queued)
+      {_key, _entry} -> :ok
+    end)
+
+    result
   end
 
   @impl true

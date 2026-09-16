@@ -1,5 +1,6 @@
 defmodule Cache.DiskTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import ExUnit.CaptureLog
 
@@ -76,6 +77,59 @@ defmodule Cache.DiskTest do
       assert {:error, :exists} = Disk.move_file(tmp_path, target_path)
       assert File.read!(target_path) == "existing_content"
     end
+
+    test "does not replace an artifact published after the destination was checked" do
+      {:ok, dir} = Briefly.create(directory: true)
+      tmp_path = Path.join(dir, "tmp_file.txt")
+      target_path = Path.join(dir, "target_file.txt")
+      File.write!(tmp_path, "second upload")
+      File.write!(target_path, "first upload")
+      # What an upload observes when it checked just before another one published.
+      stub(File, :exists?, fn _path -> false end)
+
+      assert {:error, :exists} = Disk.move_file(tmp_path, target_path)
+      assert File.read!(target_path) == "first upload"
+    end
+
+    test "publishes exactly one of several uploads racing for one key" do
+      {:ok, dir} = Briefly.create(directory: true)
+      target_path = Path.join(dir, "target_file.txt")
+
+      results =
+        1..16
+        |> Enum.map(fn index ->
+          tmp_path = Path.join(dir, "upload_#{index}")
+          File.write!(tmp_path, "upload #{index}")
+          tmp_path
+        end)
+        |> Task.async_stream(&{&1, Disk.move_file(&1, target_path)}, max_concurrency: 16, ordered: false)
+        |> Enum.map(fn {:ok, result} -> result end)
+
+      assert [{winner, :ok}] = Enum.filter(results, &match?({_path, :ok}, &1))
+      assert Enum.count(results, &match?({_path, {:error, :exists}}, &1)) == 15
+      assert File.read!(target_path) == String.replace(Path.basename(winner), "_", " ")
+    end
+  end
+
+  describe "write_new_file/2" do
+    test "publishes the data without leaving a temporary file behind" do
+      {:ok, dir} = Briefly.create(directory: true)
+      target_path = Path.join(dir, "artifact")
+
+      assert :ok = Disk.write_new_file(target_path, "bytes")
+      assert File.read!(target_path) == "bytes"
+      assert File.ls!(dir) == ["artifact"]
+    end
+
+    test "leaves an existing artifact alone without leaving a temporary file behind" do
+      {:ok, dir} = Briefly.create(directory: true)
+      target_path = Path.join(dir, "artifact")
+      File.write!(target_path, "first upload")
+
+      assert {:error, :exists} = Disk.write_new_file(target_path, "second upload")
+      assert File.read!(target_path) == "first upload"
+      assert File.ls!(dir) == ["artifact"]
+    end
   end
 end
 
@@ -107,6 +161,19 @@ defmodule Cache.DiskIntegrationTest do
 
     test "returns :ok when project directory does not exist" do
       assert :ok = Disk.delete_project("nonexistent_account", "nonexistent_project")
+    end
+  end
+
+  describe "small uploads" do
+    test "do not replace an artifact another upload already published" do
+      account = unique_account()
+      on_exit(fn -> Disk.delete_project(account, "test_project") end)
+
+      assert :ok = Xcode.Disk.put(account, "test_project", "hash1", "first upload")
+      assert {:error, :exists} = Xcode.Disk.put(account, "test_project", "hash1", "second upload")
+
+      path = Disk.artifact_path(Xcode.Disk.key(account, "test_project", "hash1"))
+      assert File.read!(path) == "first upload"
     end
   end
 end

@@ -1,5 +1,6 @@
 defmodule Cache.XcodeModule.DiskTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import ExUnit.CaptureLog
 
@@ -179,6 +180,18 @@ defmodule Cache.XcodeModule.DiskTest do
                )
 
       assert File.read!(context.destination) == "someone else's upload"
+    end
+
+    test "does not replace an artifact another completion published after the existence check", context do
+      File.write!(context.destination, "the other completion's upload")
+      # What a completion observes when it checked just before the other one published.
+      stub(File, :exists?, fn _path -> false end)
+
+      assert {:error, :exists} =
+               XcodeModule.Disk.complete_assembly(context.assembly, context.upload, [context.part], context.digest)
+
+      assert File.read!(context.destination) == "the other completion's upload"
+      refute File.regular?(context.assembly)
     end
   end
 end

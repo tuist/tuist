@@ -129,11 +129,46 @@ defmodule Cache.CacheArtifactsTest do
 
         assert [
                  {:artifact_accesses, %{^key => _access}},
-                 {:artifact_content_sha256s, %{^key => %{content_sha256: ^digest}}}
+                 {:artifact_content_sha256s, %{^key => %{content_sha256: ^digest}} = content_sha256s}
                ] = CacheArtifactsBuffer.flush_entries(table, 100)
 
+        CacheArtifactsBuffer.write_batch(:artifact_content_sha256s, content_sha256s)
         assert CacheArtifactsBuffer.pending_content_sha256(key, table) == :keep
       end
+    end
+
+    # The row still holds the digest being replaced until the write commits, so a
+    # read in between must keep answering from the queue, a cleared digest included.
+    test "a queued digest stays visible until its row commits, even one that clears it", %{key: key, digest: digest} do
+      table = :"content_digest_in_flight_#{System.unique_integer([:positive])}"
+      :ets.new(table, [:set, :public, :named_table])
+      now = DateTime.utc_now()
+      stored = %{key: key, size_bytes: 8, last_accessed_at: now, content_sha256: digest}
+      CacheArtifactsBuffer.write_batch(:artifact_content_sha256s, %{key => stored})
+
+      :ok = CacheArtifactsBuffer.enqueue_content_sha256(key, 8, now, nil, table)
+      assert [{:artifact_content_sha256s, content_sha256s}] = CacheArtifactsBuffer.flush_entries(table, 100)
+
+      assert CacheArtifactsBuffer.pending_content_sha256(key, table) == {:set, nil}
+
+      CacheArtifactsBuffer.write_batch(:artifact_content_sha256s, content_sha256s)
+      assert CacheArtifactsBuffer.pending_content_sha256(key, table) == :keep
+      assert CacheArtifacts.content_sha256(key) == nil
+    end
+
+    test "a digest recorded while an earlier one is being written survives that write", %{key: key, digest: digest} do
+      table = :"content_digest_rerecorded_#{System.unique_integer([:positive])}"
+      :ets.new(table, [:set, :public, :named_table])
+      now = DateTime.utc_now()
+      newer = String.duplicate("cd", 32)
+
+      :ok = CacheArtifactsBuffer.enqueue_content_sha256(key, 8, now, digest, table)
+      assert [{:artifact_content_sha256s, content_sha256s}] = CacheArtifactsBuffer.flush_entries(table, 100)
+      :ok = CacheArtifactsBuffer.enqueue_content_sha256(key, 8, now, newer, table)
+
+      CacheArtifactsBuffer.write_batch(:artifact_content_sha256s, content_sha256s)
+
+      assert CacheArtifactsBuffer.pending_content_sha256(key, table) == {:set, newer}
     end
 
     test "only a digest write changes the stored digest", %{key: key, digest: digest} do
