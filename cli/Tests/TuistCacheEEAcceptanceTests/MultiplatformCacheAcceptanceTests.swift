@@ -33,13 +33,12 @@ struct MultiplatformCacheAcceptanceTests {
             CacheCommand.self,
             ["--path", fixture.pathString, "--no-upload", "--cache-profile", "only-external", "PhoneConsumer", "MacConsumer"]
         )
-        let warmed = try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect()
-        #expect(warmed.filter { $0.basename == "Shared.xcframework" }.count == 1)
-        #expect(warmed.filter { $0.basename == "Leaf.xcframework" }.count == 1)
-        for artifact in warmed {
-            let coverage = try await TuistCache.BinaryCacheArtifact.coverage(at: artifact)
-            #expect(Set(coverage.keys) == ["ios-device", "ios-simulator", "macos-device"])
-        }
+        let warmed = Set(try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect())
+        #expect(warmed.count == 2)
+        let warmedBlobs = try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()
+        #expect(!warmedBlobs.isEmpty)
+        let actionDirectory = CacheDirectoriesProvider().cacheDirectory().appending(component: "BinaryCacheActions")
+        #expect(try await fileSystem.glob(directory: actionDirectory, include: ["*/result.pb"]).collect().count == 6)
         let workspace = fixture.appending(component: "Workspace.swift")
         try Data("import ProjectDescription\nlet workspace = Workspace(name: \"PlatformCache\", projects: [\"Phone\"])\n".utf8)
             .write(to: workspace.url)
@@ -53,7 +52,14 @@ struct MultiplatformCacheAcceptanceTests {
         try TuistTest.expectLinked("Shared.xcframework", by: "PhoneConsumer", inXcodeProj: project)
         try TuistTest.expectLinked("Leaf.xcframework", by: "PhoneConsumer", inXcodeProj: project)
         let after = try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect()
-        #expect(Set(after) == Set(warmed))
+        let narrowed = Set(after).subtracting(warmed)
+        #expect(narrowed.count == 2)
+        for artifact in narrowed {
+            #expect(try await BinaryCacheArtifact.coverage(at: artifact).keys.sorted() == ["ios-device", "ios-simulator"])
+        }
+        #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()) == Set(warmedBlobs))
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixture.pathString, "--no-open", "PhoneConsumer"])
+        #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect()) == Set(after))
         for destination in ["generic/platform=iOS", "generic/platform=iOS Simulator"] {
             try await TuistTest.run(XcodeBuildBuildCommand.self, [
                 "-workspace", fixture.appending(component: "PlatformCache.xcworkspace").pathString,

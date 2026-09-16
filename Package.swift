@@ -865,7 +865,7 @@ var targets: [Target] = [
         name: "TuistREAPI",
         dependencies: tuistREAPIDependencies,
         path: "cli/Sources/TuistREAPI",
-        exclude: ["capabilities.proto", "AGENTS.md"],
+        exclude: ["capabilities.proto", "cache.proto", "bytestream.proto", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

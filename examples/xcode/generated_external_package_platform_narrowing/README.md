@@ -138,7 +138,7 @@ For older clients, a practical workaround is to warm and generate with the same
 manifest/environment/workspace scope, using positional focus only after loading;
 another is to warm each genuinely different scope.
 
-See [the implemented design](durable-fix.md) for SDK fingerprints that point to a
-single combined XCFramework, compatibility checks, rollout boundaries, and the
-automated acceptance test that rewrites `Workspace.swift`. The validation
+See [the implemented design](durable-fix.md) for per-SDK REAPI actions,
+content-addressed file trees, local XCFramework construction, rollout boundaries,
+and the automated acceptance test that rewrites `Workspace.swift`. The validation
 snapshot above describes the original behavior, before that implementation.

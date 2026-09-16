@@ -1,79 +1,182 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
+import SwiftProtobuf
 import Testing
 import TuistCache
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistREAPI
 import TuistServer
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistCacheEE
 
 struct BinaryCacheStorageTests {
-    @Test(.inTemporaryDirectory) func storesOnePayloadAndReusesItForNarrowerRequests() async throws {
+    private let fingerprints = ["ios-device": "device-inputs", "ios-simulator": "simulator-inputs", "macos-device": "mac-inputs"]
+
+    @Test(.inTemporaryDirectory) func sdkActionsShareBlobsAndNarrowReadersOnlyDownloadTheirSlices() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
-        let storage = PayloadStorage(directory: directory.appending(component: "payloads"))
-        let index = LocalBinaryCacheIndex(directory: directory.appending(component: "index"))
-        let remoteIndex = LocalBinaryCacheIndex(directory: directory.appending(component: "remote-index"))
-        let subject = BinaryCacheStorage(storage: storage, localIndex: index, remoteIndex: remoteIndex)
-        let fingerprints = [
-            "ios-device": String(repeating: "a", count: 32),
-            "ios-simulator": String(repeating: "b", count: 32),
-            "macos-device": String(repeating: "c", count: 32),
-        ]
-        let path = directory.appending(component: "Shared.xcframework")
-        try await makeArtifact(at: path, variants: Set(fingerprints.keys))
-        let original = CacheStorableItem(
-            name: "Shared",
-            hash: "combined-hash",
-            metadata: .init(binaryCacheFingerprints: fingerprints)
-        )
-        #expect(try await subject.store([original: [path]], cacheCategory: .binaries) == [original])
-        #expect(await storage.storedCount == 1)
-        let ios = CacheStorableItem(
-            name: "Shared",
-            hash: "ios-hash",
-            metadata: .init(binaryCacheFingerprints: fingerprints.filter { $0.key != "macos-device" })
-        )
-        let mac = CacheStorableItem(
-            name: "Shared",
-            hash: "mac-hash",
-            metadata: .init(binaryCacheFingerprints: fingerprints.filter { $0.key == "macos-device" })
-        )
-        let reader = BinaryCacheStorage(
-            storage: storage,
-            localIndex: LocalBinaryCacheIndex(directory: directory.appending(component: "empty-reader-index")),
-            remoteIndex: remoteIndex
-        )
-        let fetched = try await reader.fetch([ios, mac], cacheCategory: .binaries)
-        #expect(fetched.count == 2)
-        #expect(Set(fetched.values).count == 1)
-        #expect(await storage.fetchedPayloadCount == 1)
-        let fetchedPath = try #require(fetched.values.first)
-        try await FileSystem().remove(fetchedPath.appending(components: ["ios-device", "Shared.framework", "Shared"]))
-        #expect(try await reader.fetch([ios], cacheCategory: .binaries).isEmpty)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let combined = item("combined", fingerprints)
+        #expect(try await producer.store([combined: [artifact]], cacheCategory: .binaries) == [combined])
+        #expect(await remote.actions.count == 3)
+        let shared = REAPI.digest(Data("shared-resource".utf8))
+        #expect(await remote.uploads[shared] == 1)
+
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        let ios = item("ios", fingerprints.filter { $0.key != "macos-device" })
+        let hits = try await reader.fetch([ios], cacheCategory: .binaries)
+        let path = try #require(hits.values.first)
+        #expect(try await BinaryCacheArtifact.coverage(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
+        #expect(await remote.downloads[shared] == 1)
+        #expect(await remote.downloads[REAPI.digest(Data("macos-device".utf8))] == nil)
+        let count = await remote.downloads
+        #expect(try await reader.fetch([ios], cacheCategory: .binaries).values.first == path)
+        #expect(await remote.downloads == count)
+        #expect(try await reader.fetch([combined], cacheCategory: .binaries).count == 1)
+        #expect(await remote.downloads[shared] == 1)
+        #expect(await remote.downloads[REAPI.digest(Data("macos-device".utf8))] == 1)
     }
 
-    @Test(.inTemporaryDirectory) func incompleteAndStaleProvidersAreMisses() async throws {
+    @Test(.inTemporaryDirectory) func independentlyWarmedSDKsComposeWithoutSubsetRecords() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
-        let storage = PayloadStorage(directory: directory.appending(component: "payloads"))
-        let index = LocalBinaryCacheIndex(directory: directory.appending(component: "index"))
-        let subject = BinaryCacheStorage(storage: storage, localIndex: index)
-        let ios = ["ios-device": String(repeating: "a", count: 32), "ios-simulator": String(repeating: "b", count: 32)]
-        let path = directory.appending(component: "Shared.xcframework")
-        try await makeArtifact(at: path, variants: Set(ios.keys))
-        _ = try await subject.store(
-            [CacheStorableItem(name: "Shared", hash: "ios", metadata: .init(binaryCacheFingerprints: ios)): [path]],
-            cacheCategory: .binaries
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let ios = item("ios", fingerprints.filter { $0.key != "macos-device" })
+        _ = try await producer.store([ios: [artifact]], cacheCategory: .binaries)
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        let combined = item("combined", fingerprints)
+        #expect(try await reader.fetch([combined], cacheCategory: .binaries).isEmpty)
+        let mac = item("mac", fingerprints.filter { $0.key == "macos-device" })
+        _ = try await producer.store([mac: [artifact]], cacheCategory: .binaries)
+        let hits = try await reader.fetch([combined], cacheCategory: .binaries)
+        #expect(hits.count == 1)
+        #expect(await remote.actions.count == 3)
+        #expect(await remote.uploads.values.allSatisfy { $0 == 1 })
+        var changed = fingerprints
+        changed["ios-device"] = "changed-compilation-settings"
+        #expect(try await reader.fetch([item("changed", changed)], cacheCategory: .binaries).isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func missingAndCorruptBlobsAreMisses() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let combined = item("combined", fingerprints)
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([combined: [artifact]], cacheCategory: .binaries)
+        let binary = REAPI.digest(Data("ios-device".utf8))
+        await remote.corrupt(binary)
+        #expect(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([combined], cacheCategory: .binaries).isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func localOnlyCacheRestoresSlicesAndRepairsMissingMaterialization() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let producer = subject(directory.appending(component: "cache"))
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let combined = item("combined", fingerprints)
+        _ = try await producer.store([combined: [artifact]], cacheCategory: .binaries)
+        let path = try #require(try await producer.fetch([combined], cacheCategory: .binaries).values.first)
+        try await FileSystem().remove(path)
+        let freshReader = subject(directory.appending(component: "cache"))
+        #expect(try await freshReader.fetch([combined], cacheCategory: .binaries).values.first == path)
+    }
+
+    @Test(.inTemporaryDirectory) func failedBlobUploadDoesNotPublishActions() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        await remote.failUploads()
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        #expect(try await subject(directory.appending(component: "cache"), remote: remote)
+            .store([item("combined", fingerprints): [artifact]], cacheCategory: .binaries).isEmpty)
+        #expect(await remote.actions.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func preservesSDKSymbolsAndFallsBackForExternalCompanions() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-device"])
+        let symbols = artifact.appending(components: ["ios-device", "dSYMs", "Shared.framework.dSYM"])
+        try await FileSystem().makeDirectory(at: symbols)
+        try Data("debug-symbols".utf8).write(to: symbols.appending(component: "DWARF").url)
+        let plist = artifact.appending(component: "Info.plist").url
+        var info = try #require(PropertyListSerialization
+            .propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
+        var libraries = try #require(info["AvailableLibraries"] as? [[String: Any]])
+        libraries[0]["DebugSymbolsPath"] = "dSYMs"
+        info["AvailableLibraries"] = libraries
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: plist)
+        let target = item("device", ["ios-device": "device-inputs"])
+        let remote = MemoryREAPICache()
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries)
+        let hit = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([target], cacheCategory: .binaries).values.first)
+        #expect(try Data(contentsOf: hit.appending(components: ["ios-device", "dSYMs", "Shared.framework.dSYM", "DWARF"]).url)
+            == Data("debug-symbols".utf8))
+
+        let exact = RecordingExactStorage()
+        let cache = BinaryCacheStorage(storage: exact, local: BinaryCacheLocalStore(
+            directory: directory.appending(component: "fallback"), actionDirectory: directory.appending(component: "actions")
+        ), remote: remote)
+        let companion = directory.appending(component: "Shared.bundle")
+        #expect(try await cache.store([target: [artifact, companion]], cacheCategory: .binaries) == [target])
+        #expect(await exact.stored[target] == [artifact, companion])
+        #expect(await remote.actions.count == 1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func blobAdmissionEvictsOldContentAndProtectsResolvedArtifacts() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1000000"
+        let binaries = directory.appending(component: "Binaries")
+        let provider = MockCacheDirectoriesProviding()
+        given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
+        let local = BinaryCacheLocalStore(
+            directory: binaries, actionDirectory: directory.appending(component: "Actions"),
+            pruner: BinaryCachePruner(cacheDirectoriesProvider: provider)
         )
-        var combined = ios
-        combined["macos-device"] = String(repeating: "c", count: 32)
-        let request = CacheStorableItem(name: "Shared", hash: "combined", metadata: .init(binaryCacheFingerprints: combined))
-        #expect(try await subject.fetch([request], cacheCategory: .binaries).isEmpty)
-        try await FileSystem().remove(directory.appending(component: "payloads"))
-        let stale = CacheStorableItem(name: "Shared", hash: "ios", metadata: .init(binaryCacheFingerprints: ios))
-        #expect(try await subject.fetch([stale], cacheCategory: .binaries).isEmpty)
+        let first = Data(repeating: 1, count: 500_000)
+        let second = Data(repeating: 2, count: 500_000)
+        let firstDigest = REAPI.digest(first)
+        let secondDigest = REAPI.digest(second)
+        let source = directory.appending(component: "source").url
+        try first.write(to: source)
+        try await local.storeBlob(firstDigest, from: source, preserving: [])
+        try second.write(to: source)
+        await #expect(throws: REAPICacheError.self) {
+            try await local.storeBlob(secondDigest, from: source, preserving: [firstDigest.hash])
+        }
+        #expect(try local.blob(firstDigest) != nil)
+        #expect(try local.blob(secondDigest) == nil)
+        try await local.storeBlob(secondDigest, from: source, preserving: [])
+        #expect(try local.blob(firstDigest) == nil)
+        #expect(try local.blob(secondDigest) != nil)
+    }
+
+    private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {
+        BinaryCacheStorage(storage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
+            directory: path.appending(component: "Binaries"), actionDirectory: path.appending(component: "Actions")
+        ), remote: remote)
+    }
+
+    private func item(_ hash: String, _ fingerprints: [String: String]) -> CacheStorableItem {
+        CacheStorableItem(name: "Shared", hash: hash, metadata: .init(binaryCacheFingerprints: fingerprints))
     }
 
     private func makeArtifact(at path: AbsolutePath, variants: Set<String>) async throws {
@@ -81,9 +184,7 @@ struct BinaryCacheStorageTests {
         try await fileSystem.makeDirectory(at: path)
         let libraries = try BinaryCacheVariant.allCases.filter { variants.contains($0.rawValue) }.map { variant in
             XCFrameworkInfoPlist.Library(
-                identifier: variant.rawValue,
-                path: try RelativePath(validating: "Shared.framework"),
-                mergeable: false,
+                identifier: variant.rawValue, path: try RelativePath(validating: "Shared.framework"), mergeable: false,
                 platform: variant == .macos ? .macOS : .iOS,
                 platformVariant: variant == .iosSimulator ? .simulator : variant == .catalyst ? .maccatalyst : nil,
                 architectures: Array(variant.architectures)
@@ -92,90 +193,56 @@ struct BinaryCacheStorageTests {
         for library in libraries {
             let framework = path.appending(component: library.identifier).appending(library.path)
             try await fileSystem.makeDirectory(at: framework)
-            try Data("binary".utf8).write(to: framework.appending(component: "Shared").url)
+            try Data(library.identifier.utf8).write(to: framework.appending(component: "Shared").url)
+            try Data("shared-resource".utf8).write(to: framework.appending(component: "resource").url)
         }
         try await fileSystem.writeAsPlist(XCFrameworkInfoPlist(libraries: libraries), at: path.appending(component: "Info.plist"))
     }
 }
 
-private actor PayloadStorage: CacheStoring {
-    let directory: AbsolutePath
-    var storedCount = 0
-    var fetchedPayloadCount = 0
-    init(directory: AbsolutePath) { self.directory = directory }
+actor MemoryREAPICache: REAPICacheStoring {
+    var actions: [REAPI.Digest: REAPI.ActionResult] = [:]
+    var blobs: [REAPI.Digest: Data] = [:]
+    var uploads: [REAPI.Digest: Int] = [:]
+    var downloads: [REAPI.Digest: Int] = [:]
+    private var fail = false
+    func failUploads() { fail = true }
+    func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data("corrupt".utf8) }
+    func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? { actions[digest] }
+    func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws { actions[digest] = result }
+    func uploadBlobs(_ incoming: [REAPI.Digest: URL]) async throws {
+        if fail { throw REAPICacheError.corruptBlob }
+        for (digest, path) in incoming where blobs[digest] == nil {
+            let data = try Data(contentsOf: path)
+            #expect(REAPI.digest(data) == digest)
+            blobs[digest] = data
+            uploads[digest, default: 0] += 1
+        }
+    }
 
+    func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws {
+        guard let data = blobs[digest] else { throw REAPICacheError.corruptBlob }
+        downloads[digest, default: 0] += 1
+        try data.write(to: path)
+    }
+}
+
+private struct EmptyCacheStorage: CacheStoring {
+    func fetch(_: Set<CacheStorableItem>, cacheCategory _: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] { [:] }
+    func store(
+        _: [CacheStorableItem: [AbsolutePath]],
+        cacheCategory _: RemoteCacheCategory
+    ) async throws -> [CacheStorableItem] { [] }
+}
+
+private actor RecordingExactStorage: CacheStoring {
+    var stored: [CacheStorableItem: [AbsolutePath]] = [:]
+    func fetch(_: Set<CacheStorableItem>, cacheCategory _: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] { [:] }
     func store(
         _ items: [CacheStorableItem: [AbsolutePath]],
         cacheCategory _: RemoteCacheCategory
     ) async throws -> [CacheStorableItem] {
-        for (item, paths) in items {
-            storedCount += 1
-            let folder = directory.appending(component: item.hash)
-            try await FileSystem().makeDirectory(at: folder)
-            for path in paths {
-                try await FileSystem().copy(path, to: folder.appending(component: path.basename))
-            }
-        }
+        stored.merge(items, uniquingKeysWith: { _, new in new })
         return Array(items.keys)
-    }
-
-    func fetch(_ items: Set<CacheStorableItem>, cacheCategory: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] {
-        var result: [CacheItem: AbsolutePath] = [:]
-        for item in items {
-            let path = directory.appending(components: [item.hash, item.name + ".xcframework"])
-            guard try await FileSystem().exists(path) else { continue }
-            fetchedPayloadCount += 1
-            result[CacheItem(name: item.name, hash: item.hash, source: .remote, cacheCategory: cacheCategory)] = path
-        }
-        return result
-    }
-}
-
-struct RemoteBinaryCacheIndexTests {
-    @Test func narrowerPublishDoesNotReplaceTheCombinedLookup() async throws {
-        let service = IndexService()
-        let url = try #require(URL(string: "https://cache.example.com"))
-        let subject = RemoteBinaryCacheIndex(
-            fullHandle: "test/project",
-            cacheURL: url,
-            serverURL: url,
-            authentication: ServerAuthenticationController(),
-            getService: service,
-            putService: service
-        )
-        let ios = String(repeating: "a", count: 32)
-        let mac = String(repeating: "b", count: 32)
-        let combined = BinaryCacheArtifact(
-            name: "Shared", digest: String(repeating: "c", count: 32),
-            fingerprints: ["ios-device": ios, "macos-device": mac],
-            architectures: [:]
-        )
-        let narrow = BinaryCacheArtifact(
-            name: "Shared", digest: String(repeating: "d", count: 32),
-            fingerprints: ["ios-device": ios], architectures: [:]
-        )
-        try await subject.register([combined])
-        try await subject.register([narrow])
-        #expect(try await subject.candidates(for: [BinaryCacheArtifact.lookupKey(for: narrow.fingerprints)]) == [narrow])
-        #expect(try await subject.candidates(for: [BinaryCacheArtifact.lookupKey(for: combined.fingerprints)]) == [combined])
-        #expect(try await subject.candidates(for: [BinaryCacheArtifact.lookupKey(for: ["macos-device": mac])]) == [combined])
-    }
-}
-
-private actor IndexService: GetCacheValueServicing, PutCacheValueServicing {
-    var values: [String: String] = [:]
-
-    func getCacheValue(
-        casId: String, fullHandle _: String, serverURL _: URL, authenticationURL _: URL,
-        serverAuthenticationController _: ServerAuthenticationControlling
-    ) async throws -> KeyValueResponse? {
-        values[casId].map { KeyValueResponse(entries: [KeyValueEntry(value: $0)]) }
-    }
-
-    func putCacheValue(
-        casId: String, entries: [String: String], fullHandle _: String, serverURL _: URL, authenticationURL _: URL,
-        serverAuthenticationController _: ServerAuthenticationControlling
-    ) async throws {
-        values[casId] = entries["value"]
     }
 }

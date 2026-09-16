@@ -712,21 +712,32 @@ struct TuistCacheEEAcceptanceTests {
         .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
     ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let mockedEnvironment = try #require(Environment.mocked)
-        let fileSystem = FileSystem()
-
         try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
-
-        for targetName in ["Services", "Feature"] {
-            let artifact = try #require(
-                try await fileSystem.glob(
-                    directory: mockedEnvironment.cacheDirectory,
-                    include: ["**/\(targetName).xcframework"]
-                ).collect().first
-            )
-            try await fileSystem.remove(artifact.parentDirectory)
+        let environment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let evictedTargets: Set<String> = ["Services", "Feature"]
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob"]).collect()
+        var evictedActions = 0
+        for blob in blobs {
+            guard let inputs = try? JSONSerialization.jsonObject(with: Data(contentsOf: blob.url)) as? [String: String],
+                  let name = inputs["name"], evictedTargets.contains(name),
+                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
+            else { continue }
+            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
+            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
+                "BinaryCacheActions",
+                action.digest.hash,
+            ]))
+            evictedActions += 1
         }
-
+        #expect(evictedActions == 4)
+        for target in evictedTargets {
+            let artifacts = try await fileSystem
+                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
+            for artifact in artifacts {
+                try await fileSystem.remove(artifact.parentDirectory)
+            }
+        }
         try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
 
         TuistTest.expectLogs("Targets to be cached: Feature, Services")

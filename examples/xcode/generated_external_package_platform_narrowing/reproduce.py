@@ -41,15 +41,19 @@ def main():
         TUIST_CONSUMER_SCOPE="combined",
     )
 
-    def run(label, command, cwd=fixture):
+    def run(label, command, cwd=fixture, separate_stderr=False):
         print(label, flush=True)
         with (output / f"{label}.log").open("w") as log:
             result = subprocess.run(
-                command, cwd=cwd, env=environment, stdout=log, stderr=subprocess.STDOUT,
+                command, cwd=cwd, env=environment, stdout=log,
+                stderr=subprocess.PIPE if separate_stderr else subprocess.STDOUT,
             )
         text = (output / f"{label}.log").read_text()
+        diagnostics = (result.stderr or b"").decode(errors="replace")
+        if diagnostics:
+            (output / f"{label}.stderr.log").write_text(diagnostics)
         if result.returncode:
-            raise RuntimeError(f"{label} failed: {text[-6000:]}")
+            raise RuntimeError(f"{label} failed: {text[-6000:]}\n{diagnostics[-2000:]}")
         return text
 
     def tuist(label, *arguments):
@@ -149,7 +153,7 @@ def main():
             data = json.loads(run(f"settings-{scope}-{sdk}", [
                 "xcodebuild", "-showBuildSettings", "-json", "-project", str(project),
                 "-target", "Shared", "-configuration", "Debug", "-sdk", sdk,
-            ]))
+            ], separate_stderr=True))
             effective = next(item["buildSettings"] for item in data if item["target"] == "Shared")
             # Unrelated deployment targets are pruned. Catalyst eligibility does
             # not affect native macOS compilation (NO versus an omitted setting).
@@ -166,7 +170,7 @@ def main():
     artifact_directory = output / "combined-artifacts"
     artifact_directory.mkdir()
     for name, path in combined_artifacts.items():
-        shutil.copytree(path, artifact_directory / f"{name}.xcframework")
+        shutil.copytree(path, artifact_directory / f"{name}.xcframework", symlinks=True)
     environment["TUIST_ARTIFACT_DIRECTORY"] = str(artifact_directory)
     for scope, root, destinations in [
         ("ios", "PhoneConsumer", ["generic/platform=iOS Simulator", "generic/platform=iOS"]),

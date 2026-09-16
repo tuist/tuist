@@ -90,6 +90,17 @@ struct CacheStorageFactoryTests {
     }
 
     @Test
+    func legacyModeKeepsLocalStorageOnExactHashes() async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+            let local = try await subject.cacheLocalStorage()
+            let configured = try await subject.cacheStorage(config: .test(fullHandle: nil))
+            #expect(local is CacheLocalStorage)
+            #expect(configured is CacheStorage)
+        }
+    }
+
+    @Test
     func when_serverURL_configuration_and_valid_tokens_legacy() async throws {
         try await withMockedEnvironment {
             Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
@@ -113,6 +124,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
+            #expect(got is CacheStorage)
             #expect((await payloadStorage(got))?.remoteStorage != nil)
         }
     }
