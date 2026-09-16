@@ -57,6 +57,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
@@ -552,6 +553,7 @@ defmodule Tuist.Tests do
 
       create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
+      create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       Coverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
 
@@ -636,6 +638,38 @@ defmodule Tuist.Tests do
   # Testing recorded an issue while no test was running. The parser lifts both
   # out of the test cases, so they don't create test_case_runs or fan out
   # webhooks; they're stored separately and surfaced as an "Errors" section.
+  # The files the run's commit changed against its merge base, with their
+  # hunks, as the client diffed them. Nothing reads them back in the request,
+  # so they ride the buffer.
+  defp create_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) when is_list(files) do
+    now = NaiveDateTime.utc_now()
+
+    rows =
+      Enum.map(files, fn file ->
+        hunks = Map.get(file, :hunks) || []
+
+        %{
+          project_id: project_id,
+          test_run_id: test_run_id,
+          path: Map.fetch!(file, :path),
+          previous_path: Map.get(file, :previous_path) || "",
+          status: Map.get(file, :status) || "modified",
+          git_blob_id: Map.get(file, :git_blob_id) || "",
+          hunk_starts: Enum.map(hunks, &Map.fetch!(&1, :start)),
+          hunk_ends: Enum.map(hunks, &Map.fetch!(&1, :end)),
+          truncated: Map.get(file, :truncated) || false,
+          inserted_at: now
+        }
+      end)
+
+    case rows do
+      [] -> :ok
+      rows -> TestRunChangedFile.Buffer.insert_all(rows)
+    end
+  end
+
+  defp create_run_changed_files(_test, _files), do: :ok
+
   defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
     now = NaiveDateTime.utc_now()
 

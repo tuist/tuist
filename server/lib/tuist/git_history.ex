@@ -128,10 +128,12 @@ defmodule Tuist.GitHistory do
         end)
       end)
 
-    Repo.transaction(fn ->
-      rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Commit, &1, on_conflict: :nothing))
-      edges |> Enum.chunk_every(1_000) |> Enum.each(&Repo.insert_all(CommitParent, &1, on_conflict: :nothing))
-    end)
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Commit, &1, on_conflict: :nothing))
+        edges |> Enum.chunk_every(1_000) |> Enum.each(&Repo.insert_all(CommitParent, &1, on_conflict: :nothing))
+        :ok
+      end)
 
     :ok
   end
