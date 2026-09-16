@@ -1724,6 +1724,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.config.targetName),
@@ -1737,6 +1738,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "Noora"),
                 ]
             case .userInputReader:
                 [
