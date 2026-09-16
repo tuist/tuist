@@ -2358,7 +2358,7 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
-msgid_plural "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
+msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -2689,7 +2689,7 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.ex:962
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded)."
-msgid_plural "Seen on %{count} consecutive days of measurements (%{bytes} discarded)."
+msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded)."
 msgstr[0] ""
 msgstr[1] ""
 

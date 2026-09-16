@@ -35,18 +35,11 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   # enough to survive the worker itself being down for a day.
   @ingest_lookback_days 2
 
-  # Past the longest policy window no rollup can change a verdict, so there is
-  # nothing to gain from recomputing one. Derived from the policy rather than
+  # No rollup older than the days a verdict reads can change it, so there is
+  # nothing to gain from recomputing one. Asked of the policy rather than
   # restated here, so shortening a window cannot leave this scanning a range
   # nothing reads, nor lengthening one leave it too narrow to feed a verdict.
-  defp refresh_horizon_days do
-    policy = ClaimSizing.default_policy()
-
-    policy.grow_windows
-    |> Enum.map(& &1.window_days)
-    |> Enum.max()
-    |> max(policy.shrink_window_days)
-  end
+  defp refresh_horizon_days, do: ClaimSizing.lookback_days()
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
