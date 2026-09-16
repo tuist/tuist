@@ -37,10 +37,11 @@ assignment upstream if persistence fails.
 - GitLab's `cache:` keyword is backed by `Cache` through
   `RunnerJobCacheController` (`/runners/jobs/cache/*`): a presigned download
   URL, and a multipart upload whose parts are presigned one at a time, so
-  archives are not capped by a single PUT. Take the account, project ID and
-  ref protection from the report token's claims, which `mint_acquisition`
-  copies from the coordinator's `job_info`/`git_info`; never from the request
-  or CI variables. Keep protected and unprotected refs in separate key
+  archives are not capped by a single PUT. Take the account, GitLab instance,
+  project ID and ref protection from the report token's claims, which
+  `mint_acquisition` copies from the job's connection URL and the
+  coordinator's `job_info`/`git_info`; never from the request or CI
+  variables. Keep protected and unprotected refs in separate key
   namespaces for reads and writes. A token without those claims gets 404 and
   the job runs without a remote cache; storage failures are 503 so the
   executor retries.
@@ -48,10 +49,14 @@ assignment upstream if persistence fails.
   Incomplete uploads never appear in object listings, so retention cannot
   reclaim them. Aborting a completed upload is a no-op, so completion does not
   cancel the job.
-- Cache archives live under `runner-gitlab-cache/<account handle>/` through
-  `Storage`, so custom-storage accounts write to their own bucket. Hosted
-  retention lists only that prefix, expires orphaned handles with the Air
-  window, and account deletion purges the prefix.
+- Cache keys are
+  `runner-gitlab-cache/<account id>/<instance digest>/<project id>/<protected|unprotected>/<key>`,
+  written through `Storage` so custom-storage accounts use their own bucket.
+  Never key by handle: a handle freed by a rename can be claimed by another
+  account. Never drop the instance: project IDs are only unique within one
+  GitLab instance, and an account can connect several. Hosted retention lists
+  only that prefix, resolves plans by account ID, expires deleted accounts'
+  archives with the Air window, and account deletion purges the prefix.
 - `infra/linux-runner-image/gitlab-runner/` embeds the upstream shell executor
   for both Linux and macOS. Keep the protocol version aligned with its pinned
   upstream commit. Job scripts, artifact handling, cancellation and masking

@@ -110,6 +110,7 @@ defmodule Tuist.Runners.GitLabTest do
 
       assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
       assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)
+      assert identity.gitlab_instance == Tuist.Runners.GitLab.Cache.instance_id("https://gitlab.com")
       assert identity.gitlab_project_id == 123
       assert identity.ref_protected == protected?
     end

@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnerJobCacheControllerTest do
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.JobReportToken
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Storage
@@ -30,7 +31,7 @@ defmodule TuistWeb.RunnerJobCacheControllerTest do
       account: account,
       job: job,
       token: JobReportToken.mint(job, payload),
-      key: "runner-gitlab-cache/#{account.name}/123/protected/gems"
+      key: "runner-gitlab-cache/#{account.id}/#{Cache.instance_id("https://gitlab.com")}/123/protected/gems"
     }
   end
 
@@ -48,6 +49,40 @@ defmodule TuistWeb.RunnerJobCacheControllerTest do
       |> post("/api/internal/runners/jobs/cache/download", %{"object_name" => "project/123/gems", "expires_in" => 600})
 
     assert json_response(conn, 200) == %{"url" => "https://storage.example.com/#{key}?signature=get"}
+  end
+
+  test "jobs with the same project ID on different GitLab instances get different archives", %{
+    conn: conn,
+    account: account,
+    token: token,
+    key: key
+  } do
+    self_managed =
+      Repo.insert!(%GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 43,
+        project_path: "other/app",
+        pipeline_id: 91
+      })
+
+    self_managed_token =
+      JobReportToken.mint(self_managed, %{"job_info" => %{"project_id" => 123}, "git_info" => %{"protected" => true}})
+
+    stub(Storage, :generate_download_url, fn object_key, _account, _opts ->
+      "https://storage.example.com/#{object_key}"
+    end)
+
+    download = fn conn, token ->
+      conn
+      |> authed(token)
+      |> post("/api/internal/runners/jobs/cache/download", %{"object_name" => "project/123/gems"})
+      |> json_response(200)
+      |> Map.fetch!("url")
+    end
+
+    assert download.(conn, token) == "https://storage.example.com/#{key}"
+    refute download.(build_conn(), self_managed_token) == download.(build_conn(), token)
   end
 
   test "uploads in parts", %{conn: conn, token: token, key: key} do

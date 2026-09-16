@@ -2,6 +2,7 @@ defmodule Tuist.Runners.GitLab.CacheTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Repo
   alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.Workers.AbortGitLabCacheUploadWorker
   alias Tuist.Storage
@@ -9,17 +10,24 @@ defmodule Tuist.Runners.GitLab.CacheTest do
 
   setup do
     %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+    instance = Cache.instance_id("https://gitlab.com")
 
     %{
       account: account,
-      identity: %{account_id: account.id, gitlab_project_id: 123, ref_protected: true},
-      key: "runner-gitlab-cache/#{account.name}/123/protected/gems-protected"
+      instance: instance,
+      identity: %{account_id: account.id, gitlab_instance: instance, gitlab_project_id: 123, ref_protected: true},
+      key: "runner-gitlab-cache/#{account.id}/#{instance}/123/protected/gems-protected"
     }
   end
 
   describe "download_url/3" do
-    test "presigns the account's archive in the job's ref namespace", %{account: account, identity: identity, key: key} do
-      unprotected_key = "runner-gitlab-cache/#{account.name}/123/unprotected/gems-protected"
+    test "presigns the account's archive in the job's ref namespace", %{
+      account: account,
+      instance: instance,
+      identity: identity,
+      key: key
+    } do
+      unprotected_key = "runner-gitlab-cache/#{account.id}/#{instance}/123/unprotected/gems-protected"
 
       expect(Storage, :generate_download_url, 2, fn object_key, actor, opts ->
         assert actor.id == account.id
@@ -57,9 +65,53 @@ defmodule Tuist.Runners.GitLab.CacheTest do
       end
     end
 
-    test "is unavailable to a token minted without a cache scope", %{account: account} do
+    test "is unavailable to a token minted without a cache scope", %{account: account, identity: identity} do
       reject(&Storage.generate_download_url/3)
       assert Cache.download_url(%{account_id: account.id}, "project/123/gems") == {:error, :cache_unavailable}
+
+      assert Cache.download_url(Map.delete(identity, :gitlab_instance), "project/123/gems") ==
+               {:error, :cache_unavailable}
+    end
+
+    test "keys archives by account ID, so a handle freed by a rename does not reach them", %{
+      account: account,
+      identity: identity,
+      key: key
+    } do
+      test_pid = self()
+
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts ->
+        send(test_pid, {:key, object_key})
+        "https://storage.example.com/object"
+      end)
+
+      old_handle = account.name
+      account |> Ecto.Changeset.change(name: "renamed-#{System.unique_integer([:positive])}") |> Repo.update!()
+      %{account: claimant} = AccountsFixtures.organization_fixture(name: old_handle, preload: [:account])
+
+      assert {:ok, _} = Cache.download_url(identity, "project/123/gems-protected")
+      assert_receive {:key, ^key}
+
+      assert {:ok, _} = Cache.download_url(%{identity | account_id: claimant.id}, "project/123/gems-protected")
+      assert_receive {:key, claimant_key}
+      refute claimant_key == key
+    end
+
+    test "projects with the same ID on different GitLab instances do not share archives", %{identity: identity, key: key} do
+      test_pid = self()
+
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts ->
+        send(test_pid, {:key, object_key})
+        "https://storage.example.com/object"
+      end)
+
+      self_managed = %{identity | gitlab_instance: Cache.instance_id("https://gitlab.example.com")}
+
+      assert {:ok, _} = Cache.download_url(identity, "project/123/gems-protected")
+      assert_receive {:key, ^key}
+      assert {:ok, _} = Cache.download_url(self_managed, "project/123/gems-protected")
+      assert_receive {:key, other_key}
+      refute other_key == key
     end
 
     test "refuses to hand out a URL for a private storage host", %{identity: identity} do
@@ -81,6 +133,29 @@ defmodule Tuist.Runners.GitLab.CacheTest do
         assert {:ok, _} = Cache.download_url(identity, "project/123/gems", expires_in: requested)
         assert_receive {:expires_in, ^expected}
       end
+    end
+  end
+
+  describe "instance_id/1" do
+    test "identifies an instance regardless of scheme or host case" do
+      assert Cache.instance_id("https://gitlab.com") == Cache.instance_id("HTTPS://GitLab.COM")
+      assert Cache.instance_id("https://gitlab.com") =~ ~r/\A[0-9a-f]{32}\z/
+    end
+
+    test "distinguishes hosts, ports and relative URL roots" do
+      ids =
+        Enum.map(
+          [
+            "https://gitlab.com",
+            "https://gitlab.example.com",
+            "https://gitlab.example.com:8443",
+            "https://example.com/gitlab",
+            "https://example.com/other"
+          ],
+          &Cache.instance_id/1
+        )
+
+      assert length(Enum.uniq(ids)) == length(ids)
     end
   end
 

@@ -8,10 +8,12 @@ defmodule Tuist.Runners.GitLab.Cache do
   a presigned URL and uploads in parts through presigned part URLs, asking for
   each with its job-scoped report token. It never holds storage credentials.
 
-  The account, GitLab project and ref protection come from the signed token,
-  not from the request. Protected and unprotected refs use separate
-  namespaces for both reads and writes, so a pipeline on an unprotected ref
-  cannot replace an archive that a protected ref restores.
+  The account, GitLab instance, project and ref protection come from the
+  signed token, not from the request. Keys use the account ID, since a handle
+  freed by a rename can be claimed by another account, and the instance,
+  since project IDs are only unique within one. Protected and unprotected
+  refs use separate namespaces for both reads and writes, so a pipeline on an
+  unprotected ref cannot replace an archive that a protected ref restores.
   """
 
   alias Tuist.Accounts
@@ -20,6 +22,7 @@ defmodule Tuist.Runners.GitLab.Cache do
 
   @prefix "runner-gitlab-cache"
   @max_key_bytes 512
+  @instance_pattern ~r/\A[0-9a-f]{32}\z/
   @key_pattern ~r/\A[^\x00-\x1f\x7f\/\\]+\z/u
   @default_expires_in 3 * 60 * 60
   @max_expires_in 12 * 60 * 60
@@ -32,10 +35,26 @@ defmodule Tuist.Runners.GitLab.Cache do
 
   def prefix, do: @prefix
 
-  def account_prefix(%{name: account_handle}), do: "#{@prefix}/#{account_handle}/"
+  def account_prefix(%{id: account_id}), do: "#{@prefix}/#{account_id}/"
 
-  def object_key(account, project_id, protected?, key) do
-    account_prefix(account) <> Enum.join([project_id, namespace(protected?), key], "/")
+  def object_key(account, instance, project_id, protected?, key) do
+    account_prefix(account) <> Enum.join([instance, project_id, namespace(protected?), key], "/")
+  end
+
+  @doc """
+  Identifies the GitLab instance a connection points at. Scheme and host are
+  case-insensitive; port and relative URL root distinguish instances.
+  """
+  def instance_id(url) when is_binary(url) do
+    %URI{scheme: scheme, host: host, port: port, path: path} = URI.parse(url)
+
+    canonical =
+      "#{String.downcase(scheme || "")}://#{String.downcase(host || "")}:#{port}#{String.trim_trailing(path || "", "/")}"
+
+    :sha256
+    |> :crypto.hash(canonical)
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 32)
   end
 
   @doc """
@@ -101,13 +120,20 @@ defmodule Tuist.Runners.GitLab.Cache do
     end
   end
 
-  defp resolve(%{account_id: account_id, gitlab_project_id: project_id, ref_protected: protected?}, object_name)
-       when is_integer(project_id) and is_boolean(protected?) do
-    with {:ok, key} <- cache_key(object_name, project_id) do
+  defp resolve(
+         %{account_id: account_id, gitlab_instance: instance, gitlab_project_id: project_id, ref_protected: protected?},
+         object_name
+       )
+       when is_binary(instance) and is_integer(project_id) and is_boolean(protected?) do
+    with true <- Regex.match?(@instance_pattern, instance),
+         {:ok, key} <- cache_key(object_name, project_id) do
       case Accounts.get_account_by_id(account_id) do
-        {:ok, account} -> {:ok, account, object_key(account, project_id, protected?, key)}
+        {:ok, account} -> {:ok, account, object_key(account, instance, project_id, protected?, key)}
         _ -> {:error, :cache_unavailable}
       end
+    else
+      false -> {:error, :cache_unavailable}
+      error -> error
     end
   end
 

@@ -58,14 +58,13 @@ defmodule Tuist.Storage.BucketArtifactRetention do
   defp maybe_put_storage_provider(opts, storage_provider), do: Keyword.put(opts, :storage_provider, storage_provider)
 
   defp expired_objects(objects, target) do
-    account_handle = Map.get(target, :account_handle, &account_handle/1)
-    plans_by_account_handle = managed_plans_by_account_handle(objects, target, account_handle)
+    plan_for_object = plan_resolver(objects, target)
     retention_artifact_type = Map.fetch!(target, :retention_artifact_type)
     retention_days = Map.get(target, :retention_days)
     orphaned_account_plan = Map.get(target, :orphaned_account_plan)
 
     Enum.filter(objects, fn object ->
-      plan = plan_for_object(account_handle.(object), plans_by_account_handle) || orphaned_account_plan
+      plan = plan_for_object.(object) || orphaned_account_plan
 
       cond do
         plan == :skip ->
@@ -91,10 +90,41 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     end)
   end
 
-  defp managed_plans_by_account_handle(objects, target, account_handle) do
+  # Targets whose keys carry the account ID resolve plans by it; the rest use
+  # the handle that leads the key.
+  defp plan_resolver(objects, %{account_id: account_id} = target) do
+    plans_by_account_id = managed_plans_by_account_id(objects, target, account_id)
+    fn object -> Map.get(plans_by_account_id, account_id.(object)) end
+  end
+
+  defp plan_resolver(objects, target) do
+    plans_by_account_handle = managed_plans_by_account_handle(objects, target)
+    &plan_for_object(&1, plans_by_account_handle)
+  end
+
+  defp managed_plans_by_account_id(objects, target, account_id) do
+    account_ids =
+      objects
+      |> Enum.map(account_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    accounts =
+      Account
+      |> where([account], account.id in ^account_ids)
+      |> Repo.all()
+
+    {skipped_accounts, managed_accounts} = split_custom_storage_accounts(accounts, target)
+
+    managed_accounts
+    |> RetentionPolicy.current_plans()
+    |> Map.merge(Map.new(skipped_accounts, &{&1.id, :skip}))
+  end
+
+  defp managed_plans_by_account_handle(objects, target) do
     account_handles =
       objects
-      |> Enum.map(account_handle)
+      |> Enum.map(&account_handle/1)
       |> Enum.reject(&is_nil/1)
       |> Enum.flat_map(fn account_handle -> [account_handle, normalize_account_handle(account_handle)] end)
       |> Enum.uniq()
@@ -104,12 +134,7 @@ defmodule Tuist.Storage.BucketArtifactRetention do
       |> where([account], account.name in ^account_handles)
       |> Repo.all()
 
-    {skipped_accounts, managed_accounts} =
-      if Map.get(target, :skip_custom_storage_accounts?, false) do
-        Enum.split_with(accounts, &Account.custom_s3_storage_configured?/1)
-      else
-        {[], accounts}
-      end
+    {skipped_accounts, managed_accounts} = split_custom_storage_accounts(accounts, target)
 
     plans_by_account_id = RetentionPolicy.current_plans(managed_accounts)
 
@@ -121,6 +146,14 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     Map.merge(managed_plans, skipped_plans)
   end
 
+  defp split_custom_storage_accounts(accounts, target) do
+    if Map.get(target, :skip_custom_storage_accounts?, false) do
+      Enum.split_with(accounts, &Account.custom_s3_storage_configured?/1)
+    else
+      {[], accounts}
+    end
+  end
+
   defp account_values_by_handle(accounts, value) do
     exact_values = Map.new(accounts, fn account -> {account.name, value.(account)} end)
     normalized_values = Map.new(accounts, fn account -> {normalize_account_handle(account.name), value.(account)} end)
@@ -128,7 +161,9 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     Map.merge(normalized_values, exact_values)
   end
 
-  defp plan_for_object(account_handle, plans_by_account_handle) do
+  defp plan_for_object(object, plans_by_account_handle) do
+    account_handle = account_handle(object)
+
     Map.get(plans_by_account_handle, account_handle) ||
       Map.get(plans_by_account_handle, normalize_account_handle(account_handle))
   end

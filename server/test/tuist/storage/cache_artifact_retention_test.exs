@@ -261,10 +261,12 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
     end
 
-    test "lists only GitLab cache archives in the main bucket and resolves their account" do
-      expired_key = "runner-gitlab-cache/tuist/123/protected/gems"
-      recent_key = "runner-gitlab-cache/tuist/123/unprotected/gems"
-      unrecognized_key = "runner-gitlab-cache/tuist/123/other/gems"
+    test "lists only GitLab cache archives in the main bucket and resolves their account by ID" do
+      instance = String.duplicate("a", 32)
+      expired_key = "runner-gitlab-cache/1/#{instance}/123/protected/gems"
+      recent_key = "runner-gitlab-cache/1/#{instance}/123/unprotected/gems"
+      unrecognized_key = "runner-gitlab-cache/1/#{instance}/123/other/gems"
+      handle_keyed = "runner-gitlab-cache/tuist/123/protected/gems"
 
       expect(Environment, :s3_bucket_name, fn -> "artifacts-bucket" end)
 
@@ -280,7 +282,8 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
              contents: [
                %{key: expired_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
                %{key: recent_key, last_modified: DateTime.add(DateTime.utc_now(), -13, :day)},
-               %{key: unrecognized_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+               %{key: unrecognized_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
+               %{key: handle_keyed, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
              ],
              is_truncated: false
            }
@@ -288,16 +291,38 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       end)
 
       # Without an explicit window an unresolved account is never deleted, so
-      # this fails if the plan is looked up by the key's first segment.
+      # this fails unless the owner resolves by the key's account ID.
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
       expect_delete_objects([expired_key], "artifacts-bucket")
 
       assert CacheArtifactRetention.delete_expired(:gitlab_cache) == {:ok, nil}
     end
 
-    test "expires GitLab cache archives of renamed or deleted accounts" do
-      expired_key = "runner-gitlab-cache/deleted-account/123/protected/gems"
-      recent_key = "runner-gitlab-cache/renamed-account/123/protected/gems"
+    test "keeps GitLab cache archives within a longer plan window" do
+      key = "runner-gitlab-cache/1/#{String.duplicate("a", 32)}/123/protected/gems"
+
+      expect(Environment, :s3_bucket_name, fn -> "artifacts-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "artifacts-bucket", _opts ->
+        {:ok,
+         %{
+           body: %{
+             contents: [%{key: key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}], %{1 => :pro})
+      expect_delete_objects([], "artifacts-bucket")
+
+      assert CacheArtifactRetention.delete_expired(:gitlab_cache) == {:ok, nil}
+    end
+
+    test "expires GitLab cache archives of deleted accounts" do
+      instance = String.duplicate("a", 32)
+      expired_key = "runner-gitlab-cache/404/#{instance}/123/protected/gems"
+      recent_key = "runner-gitlab-cache/404/#{instance}/123/unprotected/gems"
 
       expect(Environment, :s3_bucket_name, fn -> "artifacts-bucket" end)
 
@@ -321,7 +346,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
     end
 
     test "expires GitLab cache archives written before an account configured its own storage" do
-      key = "runner-gitlab-cache/custom-storage-account/123/protected/gems"
+      key = "runner-gitlab-cache/1/#{String.duplicate("a", 32)}/123/protected/gems"
 
       expect(Environment, :s3_bucket_name, fn -> "artifacts-bucket" end)
 

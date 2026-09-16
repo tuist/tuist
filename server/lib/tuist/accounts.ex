@@ -2708,8 +2708,8 @@ defmodule Tuist.Accounts do
       :ok
   end
 
-  # Retention would expire these once the handle no longer resolves, but not
-  # before the window passes. Best-effort, like the cache-master purge.
+  # Retention would expire these once the account ID no longer resolves, but
+  # not before the window passes. Best-effort, like the cache-master purge.
   defp purge_account_gitlab_caches(account) do
     Tuist.Storage.delete_all_objects(GitLabCache.account_prefix(account), account)
     :ok

@@ -4171,7 +4171,7 @@ defmodule Tuist.AccountsTest do
       assert_receive {:purged, "runner-volume-masters/" <> rest}
       assert rest == "#{account.id}/"
       assert_receive {:purged, gitlab_cache_prefix}
-      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.name}/"
+      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
     end
 
     test "a failed cache-master purge does not skip the GitLab cache purge" do
