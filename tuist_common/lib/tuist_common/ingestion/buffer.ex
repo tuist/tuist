@@ -19,11 +19,19 @@ defmodule TuistCommon.Ingestion.Buffer do
   from any host.
   """
 
-  use GenServer
+  # `shutdown: :infinity` lets the supervisor wait as long as the buffer
+  # needs to drain during termination. The outer wall is the pod's
+  # `terminationGracePeriodSeconds`: kubelet enforces it, so we do not
+  # need a hardcoded shutdown budget at the OTP layer. Buffers are the
+  # last children to stop (Oban drains first), so nothing meaningful is
+  # queued behind them.
+  use GenServer, shutdown: :infinity
 
   require Logger
 
   @dropped_event [:tuist_common, :ingestion, :buffer, :dropped]
+  @shutdown_retry_event [:tuist_common, :ingestion, :buffer, :shutdown_retry]
+  @shutdown_retry_delay_ms 1_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
@@ -166,25 +174,52 @@ defmodule TuistCommon.Ingestion.Buffer do
   @impl true
   def terminate(_reason, %{name: name} = state) do
     Logger.notice("Flushing #{name} buffer before shutdown...")
+    drain_until_empty(state)
+  end
 
+  @doc """
+  Telemetry event emitted when a shutdown flush is rejected and
+  buffered bytes are lost. Emitted only on the terminal path where the
+  buffer is confirmed empty or the process observes an unrecoverable
+  drop; kubelet SIGKILLs bypass this and surface via the container
+  event stream instead.
+  """
+  def dropped_event, do: @dropped_event
+
+  @doc """
+  Telemetry event emitted once per shutdown flush retry so a Grafana
+  panel can show the drain tail even when the process is later
+  SIGKILLed before `terminate/2` returns.
+  """
+  def shutdown_retry_event, do: @shutdown_retry_event
+
+  # Loops the shutdown flush until the buffer is empty. The outer wall
+  # is the pod's `terminationGracePeriodSeconds`: kubelet SIGKILLs the
+  # BEAM at that point, so this is not a "hang forever" risk — it
+  # simply lets the buffer use whatever grace the operator has already
+  # promised it. Emits a per-attempt telemetry event so a wedged
+  # ClickHouse at shutdown is still visible when SIGKILL preempts the
+  # terminal dropped-bytes event.
+  defp drain_until_empty(%{buffer: []}), do: :ok
+
+  defp drain_until_empty(state) do
     case do_flush(state) do
       :ok ->
         :ok
 
       {:error, error} ->
-        Logger.error(
-          "Dropping #{state.buffer_size} buffered byte(s) from #{name} during shutdown after ClickHouse rejected the final flush: #{error_message(error)}"
+        :telemetry.execute(@shutdown_retry_event, %{bytes: state.buffer_size}, %{
+          buffer: state.name
+        })
+
+        Logger.warning(
+          "Retrying #{state.name} shutdown flush of #{state.buffer_size} byte(s) after transient failure: #{error_message(error)}"
         )
 
-        :telemetry.execute(@dropped_event, %{bytes: state.buffer_size}, %{buffer: name})
+        Process.sleep(@shutdown_retry_delay_ms)
+        drain_until_empty(state)
     end
   end
-
-  @doc """
-  Telemetry event emitted when a shutdown flush is rejected and
-  buffered bytes are lost.
-  """
-  def dropped_event, do: @dropped_event
 
   defp handle_capacity_pressure(row_binary, state) do
     if state.buffer == [] do
