@@ -94,6 +94,46 @@ struct DownloadModuleCacheServiceTests {
         #expect(server.requests.map(\.range) == [nil, "bytes=100000-", nil])
     }
 
+    /// Each resumed tail is smaller than the bodies verbose logging buffers, so it has to reach resume
+    /// as a stream for the bytes before each drop to be kept.
+    @Test func a_small_tail_that_keeps_dropping_resumes_from_each_drop() async throws {
+        let server = try await LocalArtifactServer(replies: [
+            .init(status: 200, headers: headers(for: artifact), body: artifact.prefix(200_000)),
+            .init(status: 206, headers: headers(for: artifact, from: 200_000), body: artifact.subdata(in: 200_000 ..< 220_000)),
+            .init(status: 206, headers: headers(for: artifact, from: 220_000), body: artifact.subdata(in: 220_000 ..< 240_000)),
+            .init(status: 206, headers: headers(for: artifact, from: 240_000), body: artifact.dropFirst(240_000)),
+        ])
+
+        let data = try await download(from: server)
+
+        #expect(data == artifact)
+        #expect(server.requests.map(\.range) == [nil, "bytes=200000-", "bytes=220000-", "bytes=240000-"])
+    }
+
+    @Test func a_discarded_retryable_response_stops_its_transfer() async throws {
+        let server = try await LocalArtifactServer(replies: [
+            .init(
+                status: 503,
+                headers: ["Content-Type": "application/json", "Content-Length": "100000"],
+                body: Data(repeating: 0x20, count: 1000),
+                stallsAfterBody: true
+            ),
+            .init(status: 200, headers: headers(for: artifact), body: artifact),
+        ])
+        let session = session()
+        defer { session.invalidateAndCancel() }
+
+        let data = try await download(from: server, session: session, admission: TransferAdmission(limit: 4))
+        var closedStalls = server.closedStalls
+        for _ in 0 ..< 50 where closedStalls == 0 {
+            try await Task.sleep(for: .milliseconds(100))
+            closedStalls = server.closedStalls
+        }
+
+        #expect(data == artifact)
+        #expect(closedStalls == 1)
+    }
+
     /// Each transfer below keeps making progress for longer than the inactivity timeout, over a
     /// single connection. A download handed to the session while another holds that connection
     /// would time out in its queue before sending a request.

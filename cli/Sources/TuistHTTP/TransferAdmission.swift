@@ -1,17 +1,25 @@
 import Foundation
+import Synchronization
 
 /// Runs at most `limit` transfers at a time and parks the rest in arrival order. A parked transfer
 /// has no `URLSession` task yet, so its timeouts do not run while it waits.
-public final class TransferAdmission: @unchecked Sendable {
+public final class TransferAdmission: Sendable {
     /// Admits the downloads made on `URLSession.tuistArtifactDownload`.
     public static let artifactDownloads = TransferAdmission(
         limit: tuistURLSessionConfiguration().httpMaximumConnectionsPerHost
     )
 
+    private struct State {
+        var running = 0
+        var waiters: [(id: UUID, continuation: CheckedContinuation<Void, any Error>)] = []
+    }
+
+    private enum Admission {
+        case admitted, parked, cancelled
+    }
+
     private let limit: Int
-    private let lock = NSLock()
-    private var running = 0
-    private var waiters: [(id: UUID, continuation: CheckedContinuation<Void, any Error>)] = []
+    private let state = Mutex(State())
 
     public init(limit: Int) {
         self.limit = max(1, limit)
@@ -34,18 +42,14 @@ public final class TransferAdmission: @unchecked Sendable {
         }
     }
 
-    private enum Admission {
-        case admitted, parked, cancelled
-    }
-
     private func enqueue(id: UUID, continuation: CheckedContinuation<Void, any Error>) {
-        let admission: Admission = lock.withLock {
+        let admission: Admission = state.withLock { state in
             if Task.isCancelled { return .cancelled }
-            if running < limit {
-                running += 1
+            if state.running < limit {
+                state.running += 1
                 return .admitted
             }
-            waiters.append((id, continuation))
+            state.waiters.append((id, continuation))
             return .parked
         }
         switch admission {
@@ -56,20 +60,20 @@ public final class TransferAdmission: @unchecked Sendable {
     }
 
     private func cancel(id: UUID) {
-        let waiter: CheckedContinuation<Void, any Error>? = lock.withLock {
-            guard let index = waiters.firstIndex(where: { $0.id == id }) else { return nil }
-            return waiters.remove(at: index).continuation
+        let waiter: CheckedContinuation<Void, any Error>? = state.withLock { state in
+            guard let index = state.waiters.firstIndex(where: { $0.id == id }) else { return nil }
+            return state.waiters.remove(at: index).continuation
         }
         waiter?.resume(throwing: CancellationError())
     }
 
     private func release() {
-        let next: CheckedContinuation<Void, any Error>? = lock.withLock {
-            guard !waiters.isEmpty else {
-                running -= 1
+        let next: CheckedContinuation<Void, any Error>? = state.withLock { state in
+            guard !state.waiters.isEmpty else {
+                state.running -= 1
                 return nil
             }
-            return waiters.removeFirst().continuation
+            return state.waiters.removeFirst().continuation
         }
         next?.resume()
     }

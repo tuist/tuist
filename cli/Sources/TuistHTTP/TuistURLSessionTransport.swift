@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -78,7 +79,12 @@ public struct TuistURLSessionTransport: ClientTransport {
             session: URLSession
         ) async throws -> (HTTPResponse, HTTPBody?) {
             let task = session.dataTask(with: urlRequest)
-            let delegate = StreamingResponseDelegate()
+            // The returned body owns the stream, so discarding the body cancels the task.
+            let (body, bodyContinuation) = AsyncThrowingStream<ArraySlice<UInt8>, any Error>.makeStream()
+            bodyContinuation.onTermination = { [weak task] termination in
+                if case .cancelled = termination { task?.cancel() }
+            }
+            let delegate = StreamingResponseDelegate(bodyContinuation: bodyContinuation)
             return try await withTaskCancellationHandler {
                 let response = try await withCheckedThrowingContinuation { continuation in
                     delegate.start(task, responseContinuation: continuation)
@@ -95,7 +101,7 @@ public struct TuistURLSessionTransport: ClientTransport {
                 let length: HTTPBody.Length = httpResponse.expectedContentLength > 0
                     ? .known(httpResponse.expectedContentLength)
                     : .unknown
-                return (httpResponseObj, HTTPBody(delegate.body, length: length))
+                return (httpResponseObj, HTTPBody(body, length: length))
             } onCancel: {
                 task.cancel()
             }
@@ -181,24 +187,22 @@ public struct TuistURLSessionTransport: ClientTransport {
 }
 
 #if !canImport(FoundationNetworking)
-    /// Delivers a data task's response when its headers arrive and its body chunk by chunk. A consumer
-    /// that stops reading the body cancels the task.
-    private final class StreamingResponseDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
-        let body: AsyncThrowingStream<ArraySlice<UInt8>, any Error>
-        private let bodyContinuation: AsyncThrowingStream<ArraySlice<UInt8>, any Error>.Continuation
-        private let lock = NSLock()
-        private var responseContinuation: CheckedContinuation<URLResponse, any Error>?
-        private var metricsStored: Task<Void, Never>?
+    /// Delivers a data task's response when its headers arrive and its body chunk by chunk.
+    private final class StreamingResponseDelegate: NSObject, URLSessionDataDelegate, Sendable {
+        private struct State {
+            var responseContinuation: CheckedContinuation<URLResponse, any Error>?
+            var metricsStored: Task<Void, Never>?
+        }
 
-        override init() {
-            (body, bodyContinuation) = AsyncThrowingStream.makeStream()
+        private let bodyContinuation: AsyncThrowingStream<ArraySlice<UInt8>, any Error>.Continuation
+        private let state = Mutex(State())
+
+        init(bodyContinuation: AsyncThrowingStream<ArraySlice<UInt8>, any Error>.Continuation) {
+            self.bodyContinuation = bodyContinuation
         }
 
         func start(_ task: URLSessionDataTask, responseContinuation: CheckedContinuation<URLResponse, any Error>) {
-            lock.withLock { self.responseContinuation = responseContinuation }
-            bodyContinuation.onTermination = { [weak task] termination in
-                if case .cancelled = termination { task?.cancel() }
-            }
+            state.withLock { $0.responseContinuation = responseContinuation }
             task.delegate = self
             task.resume()
         }
@@ -220,7 +224,7 @@ public struct TuistURLSessionTransport: ClientTransport {
         func urlSession(_: URLSession, task _: URLSessionTask, didCompleteWithError error: (any Error)?) {
             takeResponseContinuation()?.resume(throwing: error ?? URLError(.badServerResponse))
             // The body ends only once its metrics are stored, so a reader of the whole body finds them.
-            let metricsStored = lock.withLock { self.metricsStored }
+            let metricsStored = state.withLock { $0.metricsStored }
             Task { [bodyContinuation] in
                 await metricsStored?.value
                 bodyContinuation.finish(throwing: error)
@@ -232,16 +236,15 @@ public struct TuistURLSessionTransport: ClientTransport {
                 guard let transactionMetrics = metrics.transactionMetrics.last,
                       let url = task.originalRequest?.url
                 else { return }
-                lock.withLock {
-                    metricsStored = Task { await URLSessionMetricsDelegate.shared.storeMetrics(transactionMetrics, for: url) }
-                }
+                let metricsStored = Task { await URLSessionMetricsDelegate.shared.storeMetrics(transactionMetrics, for: url) }
+                state.withLock { $0.metricsStored = metricsStored }
             }
         #endif
 
         private func takeResponseContinuation() -> CheckedContinuation<URLResponse, any Error>? {
-            lock.withLock {
-                defer { responseContinuation = nil }
-                return responseContinuation
+            state.withLock { state in
+                defer { state.responseContinuation = nil }
+                return state.responseContinuation
             }
         }
     }

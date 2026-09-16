@@ -100,6 +100,26 @@ struct VerboseLoggingMiddlewareTests {
         #expect(gotResponse.status == response.status)
     }
 
+    @Test func intercept_does_not_read_a_streamed_response_body() async throws {
+        let subject = VerboseLoggingMiddleware(maxBodyBytesToLog: 64)
+        let streamed = HTTPBody(
+            FailingOnIterationBodySequence(),
+            length: .known(5),
+            iterationBehavior: .single
+        )
+
+        let (_, body) = try await subject.intercept(
+            HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/artifact"),
+            body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "download"
+        ) { _, _, _ in
+            (HTTPResponse(status: 200), streamed)
+        }
+
+        #expect(body == streamed)
+    }
+
     @Test func process_logs_complete_body_when_within_size_limit() async throws {
         let subject = VerboseLoggingMiddleware(maxBodyBytesToLog: 5)
         let body = HTTPBody(Data("hello".utf8))

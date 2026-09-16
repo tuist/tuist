@@ -45,7 +45,10 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         """)
 
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
-        let (responseBodyToLog, responseBodyForNext) = try await process(responseBody)
+        // A streamed response is handed on untouched, so a body that fails partway keeps the bytes it delivered.
+        let (responseBodyToLog, responseBodyForNext) = responseBody?.iterationBehavior == .single
+            ? (BodyLog.streamed, responseBody)
+            : try await process(responseBody)
 
         Logger.current.debug("""
         Received HTTP response from \(serviceName):
@@ -66,6 +69,8 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         case redacted
         /// The body was of unknown length.
         case unknownLength
+        /// The body is streamed, so it is passed on without being read.
+        case streamed
         /// The body exceeds the maximum size for logging allowed by the policy.
         case tooManyBytesToLog(Int64)
         /// The body can be logged.
@@ -76,6 +81,7 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
             case .none: return "<none>"
             case .redacted: return "<redacted>"
             case .unknownLength: return "<unknown length>"
+            case .streamed: return "<streamed>"
             case let .tooManyBytesToLog(byteCount): return "<\(byteCount) bytes>"
             case let .complete(data):
                 if let string = String(data: data, encoding: .utf8) { return string }

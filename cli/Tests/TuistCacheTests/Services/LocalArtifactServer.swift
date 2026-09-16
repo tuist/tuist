@@ -7,7 +7,7 @@
     /// A loopback HTTP/1.1 server that answers each request with the next scripted reply over a real
     /// socket, so a body can end partway through the way a dropped or stalled connection does. A body
     /// shorter than its `Content-Length` closes the connection, and a whole one keeps it alive.
-    final class LocalArtifactServer: @unchecked Sendable {
+    final class LocalArtifactServer: Sendable {
         struct Request: Equatable {
             let range: String?
             let ifRange: String?
@@ -25,7 +25,7 @@
 
         private let listener: NWListener
         private let queue = DispatchQueue(label: "dev.tuist.LocalArtifactServer")
-        private let state = Mutex((replies: [Reply](), requests: [Request](), connections: [NWConnection]()))
+        private let state = Mutex((replies: [Reply](), requests: [Request](), connections: [NWConnection](), closedStalls: 0))
 
         init(replies: [Reply]) async throws {
             let parameters = NWParameters.tcp
@@ -63,6 +63,11 @@
 
         var requests: [Request] {
             state.withLock { $0.requests }
+        }
+
+        /// How many stalled replies the client has closed the connection on.
+        var closedStalls: Int {
+            state.withLock { $0.closedStalls }
         }
 
         private func accept(_ connection: NWConnection) {
@@ -105,7 +110,13 @@
 
         private func send(_ reply: Reply, from offset: Int, on connection: NWConnection) {
             guard offset < reply.body.count else {
-                if reply.stallsAfterBody { return }
+                if reply.stallsAfterBody {
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 1) { [weak self] _, _, isComplete, error in
+                        guard isComplete || error != nil else { return }
+                        self?.state.withLock { $0.closedStalls += 1 }
+                    }
+                    return
+                }
                 if reply.headers["Content-Length"].flatMap(Int.init) == reply.body.count {
                     readHead(of: connection, buffered: Data())
                 } else {
