@@ -5,7 +5,8 @@
     import Synchronization
 
     /// A loopback HTTP/1.1 server that answers each request with the next scripted reply over a real
-    /// socket, so a body can end partway through the way a dropped or stalled connection does.
+    /// socket, so a body can end partway through the way a dropped or stalled connection does. A body
+    /// shorter than its `Content-Length` closes the connection, and a whole one keeps it alive.
     final class LocalArtifactServer: @unchecked Sendable {
         struct Request: Equatable {
             let range: String?
@@ -97,14 +98,17 @@
             for (name, value) in reply.headers {
                 responseHead += "\(name): \(value)\r\n"
             }
-            responseHead += "Connection: close\r\n\r\n"
+            responseHead += "\r\n"
             connection.send(content: Data(responseHead.utf8), completion: .contentProcessed { _ in })
             send(reply, from: 0, on: connection)
         }
 
         private func send(_ reply: Reply, from offset: Int, on connection: NWConnection) {
             guard offset < reply.body.count else {
-                if !reply.stallsAfterBody {
+                if reply.stallsAfterBody { return }
+                if reply.headers["Content-Length"].flatMap(Int.init) == reply.body.count {
+                    readHead(of: connection, buffered: Data())
+                } else {
                     connection.send(content: nil, isComplete: true, completion: .contentProcessed { _ in connection.cancel() })
                 }
                 return
