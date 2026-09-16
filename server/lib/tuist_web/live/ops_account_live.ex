@@ -949,7 +949,7 @@ defmodule TuistWeb.OpsAccountLive do
     dngettext(
       "dashboard",
       "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
-      "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       evidence["window_days"],
       bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
       turnover: turnover
@@ -962,7 +962,7 @@ defmodule TuistWeb.OpsAccountLive do
     dngettext(
       "dashboard",
       "Seen on %{count} day of measurements (%{bytes} discarded).",
-      "Seen on %{count} consecutive days of measurements (%{bytes} discarded).",
+      "Seen on %{count} days of measurements (%{bytes} discarded).",
       evidence["window_days"],
       bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0)
     )

@@ -334,24 +334,15 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # A second repair pass, before the parity gate goes back on.
-    #
-    # The gate's last run found five copied tables differing from the system of
-    # record: rows the first repair's gap fill could not see, because it skipped
-    # every row with a NULL column and every newer version of a row the
-    # destination already held. With that fixed, this runs the repair again. The
-    # ledger has September recorded as done up to the first repair's cutoff, so
-    # a later cutoff is what makes September a new chunk to gap-fill. Rows after
-    # it were delivered by the mirror, which has recorded no error, retried or
-    # dropped write since that first cutoff.
-    #
-    # A chunk that would copy rows the destination already holds is recorded as
-    # failed and copies nothing, without failing the deploy.
+    # Step 6a, the full parity gate, is disarmed. Its last run found one copied
+    # table differing from the system of record over the whole dataset:
+    # test_runs, with the same row count on both servers and a different
+    # duration sum. The repair closed every other table. Reads stay where they
+    # are until test_runs is explained.
     migration:
-      enabled: true
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-15T12:00:00Z"
+      enabled: false
+      name: parity
+      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
