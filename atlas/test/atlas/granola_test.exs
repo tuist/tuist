@@ -29,7 +29,7 @@ defmodule Atlas.GranolaTest do
       assert event.title == "Renewal planning"
       assert event.body == "## Renewal\n\n- Maya wants a renewal plan."
       assert event.occurred_at == ~U[2026-05-07 13:30:00Z]
-      assert event.url == "https://library/notes.granola.ai/d/renewal"
+      assert event.url == "https://notes.granola.ai/d/renewal"
       assert event.metadata["summary"] == "Maya wants a renewal plan."
       assert event.metadata["summary_markdown"] == "## Renewal\n\n- Maya wants a renewal plan."
       assert event.metadata["matched_on"] == %{"type" => "primary_domain", "value" => "acme.example"}
@@ -231,7 +231,7 @@ defmodule Atlas.GranolaTest do
       "owner" => %{"name" => "Atlas User", "email" => "owner@tuist.dev"},
       "created_at" => "2026-05-07T13:00:00Z",
       "updated_at" => "2026-05-07T14:00:00Z",
-      "web_url" => "https://library/notes.granola.ai/d/renewal",
+      "web_url" => "https://notes.granola.ai/d/renewal",
       "calendar_event" => %{
         "event_title" => "Renewal planning",
         "organiser" => "owner@tuist.dev",

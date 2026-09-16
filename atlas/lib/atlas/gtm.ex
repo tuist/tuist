@@ -411,7 +411,7 @@ defmodule Atlas.GTM do
 
         # Only draft the sibling revisions when this update is actually promoting the
         # revision to approved. Without the status_changed? guard, editing only the
-        # body/library/notes of an already-approved revision would needlessly re-draft (and
+        # body/notes of an already-approved revision would needlessly re-draft (and
         # bump updated_at on) every other revision.
         if status_changed? and Ecto.Changeset.get_field(changeset, :status) == "approved" do
           draft_other_social_post_revisions(revision.social_channel_idea_id, revision.id)

@@ -88,7 +88,7 @@ defmodule Atlas.Documents.Storage.Local do
     storage_dir =
       :atlas
       |> Application.get_env(:documents, [])
-      |> Keyword.get(:local_storage_path, "tmp/library/documents")
+      |> Keyword.get(:local_storage_path, "tmp/documents")
 
     key
     |> String.split("/", trim: true)

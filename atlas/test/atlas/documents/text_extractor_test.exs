@@ -3,7 +3,7 @@ defmodule Atlas.Documents.TextExtractorTest do
 
   alias Atlas.Documents.TextExtractor
 
-  @sample_xlsx "test/commercial/support/fixtures/sample.xlsx"
+  @sample_xlsx "test/support/fixtures/sample.xlsx"
 
   describe "extract_pages/3 for xlsx" do
     test "renders a per-sheet outline covering names, columns, and sample rows" do

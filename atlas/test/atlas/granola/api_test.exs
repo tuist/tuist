@@ -7,7 +7,7 @@ defmodule Atlas.Granola.APITest do
   describe "list_notes/1" do
     test "fetches paginated notes" do
       request = fn %Req.Request{} = request ->
-        assert URI.to_string(request.url) == "https://granola.example/v1/library/notes"
+        assert URI.to_string(request.url) == "https://granola.example/v1/notes"
         assert request.options.auth == {:bearer, "grn_test"}
         assert request.options.receive_timeout == 12_000
         assert request.headers["accept"] == ["application/json"]
@@ -73,7 +73,7 @@ defmodule Atlas.Granola.APITest do
   describe "get_note/2" do
     test "fetches and normalizes a note" do
       request = fn %Req.Request{} = request ->
-        assert URI.to_string(request.url) == "https://granola.example/v1/library/notes/not_detail"
+        assert URI.to_string(request.url) == "https://granola.example/v1/notes/not_detail"
         assert request.options.params[:include] == "transcript"
 
         {:ok,
@@ -86,7 +86,7 @@ defmodule Atlas.Granola.APITest do
              "owner" => %{"name" => "Atlas User", "email" => "owner@tuist.dev"},
              "created_at" => "2026-05-07T13:00:00Z",
              "updated_at" => "2026-05-07T14:00:00Z",
-             "web_url" => "https://library/notes.granola.ai/d/detail",
+             "web_url" => "https://notes.granola.ai/d/detail",
              "calendar_event" => %{
                "event_title" => "Renewal planning",
                "organiser" => "owner@tuist.dev",

@@ -35,7 +35,7 @@ defmodule Atlas.MCP.Tools.LetterToolsTest do
 
     assert letter.status == "awaiting_signature"
     refute letter.confirmed_at
-    assert letter.document_url =~ "/library/documents/"
+    assert letter.document_url =~ "/documents/"
 
     assert {:ok, %{letters: [listed]}} =
              execute_tool(ListAccountLetters, conn, %{"account_id" => account.id})
@@ -81,7 +81,7 @@ defmodule Atlas.MCP.Tools.LetterToolsTest do
              })
 
     assert signed.status == "collecting_delivery_details"
-    assert signed.signed_document_url =~ "/library/documents/"
+    assert signed.signed_document_url =~ "/documents/"
 
     assert {:ok, ready} = Letters.prepare_delivery_details(signed.id)
     assert ready.status == "awaiting_delivery_confirmation"
@@ -159,7 +159,7 @@ defmodule Atlas.MCP.Tools.LetterToolsTest do
 
     assert uploaded.kind == "uploaded_letter"
     assert uploaded.status == "collecting_delivery_details"
-    assert uploaded.document_url =~ "/library/documents/"
+    assert uploaded.document_url =~ "/documents/"
   end
 
   test "rejects incomplete forms and non-executive letter access" do
