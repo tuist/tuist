@@ -1,10 +1,8 @@
 import Foundation
-import Path
 import TuistAutomation
 import TuistConfig
 import TuistCore
 import TuistDependencies
-import TuistEnvironment
 import TuistGenerator
 import TuistLoader
 import TuistServer
@@ -111,26 +109,9 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(XcodeCacheSettingsProjectMapper(
             tuist: tuist,
             kuraEnabled: ClientFeatureFlags.contains("kura"),
-            casPluginCandidates: casPluginCandidates()
+            casPluginCandidates: ResourceLocator.casPluginCandidates()
         ))
 
         return mappers
-    }
-
-    /// Candidate locations for the bundled CAS plugin dylib, relative to the
-    /// executable, or the `TUIST_CAS_PLUGIN_PATH` override when set. Pure path
-    /// math (no I/O): the mapper existence-checks these in its async `map`,
-    /// picking the first present. Mirrors `ResourceLocator.casPlugin()`.
-    private func casPluginCandidates() -> [AbsolutePath] {
-        if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
-            return (try? AbsolutePath(validating: override)).map { [$0] } ?? []
-        }
-        guard let bundlePath = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
-        else { return [] }
-        return [
-            bundlePath,
-            bundlePath.parentDirectory,
-            bundlePath.parentDirectory.appending(component: "lib"),
-        ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
     }
 }

@@ -55,18 +55,24 @@ public struct ResourceLocator: ResourceLocating {
     }
 
     public func casPlugin() async throws -> AbsolutePath? {
+        try await Self.casPluginCandidates().concurrentFilter { try await fileSystem.exists($0) }.first
+    }
+
+    /// Where `libtuist_cas_plugin.dylib` can be, in order of preference: the
+    /// `TUIST_CAS_PLUGIN_PATH` override when set, otherwise next to `tuist`, where
+    /// the release bundle ships it (see mise/tasks/cli/bundle.sh). Pure path math,
+    /// so synchronous callers can hand these to code that checks them later.
+    public static func casPluginCandidates() -> [AbsolutePath] {
         if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
-            let path = try AbsolutePath(validating: override)
-            return try await fileSystem.exists(path) ? path : nil
+            return (try? AbsolutePath(validating: override)).map { [$0] } ?? []
         }
-        // Shipped in the release bundle next to `tuist` (see mise/tasks/cli/bundle.sh).
-        let bundlePath = try AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
-        let candidates = [
+        guard let bundlePath = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
+        else { return [] }
+        return [
             bundlePath,
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
         ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
-        return try await candidates.concurrentFilter { try await fileSystem.exists($0) }.first
     }
 
     public func casProxy() async throws -> AbsolutePath? {

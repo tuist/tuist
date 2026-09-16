@@ -162,6 +162,12 @@ struct SetupCacheCommandServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let plugin = environment.homeDirectory
+            .appending(components: ".local", "share", "mise", "installs", "tuist", "libtuist_cas_plugin.dylib")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+        try await fileSystem.writeText("plugin", at: plugin)
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = plugin.pathString
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -178,7 +184,42 @@ struct SetupCacheCommandServiceTests {
             .called(1)
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
-        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=")
+        TuistTest.expectLogs(
+            "COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/share/mise/installs/tuist/libtuist_cas_plugin.dylib\n"
+        )
+        TuistTest.expectLogs(
+            "`COMPILATION_CACHE_PLUGIN_PATH` points into this Tuist installation, so it can change when you update Tuist."
+        )
+        TuistTest.doesntExpectLogs("<path to libtuist_cas_plugin.dylib>")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func setupCache_withNonTuistProject_withoutThePlugin() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = temporaryDirectory
+            .appending(component: "libtuist_cas_plugin.dylib").pathString
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>")
+        TuistTest.expectLogs(
+            "The CAS plugin (libtuist_cas_plugin.dylib) was not found next to `tuist`, so the path above is a placeholder."
+        )
     }
 
     /// On Xcode 27+ the manual instructions must also mention the prefix-mapping

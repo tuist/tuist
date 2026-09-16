@@ -55,12 +55,19 @@ The settings include:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
-COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/your_org_your_project.sock
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
+COMPILATION_CACHE_PLUGIN_PATH = /path/to/libtuist_cas_plugin.dylib
+COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
+OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
+Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
+
+> [!NOTE]
+> **Plugin Path**
+>
+> `COMPILATION_CACHE_PLUGIN_PATH` points at `libtuist_cas_plugin.dylib`, the compilation cache plugin that ships with Tuist next to the `tuist` executable. `tuist setup cache` finds it and prints its path, starting with `$HOME` when Tuist is installed in your home directory. The path belongs to the Tuist installation that ran the command, so run `tuist setup cache` again after updating Tuist and update the setting if the path changed.
 
 > [!NOTE]
 > **Socket Path**
@@ -78,9 +85,11 @@ You can also specify these settings when running `xcodebuild` by adding the foll
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
-    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/your_org_your_project.sock \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+    COMPILATION_CACHE_PLUGIN_PATH=/path/to/libtuist_cas_plugin.dylib \
+    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+    'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
 ```
 
 > [!NOTE]
