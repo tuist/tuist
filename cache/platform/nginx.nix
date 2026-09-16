@@ -323,6 +323,7 @@
             default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
             add_header Content-Version $registry_content_version;
+            add_header tuist-checksum-sha256 $upstream_http_x_amz_meta_tuist_checksum_sha256 always;
           '';
         };
       };

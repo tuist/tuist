@@ -13,10 +13,12 @@ defmodule CacheWeb.GradleController do
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
+  alias Cache.ContentDigest
   alias Cache.Disk
   alias Cache.Gradle
   alias Cache.S3
   alias Cache.S3Transfers
+  alias CacheWeb.API.ContentDigestSpec
   alias CacheWeb.API.Schemas.Error
   alias CacheWeb.API.Schemas.SafePathComponent
 
@@ -72,7 +74,11 @@ defmodule CacheWeb.GradleController do
       ]
     ],
     responses: %{
-      ok: {"Artifact content", "application/octet-stream", nil},
+      ok: %OpenApiSpex.Response{
+        description: "Artifact content",
+        headers: %{"tuist-checksum-sha256" => ContentDigestSpec.response_header()},
+        content: %{"application/octet-stream" => %OpenApiSpex.MediaType{}}
+      },
       not_found: {"Artifact not found", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
@@ -95,6 +101,8 @@ defmodule CacheWeb.GradleController do
           account_handle: account_handle,
           project_handle: project_handle
         })
+
+        conn = ContentDigest.put_header(conn, CacheArtifacts.content_sha256(key))
 
         # In dev mode (MIX_ENV=dev), serve file directly since there's no nginx
         # In production, use X-Accel-Redirect for efficient file serving via nginx
@@ -167,19 +175,22 @@ defmodule CacheWeb.GradleController do
           "Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes " <>
             "received against this value to reject truncated uploads, so chunked transfer " <>
             "encoding (no Content-Length) is not accepted on this endpoint."
-      ]
+      ],
+      "tuist-checksum-sha256": ContentDigestSpec.request_parameter()
     ],
     request_body: {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       ok: {"Upload successful (artifact existed)", nil, nil},
       created: {"Upload successful (new artifact)", nil, nil},
       bad_request:
-        {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
+        {"Request body was truncated before reaching the declared Content-Length, or the declared tuist-checksum-sha256 is malformed",
+         "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
       unprocessable_entity:
-        {"Invalid or missing request parameters (e.g., missing Content-Length header)", "application/json", Error},
+        {"Invalid or missing request parameters (e.g., missing Content-Length header), or a body that does not match its declared tuist-checksum-sha256",
+         "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
@@ -202,10 +213,19 @@ defmodule CacheWeb.GradleController do
   # keeps the enforcement in a single place — the spec — and guarantees the
   # validation pattern matches the generated OpenAPI documentation.
   def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
-    if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
-      handle_existing_artifact(conn)
-    else
-      save_new_artifact(conn, account_handle, project_handle, cache_key)
+    case ContentDigest.declared(conn) do
+      {:ok, checksum_sha256} ->
+        # An existing artifact is another upload's, stored with its own digest,
+        # so the body is drained without being checked against this one.
+        if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
+          handle_existing_artifact(conn)
+        else
+          save_new_artifact(conn, account_handle, project_handle, cache_key, checksum_sha256)
+        end
+
+      {:error, :invalid_checksum} ->
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :invalid_checksum})
+        send_error(conn, :bad_request, "#{ContentDigest.header()} must be 64 hex characters")
     end
   end
 
@@ -218,12 +238,12 @@ defmodule CacheWeb.GradleController do
     end
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, cache_key) do
+  defp save_new_artifact(conn, account_handle, project_handle, cache_key, checksum_sha256) do
     with {:ok, target_dir} <- Gradle.Disk.ensure_artifact_directory(account_handle, project_handle, cache_key),
          {:ok, data, conn_after} <- BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
       size = data_size(data)
       :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
-      persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size)
+      verify_and_persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size, checksum_sha256)
     else
       {:error, :too_large, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :too_large})
@@ -257,7 +277,25 @@ defmodule CacheWeb.GradleController do
     end
   end
 
-  defp persist_artifact(conn, account_handle, project_handle, cache_key, data, size) do
+  defp verify_and_persist_artifact(conn, account_handle, project_handle, cache_key, data, size, checksum_sha256) do
+    case ContentDigest.verify(data, checksum_sha256) do
+      :ok ->
+        persist_artifact(conn, account_handle, project_handle, cache_key, data, size, checksum_sha256)
+
+      {:error, {:checksum_mismatch, expected, actual}} ->
+        cleanup_tmp_file(data)
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :checksum_mismatch})
+        send_error(conn, :unprocessable_entity, ContentDigest.mismatch_message(expected, actual))
+
+      {:error, reason} ->
+        Logger.error("Failed to hash Gradle artifact upload: #{inspect(reason)}")
+        cleanup_tmp_file(data)
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :persist_error})
+        send_error(conn, :internal_server_error, "Failed to persist artifact")
+    end
+  end
+
+  defp persist_artifact(conn, account_handle, project_handle, cache_key, data, size, checksum_sha256) do
     case Gradle.Disk.put(account_handle, project_handle, cache_key, data) do
       :ok ->
         :telemetry.execute([:cache, :gradle, :upload, :success], %{size: size}, %{
@@ -267,7 +305,7 @@ defmodule CacheWeb.GradleController do
         })
 
         key = Gradle.Disk.key(account_handle, project_handle, cache_key)
-        :ok = CacheArtifacts.track_artifact_access(key)
+        :ok = CacheArtifacts.record_content_sha256(key, checksum_sha256)
         S3Transfers.enqueue_upload_if_missing(account_handle, project_handle, :gradle, key)
         send_resp(conn, :created, "")
 

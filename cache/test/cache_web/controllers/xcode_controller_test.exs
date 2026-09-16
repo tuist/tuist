@@ -92,7 +92,7 @@ defmodule CacheWeb.XcodeControllerTest do
       end)
 
       stub(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
-      expect(CacheArtifacts, :track_artifact_access, fn ^key -> :ok end)
+      expect(CacheArtifacts, :record_content_sha256, fn ^key, nil -> :ok end)
       reject(S3Transfers, :enqueue_upload_if_missing, 4)
 
       Xcode.Disk
@@ -671,4 +671,140 @@ defmodule CacheWeb.XcodeControllerTest do
       assert response["message"] == "Missing Authorization header"
     end
   end
+
+  describe "tuist-checksum-sha256" do
+    setup do
+      stub(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+
+      stub(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      test_pid = self()
+
+      stub(CacheArtifacts, :record_content_sha256, fn key, digest ->
+        send(test_pid, {:recorded, key, digest})
+        :ok
+      end)
+
+      :ok
+    end
+
+    test "stores the digest an upload declares when the body matches it", %{conn: conn} do
+      body = "test artifact content"
+      digest = sha256(body)
+
+      Xcode.Disk
+      |> expect(:exists?, fn "test-account", "test-project", "abc123" -> false end)
+      |> expect(:put, fn "test-account", "test-project", "abc123", ^body -> :ok end)
+
+      conn = save_artifact(conn, body, digest)
+
+      assert conn.status == 204
+      assert_received {:recorded, "test-account/test-project/xcode/ab/c1/abc123", ^digest}
+    end
+
+    test "clears the recorded digest when an upload declares none", %{conn: conn} do
+      body = "test artifact content"
+
+      Xcode.Disk
+      |> expect(:exists?, fn "test-account", "test-project", "abc123" -> false end)
+      |> expect(:put, fn "test-account", "test-project", "abc123", ^body -> :ok end)
+
+      conn = save_artifact(conn, body, nil)
+
+      assert conn.status == 204
+      assert_received {:recorded, "test-account/test-project/xcode/ab/c1/abc123", nil}
+    end
+
+    test "refuses a body that does not match its declared digest without persisting it", %{conn: conn} do
+      expect(Xcode.Disk, :exists?, fn "test-account", "test-project", "abc123" -> false end)
+      reject(&Xcode.Disk.put/4)
+
+      conn = save_artifact(conn, "test artifact content", sha256("other content"))
+
+      assert json_response(conn, 422)["message"] =~ "does not match tuist-checksum-sha256"
+      refute_received {:recorded, _key, _digest}
+    end
+
+    test "removes a large body streamed to disk when it does not match its declared digest", %{
+      conn: conn,
+      test_storage_dir: test_storage_dir
+    } do
+      large_body = :binary.copy("0123456789abcdef", 150_000)
+      expect(Xcode.Disk, :exists?, fn "test-account", "test-project", "abc123" -> false end)
+      reject(&Xcode.Disk.put/4)
+
+      conn =
+        conn
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
+        |> save_artifact(large_body, sha256("other content"))
+
+      assert json_response(conn, 422)["message"] =~ "does not match tuist-checksum-sha256"
+      assert Path.wildcard(Path.join(test_storage_dir, "**/.cache-upload-*"), match_dot: true) == []
+    end
+
+    test "rejects a malformed declared digest before reading the body", %{conn: conn} do
+      reject(&Xcode.Disk.exists?/3)
+      reject(&Xcode.Disk.put/4)
+
+      conn = save_artifact(conn, "test artifact content", "not-a-digest")
+
+      assert json_response(conn, 400)["message"] == "tuist-checksum-sha256 must be 64 hex characters"
+    end
+
+    test "does not check an upload against its digest when the artifact already exists", %{conn: conn} do
+      expect(Xcode.Disk, :exists?, fn "test-account", "test-project", "abc123" -> true end)
+      reject(&Xcode.Disk.put/4)
+
+      conn = save_artifact(conn, "test artifact content", sha256("other content"))
+
+      assert conn.status == 204
+    end
+
+    test "serves the recorded digest with a local file", %{conn: conn} do
+      digest = sha256("test artifact content")
+      stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
+      stub(CacheArtifacts, :content_sha256, fn "test-account/test-project/xcode/ab/c1/abc123" -> digest end)
+
+      expect(Xcode.Disk, :stat, fn "test-account", "test-project", "abc123" ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
+      end)
+
+      conn = download_artifact(conn)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "tuist-checksum-sha256") == [digest]
+    end
+
+    test "serves no digest with a local file that has none", %{conn: conn} do
+      stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
+      stub(CacheArtifacts, :content_sha256, fn _key -> nil end)
+
+      expect(Xcode.Disk, :stat, fn "test-account", "test-project", "abc123" ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
+      end)
+
+      conn = download_artifact(conn)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "tuist-checksum-sha256") == []
+    end
+  end
+
+  defp save_artifact(conn, body, checksum_sha256) do
+    conn
+    |> put_req_header("authorization", "Bearer valid-token")
+    |> put_req_header("content-type", "application/octet-stream")
+    |> then(&if(checksum_sha256, do: put_req_header(&1, "tuist-checksum-sha256", checksum_sha256), else: &1))
+    |> post("/api/cache/cas/abc123?account_handle=test-account&project_handle=test-project", body)
+  end
+
+  defp download_artifact(conn) do
+    conn
+    |> put_req_header("authorization", "Bearer valid-token")
+    |> get("/api/cache/cas/abc123?account_handle=test-account&project_handle=test-project")
+  end
+
+  defp sha256(data), do: :sha256 |> :crypto.hash(data) |> Base.encode16(case: :lower)
 end

@@ -4,10 +4,12 @@ defmodule CacheWeb.XcodeModuleController do
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
+  alias Cache.ContentDigest
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
   alias Cache.XcodeModule.Disk
+  alias CacheWeb.API.ContentDigestSpec
   alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
   alias CacheWeb.API.Schemas.Error
   alias CacheWeb.API.Schemas.SafePathComponent
@@ -69,11 +71,7 @@ defmodule CacheWeb.XcodeModuleController do
   # The uploader's declared digest of the whole artifact, when it declared one.
   # Present on full and partial responses alike, so a client that resumed can
   # check the body it reassembled. Absent means the client skips the check.
-  @checksum_header %OpenApiSpex.Header{
-    description:
-      "Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.",
-    schema: %OpenApiSpex.Schema{type: :string}
-  }
+  @checksum_header ContentDigestSpec.response_header()
 
   @artifact_content %OpenApiSpex.Response{
     description: "Artifact content",
@@ -192,7 +190,7 @@ defmodule CacheWeb.XcodeModuleController do
         })
 
         conn
-        |> put_checksum_header(CacheArtifacts.content_sha256(key))
+        |> ContentDigest.put_header(CacheArtifacts.content_sha256(key))
         |> put_resp_header("x-accel-redirect", local_path)
         |> send_resp(:ok, "")
 
@@ -685,24 +683,8 @@ defmodule CacheWeb.XcodeModuleController do
   end
 
   defp declared_checksum_sha256(body_params) do
-    case Map.get(body_params, :checksum_sha256) || Map.get(body_params, "checksum_sha256") do
-      nil ->
-        {:ok, nil}
-
-      value when is_binary(value) ->
-        normalized = String.downcase(value)
-
-        if Regex.match?(~r/\A[0-9a-f]{64}\z/, normalized),
-          do: {:ok, normalized},
-          else: {:error, :invalid_checksum}
-
-      _ ->
-        {:error, :invalid_checksum}
-    end
+    ContentDigest.normalize(Map.get(body_params, :checksum_sha256) || Map.get(body_params, "checksum_sha256"))
   end
-
-  defp put_checksum_header(conn, nil), do: conn
-  defp put_checksum_header(conn, content_sha256), do: put_resp_header(conn, "tuist-checksum-sha256", content_sha256)
 
   defp cleanup_failed_completion(upload) do
     File.rm(upload.assembly_path)
