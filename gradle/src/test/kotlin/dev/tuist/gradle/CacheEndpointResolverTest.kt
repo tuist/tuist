@@ -63,14 +63,62 @@ class CacheEndpointResolverTest {
     }
 
     @Test
-    fun `no endpoints while the cache is being prepared throws CacheEndpointBeingPreparedException`() {
+    fun `no endpoints after waiting for the cache being prepared throws CacheEndpointBeingPreparedException`() {
+        var sleeps = 0
         assertFailsWith<CacheEndpointBeingPreparedException> {
             CacheEndpointResolver.resolve(
                 serverURL, accountHandle, stubTokenProvider,
                 envProvider = { null },
-                getCacheEndpointsService = stubService(emptyList(), provisioning = true)
+                getCacheEndpointsService = stubService(emptyList(), provisioning = true),
+                provisioningWaitMs = 3_000,
+                provisioningPollIntervalMs = 1_000,
+                sleeper = { sleeps++ }
             )
         }
+        assertEquals(3, sleeps)
+    }
+
+    @Test
+    fun `waits for an endpoint the server is preparing`() {
+        var calls = 0
+        val service = object : GetCacheEndpointsService() {
+            override fun getCacheEndpoints(
+                serverURL: URI,
+                accountHandle: String,
+                tokenProvider: TokenProvider
+            ): CacheEndpoints {
+                calls++
+                return if (calls < 3) {
+                    CacheEndpoints(endpoints = emptyList(), provisioning = true)
+                } else {
+                    CacheEndpoints(endpoints = listOf("https://acme-us-east-1.kura.tuist.dev"), provisioning = false)
+                }
+            }
+        }
+
+        val result = CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = { null },
+            getCacheEndpointsService = service,
+            sleeper = { }
+        )
+
+        assertEquals("https://acme-us-east-1.kura.tuist.dev", result)
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun `does not wait when the server is not preparing an endpoint`() {
+        var sleeps = 0
+        assertFailsWith<NoCacheEndpointsException> {
+            CacheEndpointResolver.resolve(
+                serverURL, accountHandle, stubTokenProvider,
+                envProvider = { null },
+                getCacheEndpointsService = stubService(emptyList(), provisioning = false),
+                sleeper = { sleeps++ }
+            )
+        }
+        assertEquals(0, sleeps)
     }
 
     @Test

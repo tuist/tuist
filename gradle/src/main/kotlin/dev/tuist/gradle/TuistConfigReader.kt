@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.OkHttpClient
+import org.gradle.api.logging.Logging
 import okhttp3.Request
 import java.io.File
 import java.net.URI
@@ -46,7 +47,7 @@ class NoCacheEndpointsException(accountHandle: String) : RuntimeException(
 )
 
 class CacheEndpointBeingPreparedException(accountHandle: String) : RuntimeException(
-    "The remote cache for account '$accountHandle' is being prepared. " +
+    "The remote cache for account '$accountHandle' is still being prepared. " +
         "This build uses the local cache, and the remote cache is used as soon as it is ready."
 )
 
@@ -56,6 +57,14 @@ class CacheEndpointsUnreachableException(endpoints: List<String>) : RuntimeExcep
 )
 
 object CacheEndpointResolver {
+    /**
+     * How long resolution waits for a cache instance the server is preparing. An account's instance
+     * is prepared on demand, typically in seconds, so waiting beats running the build without it.
+     */
+    private const val PROVISIONING_WAIT_MS = 30_000L
+    private const val PROVISIONING_POLL_INTERVAL_MS = 1_000L
+
+    private val logger = Logging.getLogger(CacheEndpointResolver::class.java)
 
     fun resolve(
         serverURL: URI,
@@ -63,18 +72,37 @@ object CacheEndpointResolver {
         tokenProvider: TokenProvider,
         envProvider: (String) -> String? = { System.getenv(it) },
         httpClients: TuistHttpClients = TuistHttpClients(),
-        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients)
+        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients),
+        provisioningWaitMs: Long = PROVISIONING_WAIT_MS,
+        provisioningPollIntervalMs: Long = PROVISIONING_POLL_INTERVAL_MS,
+        sleeper: (Long) -> Unit = { Thread.sleep(it) }
     ): String {
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
             return envEndpoint
         }
 
-        val resolution = getCacheEndpointsService.getCacheEndpoints(
-            serverURL = serverURL,
-            accountHandle = accountHandle,
-            tokenProvider = tokenProvider
-        )
+        val fetch = {
+            getCacheEndpointsService.getCacheEndpoints(
+                serverURL = serverURL,
+                accountHandle = accountHandle,
+                tokenProvider = tokenProvider
+            )
+        }
+        var resolution = fetch()
+        val beingPrepared = { resolution.endpoints.isEmpty() && resolution.provisioning == true }
+        if (beingPrepared() && provisioningWaitMs > 0 && provisioningPollIntervalMs > 0) {
+            logger.lifecycle(
+                "Tuist: The remote cache for account '$accountHandle' is being prepared. " +
+                    "Waiting up to ${provisioningWaitMs / 1_000} seconds for it to be ready."
+            )
+            var waitedMs = 0L
+            while (beingPrepared() && waitedMs < provisioningWaitMs) {
+                sleeper(provisioningPollIntervalMs)
+                waitedMs += provisioningPollIntervalMs
+                resolution = fetch()
+            }
+        }
         val endpoints = resolution.endpoints
 
         if (endpoints.isEmpty()) {
