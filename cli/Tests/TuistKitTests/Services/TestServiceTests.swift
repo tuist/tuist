@@ -7070,6 +7070,30 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_warns_without_failing_when_test_hashes_fail_to_upload() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+        fixture.cacheStorage.reset()
+        given(fixture.cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willProduce { items, _ in
+                throw CacheUploadError(failures: items.keys.map {
+                    CacheUploadFailure(item: $0, reason: "request timed out")
+                })
+            }
+
+        try await fixture.run(path: temporaryDirectory)
+
+        #expect(AlertController.current.warnings().map { $0.message.plain() }.sorted() == [
+            "Failed to upload AppSnapshotTests with hash app-snapshot-tests-hash: request timed out",
+            "Failed to upload AppTests with hash app-tests-hash: request timed out",
+            "Failed to upload FeatureTests with hash feature-tests-hash: request timed out",
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_with_explicit_test_target_filters_the_workspace_scheme() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
