@@ -4,10 +4,11 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   endpoint answering, rather than on the next minute's reconciler tick.
 
   Each run checks `Tuist.Kura.Reconciler.activate_when_ready/1` about once a
-  second, up to `@checks_per_run` times, then snoozes. Snoozing after every
-  check would space them by Oban's stager and fetch, around three seconds
-  apart, and the run stays short of Oban's shutdown grace period so a deploy
-  does not orphan it. It gives up once the attempt has run for
+  second, up to `@checks_per_run` times, then snoozes without a delay. Snoozing
+  after every check would space them by Oban's stager and fetch, measured at
+  2.5 to 3 seconds apart, so each run keeps its own clock and only pays that
+  gap once per run. The run stays short of Oban's 15-second shutdown grace
+  period, so a deploy does not orphan it. It gives up once the attempt has run for
   `Tuist.Kura.provisioning_stall_seconds/0`, where the tick reports the stall
   and keeps retrying on its own cadence.
   """
@@ -22,7 +23,7 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
 
-  @checks_per_run 10
+  @checks_per_run 13
   @check_interval_ms Application.compile_env(:tuist, [__MODULE__, :check_interval_ms], 1_000)
 
   def enqueue(%Server{id: server_id}) do
@@ -43,7 +44,7 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
         Process.sleep(@check_interval_ms)
         check(server_id, remaining - 1)
       else
-        {:snooze, 1}
+        {:snooze, 0}
       end
     else
       _ -> :ok
