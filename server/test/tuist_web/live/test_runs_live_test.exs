@@ -247,8 +247,10 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert table =~ "75.0%"
       assert table =~ "25.0%"
       # The full run is marked F, the partial one P.
-      assert table =~ ~s(<span data-part="sublabel">F</span>)
-      assert table =~ ~s(<span data-part="sublabel">P</span>)
+      assert table =~ ~s(data-color="success")
+      assert table =~ ~s(data-color="warning")
+      assert table =~ "Full: every test of the run reported its coverage."
+      assert table =~ "Partial: the run skipped tests, or a shard did not report its coverage."
     end
 
     test "filters the runs by their coverage", %{

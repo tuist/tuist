@@ -478,9 +478,12 @@ defmodule TuistWeb.TestRunsLive do
     do: "#{XcodeCoverage.percentage(covered, executable)}%"
 
   @doc false
-  def coverage_sublabel(nil), do: nil
-  def coverage_sublabel(%{partial: true}), do: dgettext("dashboard_tests", "P")
-  def coverage_sublabel(_totals), do: dgettext("dashboard_tests", "F")
+  def coverage_badge_label(%{partial: true}), do: dgettext("dashboard_tests", "P")
+  def coverage_badge_label(_totals), do: dgettext("dashboard_tests", "F")
+
+  @doc false
+  def coverage_badge_color(%{partial: true}), do: "warning"
+  def coverage_badge_color(_totals), do: "success"
 
   @doc false
   def coverage_title(nil), do: nil
