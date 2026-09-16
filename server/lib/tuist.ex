@@ -126,6 +126,7 @@ defmodule Tuist do
       Tests.Coverage.Comparison,
       Tests.Coverage.Gates,
       Tests.Coverage.History,
+      Tests.Coverage.Report,
       Tests.TestRunStressCandidate,
       Shards,
       Shards.Analytics,

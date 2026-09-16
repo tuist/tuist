@@ -791,6 +791,12 @@ defmodule TuistWeb.Router do
           scope "/coverage" do
             get "/settings", CoverageController, :settings
             post "/uploads", CoverageController, :create_upload
+            get "/branches", CoverageController, :list_branches
+            get "/pull-requests/:pull_request_number", CoverageController, :show_pull_request
+            get "/runs/:test_run_id", CoverageController, :show_run
+            get "/runs/:test_run_id/files", CoverageController, :list_run_files
+            get "/runs/:test_run_id/file", CoverageController, :show_run_file
+            get "/runs/:test_run_id/comparison", CoverageController, :show_run_comparison
           end
 
           scope "/git-history" do
