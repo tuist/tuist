@@ -317,9 +317,8 @@ build {
 
   # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
   # only exposes a downloaded toolchain to the user that installed
-  # it. Running the download as `runner` registers the toolchain for
-  # the user jobs run as; Xcode 27 already shares it, so there this is
-  # a no-op.
+  # it. Running the download as `runner` registers it for the user
+  # jobs run as.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
