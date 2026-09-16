@@ -9004,6 +9004,8 @@ fn estimated_manifest_working_bytes(manifest: &ArtifactManifest) -> usize {
         .saturating_add(manifest.content_type.len())
         .saturating_add(manifest.blob_path.as_ref().map_or(0, String::len))
         .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.branch.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.origin_region.as_ref().map_or(0, String::len))
         .saturating_add(manifest.content_sha256.as_ref().map_or(0, String::len));
     std::mem::size_of::<ArtifactManifest>()
         .saturating_add(strings)
@@ -9334,6 +9336,8 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
+    let optional_branch = manifest.branch.as_deref().map(str::len).unwrap_or(0);
+    let optional_origin_region = manifest.origin_region.as_deref().map(str::len).unwrap_or(0);
     let optional_content_sha256 = manifest
         .content_sha256
         .as_deref()
@@ -9348,6 +9352,8 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + manifest.content_type.len()
         + optional_blob_path
         + optional_segment_id
+        + optional_branch
+        + optional_origin_region
         + optional_content_sha256
         + std::mem::size_of::<ArtifactManifest>()
         + std::mem::size_of::<usize>() * 2
@@ -13469,6 +13475,44 @@ mod tests {
             estimated_manifest_working_bytes(&declared)
                 - estimated_manifest_working_bytes(&undeclared),
             128
+        );
+    }
+
+    #[test]
+    fn manifest_size_estimates_count_branch_and_origin_region() {
+        let without = ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+            origin_region: None,
+            content_sha256: None,
+        };
+        let branch = "feature/manifest-accounting".repeat(8);
+        let origin_region = "eu-central".to_owned();
+        let with = ArtifactManifest {
+            branch: Some(branch.clone()),
+            origin_region: Some(origin_region.clone()),
+            ..without.clone()
+        };
+        let strings = branch.len() + origin_region.len();
+
+        assert_eq!(
+            estimated_manifest_bytes(&with) - estimated_manifest_bytes(&without),
+            strings
+        );
+        assert_eq!(
+            estimated_manifest_working_bytes(&with) - estimated_manifest_working_bytes(&without),
+            strings * 2
         );
     }
 
