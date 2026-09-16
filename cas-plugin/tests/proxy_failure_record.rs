@@ -13,7 +13,6 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-use std::time::{Duration, SystemTime};
 
 use tuist_cas_plugin::proxy_proto::{
     read_request, write_response, OP_RESOLVE, STATUS_HIT, STATUS_MISS,
@@ -27,6 +26,10 @@ fn a_lookup_the_proxy_cannot_answer_is_recorded_beside_its_socket() {
         return;
     };
     let key = env.cas.key_digest(b"lookup");
+    let started_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
 
     let result = env.cas.actioncache_get(&key);
 
@@ -45,7 +48,12 @@ fn a_lookup_the_proxy_cannot_answer_is_recorded_beside_its_socket() {
             .contains("proxy connect"),
         "the record must carry the failure the build hit: {record}"
     );
-    assert_eq!(record["builder_pid"], std::os::unix::process::parent_id());
+    assert!(
+        record["failed_at_ms"]
+            .as_u64()
+            .is_some_and(|failed_at| failed_at >= started_ms),
+        "the record must say when the build hit the failure: {record}"
+    );
 }
 
 /// The path swift-frontend takes under swift-build, which disables replay in the
@@ -82,75 +90,9 @@ fn a_proxy_that_answers_leaves_no_record() {
     assert!(env.record().is_none(), "a miss is an answer, not a failure");
 }
 
-/// Every compiler process of a build loads the plugin, so recording per process
-/// would warn once per compilation.
-#[test]
-fn a_failure_this_build_already_recorded_is_not_recorded_again() {
-    let Some(env) = Fixture::new("same-build", Proxy::Absent) else {
-        return;
-    };
-    env.seed_record(
-        std::os::unix::process::parent_id(),
-        "recorded by another compilation",
-    );
-
-    env.cas.actioncache_get(&env.cas.key_digest(b"same-build"));
-
-    assert_eq!(
-        env.record().unwrap()["error"],
-        "recorded by another compilation"
-    );
-}
-
-/// The record's modification time is what the CLI compares with the start of the
-/// build it ran, so a new build has to write its own.
-#[test]
-fn a_failure_an_earlier_build_recorded_is_recorded_again() {
-    let Some(env) = Fixture::new("earlier-build", Proxy::Absent) else {
-        return;
-    };
-    let parent = std::os::unix::process::parent_id();
-    env.seed_record(parent.wrapping_add(1), "recorded by an earlier build");
-
-    env.cas
-        .actioncache_get(&env.cas.key_digest(b"earlier-build"));
-
-    let record = env.record().unwrap();
-    assert!(
-        record["error"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("proxy connect"),
-        "{record}"
-    );
-    assert_eq!(record["builder_pid"], parent);
-}
-
-/// Xcode keeps one build service across builds, so its builder never changes and
-/// only age can tell one of its builds from the next.
-#[test]
-fn an_old_record_from_the_same_builder_is_recorded_again() {
-    let Some(env) = Fixture::new("old-record", Proxy::Absent) else {
-        return;
-    };
-    env.seed_record(std::os::unix::process::parent_id(), "recorded an hour ago");
-    env.age_record(Duration::from_secs(60 * 60));
-
-    env.cas.actioncache_get(&env.cas.key_digest(b"old-record"));
-
-    let record = env.record().unwrap();
-    assert!(
-        record["error"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("proxy connect"),
-        "{record}"
-    );
-}
-
 // --- Fixture -------------------------------------------------------------------
 
-const RECORD: &str = "cas-proxy-failure.json";
+const RECORD_DIRECTORY: &str = "cas-proxy-failures";
 
 enum Proxy {
     Absent,
@@ -197,32 +139,23 @@ impl Fixture {
         self.socket_dir.path().join("proxy.sock")
     }
 
-    fn record_path(&self) -> PathBuf {
-        self.socket_dir.path().join(RECORD)
-    }
-
     fn record(&self) -> Option<serde_json::Value> {
-        let bytes = std::fs::read(self.record_path()).ok()?;
+        let directory = self.socket_dir.path().join(RECORD_DIRECTORY);
+        let mut records: Vec<PathBuf> = std::fs::read_dir(&directory)
+            .ok()?
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .collect();
+        assert!(
+            records.len() <= 1,
+            "one process leaves one record: {records:?}"
+        );
+        let bytes = std::fs::read(records.pop()?).ok()?;
         Some(serde_json::from_slice(&bytes).expect("the record is JSON"))
-    }
-
-    fn seed_record(&self, builder_pid: u32, error: &str) {
-        let record = serde_json::json!({
-            "socket": self.socket().to_str().unwrap(),
-            "error": error,
-            "builder_pid": builder_pid,
-        });
-        std::fs::write(self.record_path(), serde_json::to_vec(&record).unwrap())
-            .expect("seed record");
-    }
-
-    fn age_record(&self, age: Duration) {
-        let file = std::fs::File::options()
-            .write(true)
-            .open(self.record_path())
-            .expect("open record");
-        file.set_modified(SystemTime::now() - age)
-            .expect("age record");
     }
 }
 
