@@ -2002,6 +2002,7 @@ mod tests {
             size,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
@@ -2305,6 +2306,7 @@ mod tests {
             size: 10,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let crate::artifact::range::RangeOutcome::Partial(range) =
             crate::artifact::range::resolve_range(Some("bytes=6-"), file.size)
@@ -2394,6 +2396,7 @@ mod tests {
             size: 10,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {

@@ -18815,7 +18815,7 @@ mod tests {
 
         tokio::time::timeout(
             Duration::from_secs(5),
-            store.complete_multipart_upload_and_replicate(&upload_id, &[1, 2]),
+            store.complete_multipart_upload_and_replicate(&upload_id, &[1, 2], None),
         )
         .await
         .expect("completion should not queue behind the other uploads")
