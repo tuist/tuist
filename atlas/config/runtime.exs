@@ -141,14 +141,14 @@ config :atlas, :gtm_email,
   reply_to_email: System.get_env("ATLAS_GTM_EMAIL_REPLY_TO", "contact@tuist.dev"),
   delivery_concurrency: positive_integer_env.("ATLAS_GTM_EMAIL_CONCURRENCY", 5)
 
+# Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
+# out of source so real IBAN/BIC/beneficiary details are never checked in.
+config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
+
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
   from_email: System.get_env("ATLAS_SUPPORT_FROM_EMAIL", "contact@tuist.dev"),
   slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID")
-
-# Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
-# out of source so real IBAN/BIC/beneficiary details are never checked in.
-config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
 
 config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 

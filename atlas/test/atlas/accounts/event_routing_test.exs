@@ -14,7 +14,7 @@ defmodule Atlas.Accounts.EventRoutingTest do
       insert_contact!(account, %{email: "maya@acme.example"})
 
       assert %{account: ^account, matched_on: %{"type" => "contact_email", "value" => "maya@acme.example"}} =
-               EventRouting.find_account([" Maya@Acme.COM "])
+               EventRouting.find_account([" Maya@Acme.EXAMPLE "])
     end
 
     test "ignores internal addresses before matching by domain" do

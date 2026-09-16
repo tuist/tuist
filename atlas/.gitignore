@@ -47,6 +47,14 @@ npm-debug.log
 /pingen
 
 # Contract templates are stored in the private atlas-object-storage bucket,
-# not in git. See priv/contracts/templates/README.md.
+# not in git. See priv/contracts/templates/README.md. The placeholder
+# stubs are whitelisted so the test suite can still assert the template
+# layout without shipping the real content.
 /priv/contracts/templates/*.docx
 /priv/contracts/templates/*/*.docx
+!/priv/contracts/templates/2026-02/annex-2-dpa.docx
+!/priv/contracts/templates/2026-02/annex-3-daa.docx
+!/priv/contracts/templates/2026-02/annex-4-sla.docx
+!/priv/contracts/templates/2026-02/msa.docx
+!/priv/contracts/templates/2026-02/order-form-self-hosted.docx
+!/priv/contracts/templates/2026-02/order-form-tuist-hosted.docx

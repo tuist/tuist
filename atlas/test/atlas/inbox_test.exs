@@ -278,7 +278,7 @@ defmodule Atlas.InboxTest do
 
       {:ok, contact} =
         Inbox.upsert_contact(account.id, %{
-          "email" => "Maya@Acme.COM",
+          "email" => "Maya@Acme.EXAMPLE",
           "full_name" => "Maya Chen"
         })
 
