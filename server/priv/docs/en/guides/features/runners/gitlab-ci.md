@@ -46,26 +46,6 @@ The reusable runner authentication token stays on the Tuist server. Machines rec
 
 GitLab marks a job as running, and starts its timeout, as soon as Tuist acquires it. While the jobs Tuist has already acquired use up your account's concurrency limit, further jobs stay pending in GitLab. An acquired job waits for a machine for up to its job timeout, at most 12 hours. If no machine becomes available by then, Tuist fails the assignment with `runner_system_failure`, and the retry policy above lets GitLab retry it. The same policy covers a lost runner machine.
 
-## Caching {#caching}
-
-GitLab's `cache:` keyword works across jobs, stages and pipelines without any runner configuration. Tuist stores the archives for your account. Accounts with their own storage configured keep them in that bucket.
-
-```yaml
-# .gitlab-ci.yml
-build:
-  tags: [tuist-macos]
-  cache:
-    key:
-      files: [Package.resolved]
-    paths: [.build/checkouts]
-  script:
-    - swift build
-```
-
-Protected and unprotected refs have separate caches. A job on an unprotected branch can't read or replace the cache of a protected branch, even with `cache:unprotect: true`.
-
-An archive expires after the same retention period as other cache artifacts, counted from its last upload. GitLab uploads an archive only when its contents change, so an unchanged cache expires even while jobs keep restoring it. The next job rebuilds it.
-
 ## Rotating tokens and disconnecting {#rotating-tokens-and-disconnecting}
 
 Update the connection's token and choose **Save changes** to rotate it. Leaving the token blank preserves the existing credential.
