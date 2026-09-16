@@ -315,6 +315,18 @@ build {
     ]
   }
 
+  # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
+  # only exposes a downloaded toolchain to the user that installed
+  # it. Running the download as `runner` registers the toolchain for
+  # the user jobs run as; Xcode 27 already shares it, so there this is
+  # a no-op.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'"
+    ]
+  }
+
   # Install the Actions runner agent under runner's home so the
   # binary, its `_diag` logs, and any side data it writes land
   # under `/Users/runner/...` — matching GitHub-hosted's layout
