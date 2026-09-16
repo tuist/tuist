@@ -142,4 +142,6 @@ Getting the resource bounds right was one of the hardest engineering challenges 
 
 What we want is for any developer to ask their coding agent to set up Tuist for a project and start benefiting from caching right away, whether the next build runs on a laptop, their company's machines, or a hosted runner. Making that possible means **treating caching as a global infrastructure problem**, with useful artifacts available wherever a developer needs them and access that doesn't depend on buying compute from the same provider. Kura brings us closer to that goal, giving us a foundation we can keep extending as more developers, build systems, and regions become part of it.
 
+If you'd like to opt into the new cache, update the Tuist command-line tool to [4.207.0](https://github.com/tuist/tuist/releases/tag/4.207.0) or later. From that version, cache traffic is routed through Kura by default, so updating is all it takes to start using it.
+
 If this resonates with you and you'd like us to help optimize your setup, [let's chat](https://cal.tuist.dev/team/tuist/tuist). Making builds faster is a problem we're obsessed with, and we love working with teams to understand how they build, explore new toolchains, and figure out where caching can make a difference, whether they're starting a new project or improving a setup they've relied on for years.
