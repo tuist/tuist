@@ -7,10 +7,15 @@
 # repo-relative (e.g. `atlas/mix.exs`, `noora`).
 ARG ELIXIR_VERSION=1.20.2
 ARG OTP_VERSION=29.0.3
-ARG DEBIAN_VERSION=bookworm-20260518-slim
+# hexpm/elixir uses date-pinned tags. bookworm-20260623-slim is the
+# combination that has a published image for the pinned Elixir/OTP.
+# The runner base needs to be a real debian tag that also exists on
+# Docker Hub for the same architecture; bookworm-slim covers that.
+ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
+ARG DEBIAN_RUNNER_VERSION=bookworm-slim
 
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 
 # ========================================
 # Stage: noora asset builder
