@@ -1,0 +1,139 @@
+/*
+The widget is a shared component, so its styles live here rather than in the
+stylesheet of whichever route happened to use it first. They were duplicated
+across the sales and finance routes, which is why a third page rendered the
+markup unstyled.
+
+Layout is deliberately not included: how many columns a row of widgets uses is
+a decision for the page, so each route styles its own `[data-part="widgets"]`
+container.
+*/
+
+[data-part="widget"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+}
+
+[data-part="widget"] > [data-part="header"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-3);
+}
+
+[data-part="widget"] [data-part="legend"] {
+  flex-shrink: 0;
+  border-radius: var(--noora-radius-1);
+  width: 4px;
+  height: 16px;
+}
+
+[data-part="widget"] [data-part="legend"][data-color="primary"] {
+  background-color: var(--noora-chart-primary, var(--noora-surface-label-primary));
+}
+
+[data-part="widget"] [data-part="legend"][data-color="secondary"] {
+  background-color: var(--noora-chart-secondary, var(--noora-surface-label-secondary));
+}
+
+[data-part="widget"] [data-part="legend"][data-color="tertiary"] {
+  background-color: var(--noora-chart-tertiary, var(--noora-surface-label-secondary));
+}
+
+[data-part="widget"] [data-part="legend"][data-color="warning"] {
+  background-color: var(--noora-surface-background-warning, #f97316);
+}
+
+[data-part="widget"] [data-part="legend"][data-color="attention"] {
+  background-color: var(--noora-surface-background-attention, #f59e0b);
+}
+
+[data-part="widget"] [data-part="legend"][data-color="destructive"] {
+  background-color: var(--noora-surface-background-destructive, #dc2626);
+}
+
+[data-part="widget"] [data-part="legend"][data-color="success"] {
+  background-color: var(--noora-surface-background-success, #16a34a);
+}
+
+[data-part="widget"] [data-part="legend"][data-color="neutral"] {
+  background-color: var(--noora-surface-border-primary, #d4d4d8);
+}
+
+[data-part="widget"] > [data-part="header"] > [data-part="title"] {
+  flex-grow: 1;
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+}
+
+[data-part="widget"] [data-part="tooltip"] {
+  display: flex;
+}
+
+[data-part="widget"] [data-part="tooltip-icon"] {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  color: var(--noora-surface-label-secondary);
+}
+
+[data-part="widget"] [data-part="tooltip-icon"] svg {
+  width: 100%;
+  height: 100%;
+}
+
+[data-part="widget"] [data-part="value"] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+[data-part="widget"] [data-part="trend"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-3);
+}
+
+[data-part="widget"] [data-part="trend-label"] {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-small);
+}
+
+[data-part="widget"] > [data-part="description"],
+[data-part="widget"] > [data-part="empty-label"] {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-small);
+}
+
+[data-part="widget"][data-empty="true"] [data-part="value"] {
+  color: var(--noora-surface-label-secondary);
+}
+
+[data-part="widget-link"] {
+  height: 100%;
+  cursor: pointer;
+  outline: none;
+}
+
+[data-part="widget-link"] [data-part="widget"] {
+  height: 100%;
+  transition: box-shadow 120ms ease, background-color 120ms ease;
+}
+
+[data-part="widget-link"]:hover [data-part="widget"] {
+  background-color: var(--noora-surface-background-secondary);
+}
+
+[data-part="widget-link"][data-selected] [data-part="widget"] {
+  background-color: var(--noora-surface-background-secondary);
+  box-shadow:
+    var(--noora-border-light-default),
+    inset 0 0 0 1px var(--noora-surface-border-hover);
+}
+
+[data-part="widget-link"]:focus-visible [data-part="widget"] {
+  box-shadow: var(--noora-border-light-focus);
+}
