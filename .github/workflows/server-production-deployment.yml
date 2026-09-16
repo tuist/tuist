@@ -448,7 +448,7 @@ jobs:
         working-directory: kura
         run: |
           tuist auth login
-          tuist bazel setup --remote-downloader
+          tuist bazel setup
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: hashFiles('kura/.bazelrc.tuist') == ''
