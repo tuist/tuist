@@ -738,7 +738,9 @@ ovhFleets:
 # BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
 # cluster. Staging only; the rack itself does not exist yet.
 #
-# At 1 since 2026-09-09, when the box first joined as a Node.
+# At 1 from 2026-09-09, when the box first joined as a Node. At 0 since
+# 2026-09-16: ber1-proto-01 stopped answering SSH, was quarantined after eight
+# bootstrap failures, and its unavailable Machine timed out every staging deploy.
 #
 # The count is load-bearing beyond capacity. A Machine with nowhere to land sits
 # on NoAvailableHost forever, leaving the MachineDeployment below spec, and a
@@ -771,10 +773,11 @@ rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
-  # replicas intentionally omitted, exactly as the rack will omit it: it
-  # defaults to the declared host count, so inventory is the fleet and adding a
-  # host scales it. Pinning it here would have been a prototype-ism with no
-  # cause, since the default is already 1.
+  # The rack omits replicas: it defaults to the declared host count, so
+  # inventory is the fleet and adding a host scales it. This pin keeps the
+  # prototype declared while it is offline; remove it, and clear the host's
+  # status.quarantined, once the box answers SSH again.
+  replicas: 0
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
