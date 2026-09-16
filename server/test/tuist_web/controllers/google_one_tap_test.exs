@@ -5,6 +5,7 @@ defmodule TuistWeb.GoogleOneTapTest do
 
   import Phoenix.LiveViewTest
 
+  alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.OAuth.Google
@@ -26,10 +27,83 @@ defmodule TuistWeb.GoogleOneTapTest do
 
   test "issues a fresh, uncacheable session challenge", %{conn: conn} do
     conn = post(conn, "/auth/google/one-tap/start")
-    assert %{"client_id" => "tuist-client", "nonce" => nonce} = json_response(conn, 200)
+    assert %{"client_id" => "tuist-client", "nonce" => nonce, "csrf_token" => csrf_token} = json_response(conn, 200)
     assert byte_size(nonce) >= 32
+    assert is_binary(csrf_token)
     assert [%{nonce: ^nonce}] = get_session(conn, :google_one_tap)
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+  end
+
+  test "starts from a same-origin fetch whose page carried a stale CSRF token", %{conn: conn, claims: claims} do
+    user = AccountsFixtures.user_fixture(email: claims["email"])
+
+    conn =
+      conn
+      |> enforce_csrf()
+      |> put_req_header("origin", "http://www.example.com")
+      |> put_req_header("x-csrf-token", "token-from-a-cached-page")
+      |> start()
+
+    assert %{"nonce" => nonce, "csrf_token" => csrf_token} = json_response(conn, 200)
+    expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
+
+    conn =
+      conn
+      |> recycle()
+      |> enforce_csrf()
+      |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce, _csrf_token: csrf_token})
+
+    assert redirected_to(conn) =~ "/#{user.account.name}"
+    assert get_session(conn, :user_token)
+  end
+
+  test "accepts the browser's same-origin fetch metadata without an origin header", %{conn: conn} do
+    conn =
+      conn
+      |> enforce_csrf()
+      |> put_req_header("sec-fetch-site", "same-origin")
+      |> start()
+
+    assert %{"nonce" => _} = json_response(conn, 200)
+  end
+
+  test "matches the origin against the public origin forwarded by the proxy", %{conn: conn} do
+    conn =
+      conn
+      |> enforce_csrf()
+      |> put_req_header("x-forwarded-proto", "https")
+      |> put_req_header("x-forwarded-host", "tuist.dev")
+      |> put_req_header("origin", "https://tuist.dev")
+      |> start()
+
+    assert %{"nonce" => _} = json_response(conn, 200)
+  end
+
+  test "rejects start requests that are not provably same-origin", %{conn: conn} do
+    for headers <- [
+          [],
+          [{"origin", "https://evil.example"}],
+          [{"origin", "https://www.example.com"}],
+          [{"origin", "http://www.example.com:3000"}],
+          [{"origin", "http://www.example.com"}, {"x-forwarded-host", "tuist.dev"}],
+          [{"sec-fetch-site", "cross-site"}],
+          [{"sec-fetch-site", "same-site"}, {"origin", "http://www.example.com"}]
+        ] do
+      conn = Enum.reduce(headers, enforce_csrf(conn), fn {name, value}, conn -> put_req_header(conn, name, value) end)
+      assert_raise InvalidCSRFTokenError, fn -> start(conn) end
+    end
+  end
+
+  test "keeps the credential form CSRF-protected", %{conn: conn} do
+    %{"nonce" => nonce} = conn |> start() |> json_response(200)
+
+    assert_raise InvalidCSRFTokenError, fn ->
+      conn
+      |> recycle()
+      |> enforce_csrf()
+      |> put_req_header("origin", "http://www.example.com")
+      |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
+    end
   end
 
   test "logs in an existing user using the verified Google identity", %{conn: conn, claims: claims} do
@@ -209,6 +283,8 @@ defmodule TuistWeb.GoogleOneTapTest do
   end
 
   defp start(conn), do: post(conn, "/auth/google/one-tap/start")
+
+  defp enforce_csrf(conn), do: Plug.Conn.put_private(conn, :plug_skip_csrf_protection, false)
 
   defp signed_token(key, nonce, claims, overrides \\ %{}) do
     now = DateTime.to_unix(DateTime.utc_now())
