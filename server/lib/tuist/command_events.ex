@@ -501,9 +501,16 @@ defmodule Tuist.CommandEvents do
     |> Keyword.get(:metadata_queries_bypass_dynamic_repo, false)
   end
 
+  # Binds `project_ids` as a single `Array(Int64)` parameter via a fragment
+  # instead of `ce.project_id in ^project_ids`. `in` expands to one bound
+  # parameter per ID, and ClickHouse rejects the request with `HTML Form
+  # Exception: Too many form fields` once the list grows past its
+  # `http_max_fields` limit. This runs on every login (embedded cache claims
+  # ask for the caller's projects), so a caller with access to enough projects
+  # breaks `POST /api/auth` outright.
   def get_project_last_interaction_data(project_ids) do
     from(ce in Event,
-      where: ce.project_id in ^project_ids,
+      where: fragment("? IN (?)", ce.project_id, type(^project_ids, {:array, :integer})),
       group_by: ce.project_id,
       select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
     )
