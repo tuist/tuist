@@ -311,6 +311,45 @@ struct ArtifactResumeMiddlewareTests {
         #expect(String(decoding: collected, as: UTF8.self) == "abcdefghij")
     }
 
+    /// A restart hands back a different representation, so the caller has to read
+    /// that representation's headers: an integrity digest checked against the first
+    /// response's would reject a good body. A later resume then names the restarted
+    /// representation rather than the one that went away.
+    @Test func a_restart_returns_the_restarted_response_and_resumes_against_it() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        let checksum = HTTPField.Name("tuist-checksum-sha256")!
+        var sentValidators: [String?] = []
+
+        let (response, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            sentValidators.append(request.headerFields[.ifRange])
+            switch sentValidators.count {
+            case 1:
+                var first = okResponse()
+                first.headerFields[checksum] = "digest-of-the-first"
+                return (first, truncatedBody([Data("0123".utf8)]))
+            case 2:
+                var restarted = okResponse(etag: "\"2-10\"")
+                restarted.headerFields[checksum] = "digest-of-the-restart"
+                return (restarted, truncatedBody([Data("abcd".utf8)]))
+            default:
+                var tail = partialResponse(start: 4, end: 9, total: 10)
+                tail.headerFields[.eTag] = "\"2-10\""
+                return (tail, HTTPBody(Data("efghij".utf8)))
+            }
+        }
+
+        #expect(response.headerFields[.eTag] == "\"2-10\"")
+        #expect(response.headerFields[checksum] == "digest-of-the-restart")
+        #expect(sentValidators == [nil, "\"1-10\"", "\"2-10\""])
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(String(decoding: collected, as: UTF8.self) == "abcdefghij")
+    }
+
     /// A response the transport already holds in full is handed back untouched.
     /// Collecting it would put a second copy of the artifact next to the
     /// transport's and a third in the body handed on, which for a multi-gigabyte

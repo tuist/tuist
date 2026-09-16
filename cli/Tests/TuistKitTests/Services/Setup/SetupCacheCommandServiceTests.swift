@@ -1051,6 +1051,31 @@ struct SetupCacheCommandServiceTests {
         """)
     }
 
+    /// The proxy is the only writer of its path registry and of the uses recorded
+    /// beside it, and it rewrites both from memory without the sources lock.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_leavesTheProxysPathRegistryAlone() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let uses = registry.parentDirectory.appending(component: "cas-proxy.registry.used")
+        let fileSystem = FileSystem()
+        let routing = "/DerivedData/CompilationCache.noindex/plugin\ttuist/tuist\n"
+        let recordedUses = "/DerivedData/CompilationCache.noindex/plugin\t1789000000\n"
+        try await fileSystem.writeText(routing, at: registry)
+        try await fileSystem.writeText(recordedUses, at: uses)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: registry) == routing)
+        #expect(try await fileSystem.readTextFile(at: uses) == recordedUses)
+    }
+
     /// Setting up a second project must not clobber the first, and a row that carries
     /// nothing but its instance (a setup that could not reach the server) has to
     /// survive the rewrite intact.

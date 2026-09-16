@@ -12,14 +12,14 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PREPARE_ACTION,
-    OP_PRUNE, OP_PUBLISH, OP_RESOLVE,
+    parse_publish_wait_payload, read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT,
+    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -301,6 +301,116 @@ fn drain_timeout(payload: &[u8]) -> Duration {
     }
 }
 
+/// How long a build waits for one upload when its caller names no budget.
+const UPLOAD_WAIT_DEFAULT: Duration = Duration::from_secs(30);
+/// Ceiling on a caller-named upload wait, for the same reason as
+/// `DRAIN_TIMEOUT_MAX`.
+const UPLOAD_WAIT_MAX: Duration = Duration::from_secs(120);
+/// Failed uploads in a row after which builds stop waiting. One failure is as
+/// likely to be the record as the remote; a run of them is the remote.
+const UPLOAD_WAIT_FAILURES_TO_OPEN: u64 = 3;
+/// How long builds stop waiting once uploads fail or stall. Afterwards a single
+/// upload waits again, and only its success lets the rest wait.
+const UPLOAD_WAIT_OPEN_MS: u64 = 60_000;
+/// How often a waiting build checks whether the breaker has released it.
+const UPLOAD_WAIT_POLL: Duration = Duration::from_millis(25);
+
+fn upload_wait_budget(millis: u32) -> Duration {
+    match millis {
+        0 => UPLOAD_WAIT_DEFAULT,
+        millis => Duration::from_millis(u64::from(millis)).min(UPLOAD_WAIT_MAX),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitAdmission {
+    Closed,
+    Probe,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitOutcome {
+    Published,
+    Failed,
+    TimedOut,
+    // The breaker opened while this build waited. Says nothing about this
+    // upload, so it is not recorded.
+    Released,
+}
+
+/// Decides whether a build waits for its upload.
+///
+/// A build waits once per cache put, and every compile puts. So a remote that
+/// stalls or refuses uploads would cost a wait per compile: a thousand compiles
+/// at a 30s budget is a build that never finishes. Once uploads stall, or fail
+/// several times in a row, builds stop waiting for `UPLOAD_WAIT_OPEN_MS`,
+/// including the ones already waiting, and their records are published in the
+/// background instead. After the window a single upload waits again, and only
+/// its success lets every build wait.
+#[derive(Default)]
+struct UploadWaitBreaker {
+    // Epoch ms until which builds do not wait; 0 while builds wait.
+    open_until_ms: AtomicU64,
+    probing: AtomicBool,
+    consecutive_failures: AtomicU64,
+}
+
+impl UploadWaitBreaker {
+    fn admit(&self, now_ms: u64) -> Option<UploadWaitAdmission> {
+        let open_until = self.open_until_ms.load(Ordering::Acquire);
+        if open_until == 0 {
+            return Some(UploadWaitAdmission::Closed);
+        }
+        if now_ms < open_until {
+            return None;
+        }
+        self.probing
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| UploadWaitAdmission::Probe)
+    }
+
+    /// Whether builds waiting since before a stall should stop: the breaker
+    /// opened after they were let in. A probe is let in while it is open, so
+    /// only a build let in while it was closed is released.
+    fn releases(&self, admission: UploadWaitAdmission) -> bool {
+        admission == UploadWaitAdmission::Closed && self.open_until_ms.load(Ordering::Acquire) != 0
+    }
+
+    fn record(&self, admission: UploadWaitAdmission, outcome: UploadWaitOutcome, now_ms: u64) {
+        if outcome == UploadWaitOutcome::Released {
+            return;
+        }
+        let probe = admission == UploadWaitAdmission::Probe;
+        if outcome == UploadWaitOutcome::Published {
+            self.consecutive_failures.store(0, Ordering::Release);
+            if probe {
+                self.open_until_ms.store(0, Ordering::Release);
+                self.probing.store(false, Ordering::Release);
+                crate::log_line("upload wait: uploads succeed again; builds wait for them");
+            }
+            return;
+        }
+        let failures = self.consecutive_failures.fetch_add(1, Ordering::AcqRel) + 1;
+        if probe || outcome == UploadWaitOutcome::TimedOut || failures >= UPLOAD_WAIT_FAILURES_TO_OPEN
+        {
+            let previous = self
+                .open_until_ms
+                .swap(now_ms + UPLOAD_WAIT_OPEN_MS, Ordering::AcqRel);
+            if previous == 0 {
+                crate::log_line(&format!(
+                    "upload wait: uploads are {}; builds stop waiting for them for {}s and they are published in the background",
+                    if outcome == UploadWaitOutcome::TimedOut { "stalling" } else { "failing" },
+                    UPLOAD_WAIT_OPEN_MS / 1000
+                ));
+            }
+        }
+        if probe {
+            self.probing.store(false, Ordering::Release);
+        }
+    }
+}
+
 /// The per-generation byte limit a PRUNE request carries. A malformed or zero
 /// payload means "no budget to impose": prune against whatever limit the store
 /// already has rather than refuse, since a caller that only wants the
@@ -314,6 +424,52 @@ fn prune_limit(payload: &[u8]) -> u64 {
 fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(record_path);
     let _ = std::fs::remove_file(tags_path(record_path));
+}
+
+/// Whether the record names the value this proxy last published for its key,
+/// so the remote already holds it. A trunk build may still republish it to claim
+/// the entry for trunk (see `is_redundant_reput`), but that moves a tag, not
+/// bytes, so a build has nothing to wait for.
+fn value_already_published(state: &PathState, record_path: &str) -> bool {
+    let Ok(bytes) = std::fs::read(record_path) else {
+        return false;
+    };
+    let Some(record) = PublishRecord::decode_body(&bytes, None) else {
+        return false;
+    };
+    matches!(
+        state.resolved.lock().unwrap().get(&record.key),
+        Some(Resolution::Hit(value)) if value == &record.value_digest
+    )
+}
+
+/// Waits for the publishing thread to report on `ran` until `deadline` passes or
+/// `released` says the build should stop waiting. That thread returns once the
+/// record has been published by it or by the pool worker that already had it,
+/// and a record is deleted only by a publication that succeeded or found
+/// nothing to upload, so the file still being there is a failure.
+fn await_publication(
+    ran: &std::sync::mpsc::Receiver<bool>,
+    record_path: &str,
+    deadline: Instant,
+    released: impl Fn() -> bool,
+) -> UploadWaitOutcome {
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match ran.recv_timeout(UPLOAD_WAIT_POLL.min(remaining)) {
+            Ok(true) if !Path::new(record_path).exists() => return UploadWaitOutcome::Published,
+            Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return UploadWaitOutcome::Failed;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        if released() {
+            return UploadWaitOutcome::Released;
+        }
+        if deadline <= Instant::now() {
+            return UploadWaitOutcome::TimedOut;
+        }
+    }
 }
 
 /// Whether a re-put can be dropped without a `publish` round trip. True only
@@ -397,6 +553,14 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 /// next build. Bounds the RAM a long-lived proxy holds for projects nobody is
 /// building, which the size caps alone never release.
 const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
+
+/// How long a registered path may go without a build using it before the
+/// registry forgets it. A forgotten path is registered again by the next build
+/// that declares its instance.
+const REGISTRY_FORGET_AFTER: Duration = Duration::from_secs(3 * 24 * 60 * 60);
+
+/// How far a path's last use may move past the one on disk before it is written.
+const PATH_USE_RECORD_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 /// How long a path whose store failed to reopen answers misses before the next
 /// check starts another attempt.
@@ -532,6 +696,44 @@ fn fast_path(
 /// past IDLE_RECLAIM. Pure so the policy is unit-testable.
 fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
     cas_dir_gone || idle > IDLE_RECLAIM
+}
+
+/// Whether the registry should forget a path: its store directory is gone, or no
+/// build has used it for REGISTRY_FORGET_AFTER.
+fn should_forget(unused_for: Duration, cas_dir_gone: bool) -> bool {
+    cas_dir_gone || unused_for > REGISTRY_FORGET_AFTER
+}
+
+/// Only a path the filesystem reports as missing counts as gone, so a volume
+/// that errors for another reason keeps its registration.
+fn cas_dir_missing(cas_path: &str) -> bool {
+    matches!(
+        std::fs::symlink_metadata(cas_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+/// When a build last used a registered path, and the use the registry on disk
+/// records for it, in seconds since the Unix epoch. `revision` changes on every
+/// use, including two within one second.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PathUse {
+    at: u64,
+    recorded: u64,
+    revision: u64,
+}
+
+impl PathUse {
+    fn needs_recording(&self) -> bool {
+        self.at >= self.recorded.saturating_add(PATH_USE_RECORD_INTERVAL.as_secs())
+    }
+}
+
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
 }
 
 /// A cheap identity for the on-disk CAS directory. When it changes, the
@@ -760,6 +962,13 @@ pub struct PathState {
     // moved says which half moved, and a `write_duration` that did not move
     // says whether that is health or silence.
     pub stats_publish_shed: AtomicU64,
+    // Uploads a build waited for and saw published, uploads it stopped waiting
+    // for with the record still owed, and the milliseconds builds spent waiting.
+    // Together they are what synchronous uploads cost a build and how often
+    // they fell back to the background.
+    pub stats_upload_waited: AtomicU64,
+    pub stats_upload_unwaited: AtomicU64,
+    pub ms_upload_wait: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -1721,6 +1930,10 @@ pub struct Proxy {
     // registry. A store is shared (Xcode's default one by every project on the
     // machine), and its size limit is the smallest any of them set.
     path_instances: Mutex<HashMap<String, BTreeSet<String>>>,
+    // cas_path -> when a build last used it, persisted beside the registry (see
+    // `forget_unused_paths`). Taken after `path_instance` and `path_instances`.
+    path_uses: Mutex<HashMap<String, PathUse>>,
+    path_use_revision: AtomicU64,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -1737,6 +1950,8 @@ pub struct Proxy {
     source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Whether a build's put waits for its upload; see `publish_and_wait`.
+    upload_wait: UploadWaitBreaker,
     // Resolves/publishes that arrived with no declared instance and no primed
     // registry mapping. They answer a silent miss by design (an unprimed ⌘B
     // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
@@ -1806,6 +2021,10 @@ impl Proxy {
             .as_deref()
             .map(load_registry)
             .unwrap_or_default();
+        let path_uses = registry_path
+            .as_deref()
+            .map(|path| load_path_uses(&uses_path_for(path)))
+            .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
@@ -1817,6 +2036,8 @@ impl Proxy {
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
             path_instances: Mutex::new(path_instances),
+            path_uses: Mutex::new(path_uses),
+            path_use_revision: AtomicU64::new(1),
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
@@ -1827,6 +2048,7 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            upload_wait: UploadWaitBreaker::default(),
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
@@ -1931,9 +2153,13 @@ impl Proxy {
     /// empty one falls back to whatever a prior build primed. `None` means an
     /// unprimed ⌘B build: the caller degrades it to a miss.
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        let now = unix_seconds();
         let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
             let mut known = self.path_instances.lock().unwrap();
+            let mut uses = self.path_uses.lock().unwrap();
+            let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+            note_use(&mut uses, cas_path, now, revision);
             let rerouted = map.get(cas_path).map(String::as_str) != Some(declared);
             if rerouted {
                 map.insert(cas_path.to_string(), declared.to_string());
@@ -1943,11 +2169,17 @@ impl Proxy {
                 .or_default()
                 .insert(declared.to_string());
             if rerouted || newly_known {
-                self.persist_registry(&map, &known);
+                self.persist_registry(&map, &known, &mut uses);
             }
             Some(declared.to_string())
         } else {
-            self.path_instance.lock().unwrap().get(cas_path).cloned()
+            let map = self.path_instance.lock().unwrap();
+            let instance = map.get(cas_path).cloned();
+            if instance.is_some() {
+                let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+                note_use(&mut self.path_uses.lock().unwrap(), cas_path, now, revision);
+            }
+            instance
         };
         // Every caller of this is real build traffic (a resolve, a demand fetch,
         // a publish), and nothing else reaches it — the startup prefetch does
@@ -2034,13 +2266,94 @@ impl Proxy {
         self.active_instances.lock().unwrap().contains(instance)
     }
 
+    /// Forgets every registered path whose store directory is gone, or that no
+    /// build has used for REGISTRY_FORGET_AFTER and whose spool holds no
+    /// publications, and writes the uses that have moved past
+    /// PATH_USE_RECORD_INTERVAL. Runs at startup, before
+    /// `prefetch_known_snapshots`, and from the maintenance loop.
+    ///
+    /// A path is forgotten with every instance that declared it, so a store in
+    /// use keeps each sharing project's limit. The sources registry is left
+    /// alone: a build registers its path again, but only `tuist setup cache`
+    /// records a project's policy.
+    pub fn forget_unused_paths(&self) {
+        let now = unix_seconds();
+        let unused = self
+            .observe_paths()
+            .into_iter()
+            .filter_map(|(cas_path, path_use)| {
+                let gone = cas_dir_missing(&cas_path);
+                let unused_for =
+                    Duration::from_secs(path_use.map_or(0, |path_use| now.saturating_sub(path_use.at)));
+                // A spool is swept and drained only through its path's routing.
+                (should_forget(unused_for, gone) && spool_records(&cas_path) == 0).then(|| {
+                    let reason = if gone {
+                        "its store directory is gone".to_string()
+                    } else {
+                        format!("unused for {} days", unused_for.as_secs() / 86_400)
+                    };
+                    (cas_path, path_use, reason)
+                })
+            })
+            .collect();
+        self.forget_paths(unused, now);
+    }
+
+    /// Every registered path with the use recorded for it now.
+    fn observe_paths(&self) -> Vec<(String, Option<PathUse>)> {
+        let routing = self.path_instance.lock().unwrap();
+        let known = self.path_instances.lock().unwrap();
+        let uses = self.path_uses.lock().unwrap();
+        known
+            .keys()
+            .chain(routing.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|cas_path| (cas_path.clone(), uses.get(cas_path).copied()))
+            .collect()
+    }
+
+    /// Forgets each path observed unused, unless a build has used it since it
+    /// was observed.
+    fn forget_paths(&self, unused: Vec<(String, Option<PathUse>, String)>, now: u64) {
+        let mut routing = self.path_instance.lock().unwrap();
+        let mut known = self.path_instances.lock().unwrap();
+        let mut uses = self.path_uses.lock().unwrap();
+        let mut forgot = false;
+        for (cas_path, observed, reason) in unused {
+            let current = uses.get(&cas_path).map(|path_use| path_use.revision);
+            if current != observed.map(|path_use| path_use.revision) {
+                continue;
+            }
+            routing.remove(&cas_path);
+            known.remove(&cas_path);
+            uses.remove(&cas_path);
+            forgot = true;
+            crate::log_line(&format!("registry forgot {cas_path}: {reason}"));
+        }
+        // A path with no recorded use starts its clock now.
+        for cas_path in known.keys().chain(routing.keys()) {
+            uses.entry(cas_path.clone()).or_insert(PathUse {
+                at: now,
+                recorded: 0,
+                revision: 0,
+            });
+        }
+        if forgot || uses.values().any(PathUse::needs_recording) {
+            self.persist_registry(&routing, &known, &mut uses);
+        }
+    }
+
     /// Writes one `cas_path\tinstance` line per instance that has declared a
     /// path, with each path's routing instance after its others (see
-    /// `load_registry`).
+    /// `load_registry`), and each path's last use beside it (see
+    /// `load_path_uses`). Callers hold the `path_instance` lock, which is what
+    /// keeps two writes from sharing a staged file.
     fn persist_registry(
         &self,
         routing: &HashMap<String, String>,
         known: &HashMap<String, BTreeSet<String>>,
+        uses: &mut HashMap<String, PathUse>,
     ) {
         let Some(path) = &self.registry_path else {
             return;
@@ -2063,7 +2376,18 @@ impl Proxy {
         for (cas_path, instance) in routing {
             line(cas_path, instance);
         }
-        let _ = std::fs::write(path, body);
+        uses.retain(|cas_path, _| known.contains_key(cas_path) || routing.contains_key(cas_path));
+        let mut used = String::new();
+        for (cas_path, path_use) in uses.iter() {
+            if !cas_path.contains(['\t', '\n']) {
+                used.push_str(&format!("{cas_path}\t{}\n", path_use.at));
+            }
+        }
+        if replace_file(path, &body).is_ok() && replace_file(&uses_path_for(path), &used).is_ok() {
+            for path_use in uses.values_mut() {
+                path_use.recorded = path_use.at;
+            }
+        }
     }
 
     /// Returns the path's state, registering it on first sight.
@@ -2136,6 +2460,9 @@ impl Proxy {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }));
         paths.insert(cas_path.to_string(), state);
         Ok(state)
@@ -3206,7 +3533,16 @@ impl Proxy {
         (branch, trunk)
     }
 
-    /// instance + cas_path + the (branch, trunk) bound here + record path.
+    /// Queues a record for the publisher pool.
+    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+        if let Some(item) = self.publish_item_bytes(cas_path, instance, record_path) {
+            self.publisher.enqueue(item);
+        }
+    }
+
+    /// The publisher item for a record: instance + cas_path + the (branch, trunk)
+    /// bound here + record path. `None` when the project does not upload, in which
+    /// case the record is already removed.
     ///
     /// The tags are resolved NOW, when the build hands us the record, and not
     /// where they are used (the upload, which runs after the queue wait, the
@@ -3221,7 +3557,7 @@ impl Proxy {
     ///
     /// Binding at accept costs a `stat`: the context is memoized, so this reads
     /// the registry only when setup has replaced it or the TTL has run out.
-    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+    fn publish_item_bytes(&self, cas_path: &str, instance: &str, record_path: &str) -> Option<Vec<u8>> {
         // The project's answer, enforced where both lanes meet. The plugin
         // declines to publish when its own option says so, but that option only
         // reaches Swift: the build system's Clang caching creates its CAS with a
@@ -3237,7 +3573,7 @@ impl Proxy {
             // on, or a registry read fails open) it hands the sweeper a backlog
             // of everything produced while the project was read-only.
             remove_record(record_path);
-            return;
+            return None;
         }
         let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
@@ -3254,7 +3590,92 @@ impl Proxy {
         item.extend_from_slice(&(trunk.len() as u16).to_be_bytes());
         item.extend_from_slice(trunk.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
-        self.publisher.enqueue(item);
+        Some(item)
+    }
+
+    /// PUBLISH_WAIT: publishes a record while the build that wrote it waits,
+    /// and reports whether the remote is still owed it.
+    ///
+    /// On CI outside a Tuist runner the store, and usually the machine, go away
+    /// with the job, so a record still spooled when it ends is an upload that
+    /// never happens. The put that wrote the record waits here instead, and the
+    /// compile or build-system task that issued it finishes once its output is
+    /// on the remote. The publication runs on a thread of its own rather than in
+    /// the pool: queued there it would wait out the background work ahead of it,
+    /// and this way the waits are bounded by how many compiles the build runs.
+    ///
+    /// Nothing waits when nothing is owed (the project does not upload, or the
+    /// remote already holds this value and at most its tags would move), when
+    /// the remote is shedding writes, or while `UploadWaitBreaker` holds waits
+    /// off; the record then goes to the pool as a PUBLISH would. A wait that runs
+    /// out of budget leaves its publication running.
+    fn publish_and_wait(
+        &'static self,
+        cas_path: &str,
+        declared: &str,
+        record_path: &str,
+        budget: Duration,
+    ) -> bool {
+        let deadline = Instant::now() + budget;
+        let Some(instance) = self.resolve_instance(cas_path, declared) else {
+            // Left spooled for a sweep once a build primes the path, as PUBLISH
+            // does.
+            self.note_unprimed(cas_path);
+            return false;
+        };
+        let Some(item) = self.publish_item_bytes(cas_path, &instance, record_path) else {
+            return true;
+        };
+        let Ok(state) = self.path_state(cas_path) else {
+            self.publisher.enqueue(item);
+            return false;
+        };
+        if value_already_published(state, record_path) {
+            self.publisher.enqueue(item);
+            return true;
+        }
+        let admission = if self.remote_for(&instance).shedding_writes() {
+            None
+        } else {
+            self.upload_wait.admit(reapi::now_ms())
+        };
+        let Some(admission) = admission else {
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            self.publisher.enqueue(item);
+            return false;
+        };
+
+        let started = Instant::now();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let publisher = &self.publisher;
+        let running = item.clone();
+        let outcome = match std::thread::Builder::new()
+            .name("cas-upload-wait".into())
+            .spawn(move || {
+                let _ = sender.send(publisher.run_now(running));
+            }) {
+            Ok(_) => await_publication(&receiver, record_path, deadline, || {
+                self.upload_wait.releases(admission)
+            }),
+            Err(error) => {
+                crate::log_line(&format!("upload wait could not start: {error}"));
+                self.publisher.enqueue(item);
+                UploadWaitOutcome::Failed
+            }
+        };
+        self.upload_wait.record(admission, outcome, reapi::now_ms());
+        state
+            .ms_upload_wait
+            .fetch_add(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if outcome == UploadWaitOutcome::Published {
+            state.stats_upload_waited.fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            // A failed publication keeps its record for the next sweep, and a
+            // stalled one is still running.
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            false
+        }
     }
 
     fn publish_item(&self, item: &[u8]) {
@@ -4618,7 +5039,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={} | upload_waited={} upload_unwaited={} upload_wait_ms={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -4641,6 +5062,9 @@ impl Proxy {
                 state.us_publish_local.load(Ordering::Relaxed),
                 state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
                 state.stats_publish_shed.load(Ordering::Relaxed),
+                state.stats_upload_waited.load(Ordering::Relaxed),
+                state.stats_upload_unwaited.load(Ordering::Relaxed),
+                state.ms_upload_wait.load(Ordering::Relaxed),
             ));
         }
         drop(paths);
@@ -4660,7 +5084,7 @@ impl Proxy {
         }
     }
 
-    fn handle(&self, mut stream: UnixStream) -> std::io::Result<()> {
+    fn handle(&'static self, mut stream: UnixStream) -> std::io::Result<()> {
         let request: Request = read_request(&mut stream)?;
         // A plugin from a different CLI version speaks a different frame layout;
         // reject rather than misparse, so the plugin degrades to a local miss.
@@ -4724,6 +5148,18 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_PUBLISH_WAIT => {
+                let Some((millis, record_path)) = parse_publish_wait_payload(&request.payload) else {
+                    return write_response(&mut stream, STATUS_ERROR, b"malformed publish wait");
+                };
+                let published = self.publish_and_wait(
+                    &request.cas_path,
+                    &request.instance,
+                    &record_path,
+                    upload_wait_budget(millis),
+                );
+                write_response(&mut stream, if published { STATUS_HIT } else { STATUS_MISS }, &[])
             }
             OP_DRAIN => {
                 let owed = self.drain_publications(
@@ -4872,6 +5308,66 @@ fn load_registry(path: &Path) -> (HashMap<String, String>, HashMap<String, BTree
         }
     }
     (routing, known)
+}
+
+/// Where each registered path's last use is written: `<registry>.used`, one
+/// `cas_path\tseconds since the Unix epoch` line per path.
+fn uses_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".used");
+    PathBuf::from(path)
+}
+
+fn load_path_uses(path: &Path) -> HashMap<String, PathUse> {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return HashMap::new();
+    };
+    body.lines()
+        .filter_map(|line| {
+            let (cas_path, at) = line.rsplit_once('\t')?;
+            let at = at.parse().ok()?;
+            Some((
+                cas_path.to_string(),
+                PathUse {
+                    at,
+                    recorded: at,
+                    revision: 0,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn note_use(uses: &mut HashMap<String, PathUse>, cas_path: &str, now: u64, revision: u64) {
+    match uses.get_mut(cas_path) {
+        Some(path_use) => {
+            path_use.at = now;
+            path_use.revision = revision;
+        }
+        None => {
+            uses.insert(
+                cas_path.to_string(),
+                PathUse {
+                    at: now,
+                    recorded: 0,
+                    revision,
+                },
+            );
+        }
+    }
+}
+
+/// Swaps `contents` in by renaming a staged copy over `path`, so a reader sees
+/// the whole old file or the whole new one.
+fn replace_file(path: &Path, contents: &str) -> std::io::Result<()> {
+    let mut staged = path.as_os_str().to_owned();
+    staged.push(format!(".{}.staged", std::process::id()));
+    let staged = PathBuf::from(staged);
+    std::fs::write(&staged, contents)
+        .and_then(|()| std::fs::rename(&staged, path))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&staged);
+        })
 }
 
 /// The sources registry sits next to the cas_path registry, written by
@@ -5809,6 +6305,386 @@ mod tests {
         assert_eq!(drain_timeout(&[]), DRAIN_TIMEOUT_DEFAULT);
         assert_eq!(drain_timeout(&0u32.to_be_bytes()), DRAIN_TIMEOUT_DEFAULT);
         assert_eq!(drain_timeout(&u32::MAX.to_be_bytes()), DRAIN_TIMEOUT_MAX);
+    }
+
+    #[test]
+    fn an_upload_wait_budget_is_bounded() {
+        assert_eq!(upload_wait_budget(5_000), Duration::from_secs(5));
+        assert_eq!(upload_wait_budget(0), UPLOAD_WAIT_DEFAULT);
+        assert_eq!(upload_wait_budget(u32::MAX), UPLOAD_WAIT_MAX);
+    }
+
+    #[test]
+    fn builds_wait_until_an_upload_stalls() {
+        let breaker = UploadWaitBreaker::default();
+        let admission = breaker.admit(1_000).expect("builds wait by default");
+        assert_eq!(admission, UploadWaitAdmission::Closed);
+
+        breaker.record(admission, UploadWaitOutcome::TimedOut, 1_000);
+
+        assert_eq!(breaker.admit(1_001), None);
+        assert_eq!(breaker.admit(1_000 + UPLOAD_WAIT_OPEN_MS - 1), None);
+    }
+
+    /// One failed upload is as likely to be its record as the remote, and not
+    /// waiting costs a job its uploads, so it takes a run of them.
+    #[test]
+    fn builds_stop_waiting_after_a_run_of_failures_not_one() {
+        let breaker = UploadWaitBreaker::default();
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Published, 1_000);
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        assert_eq!(
+            breaker.admit(1_000),
+            Some(UploadWaitAdmission::Closed),
+            "a success in between resets the run"
+        );
+
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        assert_eq!(breaker.admit(1_000), None);
+    }
+
+    /// After the window one build waits, and the rest keep moving until its
+    /// upload shows the remote is back. Letting all of them wait again would cost
+    /// a stalled budget per compile, once per window, for as long as the outage.
+    #[test]
+    fn after_the_window_one_build_probes_and_its_result_decides() {
+        let breaker = UploadWaitBreaker::default();
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::TimedOut, 0);
+
+        let reopened = UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the window has passed");
+        assert_eq!(probe, UploadWaitAdmission::Probe);
+        assert_eq!(breaker.admit(reopened), None, "only one probe at a time");
+
+        breaker.record(probe, UploadWaitOutcome::Failed, reopened);
+        assert_eq!(
+            breaker.admit(reopened + 1),
+            None,
+            "a failed probe opens a fresh window"
+        );
+
+        let reopened = reopened + UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the second window has passed");
+        breaker.record(probe, UploadWaitOutcome::Published, reopened);
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+    }
+
+    /// A proxy over a real store whose publisher, instead of uploading, runs
+    /// `publish` on each record path.
+    fn waiting_proxy<F>(dir: &Path, publish: F) -> &'static Proxy
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.join("registry")),
+            None,
+        );
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        proxy
+    }
+
+    /// A temp dir with a sources registry, a store path and a spooled record
+    /// for `key`.
+    fn upload_wait_fixture(name: &str, sources: &str) -> (PathBuf, String, String) {
+        let dir = std::env::temp_dir().join(format!("tuist-upload-wait-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let cas_path = dir.join("cas");
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        std::fs::write(sources_path_for(&dir.join("registry")), sources).expect("sources");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, record_body(b"key", b"value")).expect("record");
+        (
+            dir,
+            cas_path.to_string_lossy().into_owned(),
+            record.to_string_lossy().into_owned(),
+        )
+    }
+
+    fn record_body(key: &[u8], value: &[u8]) -> Vec<u8> {
+        let mut body = (key.len() as u16).to_be_bytes().to_vec();
+        body.extend_from_slice(key);
+        body.extend_from_slice(value);
+        body
+    }
+
+    const UPLOADING: &str = r#"{"tuist/mastodon":{"trunk":"main","branch":"feature"}}"#;
+
+    #[test]
+    fn a_build_waits_until_its_record_is_published() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("published", UPLOADING);
+        let proxy = waiting_proxy(&dir, |record_path| {
+            std::thread::sleep(Duration::from_millis(200));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(published);
+        assert!(started.elapsed() >= Duration::from_millis(200));
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_waited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_failed_upload_is_left_to_the_sweep() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("failed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| {});
+
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(!published);
+        assert!(Path::new(&record_path).exists(), "the record stays for the sweep");
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_unwaited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build moves on at its budget, the upload keeps running, and the next
+    /// builds stop waiting at all rather than each paying the budget again.
+    #[test]
+    fn a_stalled_upload_releases_the_build_and_the_ones_after_it() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("stalled", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        let next_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&next_record, record_body(b"other-key", b"value")).expect("record");
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &next_record.to_string_lossy(),
+            Duration::from_secs(10),
+        ));
+        assert!(
+            started.elapsed() < Duration::from_millis(150),
+            "the next build did not wait"
+        );
+
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Path::new(&record_path).exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&record_path).exists(), "the stalled upload finished");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Compiles run in parallel, so a stall catches several puts mid-wait. Each
+    /// running out its own budget would stagger the build's delay across all of
+    /// them; the first timeout releases the rest.
+    #[test]
+    fn the_first_stalled_upload_releases_the_builds_already_waiting() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("released", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        let other_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&other_record, record_body(b"other-key", b"value")).expect("record");
+        let other_record = other_record.to_string_lossy().into_owned();
+
+        let started = Instant::now();
+        let waiting = {
+            let cas_path = cas_path.clone();
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &other_record, Duration::from_secs(10))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+
+        assert!(!waiting.join().unwrap());
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the build waiting with a 10s budget was released when the other one stalled"
+        );
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A sweep can hand the pool a record before its build asks to wait for it.
+    /// That publication failing is one failure, not a stall: the build has to
+    /// hear about it when it happens rather than wait out its budget.
+    #[test]
+    fn a_failed_publication_already_in_flight_ends_the_wait_as_a_failure() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("in-flight", UPLOADING);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = entered_sender.send(());
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool took the record");
+
+        let started = Instant::now();
+        let waiting = {
+            let (cas_path, record_path) = (cas_path.clone(), record_path.clone());
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &record_path, Duration::from_secs(5))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(100));
+        release.send(()).unwrap();
+
+        assert!(!waiting.join().unwrap());
+        assert!(started.elapsed() < Duration::from_secs(2), "the wait ended with the publication");
+        assert_eq!(
+            proxy.upload_wait.admit(reapi::now_ms()),
+            Some(UploadWaitAdmission::Closed),
+            "one failure does not stop builds waiting"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A record queued behind background work is published by the build waiting
+    /// on it, not after the backlog ahead of it.
+    #[test]
+    fn a_queued_publication_is_taken_over_by_the_build_waiting_on_it() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("queued", UPLOADING);
+        let blocker = Path::new(&cas_path).join("tuist-spool").join("1234-9");
+        std::fs::write(&blocker, record_body(b"blocker", b"value")).expect("record");
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            if record_path.ends_with("1234-9") {
+                let _ = entered_sender.send(());
+                let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            }
+            remove_record(record_path);
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &blocker.to_string_lossy());
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool's only worker is busy");
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(2),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
+
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_project_that_does_not_upload_owes_nothing() {
+        let (dir, cas_path, record_path) = upload_wait_fixture(
+            "read-only",
+            r#"{"tuist/mastodon":{"trunk":"main","upload":false}}"#,
+        );
+        let proxy = waiting_proxy(&dir, |_| panic!("nothing is published"));
+
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(!Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build service re-puts most keys its compilers already put. When the
+    /// compiler's wait published the value, the re-put has no bytes to wait for.
+    #[test]
+    fn a_reput_of_a_published_value_does_not_wait() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("reput", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+        proxy.resolve_instance(&cas_path, "tuist/mastodon");
+        let state = proxy.path_state(&cas_path).unwrap();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"key".to_vec(), Resolution::Hit(b"value".to_vec()));
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(started.elapsed() < Duration::from_millis(150));
+
+        release.send(()).unwrap();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+        assert!(
+            !Path::new(&record_path).exists(),
+            "the re-put still reached the publisher"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_unprimed_path_is_not_waited_on() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("unprimed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| panic!("nowhere to publish to"));
+
+        assert!(!proxy.publish_and_wait(&cas_path, "", &record_path, Duration::from_secs(10)));
+        assert!(Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
@@ -6841,6 +7717,9 @@ mod tests {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }))
     }
 
@@ -7375,6 +8254,288 @@ mod tests {
             "a restart remembers every project that used the path"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn registry_proxy(registry: &Path) -> &'static Proxy {
+        Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry.to_path_buf()),
+            None,
+        )
+    }
+
+    fn store_in(dir: &TempCasDir, name: &str) -> String {
+        let store = dir.0.join(name);
+        std::fs::create_dir_all(&store).unwrap();
+        store.to_string_lossy().into_owned()
+    }
+
+    fn a_day_past_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() - 24 * 60 * 60
+    }
+
+    fn a_day_inside_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() + 24 * 60 * 60
+    }
+
+    #[test]
+    fn a_path_is_forgotten_when_its_store_is_gone_or_unused_past_the_window() {
+        assert!(!should_forget(Duration::ZERO, false));
+        assert!(!should_forget(REGISTRY_FORGET_AFTER, false));
+        assert!(should_forget(REGISTRY_FORGET_AFTER + Duration::from_secs(1), false));
+        assert!(should_forget(Duration::ZERO, true));
+    }
+
+    #[test]
+    fn a_use_is_written_once_it_has_moved_past_the_record_interval() {
+        let recorded = unix_seconds() - 24 * 60 * 60;
+        let at = |seconds: u64| PathUse {
+            at: recorded + seconds,
+            recorded,
+            revision: 0,
+        };
+        assert!(!at(0).needs_recording());
+        assert!(!at(PATH_USE_RECORD_INTERVAL.as_secs() - 1).needs_recording());
+        assert!(at(PATH_USE_RECORD_INTERVAL.as_secs()).needs_recording());
+        assert!(PathUse {
+            at: recorded,
+            recorded: 0,
+            revision: 0,
+        }
+        .needs_recording());
+    }
+
+    #[test]
+    fn a_path_no_build_has_used_within_the_window_is_forgotten_and_a_used_one_is_kept() {
+        let dir = TempCasDir::new("registry-unused");
+        let registry = dir.0.join("registry");
+        let idle = store_in(&dir, "idle");
+        let used = store_in(&dir, "used");
+        std::fs::write(&registry, format!("{idle}\ttuist/app\n{used}\ttuist/app\n")).unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{idle}\t{}\n{used}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_inside_the_forget_window()
+            ),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        let (routing, _) = load_registry(&registry);
+        assert!(!routing.contains_key(&idle));
+        assert_eq!(routing.get(&used).map(String::as_str), Some("tuist/app"));
+        let uses = load_path_uses(&uses_path_for(&registry));
+        assert!(!uses.contains_key(&idle));
+        assert!(uses.contains_key(&used));
+        assert_eq!(
+            registry_proxy(&registry).resolve_instance(&idle, ""),
+            None,
+            "a restarted proxy has forgotten it too"
+        );
+        let staged = std::fs::read_dir(&dir.0)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".staged"))
+            .count();
+        assert_eq!(staged, 0);
+    }
+
+    #[test]
+    fn a_path_whose_store_directory_is_gone_is_forgotten_however_recently_it_was_used() {
+        let dir = TempCasDir::new("registry-gone");
+        let registry = dir.0.join("registry");
+        let deleted = dir.0.join("deleted").to_string_lossy().into_owned();
+        std::fs::write(&registry, format!("{deleted}\ttuist/app\n")).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.resolve_instance(&deleted, "tuist/app");
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&deleted, ""), None);
+        assert!(load_registry(&registry).0.is_empty());
+    }
+
+    /// A registry written before uses were recorded has none for any path.
+    #[test]
+    fn a_path_with_no_recorded_use_starts_its_clock_instead_of_being_forgotten() {
+        let dir = TempCasDir::new("registry-unrecorded");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        assert_eq!(
+            load_registry(&registry).0.get(&store).map(String::as_str),
+            Some("tuist/app")
+        );
+        let recorded = load_path_uses(&uses_path_for(&registry))
+            .get(&store)
+            .map(|path_use| path_use.at)
+            .expect("the use is recorded");
+        assert!(unix_seconds() - recorded < 60);
+    }
+
+    #[test]
+    fn a_forgotten_path_is_registered_again_by_the_next_build_that_declares_its_instance() {
+        let dir = TempCasDir::new("registry-reregister");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.resolve_instance(&store, ""), None);
+
+        proxy.resolve_instance(&store, "tuist/app");
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        proxy.forget_unused_paths();
+        let restarted = registry_proxy(&registry);
+        restarted.forget_unused_paths();
+        assert_eq!(
+            restarted.resolve_instance(&store, "").as_deref(),
+            Some("tuist/app"),
+            "an Xcode build that declares no instance routes after a restart"
+        );
+    }
+
+    /// The build system's Clang lane declares no instance and routes through the
+    /// registry, so its requests alone have to keep a path registered.
+    #[test]
+    fn a_build_that_routes_through_the_registry_keeps_its_path() {
+        let dir = TempCasDir::new("registry-routed-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        let recorded = load_path_uses(&uses_path_for(&registry))[&store].at;
+        assert!(unix_seconds() - recorded < 60, "and the use reaches the disk");
+    }
+
+    /// Seconds cannot tell a use apart from the observation it follows: a store
+    /// deleted and recreated by a build can be observed missing and used again
+    /// within one second.
+    #[test]
+    fn a_path_used_after_it_was_observed_is_kept_even_within_the_same_second() {
+        let dir = TempCasDir::new("registry-used-since");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
+        let proxy = registry_proxy(&registry);
+        let observed = proxy.observe_paths();
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_paths(
+            observed
+                .into_iter()
+                .map(|(cas_path, path_use)| (cas_path, path_use, "gone".to_string()))
+                .collect(),
+            unix_seconds(),
+        );
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+    }
+
+    /// A spooled record is only published through the path's routing, by the
+    /// sweep or by a drain that declares no instance.
+    #[test]
+    fn a_path_whose_spool_holds_publications_is_kept_past_the_window_until_it_drains() {
+        let dir = TempCasDir::new("registry-spooled");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let record = spool_dir(&store).join("record");
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        std::fs::write(&record, b"record").unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.drain_instance(&store, "").as_deref(), Some("tuist/app"));
+        std::fs::remove_file(&record).unwrap();
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.drain_instance(&store, ""), None);
+    }
+
+    /// Resolves run on the build's serial task-setup path, so a use of a path
+    /// that is already registered stays in memory until the maintenance loop.
+    #[test]
+    fn using_a_registered_path_writes_nothing_until_its_use_is_due_to_be_recorded() {
+        let dir = TempCasDir::new("registry-cheap-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let uses = uses_path_for(&registry);
+        let recorded = format!("{store}\t{}\n", unix_seconds() - 60);
+        std::fs::write(&uses, &recorded).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        for _ in 0..3 {
+            proxy.resolve_instance(&store, "tuist/app");
+            proxy.resolve_instance(&store, "");
+        }
+        proxy.forget_unused_paths();
+
+        assert_eq!(std::fs::read_to_string(&uses).unwrap(), recorded);
+    }
+
+    /// A store several projects share keeps every project's limit for as long as
+    /// any of them uses it, and a project whose every path is forgotten keeps its
+    /// recorded policy for the next build to find.
+    #[test]
+    fn forgetting_paths_drops_no_project_from_a_store_in_use_or_from_the_sources_registry() {
+        let dir = TempCasDir::new("registry-sources");
+        let registry = dir.0.join("registry");
+        let shared = store_in(&dir, "shared");
+        let idle = store_in(&dir, "idle");
+        let sources = r#"{"tuist/bounded":{"storeSizeLimit":1073741824,"upload":false},"tuist/unbounded":{},"tuist/idle":{"upload":false}}"#;
+        std::fs::write(sources_path_for(&registry), sources).unwrap();
+        std::fs::write(
+            &registry,
+            format!("{shared}\ttuist/bounded\n{shared}\ttuist/unbounded\n{idle}\ttuist/idle\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{shared}\t{}\n{idle}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_past_the_forget_window()
+            ),
+        )
+        .unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&shared, "tuist/unbounded");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&idle, ""), None);
+        assert_eq!(proxy.store_size_limit(&shared), Some(1024 * 1024 * 1024));
+        assert_eq!(
+            registry_proxy(&registry).store_size_limit(&shared),
+            Some(1024 * 1024 * 1024),
+            "a restart still bounds the shared store by the limit of a project that has not built into it lately"
+        );
+        assert_eq!(std::fs::read_to_string(sources_path_for(&registry)).unwrap(), sources);
+        proxy.resolve_instance(&idle, "tuist/idle");
+        assert!(!proxy.upload_enabled("tuist/idle"));
     }
 
     /// Why the prune is an op on the proxy rather than something its caller can

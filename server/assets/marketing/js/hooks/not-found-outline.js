@@ -32,7 +32,7 @@
 const ATTRIBUTE = "data-marketing-outline";
 const OVERLAY_ID = "marketing-outline-overlay";
 const NAVBAR = "#marketing-navbar";
-const REGIONS = [NAVBAR, "#marketing-not-found", "#marketing-footer-new"];
+const REGIONS = [NAVBAR, "#marketing-not-found", "#marketing-footer"];
 // Never visible in the outline view, so not worth copying: menu panels,
 // the mobile menu, dropdown positioners, every canvas and video.
 const PRUNE = '[data-part="viewport"], [data-part="mobile-menus"], [data-part="positioner"], canvas, video, script';

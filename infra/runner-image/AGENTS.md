@@ -163,7 +163,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `volume-head-unverifiable` in the `status` share and the guest relays it as
   `unverifiable_digest` with BOTH promote requests, which is what lets the server
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
-  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
+  or the pre-flight would 409 the only promote that can unwedge the account.
+  Alongside the inventory digest, `capture_settled_inventory` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches) into
+  `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  bit flipped INSIDE a cached file sails through it, and the content digest is the
+  end-to-end byte claim. It rides both promote requests; the mint response echoes
+  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
+  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
+  signature covers it), the object store verifies the payload at ingest, and the
+  converging host verifies the download against the HEAD row's digest before
+  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
+  mismatch). All of it is optional per hop, so images and servers roll
+  independently: no digest, no echoed checksum, or a HEAD row without one just
+  degrades to the pre-hash behaviour. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,
@@ -250,7 +263,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it.
+  on the VM's boot volume and died with it. It exports
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
+  put wait for its upload, because off a runner the store goes away with the job,
+  and `drain_cas_publications` does that wait at teardown for spools under this
+  directory, after the job has reported its result. The plugin uploads in the
+  background only when its own store is inside that path, so a job whose xcconfig
+  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
+  so does every job whose store is VM-local.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown (the prune is second, and in that order deliberately: a prune deletes
   objects, and deleting one the spool still owed would strand the association
@@ -266,10 +286,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   can be found — a record is deleted only by a publication that SUCCEEDED, so an
   empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
   because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it is skipped on a failed job
-  (which never promotes) and is a no-op for a job that never published, which
-  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
-  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  detach because the spool is inside the image; it runs on a failed job too,
+  whose uploads the next job still needs even though its verdict gates nothing
+  (a failed job never promotes), and is a no-op for a job that never published,
+  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
+  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
   `mark_cache_not_promotable`: the account keeps its previous master and loses
   this job's warm set, which is the same trade every other teardown that cannot
   reach a safe state already makes. It cannot be complete — a host that panics or

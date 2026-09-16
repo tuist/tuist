@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/urfave/cli v1.22.17
 	gitlab.com/gitlab-org/gitlab-runner v0.0.0-20260420144928-5265d41dc1f0
+	gocloud.dev v0.44.0
 )
 
 require (
@@ -169,7 +170,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	gocloud.dev v0.44.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mod v0.35.0 // indirect

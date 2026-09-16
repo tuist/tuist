@@ -421,6 +421,8 @@ jobs:
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
             specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+          - shard_name: bytestream-admission
+            specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls

@@ -4154,13 +4154,13 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
 
-    test "purges the account's runner cache-volume masters from object storage" do
+    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4171,6 +4171,30 @@ defmodule Tuist.AccountsTest do
       # Then
       assert_receive {:purged, "runner-volume-masters/" <> rest}
       assert rest == "#{account.id}/"
+      assert_receive {:purged, gitlab_cache_prefix}
+      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+    end
+
+    test "a failed cache-master purge does not skip the GitLab cache purge" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      stub(Tuist.Storage, :delete_all_objects, fn
+        "runner-volume-masters/" <> _, _actor ->
+          raise "storage down"
+
+        prefix, _actor ->
+          send(test_pid, {:purged, prefix})
+          {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
     end
 
     test "account deletion still succeeds when the cache-master purge fails" do

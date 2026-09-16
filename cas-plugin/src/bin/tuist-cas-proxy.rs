@@ -216,6 +216,10 @@ fn main() {
         analytics,
     );
 
+    // Before the prefetch, which opens and warms the store of every registered
+    // path.
+    proxy.forget_unused_paths();
+
     // Snapshots for every instance the persisted registry knows start
     // fetching now, so the first build after a proxy restart begins with the
     // snapshot (and its bulk warm) already in flight.
@@ -227,6 +231,7 @@ fn main() {
         proxy.sweep();
         proxy.enforce_cache_bounds();
         proxy.reclaim_idle();
+        proxy.forget_unused_paths();
         proxy.bound_stores();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
         proxy.refresh_endpoint();

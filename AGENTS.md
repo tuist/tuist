@@ -12,6 +12,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
+- `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -49,6 +50,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
 - `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `registry` - Changes to the Swift package registry service

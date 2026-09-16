@@ -32,6 +32,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Origins
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
+  alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
@@ -2669,6 +2670,7 @@ defmodule Tuist.Accounts do
       end
 
     purge_account_cache_masters(account)
+    purge_account_gitlab_caches(account)
     result
   end
 
@@ -2700,6 +2702,20 @@ defmodule Tuist.Accounts do
     e ->
       Logger.warning(
         "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
+  # Retention would expire these once the account ID no longer resolves, but
+  # not before the window passes. Best-effort, like the cache-master purge.
+  defp purge_account_gitlab_caches(account) do
+    Tuist.Storage.delete_all_objects(GitLabCache.account_prefix(account), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge GitLab cache archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
       )
 
       :ok

@@ -17,6 +17,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
@@ -84,9 +85,14 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker}
   ]
 
+  # Runners are hosted-only, so their GitLab cache archives never exist on a
+  # self-hosted deployment.
+  @gitlab_cache_artifact_retention_cron {"15 4 * * *", DeleteExpiredGitLabCacheArtifactsWorker}
+
   @hosted_artifact_retention_crons [
                                      @schedule_expired_artifacts_cron,
-                                     @legacy_build_artifact_retention_cron
+                                     @legacy_build_artifact_retention_cron,
+                                     @gitlab_cache_artifact_retention_cron
                                    ] ++ @cache_artifact_retention_crons
 
   # Self-hosted retention workers read their window from the environment on every run.

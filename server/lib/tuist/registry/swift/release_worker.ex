@@ -167,8 +167,22 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
+  # Briefly deletes a dead process's files from inside its single
+  # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
+  # makes a 5s call to that same server. Removing a cloned or extracted package
+  # tree there stalls it long enough for concurrent release jobs to crash on the
+  # call timeout, so the tree is removed here, in the job's own process.
   defp sync_release(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
+
+    try do
+      sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts)
+    after
+      File.rm_rf(tmp_dir)
+    end
+  end
+
+  defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),

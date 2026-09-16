@@ -9,6 +9,7 @@ defmodule Tuist.Runners.GitLabTest do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.GitLab.Client
   alias Tuist.Runners.GitLab.Job
   alias Tuist.Runners.JobReportToken
@@ -87,6 +88,54 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:ok, %{workflow_job_id: id}} = JobReportToken.verify(acquisition.report_token)
     assert id == job.workflow_job_id
     assert {:error, :not_found} = GitLab.mint_acquisition(account.id + 1, id)
+  end
+
+  test "report tokens carry the coordinator's project and ref protection", %{connection: connection, account: account} do
+    for protected? <- [true, false] do
+      identity = mint_identity(connection, account, %{"protected" => protected?})
+
+      assert identity.gitlab_instance == Cache.instance_id("https://gitlab.com")
+      assert identity.gitlab_project_id == 123
+      assert identity.ref_protected == protected?
+    end
+  end
+
+  # Treating an unknown ref as unprotected would put a protected branch's
+  # archives in the namespace unprotected pipelines write to. A pipeline can
+  # override CI_COMMIT_REF_PROTECTED, so it is never a substitute.
+  test "report tokens get no cache scope without the coordinator's ref protection", %{
+    connection: connection,
+    account: account
+  } do
+    for git_info <- [%{}, %{"protected" => nil}, %{"protected" => "true"}] do
+      identity =
+        mint_identity(connection, account, git_info, [%{"key" => "CI_COMMIT_REF_PROTECTED", "value" => "true"}])
+
+      refute Map.has_key?(identity, :ref_protected), inspect(git_info)
+      refute Map.has_key?(identity, :gitlab_project_id)
+    end
+  end
+
+  defp mint_identity(connection, account, git_info, variables \\ []) do
+    payload =
+      payload()
+      |> Map.update!("git_info", &Map.merge(&1, git_info))
+      |> Map.update!("variables", &(&1 ++ variables))
+
+    job =
+      Repo.insert!(%Job{
+        account_id: account.id,
+        connection_id: connection.id,
+        url: "https://gitlab.com",
+        job_id: payload["id"],
+        project_path: "acme/mobile",
+        pipeline_id: 42,
+        payload: JSON.encode!(payload)
+      })
+
+    assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
+    assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)
+    identity
   end
 
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
