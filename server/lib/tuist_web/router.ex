@@ -19,9 +19,9 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
+  alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
-  alias TuistWeb.RequestOrigin
 
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
@@ -145,12 +145,12 @@ defmodule TuistWeb.Router do
 
   # Marketing pages are stored by shared caches without Set-Cookie, so the
   # CSRF token embedded in the HTML belongs to whichever session produced the
-  # cached copy and never validates for the visitors it is served to. The One
-  # Tap start request therefore proves same-origin through browser-set headers
-  # instead and receives a fresh token for the credential form, which stays
-  # fully CSRF-protected.
-  pipeline :google_one_tap_start do
-    plug :skip_csrf_for_same_origin_google_one_tap_start
+  # cached copy and never validates for the visitors it is served to. Requests
+  # posted from those pages prove same-origin through browser-set headers
+  # instead. Pipe it ahead of a pipeline that plugs :protect_from_forgery, and
+  # only through scopes that hold nothing but the routes meant to be exempt.
+  pipeline :same_origin_csrf_exemption do
+    plug SameOriginCSRFExemptionPlug
   end
 
   pipeline :browser_app_image do
@@ -484,29 +484,46 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter"),
-           MarketingController,
-           :newsletter_signup,
-           metadata: %{type: :marketing},
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/verify"),
           MarketingController,
           :newsletter_verify,
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
-           MarketingController,
-           :newsletter_confirm,
-           metadata: @marketing_route_metadata,
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
           metadata: @marketing_route_metadata,
           private: private
+    end
+  end
+
+  # The newsletter forms are submitted from cached marketing pages whose
+  # embedded CSRF token belongs to another session.
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      locale_path_prefix = Localization.locale_path_prefix(locale)
+
+      private = %{locale: locale}
+
+      post Path.join(locale_path_prefix, "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: private
+
+      post Path.join(locale_path_prefix, "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: private
     end
   end
 
@@ -1100,9 +1117,15 @@ defmodule TuistWeb.Router do
     end
   end
 
+  # The One Tap start request is fetched from cached marketing pages and
+  # returns a fresh token for the credential form, which stays CSRF-protected.
   scope "/auth", TuistWeb do
-    pipe_through [:google_one_tap_start, :browser_app]
+    pipe_through [:same_origin_csrf_exemption, :browser_app]
     post "/google/one-tap/start", AuthController, :google_one_tap_start
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app]
     post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
@@ -1447,30 +1470,4 @@ defmodule TuistWeb.Router do
   end
 
   defp skip_csrf_for_fun_with_flags_assets(conn, _opts), do: conn
-
-  # Constrained to the start request so no other route under the same scope
-  # inherits the exemption.
-  defp skip_csrf_for_same_origin_google_one_tap_start(
-         %Plug.Conn{method: "POST", path_info: ["auth", "google", "one-tap", "start"]} = conn,
-         _opts
-       ) do
-    if same_origin_request?(conn) do
-      Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
-    else
-      conn
-    end
-  end
-
-  defp skip_csrf_for_same_origin_google_one_tap_start(conn, _opts), do: conn
-
-  # Both headers are set by the browser and cannot be forged by page scripts.
-  # Sec-Fetch-Site is authoritative when present; older browsers only send
-  # Origin, which must match the public origin of this request exactly.
-  defp same_origin_request?(conn) do
-    case get_req_header(conn, "sec-fetch-site") do
-      ["same-origin"] -> true
-      [] -> get_req_header(conn, "origin") == [RequestOrigin.from_conn(conn)]
-      _ -> false
-    end
-  end
 end

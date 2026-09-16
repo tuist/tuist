@@ -2,6 +2,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
   alias Tuist.GitHub.Releases
@@ -465,6 +466,51 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                "message" => "Something went wrong. Please try again."
              }
     end
+
+    test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
+      email = "test@example.com"
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("sec-fetch-site", "same-origin")
+        |> post(~p"/newsletter", %{"email" => email, "_csrf_token" => "token-from-a-cached-page"})
+
+      assert %{"success" => true} = json_response(conn, 200)
+    end
+
+    test "accepts a submission whose origin matches the public origin without fetch metadata", %{conn: conn} do
+      email = "test@example.com"
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "tuist.dev")
+        |> put_req_header("origin", "https://tuist.dev")
+        |> post(~p"/newsletter", %{"email" => email})
+
+      assert %{"success" => true} = json_response(conn, 200)
+    end
+
+    test "rejects submissions that are not provably same-origin", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for headers <- [
+            [],
+            [{"origin", "https://evil.example"}],
+            [{"sec-fetch-site", "cross-site"}],
+            [{"sec-fetch-site", "same-site"}, {"origin", "http://www.example.com"}]
+          ] do
+        conn = Enum.reduce(headers, enforce_csrf(conn), fn {name, value}, conn -> put_req_header(conn, name, value) end)
+
+        assert_raise InvalidCSRFTokenError, fn ->
+          post(conn, ~p"/newsletter", %{"email" => "test@example.com", "_csrf_token" => "token-from-a-cached-page"})
+        end
+      end
+    end
   end
 
   describe "GET /page" do
@@ -635,6 +681,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Successfully Subscribed!"
       assert html =~ "Back to home"
     end
+
+    test "is not stored by shared caches", %{conn: conn} do
+      token = signed_newsletter_token("test@example.com")
+
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
   end
 
   describe "GET /newsletter/verify" do
@@ -648,6 +702,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       # Then
       assert html_response(conn, 200)
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
       assert conn.assigns.email == email
       assert conn.assigns.verification_token == token
       assert conn.assigns.subscription_confirmed == false
@@ -771,7 +826,38 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
+
+    test "confirms from a same-origin form whose page carried a stale CSRF token", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+      expect(Email, :add_to_newsletter_list, fn ^email -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("sec-fetch-site", "same-origin")
+        |> post(~p"/newsletter/verify", %{"token" => token, "_csrf_token" => "token-from-a-cached-page"})
+
+      assert html_response(conn, 200) =~ "Successfully Subscribed!"
+      assert conn.assigns.subscription_confirmed == true
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
+
+    test "rejects submissions that are not provably same-origin", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+      token = signed_newsletter_token("test@example.com")
+
+      for headers <- [[], [{"origin", "https://evil.example"}], [{"sec-fetch-site", "cross-site"}]] do
+        conn = Enum.reduce(headers, enforce_csrf(conn), fn {name, value}, conn -> put_req_header(conn, name, value) end)
+
+        assert_raise InvalidCSRFTokenError, fn ->
+          post(conn, ~p"/newsletter/verify", %{"token" => token})
+        end
+      end
+    end
   end
+
+  defp enforce_csrf(conn), do: Plug.Conn.put_private(conn, :plug_skip_csrf_protection, false)
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
