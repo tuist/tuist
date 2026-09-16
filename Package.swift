@@ -1571,6 +1571,7 @@ targets.append(contentsOf: [
             mockableDependency,
             "ProjectDescription",
             fileSystemDependency,
+            .product(name: "Glob", package: "tuist.FileSystem"),
             "TuistRootDirectoryLocator",
             "TuistGit",
         ],
