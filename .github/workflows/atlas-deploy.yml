@@ -1,0 +1,154 @@
+name: Atlas deploy
+
+# `helm upgrade` the atlas-production release on the CAPI cluster with an
+# already-published `ghcr.io/tuist/atlas:<version>` image. Image publishing
+# is handled by `atlas-release.yml` on push to main; this workflow just
+# rolls it out, so deploy is decoupled from build.
+
+on:
+  push:
+    tags:
+      - "atlas@*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to deploy (e.g. `1.2.3`); defaults to `latest`.
+        required: false
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: atlas-deploy-production
+  cancel-in-progress: false
+
+env:
+  HELM_CHART_PATH: infra/helm/atlas
+  HELM_RELEASE_NAME: atlas
+  NAMESPACE: atlas-production
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: tuist-linux
+    environment:
+      name: production
+      url: https://atlas.tuist.dev
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "image_tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            # For a tag push like `atlas@1.2.3`, strip the `atlas@` prefix.
+            ref="${GITHUB_REF_NAME:-latest}"
+            echo "image_tag=${ref#atlas@}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+          # Pin to the latest published mise release. Without this, the
+          # action resolves "latest" to a version tagged in mise's repo
+          # before its release asset exists, and the download 404s.
+          version: "2026.9.5"
+
+      - uses: 1password/install-cli-action@v4
+
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.ATLAS_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: atlas-production" \
+            --vault atlas-k8s-production --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, helm upgrade would hang for `--timeout`
+        # against a phantom endpoint and partially mutate cluster state
+        # before erroring.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+
+      - name: Recover stuck release
+        run: |
+          status=$(helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" -o json 2>/dev/null \
+            | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+          echo "Current release status: ${status:-<none>}"
+          case "$status" in
+            pending-install)
+              echo "Release stuck in pending-install; uninstalling."
+              helm uninstall "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait || true
+              ;;
+            pending-upgrade|pending-rollback)
+              echo "Release stuck in $status; rolling back to last deployed revision."
+              helm rollback "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait --timeout 5m || true
+              ;;
+          esac
+
+      - name: helm upgrade --install
+        # --force-conflicts: Helm 4 applies chart objects server-side, so a
+        # field previously owned by another manager (e.g. a manual
+        # `kubectl patch` on the atlas-app ExternalSecret's .spec.data) makes
+        # the apply fail with a field-ownership conflict, and the automatic
+        # rollback fails the same way, leaving the release stuck in `failed`.
+        # Forcing conflicts lets Helm's field manager reclaim those fields
+        # instead of erroring, which is the desired outcome: the chart is the
+        # source of truth for the objects it renders.
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            --set image.tag="${{ steps.version.outputs.image_tag }}" \
+            --set env.SENTRY_RELEASE="${{ steps.version.outputs.image_tag }}" \
+            --force-conflicts \
+            --rollback-on-failure --timeout 15m --wait
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::pods"
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
+          echo "::group::migration job"
+          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=migration -o name 2>/dev/null); do
+            kubectl -n "$NAMESPACE" describe "$job" || true
+            kubectl -n "$NAMESPACE" logs "$job" --all-containers --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/atlas || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=atlas -o name 2>/dev/null); do
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::external secrets"
+          kubectl -n "$NAMESPACE" get externalsecret 2>&1 || true
+          kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
+          echo "::endgroup::"
+
+      - name: Smoke test
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=10m
+          kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://atlas/ready"

@@ -1,0 +1,71 @@
+name: Atlas inbox worker deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - atlas/workers/inbox/**
+      - .github/workflows/atlas-inbox-worker-deploy.yml
+  workflow_dispatch:
+
+concurrency:
+  group: atlas-deploy-inbox-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: tuist-linux
+    environment:
+      name: production
+      url: https://atlas.tuist.dev
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: atlas/workers/inbox
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: "node aube"
+          # Pin to the latest published mise release. Without this, the
+          # action resolves "latest" to a version tagged in mise's repo
+          # before its release asset exists, and the download 404s.
+          version: "2026.9.5"
+
+      - name: Restore Aube cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('atlas/workers/inbox/aube-lock.yaml') }}
+
+      - run: aube install
+
+      # Cloudflare credentials live in the atlas-k8s-production 1Password
+      # vault so the only GitHub secret this workflow needs is the OP
+      # service-account token. Values are captured into masked step
+      # outputs so wrangler-action can consume them without echoing.
+      - uses: 1password/install-cli-action@v4
+      - id: cf
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.ATLAS_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          api_token=$(op read "op://atlas-k8s-production/cloudflare-inbox-worker/api-token")
+          account_id=$(op read "op://atlas-k8s-production/cloudflare-inbox-worker/account-id")
+          echo "::add-mask::$api_token"
+          echo "::add-mask::$account_id"
+          {
+            echo "api_token=$api_token"
+            echo "account_id=$account_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ steps.cf.outputs.api_token }}
+          accountId: ${{ steps.cf.outputs.account_id }}
+          workingDirectory: atlas/workers/inbox
