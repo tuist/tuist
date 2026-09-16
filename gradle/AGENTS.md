@@ -23,4 +23,4 @@ Related: `server/lib/tuist/gradle/AGENTS.md`.
 
 - Report time bounds cover the recorded operations and machine measurements, rather than unrelated internal callbacks. Keep earlier recorded operations intact, and include the final measurement in the reported duration. The reporter owns the early collector until its completion queue drains; the sampler’s independent Gradle close hook must not stop it prematurely.
 
-- After a periodic reading, omit a stop-time sample less than 200 ms later to avoid unstable rates from a tiny final interval. Preserve start/stop readings when no periodic sample was collected, including short builds.
+- A stop-time reading less than 200 ms after a periodic reading replaces that periodic reading, with rates measured from the reading before it, to avoid unstable rates from a tiny final interval. Do not omit the stop-time reading instead: the last task can finish after the periodic reading, and monitoring must cover the reported build end. Preserve start/stop readings when no periodic sample was collected, including short builds. Downsampling keeps the first and last samples.
