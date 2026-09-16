@@ -18,6 +18,7 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
-- Artifact downloads resume with a `Range` header from the byte offset they reached rather than restarting, for the operation IDs the client opts in. A resumed `206` whose `Content-Range` does not start at that offset is refused instead of appended.
+- Artifact downloads resume with a `Range` header from the byte offset they reached rather than restarting, for the operation IDs the client opts in. The transport streams those operations' bodies, so the bytes received before a failure are kept. A resumed `206` whose `Content-Range` does not start at that offset is refused instead of appended. The resume cap counts only consecutive attempts that get no further into the artifact.
+- Artifact downloads run on `URLSession.tuistArtifactDownload` and through `TransferAdmission.artifactDownloads`, which starts no more of them than the session's per-host connection limit: `URLSession` runs a task's timeouts while it is queued for a connection or stream.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.

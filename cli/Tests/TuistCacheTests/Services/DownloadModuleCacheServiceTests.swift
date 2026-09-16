@@ -1,9 +1,15 @@
 import CryptoKit
 import Foundation
+import Mockable
 import Testing
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistHTTP
+import TuistServer
 
 @testable import TuistCache
 
+@Suite(.serialized)
 struct DownloadModuleCacheServiceTests {
     private func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -45,5 +51,127 @@ struct DownloadModuleCacheServiceTests {
         )
 
         #expect(error.isRetryable == false)
+    }
+
+    @Test func a_download_cut_off_partway_resumes_and_is_verified_as_a_whole() async throws {
+        let server = try await LocalArtifactServer(replies: [
+            .init(status: 200, headers: headers(for: artifact), body: artifact.prefix(100_000)),
+            .init(status: 206, headers: headers(for: artifact, from: 100_000), body: artifact.dropFirst(100_000)),
+        ])
+
+        let data = try await download(from: server)
+
+        #expect(data == artifact)
+        #expect(server.requests == [.init(range: nil, ifRange: nil), .init(range: "bytes=100000-", ifRange: etag)])
+    }
+
+    @Test func a_download_that_stalls_resumes_once_the_inactivity_timeout_fires() async throws {
+        let server = try await LocalArtifactServer(replies: [
+            .init(status: 200, headers: headers(for: artifact), body: artifact.prefix(100_000), stallsAfterBody: true),
+            .init(status: 206, headers: headers(for: artifact, from: 100_000), body: artifact.dropFirst(100_000)),
+        ])
+
+        let data = try await download(from: server, inactivityTimeout: 1)
+
+        #expect(data == artifact)
+        #expect(server.requests == [.init(range: nil, ifRange: nil), .init(range: "bytes=100000-", ifRange: etag)])
+    }
+
+    /// The digest describes the whole artifact, so a tail damaged in flight fails the check like
+    /// any other damage and the artifact is fetched again from the start.
+    @Test func a_resumed_download_with_a_damaged_tail_is_fetched_again() async throws {
+        var damagedTail = Data(artifact.dropFirst(100_000))
+        damagedTail[0] ^= 0xFF
+        let server = try await LocalArtifactServer(replies: [
+            .init(status: 200, headers: headers(for: artifact), body: artifact.prefix(100_000)),
+            .init(status: 206, headers: headers(for: artifact, from: 100_000), body: damagedTail),
+            .init(status: 200, headers: headers(for: artifact), body: artifact),
+        ])
+
+        let data = try await download(from: server)
+
+        #expect(data == artifact)
+        #expect(server.requests.map(\.range) == [nil, "bytes=100000-", nil])
+    }
+
+    /// Each transfer below keeps making progress for longer than the inactivity timeout, over a
+    /// single connection. A download handed to the session while another holds that connection
+    /// would time out in its queue before sending a request.
+    @Test(.withMockedEnvironment())
+    func downloads_waiting_for_a_connection_do_not_time_out() async throws {
+        try #require(Environment.mocked).variables["TUIST_HTTP_MAXIMUM_RETRY_COUNT"] = "0"
+        let trickle = LocalArtifactServer.Reply(
+            status: 200,
+            headers: headers(for: artifact),
+            body: artifact,
+            chunkSize: 16384,
+            chunkDelayMilliseconds: 100
+        )
+        let server = try await LocalArtifactServer(replies: [trickle, trickle, trickle])
+        let session = session(inactivityTimeout: 1, maximumConnectionsPerHost: 1)
+        defer { session.invalidateAndCancel() }
+        let admission = TransferAdmission(limit: session.configuration.httpMaximumConnectionsPerHost)
+
+        let downloads = try await withThrowingTaskGroup(of: Data.self) { group in
+            for _ in 0 ..< 3 {
+                group.addTask { try await download(from: server, session: session, admission: admission) }
+            }
+            return try await group.reduce(into: []) { $0.append($1) }
+        }
+
+        #expect(downloads == [artifact, artifact, artifact])
+    }
+
+    /// Larger than the bodies verbose logging buffers, so it reaches resume as a stream.
+    private let artifact = Data((0 ..< 262_144).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+    private let etag = "\"1-262144\""
+
+    private func headers(for artifact: Data, from offset: Int = 0) -> [String: String] {
+        var headers = [
+            "Content-Type": "application/octet-stream",
+            "Content-Length": String(artifact.count - offset),
+            "ETag": etag,
+            "tuist-checksum-sha256": sha256(artifact),
+        ]
+        if offset > 0 {
+            headers["Content-Range"] = "bytes \(offset)-\(artifact.count - 1)/\(artifact.count)"
+        }
+        return headers
+    }
+
+    private func session(inactivityTimeout: TimeInterval = 60, maximumConnectionsPerHost: Int = 4) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = inactivityTimeout
+        configuration.httpMaximumConnectionsPerHost = maximumConnectionsPerHost
+        return URLSession(configuration: configuration)
+    }
+
+    private func download(from server: LocalArtifactServer, inactivityTimeout: TimeInterval = 60) async throws -> Data {
+        let session = session(inactivityTimeout: inactivityTimeout)
+        defer { session.invalidateAndCancel() }
+        return try await download(from: server, session: session, admission: TransferAdmission(limit: 4))
+    }
+
+    private func download(
+        from server: LocalArtifactServer,
+        session: URLSession,
+        admission: TransferAdmission
+    ) async throws -> Data {
+        let authenticationController = MockServerAuthenticationControlling()
+        given(authenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        return try await DownloadModuleCacheService(session: { session }, admission: admission)
+            .downloadModuleCacheArtifact(
+                accountHandle: "account",
+                projectHandle: "project",
+                hash: "hash",
+                name: "Module.xcframework.zip",
+                cacheCategory: "builds",
+                serverURL: server.url,
+                authenticationURL: URL(string: "http://127.0.0.1:1")!,
+                serverAuthenticationController: authenticationController
+            )
     }
 }

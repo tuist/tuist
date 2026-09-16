@@ -152,7 +152,7 @@ struct ArtifactResumeMiddlewareTests {
         #expect(observedRanges == [nil, "bytes=3-", "bytes=6-"])
     }
 
-    @Test func gives_up_and_rethrows_once_the_resume_attempts_run_out() async throws {
+    @Test func gives_up_and_rethrows_once_resumes_stop_making_progress() async throws {
         let subject = ArtifactResumeMiddleware(
             resumableOperationIDs: [operationID],
             maximumResumeAttempts: 2
@@ -168,18 +168,70 @@ struct ArtifactResumeMiddlewareTests {
                 baseURL: baseURL,
                 operationID: operationID
             ) { _, _, _ in
-                let count = callCount.increment()
-                if count == 1 {
+                if callCount.increment() == 1 {
                     return (okResponse(), self.truncatedBody([Data("01".utf8)]))
                 }
-                return (
-                    self.partialResponse(start: count, end: 9, total: 10),
-                    self.truncatedBody([Data("2".utf8)])
-                )
+                return (self.partialResponse(start: 2, end: 9, total: 10), self.truncatedBody([]))
             }
         }
 
         // The initial attempt plus two resumes, not an unbounded loop.
+        #expect(callCount.value == 3)
+    }
+
+    /// A slow link can cut a transfer any number of times. Each resume that gets
+    /// further into the artifact restores the budget, so the cap only ends a
+    /// download that has stopped advancing.
+    @Test func keeps_resuming_a_download_that_gets_further_each_time() async throws {
+        let subject = ArtifactResumeMiddleware(
+            resumableOperationIDs: [operationID],
+            maximumResumeAttempts: 1
+        )
+        let artifact = Array("0123456789".utf8)
+        var observedRanges: [String?] = []
+
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            observedRanges.append(request.headerFields[.range])
+            let offset = observedRanges.count - 1
+            let chunk = [Data(artifact[offset ... offset])]
+            if offset == 0 {
+                return (okResponse(), truncatedBody(chunk))
+            }
+            return (partialResponse(start: offset, end: 9, total: 10), truncatedBody(chunk))
+        }
+
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(collected == Data(artifact))
+        #expect(observedRanges.count == 10)
+    }
+
+    /// A server that ignores ranges and drops every transfer at the same point
+    /// restarts the download each time without it ever getting further, so it is
+    /// given up on like a stalled one rather than restarted forever.
+    @Test func gives_up_on_restarts_that_never_get_further() async throws {
+        let subject = ArtifactResumeMiddleware(
+            resumableOperationIDs: [operationID],
+            maximumResumeAttempts: 2
+        )
+        let callCount = Counter()
+
+        await #expect(throws: TruncatedTransfer.self) {
+            _ = try await subject.intercept(
+                request(),
+                body: nil,
+                baseURL: baseURL,
+                operationID: operationID
+            ) { _, _, _ in
+                _ = callCount.increment()
+                return (self.okResponse(), self.truncatedBody([Data("0123".utf8)]))
+            }
+        }
+
         #expect(callCount.value == 3)
     }
 
