@@ -595,13 +595,13 @@ setup_cas_store() {
   # ride. An older CLI ignores it and keeps its VM-local store, which is exactly
   # today's behaviour.
   export TUIST_COMPILATION_CACHE_CAS_PATH="${store}"
-  # Off a Tuist runner the CAS plugin makes every cache put wait for its upload
-  # on CI, because the store usually goes away with the job. Here the spool lives
-  # in the mounted image and drain_cas_publications waits for it at teardown,
-  # after the job has reported its result, so the job's compiles need not wait.
-  # Only a store on the mount is drained, which is why this is exported here and
-  # not for a VM-local store.
-  export TUIST_CAS_UPLOAD_IN_BACKGROUND=1
+  # On CI the CAS plugin makes every cache put wait for its upload, because the
+  # store usually goes away with the job. drain_cas_publications waits for the
+  # spools under this store at teardown, after the job has reported its result,
+  # so puts into a store inside it upload in the background. The plugin checks
+  # its own store against the path, so a job that points its compilation cache
+  # elsewhere, whose spool nothing drains, still waits.
+  export TUIST_CAS_DRAINED_STORE="${store}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 

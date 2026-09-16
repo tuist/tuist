@@ -264,13 +264,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
   on the VM's boot volume and died with it. It exports
-  `TUIST_CAS_UPLOAD_IN_BACKGROUND=1` too: on CI the CAS plugin otherwise makes
-  every cache put wait for its upload, because off a runner the store goes away
-  with the job, and here `drain_cas_publications` does that wait at teardown,
-  after the job has reported its result. Only for a store on the mount, since
-  only that spool is drained; a job whose own xcconfig moves
-  `COMPILATION_CACHE_CAS_PATH` off the mount uploads in the background with no
-  drain behind it.
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
+  put wait for its upload, because off a runner the store goes away with the job,
+  and `drain_cas_publications` does that wait at teardown for spools under this
+  directory, after the job has reported its result. The plugin uploads in the
+  background only when its own store is inside that path, so a job whose xcconfig
+  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
+  so does every job whose store is VM-local.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown (the prune is second, and in that order deliberately: a prune deletes
   objects, and deleting one the spool still owed would strand the association

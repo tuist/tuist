@@ -307,8 +307,7 @@ const UPLOAD_WAIT_FAILURES_TO_OPEN: u64 = 3;
 /// How long builds stop waiting once uploads fail or stall. Afterwards a single
 /// upload waits again, and only its success lets the rest wait.
 const UPLOAD_WAIT_OPEN_MS: u64 = 60_000;
-/// How often a build waiting on a record another thread is publishing checks
-/// whether it is gone.
+/// How often a waiting build checks whether the breaker has released it.
 const UPLOAD_WAIT_POLL: Duration = Duration::from_millis(25);
 
 fn upload_wait_budget(millis: u32) -> Duration {
@@ -439,42 +438,25 @@ fn value_already_published(state: &PathState, record_path: &str) -> bool {
     )
 }
 
-/// Waits until `record_path` is gone, `deadline` passes, or `released` says the
-/// build should stop waiting, given the channel the publishing thread reports
-/// on. A record is deleted only by a publication that succeeded or found nothing
-/// to upload, so its absence is the answer whichever thread published it: when
-/// the build's own thread did not run it, a sweep had already queued it, and the
-/// wait watches the file instead.
+/// Waits for the publishing thread to report on `ran` until `deadline` passes or
+/// `released` says the build should stop waiting. That thread returns once the
+/// record has been published by it or by the pool worker that already had it,
+/// and a record is deleted only by a publication that succeeded or found
+/// nothing to upload, so the file still being there is a failure.
 fn await_publication(
     ran: &std::sync::mpsc::Receiver<bool>,
     record_path: &str,
     deadline: Instant,
     released: impl Fn() -> bool,
 ) -> UploadWaitOutcome {
-    let mut ran_here = None;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
-        match ran_here {
-            None => match ran.recv_timeout(UPLOAD_WAIT_POLL.min(remaining)) {
-                Ok(true) => {
-                    return if Path::new(record_path).exists() {
-                        UploadWaitOutcome::Failed
-                    } else {
-                        UploadWaitOutcome::Published
-                    };
-                }
-                Ok(false) => ran_here = Some(false),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    return UploadWaitOutcome::Failed;
-                }
-            },
-            Some(_) => {
-                if !Path::new(record_path).exists() {
-                    return UploadWaitOutcome::Published;
-                }
-                std::thread::sleep(UPLOAD_WAIT_POLL.min(remaining));
+        match ran.recv_timeout(UPLOAD_WAIT_POLL.min(remaining)) {
+            Ok(true) if !Path::new(record_path).exists() => return UploadWaitOutcome::Published,
+            Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return UploadWaitOutcome::Failed;
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
         }
         if released() {
             return UploadWaitOutcome::Released;
@@ -6341,6 +6323,76 @@ mod tests {
             "the build waiting with a 10s budget was released when the other one stalled"
         );
         release.send(()).unwrap();
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A sweep can hand the pool a record before its build asks to wait for it.
+    /// That publication failing is one failure, not a stall: the build has to
+    /// hear about it when it happens rather than wait out its budget.
+    #[test]
+    fn a_failed_publication_already_in_flight_ends_the_wait_as_a_failure() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("in-flight", UPLOADING);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = entered_sender.send(());
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool took the record");
+
+        let started = Instant::now();
+        let waiting = {
+            let (cas_path, record_path) = (cas_path.clone(), record_path.clone());
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &record_path, Duration::from_secs(5))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(100));
+        release.send(()).unwrap();
+
+        assert!(!waiting.join().unwrap());
+        assert!(started.elapsed() < Duration::from_secs(2), "the wait ended with the publication");
+        assert_eq!(
+            proxy.upload_wait.admit(reapi::now_ms()),
+            Some(UploadWaitAdmission::Closed),
+            "one failure does not stop builds waiting"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A record queued behind background work is published by the build waiting
+    /// on it, not after the backlog ahead of it.
+    #[test]
+    fn a_queued_publication_is_taken_over_by_the_build_waiting_on_it() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("queued", UPLOADING);
+        let blocker = Path::new(&cas_path).join("tuist-spool").join("1234-9");
+        std::fs::write(&blocker, record_body(b"blocker", b"value")).expect("record");
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            if record_path.ends_with("1234-9") {
+                let _ = entered_sender.send(());
+                let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            }
+            remove_record(record_path);
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &blocker.to_string_lossy());
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool's only worker is busy");
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(2),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
+
         release.send(()).unwrap();
         std::fs::remove_dir_all(&dir).ok();
     }

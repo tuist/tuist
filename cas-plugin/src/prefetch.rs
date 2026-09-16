@@ -14,6 +14,9 @@ pub struct Prefetcher {
     draining: AtomicBool,
     inflight: AtomicU64,
     seen: Mutex<HashSet<Vec<u8>>>,
+    // Signalled whenever an item leaves `seen`, for `run_now` waiting on a copy
+    // a worker is processing.
+    released: Condvar,
     workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
     // Workers spawn on first enqueue: most compiler processes never touch the
     // remote, and eagerly spinning up pools in ~1000 short-lived frontends
@@ -58,6 +61,7 @@ impl Prefetcher {
             draining: AtomicBool::new(false),
             inflight: AtomicU64::new(0),
             seen: Mutex::new(HashSet::new()),
+            released: Condvar::new(),
             workers: Mutex::new(Vec::new()),
             starter: Mutex::new(None),
             process: Mutex::new(None),
@@ -116,7 +120,7 @@ impl Prefetcher {
                 // write-ahead record and the sweep re-enqueues the same path;
                 // without this, that retry is silently dropped until the proxy
                 // restarts. Also bounds `seen` in the long-lived proxy.
-                this.seen.lock().unwrap().remove(&key);
+                this.release(&key);
             }));
         }
     }
@@ -133,12 +137,13 @@ impl Prefetcher {
         self.cvar.notify_one();
     }
 
-    /// Processes `item` on the calling thread instead of a worker, returning
-    /// whether it ran. It does not run when the same item is already queued or
-    /// being processed, and an `enqueue` of it made while it runs is dropped,
-    /// exactly as for a queued item.
+    /// Processes `item` on the calling thread and returns once it has been
+    /// processed, reporting whether it could be. A copy already queued is taken
+    /// out of the queue and processed here, and a copy a worker is processing is
+    /// waited for rather than processed twice. An `enqueue` of the item made
+    /// meanwhile is dropped, as for any queued item.
     ///
-    /// The caller is a build waiting on its own upload: queued behind the pool,
+    /// The caller is a build waiting on its own upload. Queued behind the pool,
     /// it would wait out every background item ahead of it, and its concurrency
     /// is already bounded by how many compiles the build runs at once.
     pub fn run_now(&self, item: Vec<u8>) -> bool {
@@ -148,13 +153,38 @@ impl Prefetcher {
         let Some(process) = self.process.lock().unwrap().clone() else {
             return false;
         };
-        if !self.seen.lock().unwrap().insert(item.clone()) {
-            return false;
+        {
+            let mut seen = self.seen.lock().unwrap();
+            if !seen.insert(item.clone()) {
+                // Lock order is `seen` then `queue`; nothing takes them the other
+                // way round.
+                let mut queue = self.queue.lock().unwrap();
+                match queue.iter().position(|queued| queued == &item) {
+                    Some(position) => {
+                        queue.remove(position);
+                    }
+                    None => {
+                        drop(queue);
+                        while seen.contains(&item) {
+                            seen = self.released.wait(seen).unwrap();
+                        }
+                        return true;
+                    }
+                }
+            }
         }
         let key = item.clone();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process(item)));
-        self.seen.lock().unwrap().remove(&key);
+        self.release(&key);
         true
+    }
+
+    fn release(&self, item: &[u8]) {
+        self.seen
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(item);
+        self.released.notify_all();
     }
 
     /// Drains for at most `timeout`, then stops workers and returns whatever
@@ -318,21 +348,58 @@ mod tests {
     }
 
     #[test]
-    fn a_queued_item_is_not_run_now() {
+    fn a_queued_item_is_taken_out_of_the_queue_and_run_once() {
         let pool = leaked_pool();
+        let processed = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&processed);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
         let (release, released) = std::sync::mpsc::channel::<()>();
         let released = Mutex::new(released);
         pool.configure(1, move |item| {
             if item == vec![1] {
+                let _ = entered_sender.send(());
                 let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
             }
+            sink.lock().unwrap().push(item);
         });
         // The one worker is held on item 1, so item 2 stays queued.
         pool.enqueue(vec![1]);
+        entered.recv_timeout(Duration::from_secs(10)).expect("worker busy");
         pool.enqueue(vec![2]);
 
-        assert!(!pool.run_now(vec![2]));
+        assert!(pool.run_now(vec![2]));
+        assert_eq!(*processed.lock().unwrap(), vec![vec![2]]);
+
         release.send(()).unwrap();
         assert!(pool.wait_idle(Duration::from_secs(10)));
+        assert_eq!(*processed.lock().unwrap(), vec![vec![2], vec![1]]);
+    }
+
+    /// A copy a worker is already processing has an outcome coming. Running it
+    /// again would publish the same record twice, and returning early would tell
+    /// the caller it was done before it was.
+    #[test]
+    fn run_now_waits_for_the_copy_a_worker_is_processing() {
+        let pool = leaked_pool();
+        let processed = Arc::new(AtomicU64::new(0));
+        let sink = Arc::clone(&processed);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        pool.configure(1, move |_| {
+            let _ = entered_sender.send(());
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            sink.fetch_add(1, Ordering::Relaxed);
+        });
+        pool.enqueue(vec![1]);
+        entered.recv_timeout(Duration::from_secs(10)).expect("worker busy");
+
+        let waiting = std::thread::spawn(move || pool.run_now(vec![1]));
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!waiting.is_finished(), "it waits for the worker");
+        release.send(()).unwrap();
+
+        assert!(waiting.join().unwrap());
+        assert_eq!(processed.load(Ordering::Relaxed), 1);
     }
 }
