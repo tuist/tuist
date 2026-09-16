@@ -549,6 +549,14 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 /// building, which the size caps alone never release.
 const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 
+/// How long a registered path may go without a build using it before the
+/// registry forgets it. A forgotten path is registered again by the next build
+/// that declares its instance.
+const REGISTRY_FORGET_AFTER: Duration = Duration::from_secs(3 * 24 * 60 * 60);
+
+/// How far a path's last use may move past the one on disk before it is written.
+const PATH_USE_RECORD_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
 /// How long a path whose store failed to reopen answers misses before the next
 /// check starts another attempt.
 const REOPEN_RETRY_INTERVAL: Duration = Duration::from_secs(5);
@@ -683,6 +691,44 @@ fn fast_path(
 /// past IDLE_RECLAIM. Pure so the policy is unit-testable.
 fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
     cas_dir_gone || idle > IDLE_RECLAIM
+}
+
+/// Whether the registry should forget a path: its store directory is gone, or no
+/// build has used it for REGISTRY_FORGET_AFTER.
+fn should_forget(unused_for: Duration, cas_dir_gone: bool) -> bool {
+    cas_dir_gone || unused_for > REGISTRY_FORGET_AFTER
+}
+
+/// Only a path the filesystem reports as missing counts as gone, so a volume
+/// that errors for another reason keeps its registration.
+fn cas_dir_missing(cas_path: &str) -> bool {
+    matches!(
+        std::fs::symlink_metadata(cas_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+/// When a build last used a registered path, and the use the registry on disk
+/// records for it, in seconds since the Unix epoch. `revision` changes on every
+/// use, including two within one second.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PathUse {
+    at: u64,
+    recorded: u64,
+    revision: u64,
+}
+
+impl PathUse {
+    fn needs_recording(&self) -> bool {
+        self.at >= self.recorded.saturating_add(PATH_USE_RECORD_INTERVAL.as_secs())
+    }
+}
+
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
 }
 
 /// A cheap identity for the on-disk CAS directory. When it changes, the
@@ -1879,6 +1925,10 @@ pub struct Proxy {
     // registry. A store is shared (Xcode's default one by every project on the
     // machine), and its size limit is the smallest any of them set.
     path_instances: Mutex<HashMap<String, BTreeSet<String>>>,
+    // cas_path -> when a build last used it, persisted beside the registry (see
+    // `forget_unused_paths`). Taken after `path_instance` and `path_instances`.
+    path_uses: Mutex<HashMap<String, PathUse>>,
+    path_use_revision: AtomicU64,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -1966,6 +2016,10 @@ impl Proxy {
             .as_deref()
             .map(load_registry)
             .unwrap_or_default();
+        let path_uses = registry_path
+            .as_deref()
+            .map(|path| load_path_uses(&uses_path_for(path)))
+            .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
@@ -1977,6 +2031,8 @@ impl Proxy {
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
             path_instances: Mutex::new(path_instances),
+            path_uses: Mutex::new(path_uses),
+            path_use_revision: AtomicU64::new(1),
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
@@ -2092,9 +2148,13 @@ impl Proxy {
     /// empty one falls back to whatever a prior build primed. `None` means an
     /// unprimed ⌘B build: the caller degrades it to a miss.
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        let now = unix_seconds();
         let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
             let mut known = self.path_instances.lock().unwrap();
+            let mut uses = self.path_uses.lock().unwrap();
+            let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+            note_use(&mut uses, cas_path, now, revision);
             let rerouted = map.get(cas_path).map(String::as_str) != Some(declared);
             if rerouted {
                 map.insert(cas_path.to_string(), declared.to_string());
@@ -2104,11 +2164,17 @@ impl Proxy {
                 .or_default()
                 .insert(declared.to_string());
             if rerouted || newly_known {
-                self.persist_registry(&map, &known);
+                self.persist_registry(&map, &known, &mut uses);
             }
             Some(declared.to_string())
         } else {
-            self.path_instance.lock().unwrap().get(cas_path).cloned()
+            let map = self.path_instance.lock().unwrap();
+            let instance = map.get(cas_path).cloned();
+            if instance.is_some() {
+                let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+                note_use(&mut self.path_uses.lock().unwrap(), cas_path, now, revision);
+            }
+            instance
         };
         // Every caller of this is real build traffic (a resolve, a demand fetch,
         // a publish), and nothing else reaches it — the startup prefetch does
@@ -2195,13 +2261,94 @@ impl Proxy {
         self.active_instances.lock().unwrap().contains(instance)
     }
 
+    /// Forgets every registered path whose store directory is gone, or that no
+    /// build has used for REGISTRY_FORGET_AFTER and whose spool holds no
+    /// publications, and writes the uses that have moved past
+    /// PATH_USE_RECORD_INTERVAL. Runs at startup, before
+    /// `prefetch_known_snapshots`, and from the maintenance loop.
+    ///
+    /// A path is forgotten with every instance that declared it, so a store in
+    /// use keeps each sharing project's limit. The sources registry is left
+    /// alone: a build registers its path again, but only `tuist setup cache`
+    /// records a project's policy.
+    pub fn forget_unused_paths(&self) {
+        let now = unix_seconds();
+        let unused = self
+            .observe_paths()
+            .into_iter()
+            .filter_map(|(cas_path, path_use)| {
+                let gone = cas_dir_missing(&cas_path);
+                let unused_for =
+                    Duration::from_secs(path_use.map_or(0, |path_use| now.saturating_sub(path_use.at)));
+                // A spool is swept and drained only through its path's routing.
+                (should_forget(unused_for, gone) && spool_records(&cas_path) == 0).then(|| {
+                    let reason = if gone {
+                        "its store directory is gone".to_string()
+                    } else {
+                        format!("unused for {} days", unused_for.as_secs() / 86_400)
+                    };
+                    (cas_path, path_use, reason)
+                })
+            })
+            .collect();
+        self.forget_paths(unused, now);
+    }
+
+    /// Every registered path with the use recorded for it now.
+    fn observe_paths(&self) -> Vec<(String, Option<PathUse>)> {
+        let routing = self.path_instance.lock().unwrap();
+        let known = self.path_instances.lock().unwrap();
+        let uses = self.path_uses.lock().unwrap();
+        known
+            .keys()
+            .chain(routing.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|cas_path| (cas_path.clone(), uses.get(cas_path).copied()))
+            .collect()
+    }
+
+    /// Forgets each path observed unused, unless a build has used it since it
+    /// was observed.
+    fn forget_paths(&self, unused: Vec<(String, Option<PathUse>, String)>, now: u64) {
+        let mut routing = self.path_instance.lock().unwrap();
+        let mut known = self.path_instances.lock().unwrap();
+        let mut uses = self.path_uses.lock().unwrap();
+        let mut forgot = false;
+        for (cas_path, observed, reason) in unused {
+            let current = uses.get(&cas_path).map(|path_use| path_use.revision);
+            if current != observed.map(|path_use| path_use.revision) {
+                continue;
+            }
+            routing.remove(&cas_path);
+            known.remove(&cas_path);
+            uses.remove(&cas_path);
+            forgot = true;
+            crate::log_line(&format!("registry forgot {cas_path}: {reason}"));
+        }
+        // A path with no recorded use starts its clock now.
+        for cas_path in known.keys().chain(routing.keys()) {
+            uses.entry(cas_path.clone()).or_insert(PathUse {
+                at: now,
+                recorded: 0,
+                revision: 0,
+            });
+        }
+        if forgot || uses.values().any(PathUse::needs_recording) {
+            self.persist_registry(&routing, &known, &mut uses);
+        }
+    }
+
     /// Writes one `cas_path\tinstance` line per instance that has declared a
     /// path, with each path's routing instance after its others (see
-    /// `load_registry`).
+    /// `load_registry`), and each path's last use beside it (see
+    /// `load_path_uses`). Callers hold the `path_instance` lock, which is what
+    /// keeps two writes from sharing a staged file.
     fn persist_registry(
         &self,
         routing: &HashMap<String, String>,
         known: &HashMap<String, BTreeSet<String>>,
+        uses: &mut HashMap<String, PathUse>,
     ) {
         let Some(path) = &self.registry_path else {
             return;
@@ -2224,7 +2371,18 @@ impl Proxy {
         for (cas_path, instance) in routing {
             line(cas_path, instance);
         }
-        let _ = std::fs::write(path, body);
+        uses.retain(|cas_path, _| known.contains_key(cas_path) || routing.contains_key(cas_path));
+        let mut used = String::new();
+        for (cas_path, path_use) in uses.iter() {
+            if !cas_path.contains(['\t', '\n']) {
+                used.push_str(&format!("{cas_path}\t{}\n", path_use.at));
+            }
+        }
+        if replace_file(path, &body).is_ok() && replace_file(&uses_path_for(path), &used).is_ok() {
+            for path_use in uses.values_mut() {
+                path_use.recorded = path_use.at;
+            }
+        }
     }
 
     /// Returns the path's state, registering it on first sight.
@@ -5145,6 +5303,66 @@ fn load_registry(path: &Path) -> (HashMap<String, String>, HashMap<String, BTree
     (routing, known)
 }
 
+/// Where each registered path's last use is written: `<registry>.used`, one
+/// `cas_path\tseconds since the Unix epoch` line per path.
+fn uses_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".used");
+    PathBuf::from(path)
+}
+
+fn load_path_uses(path: &Path) -> HashMap<String, PathUse> {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return HashMap::new();
+    };
+    body.lines()
+        .filter_map(|line| {
+            let (cas_path, at) = line.rsplit_once('\t')?;
+            let at = at.parse().ok()?;
+            Some((
+                cas_path.to_string(),
+                PathUse {
+                    at,
+                    recorded: at,
+                    revision: 0,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn note_use(uses: &mut HashMap<String, PathUse>, cas_path: &str, now: u64, revision: u64) {
+    match uses.get_mut(cas_path) {
+        Some(path_use) => {
+            path_use.at = now;
+            path_use.revision = revision;
+        }
+        None => {
+            uses.insert(
+                cas_path.to_string(),
+                PathUse {
+                    at: now,
+                    recorded: 0,
+                    revision,
+                },
+            );
+        }
+    }
+}
+
+/// Swaps `contents` in by renaming a staged copy over `path`, so a reader sees
+/// the whole old file or the whole new one.
+fn replace_file(path: &Path, contents: &str) -> std::io::Result<()> {
+    let mut staged = path.as_os_str().to_owned();
+    staged.push(format!(".{}.staged", std::process::id()));
+    let staged = PathBuf::from(staged);
+    std::fs::write(&staged, contents)
+        .and_then(|()| std::fs::rename(&staged, path))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&staged);
+        })
+}
+
 /// The sources registry sits next to the cas_path registry, written by
 /// `tuist setup cache` (the only place that has the project's configuration).
 /// `<registry>.sources`: a JSON object of instance -> `RegisteredSource`. JSON
@@ -7994,6 +8212,288 @@ mod tests {
             "a restart remembers every project that used the path"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn registry_proxy(registry: &Path) -> &'static Proxy {
+        Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry.to_path_buf()),
+            None,
+        )
+    }
+
+    fn store_in(dir: &TempCasDir, name: &str) -> String {
+        let store = dir.0.join(name);
+        std::fs::create_dir_all(&store).unwrap();
+        store.to_string_lossy().into_owned()
+    }
+
+    fn a_day_past_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() - 24 * 60 * 60
+    }
+
+    fn a_day_inside_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() + 24 * 60 * 60
+    }
+
+    #[test]
+    fn a_path_is_forgotten_when_its_store_is_gone_or_unused_past_the_window() {
+        assert!(!should_forget(Duration::ZERO, false));
+        assert!(!should_forget(REGISTRY_FORGET_AFTER, false));
+        assert!(should_forget(REGISTRY_FORGET_AFTER + Duration::from_secs(1), false));
+        assert!(should_forget(Duration::ZERO, true));
+    }
+
+    #[test]
+    fn a_use_is_written_once_it_has_moved_past_the_record_interval() {
+        let recorded = unix_seconds() - 24 * 60 * 60;
+        let at = |seconds: u64| PathUse {
+            at: recorded + seconds,
+            recorded,
+            revision: 0,
+        };
+        assert!(!at(0).needs_recording());
+        assert!(!at(PATH_USE_RECORD_INTERVAL.as_secs() - 1).needs_recording());
+        assert!(at(PATH_USE_RECORD_INTERVAL.as_secs()).needs_recording());
+        assert!(PathUse {
+            at: recorded,
+            recorded: 0,
+            revision: 0,
+        }
+        .needs_recording());
+    }
+
+    #[test]
+    fn a_path_no_build_has_used_within_the_window_is_forgotten_and_a_used_one_is_kept() {
+        let dir = TempCasDir::new("registry-unused");
+        let registry = dir.0.join("registry");
+        let idle = store_in(&dir, "idle");
+        let used = store_in(&dir, "used");
+        std::fs::write(&registry, format!("{idle}\ttuist/app\n{used}\ttuist/app\n")).unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{idle}\t{}\n{used}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_inside_the_forget_window()
+            ),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        let (routing, _) = load_registry(&registry);
+        assert!(!routing.contains_key(&idle));
+        assert_eq!(routing.get(&used).map(String::as_str), Some("tuist/app"));
+        let uses = load_path_uses(&uses_path_for(&registry));
+        assert!(!uses.contains_key(&idle));
+        assert!(uses.contains_key(&used));
+        assert_eq!(
+            registry_proxy(&registry).resolve_instance(&idle, ""),
+            None,
+            "a restarted proxy has forgotten it too"
+        );
+        let staged = std::fs::read_dir(&dir.0)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".staged"))
+            .count();
+        assert_eq!(staged, 0);
+    }
+
+    #[test]
+    fn a_path_whose_store_directory_is_gone_is_forgotten_however_recently_it_was_used() {
+        let dir = TempCasDir::new("registry-gone");
+        let registry = dir.0.join("registry");
+        let deleted = dir.0.join("deleted").to_string_lossy().into_owned();
+        std::fs::write(&registry, format!("{deleted}\ttuist/app\n")).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.resolve_instance(&deleted, "tuist/app");
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&deleted, ""), None);
+        assert!(load_registry(&registry).0.is_empty());
+    }
+
+    /// A registry written before uses were recorded has none for any path.
+    #[test]
+    fn a_path_with_no_recorded_use_starts_its_clock_instead_of_being_forgotten() {
+        let dir = TempCasDir::new("registry-unrecorded");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        assert_eq!(
+            load_registry(&registry).0.get(&store).map(String::as_str),
+            Some("tuist/app")
+        );
+        let recorded = load_path_uses(&uses_path_for(&registry))
+            .get(&store)
+            .map(|path_use| path_use.at)
+            .expect("the use is recorded");
+        assert!(unix_seconds() - recorded < 60);
+    }
+
+    #[test]
+    fn a_forgotten_path_is_registered_again_by_the_next_build_that_declares_its_instance() {
+        let dir = TempCasDir::new("registry-reregister");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.resolve_instance(&store, ""), None);
+
+        proxy.resolve_instance(&store, "tuist/app");
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        proxy.forget_unused_paths();
+        let restarted = registry_proxy(&registry);
+        restarted.forget_unused_paths();
+        assert_eq!(
+            restarted.resolve_instance(&store, "").as_deref(),
+            Some("tuist/app"),
+            "an Xcode build that declares no instance routes after a restart"
+        );
+    }
+
+    /// The build system's Clang lane declares no instance and routes through the
+    /// registry, so its requests alone have to keep a path registered.
+    #[test]
+    fn a_build_that_routes_through_the_registry_keeps_its_path() {
+        let dir = TempCasDir::new("registry-routed-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        let recorded = load_path_uses(&uses_path_for(&registry))[&store].at;
+        assert!(unix_seconds() - recorded < 60, "and the use reaches the disk");
+    }
+
+    /// Seconds cannot tell a use apart from the observation it follows: a store
+    /// deleted and recreated by a build can be observed missing and used again
+    /// within one second.
+    #[test]
+    fn a_path_used_after_it_was_observed_is_kept_even_within_the_same_second() {
+        let dir = TempCasDir::new("registry-used-since");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
+        let proxy = registry_proxy(&registry);
+        let observed = proxy.observe_paths();
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_paths(
+            observed
+                .into_iter()
+                .map(|(cas_path, path_use)| (cas_path, path_use, "gone".to_string()))
+                .collect(),
+            unix_seconds(),
+        );
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+    }
+
+    /// A spooled record is only published through the path's routing, by the
+    /// sweep or by a drain that declares no instance.
+    #[test]
+    fn a_path_whose_spool_holds_publications_is_kept_past_the_window_until_it_drains() {
+        let dir = TempCasDir::new("registry-spooled");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let record = spool_dir(&store).join("record");
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        std::fs::write(&record, b"record").unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.drain_instance(&store, "").as_deref(), Some("tuist/app"));
+        std::fs::remove_file(&record).unwrap();
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.drain_instance(&store, ""), None);
+    }
+
+    /// Resolves run on the build's serial task-setup path, so a use of a path
+    /// that is already registered stays in memory until the maintenance loop.
+    #[test]
+    fn using_a_registered_path_writes_nothing_until_its_use_is_due_to_be_recorded() {
+        let dir = TempCasDir::new("registry-cheap-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let uses = uses_path_for(&registry);
+        let recorded = format!("{store}\t{}\n", unix_seconds() - 60);
+        std::fs::write(&uses, &recorded).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        for _ in 0..3 {
+            proxy.resolve_instance(&store, "tuist/app");
+            proxy.resolve_instance(&store, "");
+        }
+        proxy.forget_unused_paths();
+
+        assert_eq!(std::fs::read_to_string(&uses).unwrap(), recorded);
+    }
+
+    /// A store several projects share keeps every project's limit for as long as
+    /// any of them uses it, and a project whose every path is forgotten keeps its
+    /// recorded policy for the next build to find.
+    #[test]
+    fn forgetting_paths_drops_no_project_from_a_store_in_use_or_from_the_sources_registry() {
+        let dir = TempCasDir::new("registry-sources");
+        let registry = dir.0.join("registry");
+        let shared = store_in(&dir, "shared");
+        let idle = store_in(&dir, "idle");
+        let sources = r#"{"tuist/bounded":{"storeSizeLimit":1073741824,"upload":false},"tuist/unbounded":{},"tuist/idle":{"upload":false}}"#;
+        std::fs::write(sources_path_for(&registry), sources).unwrap();
+        std::fs::write(
+            &registry,
+            format!("{shared}\ttuist/bounded\n{shared}\ttuist/unbounded\n{idle}\ttuist/idle\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{shared}\t{}\n{idle}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_past_the_forget_window()
+            ),
+        )
+        .unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&shared, "tuist/unbounded");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&idle, ""), None);
+        assert_eq!(proxy.store_size_limit(&shared), Some(1024 * 1024 * 1024));
+        assert_eq!(
+            registry_proxy(&registry).store_size_limit(&shared),
+            Some(1024 * 1024 * 1024),
+            "a restart still bounds the shared store by the limit of a project that has not built into it lately"
+        );
+        assert_eq!(std::fs::read_to_string(sources_path_for(&registry)).unwrap(), sources);
+        proxy.resolve_instance(&idle, "tuist/idle");
+        assert!(!proxy.upload_enabled("tuist/idle"));
     }
 
     /// Why the prune is an op on the proxy rather than something its caller can
