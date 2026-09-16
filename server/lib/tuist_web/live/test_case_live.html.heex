@@ -76,6 +76,18 @@
           <.icon name="alert_triangle" />
         </:icon>
       </.badge>
+      <.badge
+        :if={!@can_update_test_case and @test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Unskippable")}
+        color="information"
+        style="light-fill"
+        size="large"
+        title={dgettext("dashboard_tests", "Test selection always runs this test.")}
+      >
+        <:icon>
+          <.icon name="lock" />
+        </:icon>
+      </.badge>
       <.dropdown
         :if={@can_update_test_case}
         id="test-case-state-dropdown"
@@ -141,6 +153,35 @@
       >
         <:icon_left>
           <.icon name="alert_triangle" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={@can_update_test_case and @test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Unmark as unskippable")}
+        variant="secondary"
+        size="medium"
+        phx-click="unmark-as-unskippable"
+        title={dgettext("dashboard_tests", "Test selection always runs this test.")}
+      >
+        <:icon_left>
+          <.icon name="lock_open_2" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={@can_update_test_case and !@test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Mark as unskippable")}
+        variant="secondary"
+        size="medium"
+        phx-click="mark-as-unskippable"
+        title={
+          dgettext(
+            "dashboard_tests",
+            "Test selection will always run this test, whatever evidence it has."
+          )
+        }
+      >
+        <:icon_left>
+          <.icon name="lock" />
         </:icon_left>
       </.button>
     </div>

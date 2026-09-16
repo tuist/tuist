@@ -516,6 +516,38 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   def handle_event(
+        "unmark-as-unskippable",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+      ) do
+    :ok = authorize_test_case_update!(socket)
+
+    {:ok, updated_test_case} =
+      Tests.update_test_case(test_case_id, %{is_unskippable: false}, actor_id: current_user.account.id)
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_unskippable: updated_test_case.is_unskippable})
+     |> refresh_history_events()}
+  end
+
+  def handle_event(
+        "mark-as-unskippable",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+      ) do
+    :ok = authorize_test_case_update!(socket)
+
+    {:ok, updated_test_case} =
+      Tests.update_test_case(test_case_id, %{is_unskippable: true}, actor_id: current_user.account.id)
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_unskippable: updated_test_case.is_unskippable})
+     |> refresh_history_events()}
+  end
+
+  def handle_event(
         "set-state",
         %{"data" => new_state},
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
@@ -618,7 +650,12 @@ defmodule TuistWeb.TestCaseLive do
     # this test case) without waiting for a refresh.
     {:noreply,
      socket
-     |> assign(:test_case_detail, %{test_case_detail | is_flaky: payload.is_flaky, state: payload.state})
+     |> assign(:test_case_detail, %{
+       test_case_detail
+       | is_flaky: payload.is_flaky,
+         is_unskippable: Map.get(payload, :is_unskippable, test_case_detail.is_unskippable),
+         state: payload.state
+     })
      |> refresh_history_events()}
   end
 
@@ -809,6 +846,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_icon("unmuted"), do: "player_play"
   defp event_icon("skipped"), do: "player_track_next"
   defp event_icon("unskipped"), do: "player_play"
+  defp event_icon("marked_unskippable"), do: "lock"
+  defp event_icon("unmarked_unskippable"), do: "lock_open_2"
   defp event_icon(_), do: "info_circle"
 
   defp event_color("first_run"), do: "primary"
@@ -818,6 +857,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_color("unmuted"), do: "information"
   defp event_color("skipped"), do: "destructive"
   defp event_color("unskipped"), do: "information"
+  defp event_color("marked_unskippable"), do: "information"
+  defp event_color("unmarked_unskippable"), do: "information"
   defp event_color(_), do: "primary"
 
   defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
@@ -827,6 +868,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title("unmuted"), do: dgettext("dashboard_tests", "Enabled")
   defp event_title("skipped"), do: dgettext("dashboard_tests", "Skipped")
   defp event_title("unskipped"), do: dgettext("dashboard_tests", "Enabled")
+  defp event_title("marked_unskippable"), do: dgettext("dashboard_tests", "Marked as unskippable")
+  defp event_title("unmarked_unskippable"), do: dgettext("dashboard_tests", "Unmarked as unskippable")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil

@@ -32,6 +32,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Shards.ShardRun
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
@@ -60,7 +61,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
-  alias Tuist.Tests.Coverage
   alias Tuist.Webhooks.Dispatcher
 
   require Logger
@@ -1260,7 +1260,7 @@ defmodule Tuist.Tests do
   # leftovers that ingestion still overwrites; they are never read. A test case
   # with no aggregate row has never been muted or flagged, so it resolves to the
   # defaults.
-  @default_test_case_state %{state: "enabled", is_flaky: false}
+  @default_test_case_state %{state: "enabled", is_flaky: false, is_unskippable: false}
 
   @doc """
   Returns the current control-plane state for each requested test case.
@@ -1293,7 +1293,8 @@ defmodule Tuist.Tests do
           select: %{
             test_case_id: s.test_case_id,
             state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
-            is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+            is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky),
+            is_unskippable: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_unskippable, s.inserted_at, s.is_unskippable)
           }
         )
       end)
@@ -1313,7 +1314,8 @@ defmodule Tuist.Tests do
         group_by: [s.project_id, s.test_case_id],
         select: %{
           state: fragment("argMaxIfMerge(state)"),
-          is_flaky: fragment("argMaxIfMerge(is_flaky)")
+          is_flaky: fragment("argMaxIfMerge(is_flaky)"),
+          is_unskippable: fragment("argMaxIfMerge(is_unskippable)")
         }
       )
 
@@ -1330,7 +1332,8 @@ defmodule Tuist.Tests do
   defp normalize_test_case_state(resolved) do
     %{
       state: normalize_state(resolved.state),
-      is_flaky: resolved.is_flaky || false
+      is_flaky: resolved.is_flaky || false,
+      is_unskippable: resolved.is_unskippable || false
     }
   end
 
@@ -1338,7 +1341,7 @@ defmodule Tuist.Tests do
   defp normalize_state(state), do: state
 
   defp apply_test_case_state(test_case, resolved) do
-    %{test_case | state: resolved.state, is_flaky: resolved.is_flaky}
+    %{test_case | state: resolved.state, is_flaky: resolved.is_flaky, is_unskippable: resolved.is_unskippable}
   end
 
   # Collapses the projection into the current value per test case. Scoped by
@@ -1352,7 +1355,8 @@ defmodule Tuist.Tests do
       select: %{
         test_case_id: s.test_case_id,
         state: fragment("argMaxIfMerge(state)"),
-        is_flaky: fragment("argMaxIfMerge(is_flaky)")
+        is_flaky: fragment("argMaxIfMerge(is_flaky)"),
+        is_unskippable: fragment("argMaxIfMerge(is_unskippable)")
       }
     )
   end
@@ -1371,7 +1375,7 @@ defmodule Tuist.Tests do
   Updates a test case by inserting a new row with the given attributes.
   ClickHouse ReplacingMergeTree will keep the most recent row.
 
-  Only `is_flaky` and `state` are valid update attributes.
+  Only `is_flaky`, `is_unskippable` and `state` are valid update attributes.
 
   Creates test case events to track the state change.
 
@@ -1382,7 +1386,7 @@ defmodule Tuist.Tests do
     and `:alert_id` (set by `ActionExecutor` so the event timeline can attribute the change to its automation)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
-    valid_keys = [:is_flaky, :state]
+    valid_keys = [:is_flaky, :is_unskippable, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
     alert_id = Keyword.get(opts, :alert_id)
@@ -1434,6 +1438,7 @@ defmodule Tuist.Tests do
     payload = %{
       id: test_case.id,
       is_flaky: test_case.is_flaky,
+      is_unskippable: test_case.is_unskippable,
       state: test_case.state,
       event_types: event_types
     }
@@ -1507,6 +1512,13 @@ defmodule Tuist.Tests do
       case {Map.get(old_test_case, :is_flaky, false), Map.get(new_attrs, :is_flaky)} do
         {false, true} -> [:marked_flaky | events]
         {true, false} -> [:unmarked_flaky | events]
+        _ -> events
+      end
+
+    events =
+      case {Map.get(old_test_case, :is_unskippable, false), Map.get(new_attrs, :is_unskippable)} do
+        {false, true} -> [:marked_unskippable | events]
+        {true, false} -> [:unmarked_unskippable | events]
         _ -> events
       end
 

@@ -658,6 +658,36 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       assert response["url"] =~ test_case.id
     end
 
+    test "marks a test case as unskippable", %{conn: conn, user: user, project: project} do
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          module_name: "MyTests",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn id, attrs, _opts ->
+        assert id == test_case.id
+        assert attrs == %{is_unskippable: true}
+        {:ok, %{test_case | is_unskippable: true}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{is_unskippable: true}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["is_unskippable"] == true
+      assert response["state"] == "enabled"
+    end
+
     test "updates state from enabled to muted", %{conn: conn, user: user, project: project} do
       # Given
       test_case =

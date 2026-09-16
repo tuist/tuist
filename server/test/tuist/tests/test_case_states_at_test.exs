@@ -30,8 +30,8 @@ defmodule Tuist.Tests.TestCaseStatesAtTest do
     )
 
     assert Tests.get_test_case_states_at(project.id, [id, unknown_id], started_at) == %{
-             id => %{state: "muted", is_flaky: true},
-             unknown_id => %{state: "enabled", is_flaky: false}
+             id => %{state: "muted", is_flaky: true, is_unskippable: false},
+             unknown_id => %{state: "enabled", is_flaky: false, is_unskippable: false}
            }
 
     assert Tests.get_test_case_states_at(project.id, [id], after_run)[id].state == "enabled"
