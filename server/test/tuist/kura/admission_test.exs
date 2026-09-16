@@ -76,6 +76,48 @@ defmodule Tuist.Kura.AdmissionTest do
     assert {:error, :capacity_unknown} = Admission.admit?(region, candidate(account, region.id))
   end
 
+  describe "headroom_gib/1" do
+    test "is what is left under the pressure line after the larger of the observed and desired reservations" do
+      account = account()
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      pending_server(account, region_id)
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 10 end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 84
+    end
+
+    test "admits exactly what fits in it" do
+      account = account()
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 32 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 16
+      assert :ok = Admission.admit?(region, candidate(account, region_id))
+    end
+
+    test "is nil when the region cannot be read" do
+      {:ok, region} = Regions.fetch("us-east")
+      stub(Capacity, :pressure_line_gib, fn _region_id -> nil end)
+
+      assert Admission.headroom_gib(region) == nil
+    end
+
+    test "is unbounded when admission is not enforced" do
+      {:ok, region} = Regions.fetch("us-east")
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+
+      assert Admission.headroom_gib(region) == :unbounded
+    end
+  end
+
   test "rejects cold provisioning before a server row is written" do
     account = account()
     configure_us_east()
