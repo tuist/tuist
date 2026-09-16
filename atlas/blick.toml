@@ -1,0 +1,34 @@
+[agent]
+kind = "opencode"
+model = "hive/Balanced"
+
+[defaults]
+base = "origin/main"
+max_concurrency = 2
+
+[[skills]]
+name = "atlas-elixir-review"
+source = "./.blick/skills/atlas-elixir-review"
+
+[[reviews]]
+name = "elixir"
+skills = ["atlas-elixir-review"]
+include = [
+  "*.ex",
+  "*.exs",
+  "*.heex",
+  "mix.exs",
+  "mix.lock",
+  "config/**/*.exs",
+  "priv/**/*.exs",
+  "priv/**/*.sql"
+]
+
+[learn]
+lookback_days = 7
+min_signal = 3
+team_reviewers = ["tuist/engineering"]
+labels = []
+base = "main"
+draft = true
+branch = "blick/learn"

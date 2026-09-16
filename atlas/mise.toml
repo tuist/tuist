@@ -1,0 +1,14 @@
+[tools]
+erlang = "29.0.6"
+elixir = "1.20.4"
+node = "lts"
+aube = "1.41.0"
+fnox = "latest"
+kubectl = "latest"
+kubelogin = "latest"   # int128/kubelogin — provides `kubectl oidc-login`
+helm = "latest"
+clusterctl = "latest"
+jq = "latest"
+yq = "latest"
+"github-cli" = "latest"
+"1password-cli" = "latest"

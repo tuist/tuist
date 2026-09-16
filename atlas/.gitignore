@@ -1,0 +1,52 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore arcatlas artifacts (built via "mix arcatlas.build").
+*.ez
+
+# Temporary files, for example, from tests.
+/tmp/
+/.atlas-dev-instance
+
+# Ignore package tarball (built via "mix hex.build").
+atlas-*.tar
+
+# Ignore assets that are produced by build tools.
+/priv/static/assets/
+
+# Ignore digested assets cache.
+/priv/static/cache_manifest.json
+
+# In case you use Node.js/npm, you want to ignore these.
+npm-debug.log
+/assets/node_modules/
+/workers/inbox/node_modules/
+
+# Blick code-review artifacts
+/.blick/runs/
+
+# Claude Code agent-local state
+/.claude/
+
+# Local Pingen client credentials used for development and deployment setup.
+/pingen
+
+# Contract templates are stored in the private atlas-object-storage bucket,
+# not in git. See priv/contracts/templates/README.md.
+/priv/contracts/templates/*.docx
+/priv/contracts/templates/*/*.docx
