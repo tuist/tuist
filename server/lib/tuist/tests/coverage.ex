@@ -49,6 +49,7 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
+  alias Tuist.Tests.Workers.PublishCoverageWorker
 
   @insert_chunk_size 2_000
 
@@ -111,9 +112,45 @@ defmodule Tuist.Tests.Coverage do
   def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
     reported_at = NaiveDateTime.utc_now()
-    others = other_shards(test.project_id, test.id, shard_index)
-    folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
-    publish_totals(test, coverage, expected_shards, reported_at, others, folded)
+
+    :telemetry.span(Tuist.Telemetry.event_name_coverage_publish(), %{project_id: test.project_id}, fn ->
+      others = other_shards(test.project_id, test.id, shard_index)
+      folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
+      :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
+      {:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
+    end)
+  end
+
+  @doc """
+  Where a client that processed the bundle itself uploads a run's coverage
+  (see `TuistWeb.API.CoverageController`): under the run, so it lives as long
+  as the run's other artifacts.
+  """
+  def storage_key(%{account: %{name: account}, name: project}, test_run_id) do
+    "#{account}/#{project}/runs/#{test_run_id}/coverage.ndjson.deflate"
+  end
+
+  @doc """
+  Schedules the publication of coverage a client uploaded for the run, once
+  the run exists. `partial` is what the client said about the run; the shard
+  arguments are those of `publish/4`.
+  """
+  def enqueue_publish(%Test{} = test, storage_key, partial, shard_index, expected_shards) do
+    if enabled_for_project?(test.project_id) do
+      %{
+        test_run_id: test.id,
+        project_id: test.project_id,
+        account_id: test.account_id,
+        storage_key: storage_key,
+        partial: partial || false,
+        shard_index: shard_index,
+        expected_shards: expected_shards
+      }
+      |> PublishCoverageWorker.new()
+      |> Oban.insert()
+    else
+      :skipped
+    end
   end
 
   # One pass over the report's files, which may be a lazy stream: each chunk is
@@ -126,7 +163,7 @@ defmodule Tuist.Tests.Coverage do
   defp insert_files_and_fold(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at, others) do
     others_by_path = Map.new(others.files)
 
-    {{covered, executable}, overlap, object_format} =
+    {{covered, executable}, overlap, object_format, files} =
       coverage.files
       |> Stream.map(
         &Map.merge(&1, %{
@@ -143,22 +180,22 @@ defmodule Tuist.Tests.Coverage do
         })
       )
       |> Stream.chunk_every(@insert_chunk_size)
-      |> Enum.reduce({{0, 0}, %{}, ""}, fn chunk, acc ->
+      |> Enum.reduce({{0, 0}, %{}, "", 0}, fn chunk, acc ->
         IngestRepo.insert_all(CoverageFile, chunk)
 
-        Enum.reduce(chunk, acc, fn file, {totals, overlap, object_format} ->
+        Enum.reduce(chunk, acc, fn file, {totals, overlap, object_format, files} ->
           object_format = if object_format == "", do: git_object_format(file), else: object_format
 
           cond do
             file.is_test ->
-              {totals, overlap, object_format}
+              {totals, overlap, object_format, files + 1}
 
             Map.has_key?(others_by_path, file.path) ->
-              {totals, Map.put(overlap, file.path, file_evidence(file)), object_format}
+              {totals, Map.put(overlap, file.path, file_evidence(file)), object_format, files + 1}
 
             true ->
               {covered, executable} = totals
-              {{covered + file.covered_lines, executable + file.executable_lines}, overlap, object_format}
+              {{covered + file.covered_lines, executable + file.executable_lines}, overlap, object_format, files + 1}
           end
         end)
       end)
@@ -174,7 +211,7 @@ defmodule Tuist.Tests.Coverage do
         {covered + path_covered, executable + path_executable}
       end)
 
-    %{totals: totals, object_format: object_format}
+    %{totals: totals, object_format: object_format, files: files}
   end
 
   defp publish_totals(
