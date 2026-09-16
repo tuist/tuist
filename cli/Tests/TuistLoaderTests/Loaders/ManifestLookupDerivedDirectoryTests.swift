@@ -69,6 +69,25 @@ struct ManifestLookupDerivedDirectoryTests {
         #expect(got.projects == [projectPath])
     }
 
+    @Test(.inTemporaryDirectory)
+    func manifestFilesLocator_doesNotDescendIntoFrameworkSearchPathLinks() async throws {
+        // Given
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = workspacePath.appending(components: "Projects", "App")
+        try await createProjectWithFrameworkSearchPathLinks(at: projectPath, cacheDirectory: workspacePath)
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(projectPath.parentDirectory)
+        let subject = ManifestFilesLocator(rootDirectoryLocator: rootDirectoryLocator, fileSystem: fileSystem)
+
+        // When
+        let got = try await subject.locateProjectManifests(at: projectPath, excluding: [], onlyCurrentDirectory: false)
+
+        // Then
+        #expect(got.map(\.path) == [projectPath.appending(component: "Project.swift")])
+    }
+
     /// Lays out a project whose `Derived/FrameworkSearchPaths/Swift/App` directory links many times into a sizeable
     /// cached framework tree. The tree contains manifests so the tests can tell whether the links were followed.
     private func createProjectWithFrameworkSearchPathLinks(

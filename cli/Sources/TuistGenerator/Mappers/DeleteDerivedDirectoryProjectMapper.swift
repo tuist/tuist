@@ -14,7 +14,10 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
 
     public init(
         derivedDirectoryName: String = Constants.DerivedDirectory.name,
-        preservedDerivedDirectories: Set<String> = Set(Constants.DerivedDirectory.preservedAcrossGenerations),
+        preservedDerivedDirectories: Set<String> = [
+            Constants.DerivedDirectory.moduleMaps,
+            Constants.DerivedDirectory.frameworkSearchPaths,
+        ],
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.derivedDirectoryName = derivedDirectoryName

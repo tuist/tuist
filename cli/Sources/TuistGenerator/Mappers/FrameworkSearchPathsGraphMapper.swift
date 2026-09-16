@@ -92,8 +92,9 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 components: Constants.DerivedDirectory.name,
                 Constants.DerivedDirectory.frameworkSearchPaths
             )
-            // Registered for every project, including those that end up contributing no response file, so the
-            // cleanup descriptor still removes files left behind by a previous generation.
+            // Registered for every project, including those that end up contributing no response file or symbolic
+            // link: the directory is preserved across generations, so the cleanup descriptors are what remove files
+            // and links left behind by a previous generation.
             generatedResponseFileDirectories.insert(responseFileDirectory)
 
             for (_, target) in project.targets {
@@ -149,9 +150,6 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
-        // Both cleanups cover every project, not only the ones with a consolidating target: the directory is
-        // preserved across generations, so links left by a previous generation (with different focused targets,
-        // no binary substitution, or an older Tuist version) would otherwise survive indefinitely.
         var sideEffects: [SideEffectDescriptor] = generatedResponseFileDirectories.isEmpty ? [] : [
             .generatedFilesCleanup(
                 GeneratedFilesCleanupDescriptor(

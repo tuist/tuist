@@ -21,37 +21,6 @@ extension XcodeGraph.Workspace {
         fileSystem: FileSysteming,
         swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) async throws -> XcodeGraph.Workspace {
-        func globProjects(_ path: Path) async throws -> [AbsolutePath] {
-            let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = try await fileSystem.glob(
-                directory: AbsolutePath.root,
-                include: [
-                    String(resolvedPath.appending(component: Manifest.package.fileName(resolvedPath)).pathString.dropFirst()),
-                    String(resolvedPath.appending(component: Manifest.project.fileName(resolvedPath)).pathString.dropFirst()),
-                ],
-                exclude: ManifestLookupExcludes.derivedDirectories
-            )
-            .collect()
-            .map(\.parentDirectory)
-            .filter {
-                $0.basename != Constants.tuistDirectoryName
-                    && !SwiftPackageManagerPaths.isPath(
-                        $0,
-                        inSwiftPackageManagerPackageSourcesOf: swiftPackageManagerScratchDirectory
-                    )
-            }
-            .uniqued()
-
-            if projects.isEmpty {
-                // FIXME: This should be done in a linter.
-                // Before we can do that we have to change the linters to run with the TuistCore models and not the
-                // ProjectDescription ones.
-                Logger.current.warning("No projects found at: \(path.pathString)")
-            }
-
-            return Array(projects)
-        }
-
         let additionalFiles = try await manifest.additionalFiles
             .concurrentFlatMap {
                 try await XcodeGraph.FileElement.from(
@@ -76,11 +45,54 @@ extension XcodeGraph.Workspace {
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,
-            projects: try await manifest.projects.concurrentFlatMap(globProjects),
+            projects: try await manifest.projects.concurrentFlatMap {
+                try await globProjects(
+                    $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem,
+                    swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+                )
+            },
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
+    }
+
+    private static func globProjects(
+        _ path: Path,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws -> [AbsolutePath] {
+        let resolvedPath = try generatorPaths.resolve(path: path)
+        let projects = try await fileSystem.glob(
+            directory: AbsolutePath.root,
+            include: [
+                String(resolvedPath.appending(component: Manifest.package.fileName(resolvedPath)).pathString.dropFirst()),
+                String(resolvedPath.appending(component: Manifest.project.fileName(resolvedPath)).pathString.dropFirst()),
+            ],
+            exclude: ManifestLookupExcludes.derivedDirectories
+        )
+        .collect()
+        .map(\.parentDirectory)
+        .filter {
+            $0.basename != Constants.tuistDirectoryName
+                && !SwiftPackageManagerPaths.isPath(
+                    $0,
+                    inSwiftPackageManagerPackageSourcesOf: swiftPackageManagerScratchDirectory
+                )
+        }
+        .uniqued()
+
+        if projects.isEmpty {
+            // FIXME: This should be done in a linter.
+            // Before we can do that we have to change the linters to run with the TuistCore models and not the
+            // ProjectDescription ones.
+            Logger.current.warning("No projects found at: \(path.pathString)")
+        }
+
+        return Array(projects)
     }
 }
