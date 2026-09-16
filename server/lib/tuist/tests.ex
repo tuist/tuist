@@ -524,6 +524,9 @@ defmodule Tuist.Tests do
            %Test{}
            |> Test.create_changeset(attrs)
            |> Ecto.Changeset.apply_action(:insert) do
+      # The version test_runs keeps the latest row by. Left to the column
+      # default, each ClickHouse server would stamp its own clock, and one that
+      # receives the create late would rank it above an update that followed.
       test = %{test | inserted_at: NaiveDateTime.utc_now()}
       test = insert_test_run(test, shard_plan)
 
