@@ -14,22 +14,29 @@ public protocol CacheURLStoring: Sendable {
     func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL]
 }
 
-public struct CacheURLStore: CacheURLStoring {
-    /// How long resolving an endpoint waits for a cache instance the server is preparing.
-    ///
-    /// An account's instance is prepared on demand, typically in seconds, so a run is better
-    /// served by waiting for it than by falling back to the local cache straight away. Callers
-    /// that sit on a request path, or are restarted until they succeed, pass `.zero`.
-    public static let defaultProvisioningWait: Duration = .seconds(30)
+/// Whether resolving an endpoint waits for a cache instance the server is preparing.
+public enum CacheProvisioningWait: Equatable, Sendable {
+    /// Answer with what the server has now. For callers on a request path, or restarted until
+    /// they succeed, where blocking would stall the work that is waiting on them.
+    case none
+    /// Ask the server again until an endpoint serves or `Duration` of wall-clock time has passed.
+    case upTo(Duration)
 
+    /// For commands a person or a CI job runs. An account's instance is prepared on demand,
+    /// typically in seconds, so such a run is better served by waiting for it than by falling
+    /// back to the local cache straight away.
+    public static let forInteractiveCommands: CacheProvisioningWait = .upTo(.seconds(30))
+}
+
+public struct CacheURLStore: CacheURLStoring {
     private let cachedValueStore: CachedValueStoring
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let endpointLatencyService: EndpointLatencyServicing
-    private let provisioningWait: Duration
+    private let provisioningWait: CacheProvisioningWait
     private let provisioningPollInterval: Duration
     private let localCache: NSCache<NSString, NSString>
 
-    public init(provisioningWait: Duration = CacheURLStore.defaultProvisioningWait) {
+    public init(provisioningWait: CacheProvisioningWait = .none) {
         self.init(
             cachedValueStore: CachedValueStore(backend: .inSystemProcess),
             provisioningWait: provisioningWait
@@ -38,7 +45,7 @@ public struct CacheURLStore: CacheURLStoring {
 
     public init(
         cachedValueStore: CachedValueStoring,
-        provisioningWait: Duration = CacheURLStore.defaultProvisioningWait
+        provisioningWait: CacheProvisioningWait = .none
     ) {
         self.init(
             cachedValueStore: cachedValueStore,
@@ -52,7 +59,7 @@ public struct CacheURLStore: CacheURLStoring {
         cachedValueStore: CachedValueStoring,
         getCacheEndpointsService: GetCacheEndpointsServicing,
         endpointLatencyService: EndpointLatencyServicing,
-        provisioningWait: Duration = .zero,
+        provisioningWait: CacheProvisioningWait = .none,
         provisioningPollInterval: Duration = .seconds(1)
     ) {
         self.cachedValueStore = cachedValueStore
@@ -189,7 +196,7 @@ public struct CacheURLStore: CacheURLStoring {
     }
 
     /// The server's answer, asked again every `provisioningPollInterval` while it has no endpoint
-    /// and is preparing an instance, until `provisioningWait` has elapsed.
+    /// and is preparing an instance, until the `provisioningWait` budget has elapsed.
     ///
     /// The budget is wall-clock time from the first answer: requests count against it as much as
     /// the pauses between them, and neither a pause nor a request is allowed to run past it, so a
@@ -201,14 +208,15 @@ public struct CacheURLStore: CacheURLStoring {
             serverURL: serverURL,
             accountHandle: accountHandle
         )
-        guard Self.isBeingPrepared(resolution), provisioningWait > .zero, provisioningPollInterval > .zero
+        guard Self.isBeingPrepared(resolution), case let .upTo(budget) = provisioningWait,
+              budget > .zero, provisioningPollInterval > .zero
         else { return resolution }
 
         Logger.current.notice(
-            "The remote cache is being prepared. Waiting up to \(provisioningWait.components.seconds) seconds for it to be ready."
+            "The remote cache is being prepared. Waiting up to \(budget.components.seconds) seconds for it to be ready."
         )
         let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: provisioningWait)
+        let deadline = clock.now.advanced(by: budget)
         while Self.isBeingPrepared(resolution) {
             let untilDeadline = clock.now.duration(to: deadline)
             guard untilDeadline > .zero else { break }

@@ -158,7 +158,7 @@ public struct BazelSetupCommandService {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),

@@ -114,7 +114,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         cacheSocketService: CacheSocketServicing = CacheSocketService(),
         resourceLocator: ResourceLocating = ResourceLocator(),
         xcodeController: XcodeControlling = XcodeController.current,
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
         cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService

@@ -32,7 +32,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .zero),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),

@@ -46,7 +46,7 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         configLoader: ConfigLoading = ConfigLoader(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .zero),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
         fileSystem: FileSysteming = FileSystem(),
         date: @escaping () -> Date = { Date() }
     ) {

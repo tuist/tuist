@@ -269,7 +269,7 @@
                 cachedValueStore: cachedValueStore,
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
-                provisioningWait: .seconds(30),
+                provisioningWait: .upTo(.seconds(30)),
                 provisioningPollInterval: .milliseconds(10)
             )
             var lookups = 0
@@ -300,7 +300,7 @@
                 cachedValueStore: cachedValueStore,
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
-                provisioningWait: .milliseconds(100),
+                provisioningWait: .upTo(.milliseconds(100)),
                 provisioningPollInterval: .milliseconds(20)
             )
             given(getCacheEndpoints)
@@ -328,7 +328,7 @@
                     resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
                 ),
                 endpointLatencyService: latencyService,
-                provisioningWait: .milliseconds(500),
+                provisioningWait: .upTo(.milliseconds(500)),
                 provisioningPollInterval: .milliseconds(100)
             )
             let clock = ContinuousClock()
@@ -353,7 +353,7 @@
                     resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
                 ),
                 endpointLatencyService: latencyService,
-                provisioningWait: .milliseconds(200),
+                provisioningWait: .upTo(.milliseconds(200)),
                 provisioningPollInterval: .milliseconds(50)
             )
             let clock = ContinuousClock()
@@ -374,7 +374,7 @@
                 cachedValueStore: cachedValueStore,
                 getCacheEndpointsService: getCacheEndpoints,
                 endpointLatencyService: latencyService,
-                provisioningWait: .seconds(30),
+                provisioningWait: .upTo(.seconds(30)),
                 provisioningPollInterval: .milliseconds(10)
             )
             given(getCacheEndpoints)
@@ -395,7 +395,7 @@
             // An account whose instance was reclaimed for inactivity, and one whose
             // instance is still rolling out, both resolve on their own once the
             // server provisions an endpoint back. A malformed URL never does, so it
-            // must stay fatal: the cache daemon starts through the first two and
+            // must stay fatal: the CAS proxy starts through the first two and
             // refuses the third.
             #expect(CacheURLStoreError.noEndpointsAvailable.isTransientAbsence)
             #expect(CacheURLStoreError.endpointBeingPrepared.isTransientAbsence)
@@ -449,11 +449,11 @@
         @Test(.withMockedEnvironment())
         func does_not_cache_a_failed_lookup_so_a_returning_instance_is_picked_up() async throws {
             // Given
-            // Two stores over one shared cache stand in for two requests to the
-            // same long-lived cache daemon: the first while the account's instance
-            // is still being provisioned back, the second once it is serving. If a
-            // failed lookup were cached, the daemon would need a restart to ever
-            // see the instance again.
+            // Two stores over one shared cache stand in for two resolutions by the
+            // CAS proxy: the first while the account's instance is still being
+            // provisioned back, the second once it is serving. If a failed lookup
+            // were cached, the proxy would not see the instance again until the
+            // entry expired.
             let serverURL = URL(string: "https://tuist.dev")!
             let endpoint = "https://cache.example.com"
 
