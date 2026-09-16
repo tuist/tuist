@@ -96,9 +96,17 @@ defmodule Tuist.Runners.GitLabTest do
           {%{}, false}
         ] do
       payload = Map.update!(payload(), "git_info", &Map.merge(&1, git_info))
-      expect(Client, :request_job, fn ^connection -> {:ok, payload} end)
-      assert {:ok, 1} = GitLab.poll(connection)
-      job = Repo.get_by!(Job, job_id: payload["id"])
+
+      job =
+        Repo.insert!(%Job{
+          account_id: account.id,
+          connection_id: connection.id,
+          url: "https://gitlab.com",
+          job_id: payload["id"],
+          project_path: "acme/mobile",
+          pipeline_id: 42,
+          payload: JSON.encode!(payload)
+        })
 
       assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
       assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)
