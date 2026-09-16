@@ -9,9 +9,15 @@ import org.gradle.caching.BuildCacheServiceFactory
 import org.gradle.caching.configuration.AbstractBuildCache
 import org.slf4j.LoggerFactory
 import java.io.EOFException
+import java.io.FilterInputStream
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URI
+import java.security.DigestOutputStream
+import java.security.MessageDigest
+import java.util.HexFormat
 import java.util.zip.ZipException
 
 /**
@@ -172,12 +178,16 @@ class TuistBuildCacheService(
 
             when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
+                    val expectedChecksum = parseChecksum(connection.getHeaderField(CHECKSUM_HEADER))
                     try {
-                        connection.inputStream.use { input -> reader.readFrom(input) }
+                        connection.inputStream.use { input ->
+                            reader.readFrom(expectedChecksum?.let { ChecksumVerifyingInputStream(input, it) } ?: input)
+                        }
                         true
                     } catch (e: Throwable) {
-                        if (looksLikeInvalidCompressedCacheEntry(e)) {
-                            logCorruptCacheEntry(url, cacheKey, connection, e)
+                        val checksumMismatch = causalChain(e).filterIsInstance<ChecksumMismatchException>().firstOrNull()
+                        if (checksumMismatch != null || looksLikeInvalidCompressedCacheEntry(e)) {
+                            logCorruptCacheEntry(url, cacheKey, connection, checksumMismatch ?: e)
                             false
                         } else {
                             throw cacheFailure(
@@ -204,15 +214,32 @@ class TuistBuildCacheService(
     override fun store(key: BuildCacheKey, writer: BuildCacheEntryWriter) {
         if (!isPushEnabled) return
 
-        httpClient.execute<Unit> { config ->
-            val url = buildCacheUrl(config, key.hashCode)
-            val cacheKey = key.hashCode
+        val checksumRefusal = storeOnce(key.hashCode, writer) ?: return
+        logger.warn("Tuist: Retrying store because the server refused the cache entry body: {}", checksumRefusal.message)
+        storeOnce(key.hashCode, writer)?.let { throw it }
+    }
+
+    /**
+     * Returns the failure instead of throwing it when the server refuses the body's checksum (422).
+     */
+    private fun storeOnce(cacheKey: String, writer: BuildCacheEntryWriter): BuildCacheException? {
+        val checksum = lazy { sha256Hex(writer) }
+
+        return httpClient.execute { config ->
+            val url = buildCacheUrl(config, cacheKey)
+
+            val expectedChecksum = try {
+                checksum.value
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to compute cache entry checksum", cause = e)
+            }
 
             val connection = try {
                 httpClient.openConnection(url, config).also {
                     it.requestMethod = "PUT"
                     it.doOutput = true
                     it.setRequestProperty("Content-Type", "application/octet-stream")
+                    it.setRequestProperty(CHECKSUM_HEADER, expectedChecksum)
                 }
             } catch (e: Throwable) {
                 throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
@@ -235,14 +262,17 @@ class TuistBuildCacheService(
             }
 
             when (responseCode) {
-                HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> {}
+                HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> null
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                else -> throw cacheFailure(
-                    "store", cacheKey, url,
-                    "Server returned unexpected HTTP status",
-                    status = responseCode,
-                    body = readErrorBodySnippet(connection)
-                )
+                else -> {
+                    val failure = cacheFailure(
+                        "store", cacheKey, url,
+                        "Server returned unexpected HTTP status",
+                        status = responseCode,
+                        body = readErrorBodySnippet(connection)
+                    )
+                    if (responseCode == HTTP_UNPROCESSABLE_ENTITY) failure else throw failure
+                }
             }
         }
     }
@@ -265,7 +295,10 @@ class TuistBuildCacheService(
     }
 
     companion object {
+        internal const val CHECKSUM_HEADER = "tuist-checksum-sha256"
+        private const val HTTP_UNPROCESSABLE_ENTITY = 422
         private const val ERROR_BODY_MAX_BYTES = 1024
+        private val checksumPattern = Regex("[0-9a-fA-F]{64}")
         private val logger = LoggerFactory.getLogger(TuistBuildCacheService::class.java)
         private val invalidCompressionMessageHints = listOf(
             "unexpected end of zlib input stream",
@@ -354,6 +387,58 @@ class TuistBuildCacheService(
 
         private fun causalChain(error: Throwable): Sequence<Throwable> =
             generateSequence(error) { current -> current.cause }
+
+        // Hashing in its own pass keeps a single in-memory copy of the entry: HttpURLConnection
+        // already buffers the request body. Gradle's writer copies from a packed file, so it can
+        // be written more than once.
+        private fun sha256Hex(writer: BuildCacheEntryWriter): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            DigestOutputStream(OutputStream.nullOutputStream(), digest).use { writer.writeTo(it) }
+            return HexFormat.of().formatHex(digest.digest())
+        }
+
+        private fun parseChecksum(value: String?): String? =
+            value?.trim()?.takeIf(checksumPattern::matches)?.lowercase()
+    }
+}
+
+internal class ChecksumMismatchException(expected: String, actual: String) :
+    IOException("Body does not match ${TuistBuildCacheService.CHECKSUM_HEADER}: declared $expected, received $actual")
+
+/**
+ * Hashes every byte read from [input]. The declared checksum covers the whole object, so it is
+ * compared when [input] reports end of stream, which also catches a body that ends early.
+ */
+internal class ChecksumVerifyingInputStream(
+    input: InputStream,
+    private val expectedChecksum: String
+) : FilterInputStream(input) {
+    private val digest = MessageDigest.getInstance("SHA-256")
+    private var actualChecksum: String? = null
+
+    override fun read(): Int {
+        val byte = super.read()
+        if (byte == -1) verify() else digest.update(byte.toByte())
+        return byte
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val count = super.read(b, off, len)
+        if (count == -1) verify() else digest.update(b, off, count)
+        return count
+    }
+
+    override fun skip(n: Long): Long {
+        if (n <= 0) return 0
+        val count = read(ByteArray(minOf(n, 8192L).toInt()))
+        return if (count == -1) 0 else count.toLong()
+    }
+
+    override fun markSupported(): Boolean = false
+
+    private fun verify() {
+        val actual = actualChecksum ?: HexFormat.of().formatHex(digest.digest()).also { actualChecksum = it }
+        if (actual != expectedChecksum) throw ChecksumMismatchException(expectedChecksum, actual)
     }
 }
 
