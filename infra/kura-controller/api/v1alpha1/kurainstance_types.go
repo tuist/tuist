@@ -197,6 +197,14 @@ type KuraInstanceSpec struct {
 	// host-network peer DNSEndpoint targets (the CAPI provider keeps it routed to
 	// a healthy box of the region's pool). Only used when MeshPeerHostNetwork.
 	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
+
+	// Suspended runs nothing and holds no cache while keeping everything that
+	// addresses the instance: the StatefulSet is scaled to zero and each retained
+	// data volume is emptied on the machine it is bound to, while the Services,
+	// Ingresses, DNSEndpoints, peer TLS material and egress class stay. Clearing
+	// it scales the StatefulSet back onto those volumes, so the instance returns
+	// without provisioning volumes or publishing its DNS records again.
+	Suspended bool `json:"suspended,omitempty"`
 }
 
 // KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports
@@ -275,6 +283,10 @@ type KuraInstanceStatus struct {
 	ReadyReplicas              int32        `json:"readyReplicas,omitempty"`
 	Message                    string       `json:"message,omitempty"`
 	LastReconciledAt           *metav1.Time `json:"lastReconciledAt,omitempty"`
+	// ObservedGeneration is the spec generation this status describes, so a
+	// Suspended phase can be told apart from one written before the spec last
+	// changed.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
 	// reports, published for the control plane's health-gated progressive

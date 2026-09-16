@@ -218,6 +218,12 @@ spec:
                   items:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
+                # Scales the instance to zero and empties its retained data
+                # volumes while keeping its Services, Ingresses, DNSEndpoints
+                # and peer TLS material, so clearing it returns the instance
+                # without provisioning volumes or publishing DNS again.
+                suspended:
+                  type: boolean
             status:
               type: object
               properties:
@@ -254,6 +260,10 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                # The spec generation the status describes.
+                observedGeneration:
+                  type: integer
+                  format: int64
                 cpuAutosize:
                   type: object
                   properties:

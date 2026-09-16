@@ -241,13 +241,16 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          # Checked every second so a started pod joins its Service as soon as
+          # it serves; 30 failures keep the 30s a serving pod tolerates a slow
+          # /ready before it leaves the Service.
           readinessProbe:
             httpGet:
               path: /ready
               port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            periodSeconds: 1
             timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /up
@@ -261,9 +264,9 @@ spec:
             httpGet:
               path: /up
               port: http
-            periodSeconds: 10
+            periodSeconds: 1
             timeoutSeconds: 5
-            failureThreshold: 30
+            failureThreshold: 300
           lifecycle:
             preStop:
               exec:

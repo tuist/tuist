@@ -24,6 +24,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -39,6 +40,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -77,7 +79,14 @@ const (
 	// covers reaching that listener; recovery itself is supervised by the
 	// runtime's progress watchdog while readiness stays false. Keep this
 	// aligned with kura/ops/helm/kura/templates/statefulset.yaml.
-	startupFailureThreshold int32 = 30
+	startupBudgetSeconds int32 = 300
+	// readinessFailureBudgetSeconds is how long /ready may keep failing before
+	// a serving pod leaves its Service. The public Service pins one pod, so
+	// this is also how long a briefly slow /ready is tolerated before the
+	// account has no endpoint at all.
+	readinessFailureBudgetSeconds int32 = 30
+	fastProbePeriodSeconds        int32 = 1
+	legacyProbePeriodSeconds      int32 = 10
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -130,6 +139,10 @@ type KuraInstanceReconciler struct {
 	// accounts the same minor.
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
+
+	// egressClassMu serializes egress classid allocation across concurrent
+	// reconciles; see reconcileEgressClassID.
+	egressClassMu sync.Mutex
 
 	// GRPCClusterIssuer, when non-empty, is the ClusterIssuer backing the
 	// per-instance public-host Certificate. It only applies to instances the
@@ -397,6 +410,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
@@ -438,6 +452,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	if instance.Spec.Suspended {
+		return r.reconcileSuspended(ctx, instance)
 	}
 
 	// Roles, and the Services that carry them, resolve BEFORE the storage
@@ -506,6 +524,18 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// An instance returning from suspension scales up onto volumes emptied while
+	// it was suspended: not while one is still being emptied, and not onto one
+	// whose machine can no longer take its pod.
+	if inProgress, err := r.settleWipeJobsBeforeResume(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: suspensionRequeueTime}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+	if err := r.reconcileWipedVolumes(ctx, instance, pods); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -593,6 +623,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
+	instance.Status.ObservedGeneration = instance.Generation
 	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
 	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
 
@@ -3122,6 +3153,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
+		fastProbes := templateUsesFastProbes(sts, instance)
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
 		}
@@ -3135,7 +3167,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			return err
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC)
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
@@ -3287,6 +3319,30 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		if !ok || bound.Cmp(desired) >= 0 {
 			continue
+		}
+
+		// An emptied volume no pod is using has nothing to preserve and no
+		// sibling to refill from, so it is dropped rather than rebuilt behind a
+		// serving standby, and the StatefulSet recreates it at the new size.
+		if claimWiped(pvc) {
+			podName := fmt.Sprintf("%s-%d", instance.Name, ordinal)
+			err := r.Get(ctx, types.NamespacedName{Name: podName, Namespace: instance.Namespace}, &corev1.Pod{})
+			if apierrors.IsNotFound(err) {
+				log.FromContext(ctx).Info(
+					"dropping an empty Kura data volume smaller than the claim",
+					"pvc", pvcName, "from", bound.String(), "to", desired.String(),
+				)
+				if err := r.reclaimDataVolume(ctx, pvc); err != nil {
+					return false, err
+				}
+				if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
+					return false, err
+				}
+				return true, nil
+			}
+			if err != nil {
+				return false, err
+			}
 		}
 
 		// Never take this one down while another is already down. Waiting here is
@@ -3712,7 +3768,7 @@ func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, in
 	return false, nil
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, gatewayGRPC bool) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, gatewayGRPC bool, fastProbes bool) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
@@ -3734,9 +3790,9 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Resources:       defaultResources(instance, binPackCeiling),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
-				ReadinessProbe:  httpProbe("/ready", 5, 10),
+				ReadinessProbe:  readinessProbe(fastProbes),
 				LivenessProbe:   livenessProbe(),
-				StartupProbe:    startupProbe(),
+				StartupProbe:    startupProbe(fastProbes),
 			}},
 			Volumes: volumes(instance),
 		},
@@ -3897,28 +3953,59 @@ func allocateEgressClassID(account string, used map[uint16]bool) (uint16, error)
 // KuraInstances: adopt the account's existing claim if any, else probe from
 // the account-hash candidate.
 //
-// The scan reads through APIReader, not the cached client: reconciles run
-// serially (MaxConcurrentReconciles is the default 1), but the informer
-// cache updates asynchronously after Update, so a cached List during a
-// back-to-back allocation burst could miss the previous instance's fresh
-// claim and duplicate its minor. A quorum read always sees the completed
-// Update. The deterministic duplicate rule (smallest account handle keeps a
-// doubly-claimed id, smallest minor wins within an account) still makes any
-// duplicate from outside this loop — say a hand-edited annotation —
-// self-heal instead of flapping.
+// The decision is first taken from the informer cache, which is what every
+// reconcile of an already-allocated instance ends on and costs no apiserver
+// read. Only a change is decided again, under egressClassMu, from a list read
+// through APIReader: the informer cache updates asynchronously after Update,
+// so a cached List during a back-to-back allocation burst could miss another
+// reconcile's fresh claim and duplicate its minor. A quorum read always sees
+// the completed Update, and the mutex keeps concurrent reconciles from
+// deciding against the same read. The deterministic duplicate rule (smallest
+// account handle keeps a doubly-claimed id, smallest minor wins within an
+// account) still makes any duplicate from outside this loop — say a
+// hand-edited annotation — self-heal instead of flapping.
 func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if !instanceNeedsEgressClass(instance) {
 		return nil
 	}
 
-	instances := &kurav1alpha1.KuraInstanceList{}
-	if err := r.APIReader.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+	cached := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, cached, client.InNamespace(instance.Namespace)); err != nil {
 		return err
 	}
+	desired, err := desiredEgressClassID(instance.Spec.AccountHandle, cached.Items)
+	if err != nil {
+		return err
+	}
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+
+	r.egressClassMu.Lock()
+	defer r.egressClassMu.Unlock()
+	live := &kurav1alpha1.KuraInstanceList{}
+	if err := r.APIReader.List(ctx, live, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	desired, err = desiredEgressClassID(instance.Spec.AccountHandle, live.Items)
+	if err != nil {
+		return err
+	}
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[egressClassIDAnnotation] = formatEgressClassID(desired)
+	return r.Update(ctx, instance)
+}
+
+func desiredEgressClassID(account string, instances []kurav1alpha1.KuraInstance) (uint16, error) {
 	used := map[uint16]bool{}
 	owner := map[uint16]string{}
-	for i := range instances.Items {
-		other := &instances.Items[i]
+	for i := range instances {
+		other := &instances[i]
 		minor, ok := parseEgressClassID(other.Annotations[egressClassIDAnnotation])
 		if !ok {
 			continue
@@ -3929,29 +4016,16 @@ func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, ins
 		}
 	}
 
-	account := instance.Spec.AccountHandle
 	var desired uint16
 	for minor, owningAccount := range owner {
 		if owningAccount == account && (desired == 0 || minor < desired) {
 			desired = minor
 		}
 	}
-	if desired == 0 {
-		allocated, err := allocateEgressClassID(account, used)
-		if err != nil {
-			return err
-		}
-		desired = allocated
+	if desired != 0 {
+		return desired, nil
 	}
-
-	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
-		return nil
-	}
-	if instance.Annotations == nil {
-		instance.Annotations = map[string]string{}
-	}
-	instance.Annotations[egressClassIDAnnotation] = formatEgressClassID(desired)
-	return r.Update(ctx, instance)
+	return allocateEgressClassID(account, used)
 }
 
 // egressClassPodAnnotation renders the agent's pod annotation. Absent until
@@ -4479,10 +4553,54 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 	}
 }
 
-func startupProbe() *corev1.Probe {
-	probe := httpProbe("/up", 0, 10)
-	probe.FailureThreshold = startupFailureThreshold
+// readinessProbe and startupProbe come in two timings with the same budgets.
+// The fast timings notice a started pod within a second of it serving, instead
+// of after a 10s period (and, for readiness, a 5s initial delay), which is most
+// of what a returning instance spends between its pods starting and its
+// endpoint answering. The legacy timings stay on pods that are not being
+// replaced: probes are part of the pod template, so switching every instance
+// at once would roll the whole fleet outside the runtime rollout gate. See
+// templateUsesFastProbes.
+func readinessProbe(fast bool) *corev1.Probe {
+	if !fast {
+		return httpProbe("/ready", 5, legacyProbePeriodSeconds)
+	}
+	probe := httpProbe("/ready", 0, fastProbePeriodSeconds)
+	probe.FailureThreshold = readinessFailureBudgetSeconds / fastProbePeriodSeconds
 	return probe
+}
+
+func startupProbe(fast bool) *corev1.Probe {
+	period := legacyProbePeriodSeconds
+	if fast {
+		period = fastProbePeriodSeconds
+	}
+	probe := httpProbe("/up", 0, period)
+	probe.FailureThreshold = startupBudgetSeconds / period
+	return probe
+}
+
+// templateUsesFastProbes reports whether the template about to be written takes
+// the fast probe timings. It does when the update lands on pods that are
+// created anyway, so adopting them costs no extra roll: a StatefulSet being created, one scaled to zero
+// (a suspended instance returning), or one whose image is changing. A template
+// already on the fast timings keeps them.
+func templateUsesFastProbes(sts *appsv1.StatefulSet, instance *kurav1alpha1.KuraInstance) bool {
+	if sts.ResourceVersion == "" || (sts.Spec.Replicas != nil && *sts.Spec.Replicas == 0) {
+		return true
+	}
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		if container.Image != instance.Spec.Image {
+			return true
+		}
+		if container.ReadinessProbe != nil && container.ReadinessProbe.PeriodSeconds == fastProbePeriodSeconds {
+			return true
+		}
+	}
+	return false
 }
 
 func livenessProbe() *corev1.Probe {
@@ -4596,8 +4714,17 @@ func ptr[T any](v T) *T {
 	return &v
 }
 
+// maxConcurrentReconciles bounds how many instances reconcile at once. A
+// reconcile takes roughly 400ms, most of it pod and apiserver round trips, so a
+// single worker cycling every instance on its periodic requeue left a new
+// instance, a spec change or a pod turning Ready queued behind a full pass of
+// the namespace. Reconciles of different instances share no state that is not
+// locked or decided by the apiserver's optimistic concurrency.
+const maxConcurrentReconciles = 8
+
 func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
 		For(&kurav1alpha1.KuraInstance{}, builder.WithPredicates(kuraInstanceDesiredStateChangedPredicate())).
 		Watches(
 			&corev1.Secret{},
@@ -4625,6 +4752,7 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
+		Owns(&batchv1.Job{}).
 		Complete(r)
 }
 
@@ -4672,8 +4800,9 @@ func kuraPodPredicate() predicate.Predicate {
 
 // podRoutabilityChangedPredicate keeps the controller from re-running on
 // every pod heartbeat: it only enqueues when a pod appears, disappears,
-// or crosses the Ready/terminating boundary that primary selection cares
-// about.
+// crosses the Ready/terminating boundary that primary selection cares
+// about, or is found unschedulable, which a returning instance answers by
+// releasing an empty volume pinned to a full machine.
 func podRoutabilityChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc:  func(event.CreateEvent) bool { return true },
@@ -4685,7 +4814,7 @@ func podRoutabilityChangedPredicate() predicate.Predicate {
 			if !ok || !okNew {
 				return false
 			}
-			return podReady(oldPod) != podReady(newPod)
+			return podReady(oldPod) != podReady(newPod) || podUnschedulable(oldPod) != podUnschedulable(newPod)
 		},
 	}
 }
