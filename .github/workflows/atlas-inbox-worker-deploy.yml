@@ -12,6 +12,9 @@ concurrency:
   group: atlas-deploy-inbox-worker
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy

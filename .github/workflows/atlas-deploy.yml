@@ -116,6 +116,13 @@ jobs:
             --rollback-on-failure --timeout 15m --wait
 
       - name: Diagnostics on failure
+        # Public-repo CI logs are viewable by anyone. Deliberately avoid
+        # dumping `kubectl logs` for pods and migration jobs from here:
+        # Atlas' application log lines routinely contain customer emails,
+        # account names, and other PII. Cluster-level state (helm
+        # history, pod status, events, describe output, ExternalSecret
+        # sync status) is enough to pinpoint most rollout failures.
+        # Operators pull actual pod logs from the cluster directly.
         if: failure()
         run: |
           set +e
@@ -131,20 +138,16 @@ jobs:
           echo "::group::migration job"
           for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=migration -o name 2>/dev/null); do
             kubectl -n "$NAMESPACE" describe "$job" || true
-            kubectl -n "$NAMESPACE" logs "$job" --all-containers --tail=500 || true
           done
           echo "::endgroup::"
           echo "::group::deployment + pods"
           kubectl -n "$NAMESPACE" describe deploy/atlas || true
           for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=atlas -o name 2>/dev/null); do
             kubectl -n "$NAMESPACE" describe "$pod" || true
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
           done
           echo "::endgroup::"
           echo "::group::external secrets"
           kubectl -n "$NAMESPACE" get externalsecret 2>&1 || true
-          kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
 
       - name: Smoke test
