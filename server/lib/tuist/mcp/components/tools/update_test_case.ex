@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   @moduledoc """
-  Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
+  Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky` and `is_unskippable`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
   use Tuist.MCP.Tool,
@@ -38,6 +38,11 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
         "is_flaky" => %{
           "type" => "boolean",
           "description" => "Whether to mark the test case as flaky."
+        },
+        "is_unskippable" => %{
+          "type" => "boolean",
+          "description" =>
+            "Whether the test case is unskippable: test selection always runs it, whatever passing evidence it has."
         }
       }
     },
@@ -49,6 +54,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
         "module_name" => %{"type" => "string"},
         "suite_name" => %{"type" => "string"},
         "is_flaky" => %{"type" => "boolean"},
+        "is_unskippable" => %{"type" => "boolean"},
         "state" => %{"type" => "string"}
       },
       "required" => ["id", "name", "module_name", "suite_name", "is_flaky", "state"],
@@ -68,7 +74,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   @impl EMCP.Tool
   def description,
     do:
-      "Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. A change can dispatch a test-case event to webhook endpoints configured by the account, including external services. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
+      "Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky` and `is_unskippable` (an unskippable test is always run by test selection). A change can dispatch a test-case event to webhook endpoints configured by the account, including external services. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def call(conn, args) do
@@ -127,9 +133,10 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
 
   defp extract_update_attrs(args) do
     with {:ok, attrs} <- maybe_put_state(%{}, args),
-         {:ok, attrs} <- maybe_put_is_flaky(attrs, args) do
+         {:ok, attrs} <- maybe_put_is_flaky(attrs, args),
+         {:ok, attrs} <- maybe_put_is_unskippable(attrs, args) do
       if map_size(attrs) == 0 do
-        {:error, "Provide at least one of `state` or `is_flaky`."}
+        {:error, "Provide at least one of `state`, `is_flaky` or `is_unskippable`."}
       else
         {:ok, attrs}
       end
@@ -149,6 +156,14 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
 
   defp maybe_put_is_flaky(_attrs, %{"is_flaky" => _invalid}), do: {:error, "`is_flaky` must be a boolean."}
   defp maybe_put_is_flaky(attrs, _args), do: {:ok, attrs}
+
+  defp maybe_put_is_unskippable(attrs, %{"is_unskippable" => value}) when is_boolean(value),
+    do: {:ok, Map.put(attrs, :is_unskippable, value)}
+
+  defp maybe_put_is_unskippable(_attrs, %{"is_unskippable" => _invalid}),
+    do: {:error, "`is_unskippable` must be a boolean."}
+
+  defp maybe_put_is_unskippable(attrs, _args), do: {:ok, attrs}
 
   defp parse_identifier(identifier) do
     case String.split(identifier, "/") do
@@ -185,6 +200,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
       module_name: test_case.module_name,
       suite_name: test_case.suite_name,
       is_flaky: test_case.is_flaky,
+      is_unskippable: test_case.is_unskippable,
       state: test_case.state || "enabled"
     }
   end

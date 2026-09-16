@@ -543,7 +543,45 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
                UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id"})
 
-      assert text =~ "Provide at least one of `state` or `is_flaky`."
+      assert text =~ "Provide at least one of `state`, `is_flaky` or `is_unskippable`."
+    end
+
+    test "rejects a non-boolean is_unskippable" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id", "is_unskippable" => "yes"})
+
+      assert text =~ "`is_unskippable` must be a boolean."
+    end
+
+    test "marks a test case unskippable and reports it back" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+
+      test_case = %{
+        id: "test-case-id",
+        project_id: project_id,
+        name: "testOne",
+        module_name: "MyTests",
+        suite_name: "MySuite",
+        is_flaky: false,
+        is_unskippable: false,
+        state: "enabled"
+      }
+
+      stub(Tests, :get_test_case_by_id, fn "test-case-id" -> {:ok, test_case} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_update, :subject, ^project -> :ok end)
+
+      expect(Tests, :update_test_case, fn "test-case-id", %{is_unskippable: true}, _opts ->
+        {:ok, %{test_case | is_unskippable: true}}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"structuredContent" => %{"is_unskippable" => true, "state" => "enabled"}} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id", "is_unskippable" => true})
     end
 
     test "returns error for invalid state value" do

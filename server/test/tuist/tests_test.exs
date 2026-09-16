@@ -6500,6 +6500,71 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "update_test_case/3 unskippable" do
+    test "marks and unmarks a test case as unskippable, recording an event each way" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "testOne", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.is_unskippable == false
+
+      assert {:ok, %{is_unskippable: true}} = Tests.update_test_case(test_case.id, %{is_unskippable: true})
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched.is_unskippable == true
+      assert fetched.is_flaky == false
+      assert fetched.state == "enabled"
+
+      # Flipping the other flags leaves it in place.
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true, state: "muted"})
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case.id)
+      assert {fetched.is_unskippable, fetched.is_flaky, fetched.state} == {true, true, "muted"}
+
+      assert {:ok, %{is_unskippable: false}} = Tests.update_test_case(test_case.id, %{is_unskippable: false})
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched.is_unskippable == false
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id, %{})
+
+      assert events |> Enum.map(& &1.event_type) |> Enum.sort() ==
+               ["first_run", "marked_flaky", "marked_unskippable", "muted", "unmarked_unskippable"]
+    end
+
+    test "records nothing when the flag does not change" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "testOne", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert {:ok, _} = Tests.update_test_case(test_case.id, %{is_unskippable: false})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id, %{})
+      refute Enum.any?(events, &(&1.event_type in ["marked_unskippable", "unmarked_unskippable"]))
+    end
+  end
+
   describe "update_test_case/3 quarantine" do
     test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()

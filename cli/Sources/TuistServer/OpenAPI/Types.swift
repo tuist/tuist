@@ -85,7 +85,7 @@ public protocol APIProtocol: Sendable {
     func getTestCase(_ input: Operations.getTestCase.Input) async throws -> Operations.getTestCase.Output
     /// Update a test case.
     ///
-    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky` and `is_unskippable`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`, `marked_unskippable`/`unmarked_unskippable`) are recorded automatically when values transition.
     ///
     /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
@@ -1065,7 +1065,7 @@ extension APIProtocol {
     }
     /// Update a test case.
     ///
-    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky` and `is_unskippable`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`, `marked_unskippable`/`unmarked_unskippable`) are recorded automatically when values transition.
     ///
     /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
@@ -12943,6 +12943,8 @@ public enum Components {
                 case unmuted = "unmuted"
                 case skipped = "skipped"
                 case unskipped = "unskipped"
+                case marked_unskippable = "marked_unskippable"
+                case unmarked_unskippable = "unmarked_unskippable"
             }
             /// Canonical transitions that caused the write. Receivers can branch on this without diffing the snapshot.
             ///
@@ -18686,6 +18688,10 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_quarantined`.
                         @available(*, deprecated)
                         public var is_quarantined: Swift.Bool
+                        /// Whether the test case is unskippable: test selection always runs it, whatever evidence it has.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_unskippable`.
+                        public var is_unskippable: Swift.Bool?
                         /// Duration of the last run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/last_duration`.
@@ -18793,6 +18799,7 @@ public enum Operations {
                         ///   - id: The test case ID.
                         ///   - is_flaky: Whether the test case is marked as flaky.
                         ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
+                        ///   - is_unskippable: Whether the test case is unskippable: test selection always runs it, whatever evidence it has.
                         ///   - last_duration: Duration of the last run in milliseconds.
                         ///   - last_ran_at: Unix timestamp of when the test case last ran.
                         ///   - last_status: Status of the last run.
@@ -18810,6 +18817,7 @@ public enum Operations {
                             id: Swift.String,
                             is_flaky: Swift.Bool,
                             is_quarantined: Swift.Bool,
+                            is_unskippable: Swift.Bool? = nil,
                             last_duration: Swift.Int,
                             last_ran_at: Swift.Int,
                             last_status: Operations.getTestCase.Output.Ok.Body.jsonPayload.last_statusPayload,
@@ -18827,6 +18835,7 @@ public enum Operations {
                             self.id = id
                             self.is_flaky = is_flaky
                             self.is_quarantined = is_quarantined
+                            self.is_unskippable = is_unskippable
                             self.last_duration = last_duration
                             self.last_ran_at = last_ran_at
                             self.last_status = last_status
@@ -18845,6 +18854,7 @@ public enum Operations {
                             case id
                             case is_flaky
                             case is_quarantined
+                            case is_unskippable
                             case last_duration
                             case last_ran_at
                             case last_status
@@ -19121,7 +19131,7 @@ public enum Operations {
     }
     /// Update a test case.
     ///
-    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky` and `is_unskippable`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`, `marked_unskippable`/`unmarked_unskippable`) are recorded automatically when values transition.
     ///
     /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
@@ -19179,6 +19189,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json/is_flaky`.
                     public var is_flaky: Swift.Bool?
+                    /// Whether to mark the test case as unskippable, so test selection always runs it regardless of the evidence it has.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json/is_unskippable`.
+                    public var is_unskippable: Swift.Bool?
                     /// The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json/state`.
@@ -19187,16 +19201,20 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - is_flaky: Whether to mark the test case as flaky.
+                    ///   - is_unskippable: Whether to mark the test case as unskippable, so test selection always runs it regardless of the evidence it has.
                     ///   - state: The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                     public init(
                         is_flaky: Swift.Bool? = nil,
+                        is_unskippable: Swift.Bool? = nil,
                         state: Swift.String? = nil
                     ) {
                         self.is_flaky = is_flaky
+                        self.is_unskippable = is_unskippable
                         self.state = state
                     }
                     public enum CodingKeys: String, CodingKey {
                         case is_flaky
+                        case is_unskippable
                         case state
                     }
                 }
@@ -19239,6 +19257,10 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/is_quarantined`.
                         @available(*, deprecated)
                         public var is_quarantined: Swift.Bool
+                        /// Whether the test case is unskippable: test selection always runs it, whatever evidence it has.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/is_unskippable`.
+                        public var is_unskippable: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/module`.
                         public struct modulePayload: Codable, Hashable, Sendable {
                             /// ID of the module.
@@ -19315,6 +19337,7 @@ public enum Operations {
                         ///   - id: The test case ID.
                         ///   - is_flaky: Whether the test case is marked as flaky.
                         ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
+                        ///   - is_unskippable: Whether the test case is unskippable: test selection always runs it, whatever evidence it has.
                         ///   - module:
                         ///   - name: Name of the test case.
                         ///   - state: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
@@ -19324,6 +19347,7 @@ public enum Operations {
                             id: Swift.String,
                             is_flaky: Swift.Bool,
                             is_quarantined: Swift.Bool,
+                            is_unskippable: Swift.Bool? = nil,
                             module: Operations.updateTestCase.Output.Ok.Body.jsonPayload.modulePayload,
                             name: Swift.String,
                             state: Swift.String,
@@ -19333,6 +19357,7 @@ public enum Operations {
                             self.id = id
                             self.is_flaky = is_flaky
                             self.is_quarantined = is_quarantined
+                            self.is_unskippable = is_unskippable
                             self.module = module
                             self.name = name
                             self.state = state
@@ -19343,6 +19368,7 @@ public enum Operations {
                             case id
                             case is_flaky
                             case is_quarantined
+                            case is_unskippable
                             case module
                             case name
                             case state

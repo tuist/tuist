@@ -7226,6 +7226,8 @@ components:
               - unmuted
               - skipped
               - unskipped
+              - marked_unskippable
+              - unmarked_unskippable
             type: string
             x-struct:
             x-validate:
@@ -9421,6 +9423,11 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  is_unskippable:
+                    description: 'Whether the test case is unskippable: test selection always runs it, whatever evidence it has.'
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   last_duration:
                     description: Duration of the last run in milliseconds.
                     type: integer
@@ -9560,7 +9567,7 @@ paths:
         - Test Cases
     patch:
       callbacks: {}
-      description: Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+      description: Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky` and `is_unskippable`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`, `marked_unskippable`/`unmarked_unskippable`) are recorded automatically when values transition.
       operationId: updateTestCase
       parameters:
         - description: The handle of the account.
@@ -9598,6 +9605,11 @@ paths:
                   type: boolean
                   x-struct:
                   x-validate:
+                is_unskippable:
+                  description: Whether to mark the test case as unskippable, so test selection always runs it regardless of the evidence it has.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 state:
                   description: The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                   type: string
@@ -9628,6 +9640,11 @@ paths:
                   is_quarantined:
                     deprecated: true
                     description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  is_unskippable:
+                    description: 'Whether the test case is unskippable: test selection always runs it, whatever evidence it has.'
                     type: boolean
                     x-struct:
                     x-validate:

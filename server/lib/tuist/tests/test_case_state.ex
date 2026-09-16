@@ -1,7 +1,8 @@
 defmodule Tuist.Tests.TestCaseState do
   @moduledoc """
-  Control-plane state for a test case: whether it's muted/skipped and whether
-  it's flagged flaky.
+  Control-plane state for a test case: whether it's muted/skipped, whether
+  it's flagged flaky, and whether it is unskippable (test selection must
+  always run it).
 
   These used to be columns on `test_cases`, but that table is rewritten
   wholesale by test-report ingestion, which snapshots the existing row before
@@ -27,6 +28,7 @@ defmodule Tuist.Tests.TestCaseState do
     field :test_case_id, Ecto.UUID
     field :state, Ch, type: "LowCardinality(Nullable(String))"
     field :is_flaky, Ch, type: "Nullable(Bool)"
+    field :is_unskippable, Ch, type: "Nullable(Bool)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 end
