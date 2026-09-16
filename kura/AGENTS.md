@@ -26,7 +26,8 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
-  - `test/e2e/native_server.py` owns isolated native server startup, `/ready` polling, and teardown for the multipart and ByteStream admission runners. The ByteStream ShellSpec runs in the CI bytestream-admission shard inside the prebuilt server image with an isolated memory cgroup.
+  - ByteStream admission uses the standard ShellSpec `support.sh` lifecycle and the Compose override in `test/e2e/bytestream-admission/`. The CI bytestream-admission shard runs it against the shared prebuilt Kura image and the existing Go load-client image. Optional resource captures use the same test path.
+  - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 - Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which parses libtest's text output and writes JUnit to `$XML_OUTPUT_FILE`. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.

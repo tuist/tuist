@@ -477,31 +477,5 @@ jobs:
       - name: Load the prebuilt Docker image
         run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
 
-      - uses: actions/setup-go@v5
-        if: matrix.shard_name == 'bytestream-admission'
-        with:
-          go-version-file: kura/test/e2e/grpc-upload-throughput/client/go.mod
-          cache-dependency-path: kura/test/e2e/grpc-upload-throughput/client/go.sum
-
-      - name: Run isolated ByteStream admission regression
-        if: matrix.shard_name == 'bytestream-admission'
-        run: |
-          (cd test/e2e/grpc-upload-throughput/client && GOWORK=off go build -o "$RUNNER_TEMP/kura-read-client" .)
-          shellspec_root=$(dirname "$(readlink -f "$(mise which shellspec)")")
-          docker run --rm --memory 1g --memory-swap 1g --entrypoint /bin/bash \
-            -v "$PWD:/workspace:ro" \
-            -v "$RUNNER_TEMP/kura-read-client:/test-bin/kura-read-client:ro" \
-            -v "$shellspec_root:/shellspec:ro" \
-            -e KURA_BYTESTREAM_BINARY=/usr/local/bin/kura \
-            -e KURA_BYTESTREAM_CLIENT=/test-bin/kura-read-client \
-            -e KURA_BYTESTREAM_PROFILE=ci-small \
-            "$KURA_IMAGE" -ec '
-              apt-get update -qq
-              apt-get install -y -qq --no-install-recommends python3 procps
-              cd /workspace
-              /shellspec/shellspec spec/e2e/bytestream_admission_spec.sh
-            '
-
       - name: Run end-to-end suite
-        if: matrix.shard_name != 'bytestream-admission'
         run: shellspec ${{ matrix.specs }}
