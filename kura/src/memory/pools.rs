@@ -94,9 +94,12 @@ impl MemoryPools {
                 response_streaming_bytes,
                 foreground_response_streaming_bytes,
             );
-        let response_stream_waiters = response_streaming_bytes
-            .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
-            .max(1);
+        // Waiting requests do not own streaming buffers. Size their bounded
+        // bookkeeping queue independently: one waiter per MiB of floor-derived
+        // transient capacity, capped even on large nodes. This is a concurrency
+        // sizing ratio, not a payload reservation; admitted streams still take
+        // their full byte permits. Changing chunk sizes must not resize a queue.
+        let response_stream_waiters = (transient_capacity_bytes / (1024 * 1024)).clamp(1, 1024);
         // Backfill may make bounded progress, but it cannot take capacity
         // promised to binary serving. The global response pool leaves exactly
         // this quantum outside the foreground pool.

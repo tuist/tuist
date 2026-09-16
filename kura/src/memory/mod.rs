@@ -14,6 +14,8 @@ mod cgroup;
 mod pools;
 mod pressure;
 mod reservation;
+#[cfg(test)]
+mod response_tests;
 
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,

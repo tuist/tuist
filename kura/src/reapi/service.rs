@@ -7847,6 +7847,114 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bytestream_read_burst_waits_without_shedding() {
+        for compressed in [false, true] {
+            let context = test_context(|config| {
+                config.memory_limit_bytes = 128 * 1024 * 1024;
+                config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+                config.memory_hard_limit_bytes = 96 * 1024 * 1024;
+            })
+            .await;
+            let blob = vec![0xA5; 1024 * 1024];
+            let hash = hex::encode(Sha256::digest(&blob));
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    DEFAULT_INSTANCE_NAME,
+                    &blob_key(&format!("{hash}/{}", blob.len())),
+                    "application/octet-stream",
+                    &blob,
+                )
+                .await
+                .expect("seed blob");
+            let resource = format!(
+                "{}/{hash}/{}",
+                if compressed {
+                    "compressed-blobs/zstd"
+                } else {
+                    "blobs"
+                },
+                blob.len()
+            );
+            let completed_admission = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (release, released) = tokio::sync::watch::channel(false);
+            let mut tasks = tokio::task::JoinSet::new();
+            const READS: usize = 32;
+            for _ in 0..READS {
+                let service = ReapiService {
+                    state: context.state.clone(),
+                    snapshot_cache: Default::default(),
+                };
+                let resource_name = resource.clone();
+                let completed = completed_admission.clone();
+                let mut released = released.clone();
+                tasks.spawn(async move {
+                    let response = service
+                        .read(Request::new(bytestream::ReadRequest {
+                            resource_name,
+                            read_offset: 0,
+                            read_limit: 0,
+                        }))
+                        .await;
+                    completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let response = response?;
+                    released
+                        .wait_for(|released| *released)
+                        .await
+                        .expect("release readers");
+                    let (_, mut stream, guard) = response.into_parts();
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) = stream.next().await {
+                        bytes.extend(chunk?.data);
+                    }
+                    drop(guard);
+                    if compressed {
+                        bytes = zstd::stream::decode_all(bytes.as_slice()).expect("decode read");
+                    }
+                    assert_eq!(bytes, vec![0xA5; 1024 * 1024]);
+                    Ok::<_, Status>(())
+                });
+            }
+            // Hold admitted bodies until every read is either queued or admitted.
+            // This reproduces a burst without depending on scheduler timing.
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    let metrics = context.state.metrics.render();
+                    let waiting = metrics
+                        .lines()
+                        .find(|line| {
+                            line.starts_with(
+                                "kura_response_stream_waiters{protocol=\"bytestream\"}",
+                            )
+                        })
+                        .and_then(|line| line.split_whitespace().last())
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    if waiting + completed_admission.load(std::sync::atomic::Ordering::SeqCst)
+                        == READS
+                    {
+                        break;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("all reads should reach admission");
+            release.send(true).expect("release burst");
+            let mut rejected = Vec::new();
+            while let Some(result) = tasks.join_next().await {
+                if let Err(error) = result.expect("read task") {
+                    rejected.push(error);
+                }
+            }
+            assert!(rejected.is_empty(), "compressed={compressed}: {rejected:?}");
+            assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+        }
+    }
+
+    #[tokio::test]
     async fn bytestream_route_keeps_stream_memory_until_encoded_bytes_drop() {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
