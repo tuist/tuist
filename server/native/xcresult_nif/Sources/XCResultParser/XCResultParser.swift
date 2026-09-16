@@ -113,6 +113,18 @@ public struct XCResultParser: Sendable {
         return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
     }
 
+    /// The same, streamed to `output` as one JSON object per source file, for bundles too large
+    /// to hold in memory.
+    public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
+        let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
+        guard try await fileSystem.exists(manifestPath) else { return nil }
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
+    }
+
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
         let testOutput = try await loadTestOutput(path: path)
 

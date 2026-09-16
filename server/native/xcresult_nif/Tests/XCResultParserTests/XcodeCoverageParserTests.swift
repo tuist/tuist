@@ -215,3 +215,46 @@ struct XcodeCoverageParserTests {
         ) == nil)
     }
 }
+
+struct JSONStreamScannerTests {
+    private func write(_ json: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        try json.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    @Test func iteratesTheMembersOfAnObjectWithoutDecodingTheirValues() throws {
+        let url = try write("""
+        { "/a/b.swift" : [{"line": 1, "s": "}]\\"tricky"}], "empty": [], "n": 12 ,"last":{"k":[1,{"x":"]"}]}}
+        """)
+        var members: [(String, String)] = []
+        try JSONStreamScanner.forEachMember(ofObjectAt: url) { key, value in
+            members.append((key, String(decoding: value, as: UTF8.self)))
+        }
+        #expect(members.map(\.0) == ["/a/b.swift", "empty", "n", "last"])
+        #expect(members[0].1 == #"[{"line": 1, "s": "}]\"tricky"}]"#)
+        #expect(members[1].1 == "[]")
+        #expect(members[2].1 == "12")
+        #expect(members[3].1 == #"{"k":[1,{"x":"]"}]}"#)
+    }
+
+    @Test func iteratesTheElementsOfOneArrayAndSkipsTheRest() throws {
+        let url = try write("""
+        {"coveredLines": 3, "targets": [{"name": "A", "files": []}, {"name": "B"}], "trailing": "x"}
+        """)
+        struct Named: Decodable { let name: String }
+        var names: [String] = []
+        try JSONStreamScanner.forEachElement(ofArrayAt: "targets", in: url, chunkSize: 5) { element in
+            names.append(try JSONDecoder().decode(Named.self, from: element).name)
+        }
+        #expect(names == ["A", "B"])
+    }
+
+    @Test func readsAcrossChunkBoundaries() throws {
+        let value = String(repeating: "x", count: 5000)
+        let url = try write("{\"k\": \"\(value)\", \"k2\": [\(Array(repeating: "1", count: 3000).joined(separator: ","))]}")
+        var lengths: [Int] = []
+        try JSONStreamScanner.forEachMember(ofObjectAt: url, chunkSize: 7) { _, value in lengths.append(value.count) }
+        #expect(lengths == [value.count + 2, 3000 * 2 + 1])
+    }
+}
