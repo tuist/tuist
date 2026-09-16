@@ -520,6 +520,12 @@ defmodule Tuist.Tests do
 
     attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
 
+    # The version test_runs keeps the latest row by. Left to the column
+    # default, each ClickHouse server stamps its own clock, and one that receives
+    # the create late ranks it above an update that followed.
+    now = NaiveDateTime.utc_now()
+    attrs = Map.update(attrs, :inserted_at, now, &(&1 || now))
+
     case %Test{}
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
