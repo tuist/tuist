@@ -1,5 +1,5 @@
 {
-  "originHash" : "dff0b889c1b02206ebd1335c1d0147c5ec9f47a60fdab5238691ac11318a9145",
+  "originHash" : "6783f43a1cf4777a8d0eeb429a28b29b249f1de8f8231f1f387e09500b614193",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types",
+      "originalLocation" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "version" : "1.8.0"
       }
@@ -113,7 +113,7 @@
       "identity" : "apple.swift-nio",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-nio.git",
+      "originalLocation" : "https://github.com/apple/swift-nio",
       "state" : {
         "version" : "2.102.0"
       }
@@ -450,7 +450,6 @@
       "identity" : "p-x9.MachOKit",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/p-x9/MachOKit",
       "state" : {
         "version" : "0.52.2"
       }
@@ -504,7 +503,6 @@
       "identity" : "pointfreeco.swift-snapshot-testing",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/pointfreeco/swift-snapshot-testing",
       "state" : {
         "version" : "1.19.4"
       }
@@ -616,7 +614,7 @@
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "version" : "603.0.2"
       }
@@ -659,7 +657,6 @@
       "identity" : "tuist.Command",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/Command.git",
       "state" : {
         "version" : "0.14.11"
       }
@@ -668,9 +665,8 @@
       "identity" : "tuist.FileSystem",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "version" : "0.19.0"
+        "version" : "0.19.1"
       }
     },
     {
@@ -693,17 +689,9 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/Path.git",
+      "originalLocation" : "https://github.com/tuist/path",
       "state" : {
         "version" : "0.3.8"
-      }
-    },
-    {
-      "identity" : "tuist.Rosalind",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "0.8.2"
       }
     },
     {

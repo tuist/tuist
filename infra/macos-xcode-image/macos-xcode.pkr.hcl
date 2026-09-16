@@ -174,7 +174,9 @@ build {
   # VM doesn't pay the runtime download cost. Matches what
   # GitHub-hosted's macos-26 image ships.
   # `-downloadComponent MetalToolchain` then installs the optional
-  # Metal compiler toolchain required by Xcode 26 and newer.
+  # Metal compiler toolchain required by Xcode 26 and newer. It runs
+  # without sudo: on Xcode 26.1 a toolchain installed as root is not
+  # visible to other users, so `xcrun metal` fails for them.
   #
   # `echo 'admin' | sudo -S` on the first sudo call primes the
   # admin sudo timestamp cache; subsequent bare `sudo` calls in
@@ -194,7 +196,7 @@ build {
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
       "sudo xcodebuild -downloadAllPlatforms",
-      "sudo xcodebuild -downloadComponent MetalToolchain",
+      "xcodebuild -downloadComponent MetalToolchain",
       "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable after install' >&2 && exit 1)"
     ]
   }

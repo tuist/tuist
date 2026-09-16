@@ -83,6 +83,11 @@ spec:
           labelSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
+      # Sized for a Tuist.Tests.Workers.ProcessXcresultWorker parse
+      # tail plus the ingestion buffers' final flush; see the values
+      # comment for the rationale. Ingestion buffers use
+      # `shutdown: :infinity` and rely on this as the outer wall.
+      terminationGracePeriodSeconds: {{ .Values.xcresultProcessor.terminationGracePeriodSeconds }}
       # No init containers, no sidecars — tart-kubelet maps Pod ↔
       # Tart VM 1:1 and rejects multi-container Pods at admission.
       # The first (and only) container's image is the Tart VM image;

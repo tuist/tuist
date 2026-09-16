@@ -9,24 +9,28 @@ class MachineMetricsCollector(
     private val inputTrackingState: InputTrackingState? = null,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis
 ) {
+    private class Reading(
+        val timestamp: Double,
+        val networkBytesIn: Long,
+        val networkBytesOut: Long,
+        val diskBytesRead: Long,
+        val diskBytesWritten: Long
+    )
+
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
     private var thread: Thread? = null
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
 
-    private var previousSampleTimestamp: Double? = null
-    private var sessionSampleCount = 0
-    private var previousNetworkBytesIn = 0L
-    private var previousNetworkBytesOut = 0L
-    private var previousDiskBytesRead = 0L
-    private var previousDiskBytesWritten = 0L
+    private var previousReading: Reading? = null
+    private var readingBeforePrevious: Reading? = null
 
     @Synchronized
     fun start() {
         if (running) return
         running = true
-        previousSampleTimestamp = null
-        sessionSampleCount = 0
+        previousReading = null
+        readingBeforePrevious = null
         collectSample()
 
         thread = Thread({
@@ -50,47 +54,42 @@ class MachineMetricsCollector(
         running = false
         thread?.interrupt()
         thread?.join(2000)
-        if (thread?.isAlive != true) collectSample(minimumElapsedMs = if (sessionSampleCount > 1) 200 else 0)
+        if (thread?.isAlive != true) collectSample(isFinal = true)
         return synchronized(samples) { samples.toList() }
     }
 
-    private fun collectSample(minimumElapsedMs: Long = 0) {
+    private fun collectSample(isFinal: Boolean = false) {
         val timestamp = currentTimeMillis() / 1000.0
-        val elapsedSeconds = previousSampleTimestamp?.let { timestamp - it } ?: 0.0
-        if (elapsedSeconds * 1000 < minimumElapsedMs) return
+        // A final reading shortly after a periodic one replaces it and measures rates from the
+        // reading before, so monitoring reaches the stop time without a tiny rate interval.
+        val replacesPrevious = isFinal && readingBeforePrevious != null &&
+            previousReading?.let { (timestamp - it.timestamp) * 1000 < 200 } == true
+        val baseline = if (replacesPrevious) readingBeforePrevious else previousReading
+        val elapsedSeconds = baseline?.let { timestamp - it.timestamp } ?: 0.0
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
         val network = withoutInputTracking { readNetworkBytes() }
         val disk = withoutInputTracking { readDiskBytes() }
 
-        fun rate(current: Long, previous: Long): Long =
-            if (elapsedSeconds > 0) (maxOf(0L, current - previous) / elapsedSeconds).toLong() else 0L
-
-        val networkIn = rate(network.first, previousNetworkBytesIn)
-        val networkOut = rate(network.second, previousNetworkBytesOut)
-        val diskRead = rate(disk.first, previousDiskBytesRead)
-        val diskWritten = rate(disk.second, previousDiskBytesWritten)
-        previousSampleTimestamp = timestamp
-        sessionSampleCount++
-
-        previousNetworkBytesIn = network.first
-        previousNetworkBytesOut = network.second
-        previousDiskBytesRead = disk.first
-        previousDiskBytesWritten = disk.second
+        fun rate(current: Long, previous: Long?): Long =
+            if (previous != null && elapsedSeconds > 0) (maxOf(0L, current - previous) / elapsedSeconds).toLong() else 0L
 
         val sample = MachineMetricSample(
             timestamp = timestamp,
             cpuUsagePercent = cpuUsage,
             memoryUsedBytes = memory.first,
             memoryTotalBytes = memory.second,
-            networkBytesIn = networkIn,
-            networkBytesOut = networkOut,
-            diskBytesRead = diskRead,
-            diskBytesWritten = diskWritten
+            networkBytesIn = rate(network.first, baseline?.networkBytesIn),
+            networkBytesOut = rate(network.second, baseline?.networkBytesOut),
+            diskBytesRead = rate(disk.first, baseline?.diskBytesRead),
+            diskBytesWritten = rate(disk.second, baseline?.diskBytesWritten)
         )
+        readingBeforePrevious = baseline
+        previousReading = Reading(timestamp, network.first, network.second, disk.first, disk.second)
 
         synchronized(samples) {
+            if (replacesPrevious) samples.removeAt(samples.lastIndex)
             samples.add(sample)
         }
     }

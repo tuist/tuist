@@ -12,6 +12,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -3027,7 +3028,7 @@ defmodule Tuist.VCSTest do
       assert {:ok, %Oban.Job{}} = result
 
       assert_enqueued(
-        worker: VCS.Workers.CommentWorker,
+        worker: CommentWorker,
         args: %{
           "build_id" => build.id,
           "git_commit_sha" => "abc123",
@@ -3035,6 +3036,34 @@ defmodule Tuist.VCSTest do
           "git_remote_url_origin" => "https://github.com/tuist/tuist",
           "project_id" => project.id
         }
+      )
+    end
+
+    test "strips credentials from the remote URL before enqueuing" do
+      project = ProjectsFixtures.project_fixture()
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        project_id: project.id
+      })
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        "git_commit_sha" => "def456",
+        "git_ref" => "refs/pull/124/head",
+        "git_remote_url_origin" => "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        "project_id" => project.id
+      })
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "abc123", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+      )
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "def456", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
       )
     end
 

@@ -135,6 +135,7 @@
 
             let test = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,
+                resultBundlePath: resolvedResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: nil,

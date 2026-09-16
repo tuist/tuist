@@ -305,6 +305,8 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
+config :phoenix, :filter_parameters, ["password", "secret", "token", "credential"]
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
@@ -517,6 +519,7 @@ config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
+  %{xcode_version: "26.1.1"},
   %{xcode_version: "26.0.1"}
 ]
 

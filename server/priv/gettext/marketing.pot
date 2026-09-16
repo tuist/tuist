@@ -699,7 +699,7 @@ msgstr ""
 msgid "Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1236
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1240
 #: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter_verify.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:14
 #, elixir-autogen, elixir-format

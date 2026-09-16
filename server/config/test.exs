@@ -55,9 +55,6 @@ config :tuist, Tuist.IngestRepo,
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
 
-# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
-config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
-
 # Same for the Kura cache-demand buffer, which is otherwise process-wide and
 # would let one async test's demand be flushed inside another's transaction.
 config :tuist, Tuist.Kura.Demand, write_through_repo: true
@@ -98,6 +95,9 @@ config :tuist, Tuist.Repo,
   timeout: 60_000
 
 config :tuist, Tuist.Tasks, sync: true
+
+# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
+config :tuist, TuistCommon.Ingestion.Bufferable, write_through_repo: true
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
