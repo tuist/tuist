@@ -8,6 +8,7 @@ import TuistCore
 import TuistDependencies
 import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
@@ -110,8 +111,16 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
         let config = try await configLoader.loadConfig(path: path)
         let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
-        return try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
-            try await loadInternal(path: path, disableSandbox: disableSandbox, config: config)
+        let manifestGlobDurations = ManifestGlobDurations()
+        defer {
+            if let summary = manifestGlobDurations.summary() {
+                Logger.current.debug("\(summary)")
+            }
+        }
+        return try await ManifestGlobDurations.$current.withValue(manifestGlobDurations) {
+            try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
+                try await loadInternal(path: path, disableSandbox: disableSandbox, config: config)
+            }
         }
     }
 
@@ -124,10 +133,12 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         try await manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
-        let plugins = try await loadPlugins(at: path)
+        let plugins = try await timed("loading plugins") { try await loadPlugins(at: path) }
 
         // Load Workspace
-        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
+        var allManifests = try await timed("loading the workspace and project manifests") {
+            try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
+        }
         let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
@@ -154,14 +165,18 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
                 disableSandbox: disableSandbox
             )
 
-            let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
-                packagePath: packagePath,
-                packageSettings: loadedPackageSettings,
-                disableSandbox: disableSandbox,
-                swiftPackageManagerArguments: swiftPackageManagerArguments
-            )
+            let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await timed("loading the Swift package graph") {
+                try await swiftPackageManagerGraphLoader.load(
+                    packagePath: packagePath,
+                    packageSettings: loadedPackageSettings,
+                    disableSandbox: disableSandbox,
+                    swiftPackageManagerArguments: swiftPackageManagerArguments
+                )
+            }
             spmLintingIssues = loadedSpmLintingIssues
-            dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
+            dependenciesGraph = try await timed("converting the Swift package graph") {
+                try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
+            }
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
@@ -171,22 +186,26 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
 
         // Merge SPM graph
         if let packageSettings {
-            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
-                in: allManifests,
-                packageSettings: packageSettings,
-                disableSandbox: disableSandbox,
+            let loadedManifests = allManifests
+            allManifests = try await timed("loading local package projects") {
+                try await recursiveManifestLoader.loadAndMergePackageProjects(
+                    in: loadedManifests,
+                    packageSettings: packageSettings,
+                    disableSandbox: disableSandbox,
+                    swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+                )
+            }
+        }
+
+        let loadedManifests = allManifests
+        let workspaceModels = try await timed("converting the workspace manifest") {
+            try await converter.convert(
+                manifest: loadedManifests.workspace,
+                path: loadedManifests.path,
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         }
-
-        let (workspaceModels, manifestProjects) = (
-            try await converter.convert(
-                manifest: allManifests.workspace,
-                path: allManifests.path,
-                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
-            ),
-            allManifests.projects
-        )
+        let manifestProjects = allManifests.projects
 
         // Lint Manifests
         let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
@@ -195,37 +214,43 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
-        let projectsModels = try await convert(
-            projects: manifestProjects,
-            plugins: plugins,
-            externalDependencies: dependenciesGraph.externalDependencies
-        ) +
+        let projectsModels = try await timed("converting the project manifests") {
+            try await convert(
+                projects: manifestProjects,
+                plugins: plugins,
+                externalDependencies: dependenciesGraph.externalDependencies
+            )
+        } +
             dependenciesGraph.externalProjects.values
 
         // Check circular dependencies
         try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
 
         // Apply any registered model mappers
-        let (updatedModels, modelMapperSideEffects) = try await workspaceMapper.map(
-            workspace: .init(workspace: workspaceModels, projects: projectsModels)
-        )
+        let (updatedModels, modelMapperSideEffects) = try await timed("mapping the workspace") {
+            try await workspaceMapper.map(workspace: .init(workspace: workspaceModels, projects: projectsModels))
+        }
 
         // Load graph
         let graphLoader = GraphLoader()
-        let graph = try await graphLoader.loadWorkspace(
-            workspace: updatedModels.workspace,
-            projects: updatedModels.projects
-        )
+        let graph = try await timed("loading the graph") {
+            try await graphLoader.loadWorkspace(
+                workspace: updatedModels.workspace,
+                projects: updatedModels.projects
+            )
+        }
 
         if await RunMetadataStorage.current.graph == nil {
             await RunMetadataStorage.current.update(graph: graph)
         }
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
-            graph: graph,
-            environment: MapperEnvironment()
-        )
+        let (mappedGraph, graphMapperSideEffects, environment) = try await timed("mapping the graph") {
+            try await graphMapper.map(
+                graph: graph,
+                environment: MapperEnvironment()
+            )
+        }
 
         // Validate scheme code coverage references pointing at local Swift packages
         let (validatedGraph, coverageLintingIssues) = try await localPackageCoverageTargetsValidator.validate(
@@ -239,6 +264,17 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             environment,
             lintingIssues + coverageLintingIssues
         )
+    }
+
+    /// Times one phase of graph loading so the session log attributes where the time went, including the phases that
+    /// log nothing of their own.
+    private func timed<T>(_ phase: String, _ operation: () async throws -> T) async rethrows -> T {
+        let startedAt = DispatchTime.now().uptimeNanoseconds
+        defer {
+            let duration = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000_000
+            Logger.current.debug("Graph loading: \(phase) finished in \(String(format: "%.3f", duration))s")
+        }
+        return try await operation()
     }
 
     private func swiftPackageManagerScratchDirectory(
