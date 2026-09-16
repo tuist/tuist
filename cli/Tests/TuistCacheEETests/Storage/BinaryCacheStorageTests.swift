@@ -106,7 +106,7 @@ struct BinaryCacheStorageTests {
         #expect(await remote.actions.isEmpty)
     }
 
-    @Test(.inTemporaryDirectory) func preservesSDKSymbolsAndFallsBackForExternalCompanions() async throws {
+    @Test(.inTemporaryDirectory) func preservesSDKSymbolsAndStoresExternalCompanionsInExactREAPITree() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let artifact = directory.appending(component: "Shared.xcframework")
         try await makeArtifact(at: artifact, variants: ["ios-device"])
@@ -129,14 +129,108 @@ struct BinaryCacheStorageTests {
         #expect(try Data(contentsOf: hit.appending(components: ["ios-device", "dSYMs", "Shared.framework.dSYM", "DWARF"]).url)
             == Data("debug-symbols".utf8))
 
-        let exact = RecordingExactStorage()
-        let cache = BinaryCacheStorage(storage: exact, local: BinaryCacheLocalStore(
-            directory: directory.appending(component: "fallback"), actionDirectory: directory.appending(component: "actions")
-        ), remote: remote)
+        let exactRemote = MemoryREAPICache()
         let companion = directory.appending(component: "Shared.bundle")
+        try await FileSystem().makeDirectory(at: companion)
+        try Data("companion".utf8).write(to: companion.appending(component: "resource").url)
+        let cache = subject(directory.appending(component: "exact-producer"), remote: exactRemote)
         #expect(try await cache.store([target: [artifact, companion]], cacheCategory: .binaries) == [target])
-        #expect(await exact.stored[target] == [artifact, companion])
+        #expect(await exactRemote.actions.count == 1)
+        let reader = subject(directory.appending(component: "exact-reader"), remote: exactRemote)
+        let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
+        #expect(restored.extension == "xcframework")
+        #expect(try Data(contentsOf: restored.parentDirectory.appending(components: ["Shared.bundle", "resource"]).url)
+            == Data("companion".utf8))
+        #expect(try await reader.fetch([item("changed", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
+            .isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["bundle", "macro", "framework"])
+    func exactProductsRoundTripAndRepairLocally(product: String) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let artifact = directory.appending(component: "Shared." + product)
+        if product == "macro" {
+            try Data("#!/bin/sh\necho macro\n".utf8).write(to: artifact.url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: artifact.pathString)
+        } else {
+            try await FileSystem().makeDirectory(at: artifact)
+            try Data("payload".utf8).write(to: artifact.appending(component: "contents").url)
+            try FileManager.default.createSymbolicLink(
+                atPath: artifact.appending(component: "link").pathString,
+                withDestinationPath: "contents"
+            )
+        }
+        let target = item("exact", [:])
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries)
         #expect(await remote.actions.count == 1)
+        let path = directory.appending(component: "reader")
+        let reader = subject(path, remote: remote)
+        let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
+        #expect(restored.extension == product)
+        if product == "macro" {
+            #expect(FileManager.default.isExecutableFile(atPath: restored.pathString))
+            #expect(try Data(contentsOf: restored.url) == Data(contentsOf: artifact.url))
+        } else {
+            #expect(try Data(contentsOf: restored.appending(component: "link").url) == Data("payload".utf8))
+        }
+        try FileManager.default.removeItem(at: restored.url)
+        #expect(try await subject(path).fetch([target], cacheCategory: .binaries).values.first == restored)
+        #expect(try await reader.fetch([item("changed", [:])], cacheCategory: .binaries).isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func unsupportedArchitectureUsesExactTargetAction() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-simulator"])
+        let plist = artifact.appending(component: "Info.plist").url
+        var info = try #require(PropertyListSerialization
+            .propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
+        var libraries = try #require(info["AvailableLibraries"] as? [[String: Any]])
+        libraries[0]["SupportedArchitectures"] = ["arm64"]
+        info["AvailableLibraries"] = libraries
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: plist)
+        let remote = MemoryREAPICache()
+        let target = item("custom-architectures", ["ios-simulator": "simulator-inputs"])
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries)
+        let exact = try BinaryCacheAction(name: target.name, targetHash: target.hash)
+        #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
+        #expect(try await BinaryCacheArtifact.coverage(at: restored)["ios-simulator"] == ["arm64"])
+        #expect(try await reader.fetch([item("other", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
+            .isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func selectiveTestsKeepTheirExistingStorage() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let delegate = RecordingSelectiveTestsStorage()
+        let cache = BinaryCacheStorage(selectiveTestsStorage: delegate, local: BinaryCacheLocalStore(
+            directory: directory.appending(component: "Binaries"), actionDirectory: directory.appending(component: "Actions")
+        ))
+        let target = item("tests", [:])
+        #expect(try await cache.store([target: []], cacheCategory: .selectiveTests) == [target])
+        _ = try await cache.fetch([target], cacheCategory: .selectiveTests, preserving: ["protected"])
+        #expect(await delegate.categories == [.selectiveTests, .selectiveTests])
+        #expect(await delegate.preserved == ["protected"])
+        #expect(try await cache.fetch([target], cacheCategory: .binaries).isEmpty)
+        #expect(await delegate.categories.count == 2)
+    }
+
+    @Test(.inTemporaryDirectory) func corruptExactOutputIsAMissWithoutOldStorageFallback() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let artifact = directory.appending(component: "Shared.macro")
+        let data = Data("macro executable".utf8)
+        try data.write(to: artifact.url)
+        let target = item("macro", [:])
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries)
+        await remote.corrupt(REAPI.digest(data))
+        #expect(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([target], cacheCategory: .binaries).isEmpty)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -170,7 +264,7 @@ struct BinaryCacheStorageTests {
     }
 
     private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {
-        BinaryCacheStorage(storage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
+        BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
             directory: path.appending(component: "Binaries"), actionDirectory: path.appending(component: "Actions")
         ), remote: remote)
     }
@@ -228,21 +322,42 @@ actor MemoryREAPICache: REAPICacheStoring {
 }
 
 private struct EmptyCacheStorage: CacheStoring {
-    func fetch(_: Set<CacheStorableItem>, cacheCategory _: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] { [:] }
+    func fetch(_: Set<CacheStorableItem>, cacheCategory: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] {
+        #expect(cacheCategory != .binaries)
+        return [:]
+    }
+
     func store(
         _: [CacheStorableItem: [AbsolutePath]],
-        cacheCategory _: RemoteCacheCategory
-    ) async throws -> [CacheStorableItem] { [] }
+        cacheCategory: RemoteCacheCategory
+    ) async throws -> [CacheStorableItem] {
+        #expect(cacheCategory != .binaries)
+        return []
+    }
 }
 
-private actor RecordingExactStorage: CacheStoring {
-    var stored: [CacheStorableItem: [AbsolutePath]] = [:]
-    func fetch(_: Set<CacheStorableItem>, cacheCategory _: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] { [:] }
+private actor RecordingSelectiveTestsStorage: CacheStoring {
+    var categories: [RemoteCacheCategory] = []
+    var preserved: Set<String> = []
+    func fetch(_ items: Set<CacheStorableItem>, cacheCategory: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] {
+        try await fetch(items, cacheCategory: cacheCategory, preserving: [])
+    }
+
+    func fetch(
+        _: Set<CacheStorableItem>,
+        cacheCategory: RemoteCacheCategory,
+        preserving: Set<String>
+    ) async throws -> [CacheItem: AbsolutePath] {
+        categories.append(cacheCategory)
+        preserved = preserving
+        return [:]
+    }
+
     func store(
         _ items: [CacheStorableItem: [AbsolutePath]],
-        cacheCategory _: RemoteCacheCategory
+        cacheCategory: RemoteCacheCategory
     ) async throws -> [CacheStorableItem] {
-        stored.merge(items, uniquingKeysWith: { _, new in new })
+        categories.append(cacheCategory)
         return Array(items.keys)
     }
 }

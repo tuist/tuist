@@ -23,7 +23,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The Tuist Binaries cache
     case binaries
 
-    /// Per-SDK REAPI action results pointing to content-addressed output trees.
+    /// Module-cache REAPI action results pointing to content-addressed output trees.
     case binaryCacheActions
 
     /// The Tuist Selective Tests cache

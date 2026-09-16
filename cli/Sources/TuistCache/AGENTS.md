@@ -16,5 +16,6 @@ This module handles CLI integration with the cache service and cache features.
 - Explicit cache warm target selection scopes transitive cache candidates from non-test roots only.
 - Caller-owned cache-warm scratch directories reject foreign build misses because their scripts control output locations.
 - Cache version bumps invalidate incompatible artifacts.
-- XCFramework compatibility fingerprints are per SDK variant and independent of unrelated consumers. Initial coverage is iOS device/simulator, Catalyst, and macOS using standard architectures; other platforms and custom architecture settings retain exact-hash lookup.
+- XCFramework compatibility fingerprints are per SDK variant and independent of unrelated consumers. Initial coverage is iOS device/simulator, Catalyst, and macOS using standard architectures; other platforms and custom architecture settings use exact-target REAPI actions.
 - Per-SDK REAPI action results reference immutable output trees. All required SDK results must exist before materializing an XCFramework. Verify CAS digests, directory safety, and actual slice coverage before reuse; do not publish subset indexes.
+- All modern binary products use REAPI/CAS. Non-sliceable outputs retain their complete artifact tree under an exact-target action. Old module archives are cold misses; selective-test storage and explicit legacy mode keep their existing implementations.

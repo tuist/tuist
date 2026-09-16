@@ -344,7 +344,7 @@ struct CacheStorageFactoryTests {
 
     private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {
         if let indexed = storage as? BinaryCacheStorage {
-            return await indexed.storage as? CacheStorage
+            return await indexed.selectiveTestsStorage as? CacheStorage
         }
         return storage as? CacheStorage
     }
