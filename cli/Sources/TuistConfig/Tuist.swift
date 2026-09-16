@@ -125,29 +125,47 @@ public struct Tuist: Equatable, Hashable, Sendable {
 }
 
 public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
-    public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
-        public let ignoreTagsMatching: Set<String>
+    public struct ImplicitDependencies: Codable, Equatable, Hashable, Sendable {
+        public let ignoreDependencies: [String: Set<String>]
 
-        public init(
-            ignoreTagsMatching: Set<String>
-        ) {
-            self.ignoreTagsMatching = ignoreTagsMatching
+        public init(ignoreDependencies: [String: Set<String>] = [:]) {
+            self.ignoreDependencies = ignoreDependencies
         }
     }
 
+    public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
+        public let ignoreTagsMatching: Set<String>
+        public let ignoreDependencies: [String: Set<String>]
+
+        public init(
+            ignoreTagsMatching: Set<String>,
+            ignoreDependencies: [String: Set<String>] = [:]
+        ) {
+            self.ignoreTagsMatching = ignoreTagsMatching
+            self.ignoreDependencies = ignoreDependencies
+        }
+    }
+
+    public var implicitDependencies: ImplicitDependencies
     public var redundantDependencies: RedundantDependencies
 
     public init(
+        implicitDependencies: ImplicitDependencies = .init(),
         redundantDependencies: RedundantDependencies
     ) {
+        self.implicitDependencies = implicitDependencies
         self.redundantDependencies = redundantDependencies
     }
 
     #if DEBUG
         public static func test(
+            implicitDependencies: ImplicitDependencies = .init(),
             redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
         ) -> Self {
-            return .init(redundantDependencies: redundantDependencies)
+            return .init(
+                implicitDependencies: implicitDependencies,
+                redundantDependencies: redundantDependencies
+            )
         }
     #endif
 }
