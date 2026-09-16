@@ -150,6 +150,75 @@ defmodule Tuist.Tests.CoverageTest do
     end
   end
 
+  describe "coverage streamed to a file" do
+    @tag :tmp_dir
+    test "publishes the same rows and totals as the inline form, from string-keyed lines", %{
+      project: project,
+      account: account,
+      tmp_dir: tmp_dir
+    } do
+      path = Path.join(tmp_dir, "coverage.ndjson")
+
+      lines =
+        Enum.map([add(), untested(), formatter()], fn file ->
+          file
+          |> Map.update!(:functions, fn functions ->
+            Enum.map(functions, &Map.new(&1, fn {k, v} -> {Atom.to_string(k), v} end))
+          end)
+          |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+          |> JSON.encode!()
+        end)
+
+      File.write!(path, Enum.join(lines, "\n") <> "\n")
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: %{path: path, partial: false}})
+
+      assert Coverage.run_summary(project.id, test.id) == %{covered_lines: 4, executable_lines: 9, partial: false}
+      assert published_totals(project, test) == %{covered_lines: 4, executable_lines: 9, partial: false}
+      {files, 3} = Coverage.list_files(project.id, test.id, 1, 20)
+      assert Enum.map(files, & &1.git_blob_id) == ["untested1", "add1", "formatter1"]
+
+      detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
+      assert Enum.map(detail.functions, & &1.name) == ["add(_:_:)"]
+    end
+
+    @tag :tmp_dir
+    test "merges a streamed shard with the shards already reported", %{
+      project: project,
+      account: account,
+      tmp_dir: tmp_dir
+    } do
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      shard = fn lines, index -> %{shard_plan_id: plan.id, shard_index: index, xcode_coverage: coverage(lines)} end
+
+      {:ok, test} =
+        create_test(
+          project,
+          account,
+          shard.([file("Sources/Calculator/Add.swift", "add1", ["Calculator"], [{2, 3}, {3, 0}])], 0)
+        )
+
+      path = Path.join(tmp_dir, "shard1.ndjson")
+
+      File.write!(
+        path,
+        JSON.encode!(
+          Map.new(file("Sources/Calculator/Add.swift", "add1", ["Calculator"], [{2, 0}, {3, 1}, {4, 0}]), fn {k, v} ->
+            {Atom.to_string(k), v}
+          end)
+        ) <>
+          "\n"
+      )
+
+      {:ok, stored} = Tests.get_test(test.id)
+      Coverage.publish(stored, Coverage.rows(project.id, %{path: path, partial: false}), 1, 2)
+
+      # Lines 2 and 3 covered across shards; 2, 3, 4 executable.
+      assert Coverage.run_summary(project.id, test.id) == %{covered_lines: 2, executable_lines: 3, partial: false}
+      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 3, partial: false}
+    end
+  end
+
   describe "what measured the coverage" do
     test "is recorded on every row with the run's scheme and the repository's object format", %{
       project: project,

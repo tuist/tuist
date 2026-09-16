@@ -60,6 +60,12 @@ defmodule Tuist.Tests.Coverage do
   The rows to store for the `xcode_coverage` block reported with a run, or nil
   when the project's account does not have coverage enabled. Only files the
   client found in Git, under a repository-relative path, are evidence.
+
+  The block either carries its `files` inline, or a `path` to the file the
+  parser streamed them to (one JSON object per line), which comes back as a
+  lazy stream so a large report is never held whole. String and atom keys are
+  both accepted: the inline form arrives cast by the API, the streamed form
+  decoded from JSON.
   """
   def rows(_project_id, nil), do: nil
 
@@ -75,7 +81,20 @@ defmodule Tuist.Tests.Coverage do
   end
 
   defp rows(coverage) do
-    %{partial: Map.get(coverage, :partial, false), files: coverage |> Map.get(:files, []) |> Enum.map(&file_row/1)}
+    files =
+      case value(coverage, :path, nil) do
+        nil ->
+          coverage |> value(:files, []) |> Enum.map(&file_row/1)
+
+        path ->
+          path
+          |> File.stream!()
+          |> Stream.map(&String.trim_trailing(&1, "\n"))
+          |> Stream.reject(&(&1 == ""))
+          |> Stream.map(&(&1 |> JSON.decode!() |> file_row()))
+      end
+
+    %{partial: value(coverage, :partial, false), files: files}
   end
 
   @doc """
@@ -92,49 +111,81 @@ defmodule Tuist.Tests.Coverage do
   def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
     reported_at = NaiveDateTime.utc_now()
-    insert_files(test, coverage, shard_index, reported_at)
-    publish_totals(test, coverage, shard_index, expected_shards, reported_at)
+    others = other_shards(test.project_id, test.id, shard_index)
+    folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
+    publish_totals(test, coverage, expected_shards, reported_at, others, folded)
   end
 
-  defp insert_files(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at) do
-    coverage.files
-    |> Enum.map(
-      &Map.merge(&1, %{
-        id: UUIDv7.generate(),
-        test_run_id: test_run_id,
-        project_id: project_id,
-        build_system: "xcode",
-        shard_index: shard_index,
-        partial: coverage.partial,
-        scope_kind: "run",
-        scope_id: "",
-        evidence_kind: "observed",
-        inserted_at: reported_at
-      })
-    )
-    |> Enum.chunk_every(@insert_chunk_size)
-    |> Enum.each(&IngestRepo.insert_all(CoverageFile, &1))
+  # One pass over the report's files, which may be a lazy stream: each chunk is
+  # inserted and folded into the run's totals as it goes by, so nothing holds
+  # the report whole. The report's own files are merged from memory, since rows
+  # inserted moments ago are not reliably read back within the same request;
+  # the other shards' latest reports come from ClickHouse. A file's lines are
+  # only kept when another shard reported the same path, for the union; every
+  # other file adds its counts and is let go.
+  defp insert_files_and_fold(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at, others) do
+    others_by_path = Map.new(others.files)
+
+    {{covered, executable}, overlap, object_format} =
+      coverage.files
+      |> Stream.map(
+        &Map.merge(&1, %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          project_id: project_id,
+          build_system: "xcode",
+          shard_index: shard_index,
+          partial: coverage.partial,
+          scope_kind: "run",
+          scope_id: "",
+          evidence_kind: "observed",
+          inserted_at: reported_at
+        })
+      )
+      |> Stream.chunk_every(@insert_chunk_size)
+      |> Enum.reduce({{0, 0}, %{}, ""}, fn chunk, acc ->
+        IngestRepo.insert_all(CoverageFile, chunk)
+
+        Enum.reduce(chunk, acc, fn file, {totals, overlap, object_format} ->
+          object_format = if object_format == "", do: git_object_format(file), else: object_format
+
+          cond do
+            file.is_test ->
+              {totals, overlap, object_format}
+
+            Map.has_key?(others_by_path, file.path) ->
+              {totals, Map.put(overlap, file.path, file_evidence(file)), object_format}
+
+            true ->
+              {covered, executable} = totals
+              {{covered + file.covered_lines, executable + file.executable_lines}, overlap, object_format}
+          end
+        end)
+      end)
+
+    totals =
+      Enum.reduce(others_by_path, {covered, executable}, fn {path, evidence}, {covered, executable} ->
+        {path_covered, path_executable} =
+          case Map.fetch(overlap, path) do
+            {:ok, own_evidence} -> merge_evidence([own_evidence, evidence])
+            :error -> merge_evidence([evidence])
+          end
+
+        {covered + path_covered, executable + path_executable}
+      end)
+
+    %{totals: totals, object_format: object_format}
   end
 
-  # The report's own files are merged from memory, since rows inserted moments
-  # ago are not reliably read back within the same request; the other shards'
-  # latest reports come from ClickHouse.
   defp publish_totals(
          %Test{id: test_run_id, project_id: project_id} = test,
          coverage,
-         shard_index,
          expected_shards,
-         reported_at
+         reported_at,
+         others,
+         folded
        ) do
-    others = other_shards(project_id, test_run_id, shard_index)
-
-    {covered, executable} =
-      coverage.files
-      |> Enum.reject(& &1.is_test)
-      |> Enum.map(&{&1.path, file_evidence(&1)})
-      |> Kernel.++(others.files)
-      |> merged_totals()
-
+    {covered, executable} = folded.totals
     newest_report_at = Enum.max([reported_at, others.newest_report_at], NaiveDateTime)
 
     IngestRepo.insert_all(CoverageRun, [
@@ -144,7 +195,7 @@ defmodule Tuist.Tests.Coverage do
         build_system: "xcode",
         coverage_tool: "xccov",
         coverage_tool_version: test.xcode_version || "",
-        git_object_format: git_object_format(coverage.files),
+        git_object_format: folded.object_format,
         scheme: test.scheme || "",
         covered_lines: covered,
         executable_lines: executable,
@@ -160,14 +211,10 @@ defmodule Tuist.Tests.Coverage do
   end
 
   # A blob id is 40 hex digits in a SHA-1 repository and 64 in a SHA-256 one;
-  # a report with no tracked file says nothing about the repository.
-  defp git_object_format(files) do
-    Enum.find_value(files, "", fn
-      %{git_blob_id: <<_::binary-size(64)>>} -> "sha256"
-      %{git_blob_id: <<_::binary-size(40)>>} -> "sha1"
-      _ -> nil
-    end)
-  end
+  # a file Git does not track says nothing about the repository.
+  defp git_object_format(%{git_blob_id: <<_::binary-size(64)>>}), do: "sha256"
+  defp git_object_format(%{git_blob_id: <<_::binary-size(40)>>}), do: "sha1"
+  defp git_object_format(_file), do: ""
 
   defp other_shards(project_id, test_run_id, shard_index) do
     reports = from(f in report_files(project_id, test_run_id), where: f.shard_index != ^shard_index)
@@ -221,15 +268,6 @@ defmodule Tuist.Tests.Coverage do
       |> Enum.flat_map(fn {line, count} -> if count > 0, do: [line], else: [] end)
 
     {:lines, MapSet.new(file.line_numbers), MapSet.new(covered)}
-  end
-
-  defp merged_totals(entries) do
-    entries
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Enum.reduce({0, 0}, fn {_path, evidence}, {covered, executable} ->
-      {path_covered, path_executable} = merge_evidence(evidence)
-      {covered + path_covered, executable + path_executable}
-    end)
   end
 
   # As `merged_files_query/2`: the lines are the union across reports, and a
@@ -522,9 +560,11 @@ defmodule Tuist.Tests.Coverage do
 
     git_blob_id = value(file, :git_blob_id, "")
 
+    path = value(file, :path, "")
+
     %{
-      path: file.path,
-      in_repository: git_blob_id != "" and not String.starts_with?(file.path, "/"),
+      path: path,
+      in_repository: git_blob_id != "" and not String.starts_with?(path, "/"),
       git_blob_id: git_blob_id,
       targets: value(file, :targets, []),
       is_test: value(file, :is_test, false),
@@ -540,5 +580,10 @@ defmodule Tuist.Tests.Coverage do
     }
   end
 
-  defp value(map, key, default), do: Map.get(map, key) || default
+  defp value(map, key, default) do
+    case Map.get(map, key) do
+      nil -> Map.get(map, Atom.to_string(key)) || default
+      found -> found
+    end
+  end
 end
