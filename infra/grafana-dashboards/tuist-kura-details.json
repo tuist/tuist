@@ -17135,7 +17135,7 @@
               "transformations": []
             }
           },
-          "description": "Response stream admission outcomes by protocol. `waited` identifies admitted reads that queued; `degraded` is the HTTP fallback with smaller buffers. `queue_full` and `timeout` on ByteStream reject the attempt with gRPC RESOURCE_EXHAUSTED. Compare admitted waits and rejections separately: a high non-immediate share is not itself a failed-read share.\n\nPrometheus name: `kura_response_stream_admissions_total_total` · labels: protocol, outcome",
+          "description": "Response stream admission outcomes by protocol. `waited` counts queued admissions into the guaranteed tier. `elastic` combines immediate and queued admissions into the elastic tier, so `waited` alone undercounts queueing; also inspect waiter depth and admission duration. `degraded` is the HTTP fallback with smaller buffers. `queue_full` includes exhausted queue bounds, oversize requests, and failed try-only background admission; it does not prove a request entered the queue. `queue_full` and `timeout` on ByteStream reject the attempt with gRPC RESOURCE_EXHAUSTED. Compare admitted waits and rejections separately: a high non-immediate share is not itself a failed-read share.\n\nPrometheus name: `kura_response_stream_admissions_total_total` · labels: protocol, outcome",
           "id": 84,
           "links": [],
           "title": "response_stream_admissions_total (rate)",

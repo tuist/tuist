@@ -646,7 +646,7 @@ impl MemoryController {
         let queue = self
             .inner
             .pools
-            .try_acquire_response_stream_waiter()
+            .try_acquire_response_stream_waiter(requested_bytes)
             .map_err(|()| {
                 self.inner.metrics.record_response_stream_admission(
                     protocol,
@@ -865,10 +865,19 @@ impl MemoryController {
     /// `Retry-After` for a response-stream shed, drawn from a window whose
     /// ceiling tracks how many reads are already queued for a permit.
     pub fn response_stream_retry_after_seconds(&self) -> u64 {
-        crate::backpressure::retry_after_seconds(crate::backpressure::retry_after_ceiling_seconds(
+        crate::backpressure::retry_after_seconds(self.response_stream_retry_after_ceiling_seconds())
+    }
+
+    fn response_stream_retry_after_ceiling_seconds(&self) -> u64 {
+        crate::backpressure::retry_after_ceiling_seconds(
             self.inner.response_stream_waiters.load(Ordering::Acquire),
-            self.inner.pools.response_stream_waiter_capacity() as u64,
-        ))
+            self.inner.pools.response_stream_retry_backlog() as u64,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn response_stream_waiter_count(&self) -> usize {
+        self.inner.response_stream_waiters.load(Ordering::Acquire) as usize
     }
 
     #[cfg(test)]
@@ -914,7 +923,7 @@ impl MemoryController {
         let queue = self
             .inner
             .pools
-            .try_acquire_response_stream_waiter()
+            .try_acquire_response_stream_waiter(requested_bytes)
             .map_err(|()| {
                 self.inner.metrics.record_response_stream_admission(
                     protocol,

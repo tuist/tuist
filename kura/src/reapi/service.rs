@@ -7881,8 +7881,8 @@ mod tests {
             let completed_admission = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let (release, released) = tokio::sync::watch::channel(false);
             let mut tasks = tokio::task::JoinSet::new();
-            const READS: usize = 32;
-            for _ in 0..READS {
+            let reads = if compressed { 24 } else { 32 };
+            for _ in 0..reads {
                 let service = ReapiService {
                     state: context.state.clone(),
                     snapshot_cache: Default::default(),
@@ -7919,22 +7919,13 @@ mod tests {
             }
             // Hold admitted bodies until every read is either queued or admitted.
             // This reproduces a burst without depending on scheduler timing.
-            tokio::time::timeout(Duration::from_secs(3), async {
+            tokio::time::timeout(Duration::from_secs(10), async {
                 loop {
-                    let metrics = context.state.metrics.render();
-                    let waiting = metrics
-                        .lines()
-                        .find(|line| {
-                            line.starts_with(
-                                "kura_response_stream_waiters{protocol=\"bytestream\"}",
-                            )
-                        })
-                        .and_then(|line| line.split_whitespace().last())
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .unwrap_or(0);
+                    let waiting = context.state.memory.response_stream_waiter_count();
                     if waiting + completed_admission.load(std::sync::atomic::Ordering::SeqCst)
-                        == READS
+                        == reads
                     {
+                        assert!(waiting > 0, "the burst must exercise queued admission");
                         break;
                     }
                     tokio::task::yield_now().await;

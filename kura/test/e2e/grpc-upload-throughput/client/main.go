@@ -400,20 +400,21 @@ func (s *loadWireStats) HandleRPC(_ context.Context, event stats.RPCStats) {
 }
 
 // runConcurrentLoad measures the many-small-writes shape used by build caches.
-// All workers share one HTTP/2 connection and begin together, which catches
+// Workers share one HTTP/2 connection by default and begin together, which catches
 // admission policies that are safe for large blobs but reject ordinary burst
 // concurrency independently of actual message size.
 func runConcurrentLoad() error {
 	target := env("LOAD_TARGET", kuraUpstream)
 	operation := env("LOAD_OPERATION", "write")
 	concurrency := envInt("LOAD_CONCURRENCY", 100)
+	connections := envInt("LOAD_CONNECTIONS", 1)
 	requests := envInt("LOAD_REQUESTS", concurrency)
 	keyspace := envInt("LOAD_KEYSPACE", requests)
 	seedBase := envInt("LOAD_SEED_BASE", 1000000)
 	size := envInt("LOAD_SIZE_KB", 256) * 1024
 	chunk := envInt("CHUNK_KB", 64) * 1024
-	if concurrency < 1 || requests < 1 || keyspace < 1 || size < 1 || chunk < 1 {
-		return fmt.Errorf("load concurrency, requests, keyspace, size, and chunk must be positive")
+	if connections < 1 || concurrency < 1 || requests < 1 || keyspace < 1 || size < 1 || chunk < 1 {
+		return fmt.Errorf("load connections, concurrency, requests, keyspace, size, and chunk must be positive")
 	}
 	if operation != "write" && operation != "read" {
 		return fmt.Errorf("LOAD_OPERATION must be write or read")
@@ -428,26 +429,32 @@ func runConcurrentLoad() error {
 	if window := envInt("LOAD_STREAM_WINDOW_BYTES", 0); window > 0 {
 		options = append(options, grpc.WithStaticStreamWindowSize(int32(window)))
 	}
-	conn, err := grpc.NewClient(target, options...)
-	if err != nil {
-		return err
+	clients := make([]bs.ByteStreamClient, connections)
+	for index := range clients {
+		conn, err := grpc.NewClient(target, options...)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		clients[index] = bs.NewByteStreamClient(conn)
 	}
-	defer conn.Close()
-	client := bs.NewByteStreamClient(conn)
-	readResources := make([]string, requests)
+	readResources := make([]string, min(requests, keyspace))
 	if operation == "read" {
-		for request := 0; request < requests; request++ {
-			readResources[request] = readResourceName(size, seedBase+request%keyspace)
+		for request := range readResources {
+			readResources[request] = readResourceName(size, seedBase+request)
 		}
 	}
 
-	for attempt := 0; attempt < 60; attempt++ {
-		if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
-			break
-		} else if attempt == 59 {
-			return fmt.Errorf("warmup/readiness failed: %w", err)
+	for _, client := range clients {
+		for attempt := 0; attempt < 60; attempt++ {
+			if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
+				break
+			} else if attempt == 59 {
+				return fmt.Errorf("warmup/readiness failed: %w", err)
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		time.Sleep(100 * time.Millisecond)
+
 	}
 
 	jobs := make(chan int)
@@ -455,6 +462,7 @@ func runConcurrentLoad() error {
 	start := make(chan struct{})
 	var workers sync.WaitGroup
 	for worker := 0; worker < concurrency; worker++ {
+		client := clients[worker%len(clients)]
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
@@ -463,7 +471,7 @@ func runConcurrentLoad() error {
 				began := time.Now()
 				var err error
 				if operation == "read" {
-					err = downloadBlob(client, readResources[seed], size)
+					err = downloadBlob(client, readResources[seed%len(readResources)], size)
 				} else {
 					err = uploadBlob(client, size, chunk, seedBase+seed)
 				}
@@ -535,6 +543,7 @@ func runConcurrentLoad() error {
 		"keyspace":            keyspace,
 		"seed_base":           seedBase,
 		"concurrency":         concurrency,
+		"connections":         connections,
 		"size_kb":             size / 1024,
 		"wall_ms":             wall.Milliseconds(),
 		"requests_per_s":      round2(float64(requests) / wall.Seconds()),

@@ -49,7 +49,7 @@ pool contention at a small scale. These are application settings, not an OS
 memory limit. The host's detected runtime limit remains unchanged.
 
 The load client's optional `LOAD_STREAM_WINDOW_BYTES`,
-`LOAD_READ_BYTES_PER_SECOND`, and `LOAD_MIN_REQUEST_MS` settings control transport
+`LOAD_READ_BYTES_PER_SECOND`, `LOAD_CONNECTIONS`, and `LOAD_MIN_REQUEST_MS` settings control transport
 buffering, reader pacing, and the minimum interval between attempts. Its
 `received_grpc_bytes` result includes protobuf payloads, gRPC envelopes, and
 encoded response headers/trailers; it excludes HTTP/2 and TCP framing. Compare
@@ -64,74 +64,32 @@ Admission remains deliberately bounded. A sustained offered load beyond the
 node's serving capacity can still exhaust the queue or its five-second deadline;
 the regression covers avoidable burst rejection while the node can make progress.
 
-The deterministic reproducer exposed the old queue limit: with these limits,
-16 ordinary reads could hold byte permits and only eight more could wait, so a
-32-read burst rejected eight requests before any reader was released. Waiting
-requests do not hold response buffers. The queue now has its own bounded sizing
-rule, one slot per MiB of floor-derived transient capacity, capped at 1,024.
-This profile gets 32 waiting slots while every admitted read retains its original
-byte reservation and buffer size. FIFO order, cancellation cleanup, and the
-five-second admission deadline remain in force.
+The deterministic reproducer holds 32 ordinary reads or 24 zstd reads, enough
+to force waiting while fitting the new pending-work bound. The test explicitly
+asserts that readers queued. Queued demand is limited to two batches of effective
+serving bytes plus a separate bookkeeping cap; cancellation releases both.
+Live response reservations and buffers are unchanged. Stalled readers can still
+cause queue overflow or admission timeout, and HTTP retains its 250 ms wait and
+bounded degraded fallback. Memory-controller tests cover these paths, the
+published Air/Pro/Enterprise floors, and the unchanged retry-backoff scale.
 
-## Local validation — 2026-09-16
+For a floor-aware native load, pass
+`--profile pro-floor --concurrency 512 --connections 4`. Four connections are
+needed to exceed the server’s 128 concurrent streams per connection.
+This publishes the 512 MiB floor, managed cache budgets, and Pro soft/hard
+watermarks. The native host still supplies the runtime ceiling, so this exercises
+the floor clamp but does not reproduce a 3 GiB cgroup. The Rust profile tests use
+the exact managed runtime ceilings. Use enough requests to sustain contention
+(e.g. `--requests 16384`) and apply identical settings to both builds.
 
-Baseline: `5efbfee44007dffec97f994cc552e38611d9b850` (the worktree's
-merge base with `main`). Both binaries ran on the same Apple silicon macOS host
-with the configuration and workload above, after compilation finished. Pair A
-ran baseline then fix; pair B reversed the order. Each run used a fresh data
-directory, 4,096 requests, and 15 seconds of recovery sampling.
+The CI `bytestream-admission` shard builds the Go client and runs the 128-read
+ShellSpec inside the prebuilt Linux image with an isolated 1 GiB cgroup. Its
+`ci-small` profile raises soft/hard watermarks to 512/544 MiB, preserving the
+32 MiB transient budget and 16 MiB response pool while allowing real Linux
+anonymous memory accounting for the server and test processes. The spec
+removes its temporary directory on exit; direct runner invocations deliberately
+retain output for comparisons. Both admission runners share `native_server.py`
+for the isolated environment, readiness, and process teardown.
 
-| Measurement | Baseline A | Fix A | Baseline B | Fix B |
-| --- | ---: | ---: | ---: | ---: |
-| Successful reads / 4,096 | 3256 | 4096 | 3423 | 4096 |
-| RESOURCE_EXHAUSTED | 840 | 0 | 673 | 0 |
-| CPU seconds / completed GiB | 2.233 | 2.520 | 2.079 | 1.930 |
-| Allocator allocated peak / settled (MiB) | 28.79 / 4.99 | 24.62 / 4.08 | 28.90 / 4.47 | 27.84 / 4.05 |
-| Allocator resident peak / settled (MiB) | 191.39 / 90.58 | 149.53 / 78.58 | 194.31 / 108.95 | 182.77 / 98.39 |
-| Response reservation peak / settled (MiB) | 17.25 / 0.00 | 17.25 / 0.00 | 17.25 / 0.00 | 17.25 / 0.00 |
-| Waiters peak / settled | 8 / 0 | 16 / 0 | 8 / 0 | 16 / 0 |
-| Allocated data directory (KiB) | 2316 | 2320 | 2316 | 2316 |
-| Received gRPC bytes / completed payload byte | 1.000023 | 1.000022 | 1.000022 | 1.000021 |
-| Wall time (seconds) | 73.46 | 97.25 | 67.54 | 70.89 |
-| p95 attempt duration (ms) | 895 | 1114 | 692 | 924 |
-
-Every successful read matched its digest. Both fixed runs had zero admission
-rejections or timeouts. Both versions stayed at the normal pressure gauge and
-returned all stream reservations and waiters to zero. macOS does not supply the
-Linux pressure/RSS observations, so this is not validation of cgroup enforcement.
-The fixed runs' allocator peaks and recovery residency were lower than their
-paired baselines.
-
-CPU did not show a repeatable direction: the fix was about 13% higher per GiB in
-pair A and 7% lower in pair B. Do not treat this small local comparison as proof
-of a CPU improvement or a precise fleet performance estimate. The final change
-preserves the original streaming buffers and encoding; smaller-buffer prototypes
-were discarded after their initial comparisons showed higher CPU per completed
-byte. Queueing also changes the latency tradeoff: failed baseline attempts can
-return immediately, whereas accepted requests may wait. The percentile above
-includes failed attempts and is not a comparison of successful-read latency alone.
-
-The artifact segment occupied exactly 1,056,768 bytes in both pair-A runs.
-The additional 4 KiB of allocated directory space in fix A was a RocksDB WAL
-crossing one filesystem-block boundary (3,873 to 4,198 logical bytes), not another
-artifact copy. Each read phase's warmup wrote 4,096 artifact bytes in both builds.
-Received gRPC bytes were effectively unchanged per completed payload byte;
-HTTP/2/TCP framing and peer replication are outside this isolated test.
-
-Validation also passed:
-
-- The new deterministic burst test failed on the original runtime with eight
-  rejected ordinary reads out of 32, and passed with the fix for ordinary and
-  zstd reads.
-- Bazel server/test-binary builds and Clippy across `//...`.
-- 20 ByteStream tests and 61 memory tests, including FIFO, queue overflow,
-  cancellation, timeout, and transport-lifetime accounting.
-- The response-stream, splice, replicated-recipe, and HTTP fallback test filters.
-- The native ShellSpec regression: 128 successful, digest-verified reads.
-- Go build/vet, Rust/Go formatting, Python syntax, ShellSpec shell syntax, dashboard
-  JSON parsing, and `git diff --check`.
-
-The ignored Rust tests were existing opt-in benchmarks; the full E2E suite was
-not run. Production rollout and sustained overload beyond the five-second
-admission deadline were not exercised. The existing deadline and overflow errors
-remain necessary bounds.
+Keep measured before/after results and their limitations in the pull request
+description rather than committing dated benchmark tables here.
