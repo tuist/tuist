@@ -25,8 +25,14 @@ defmodule Tuist.GitHistory do
   alias Tuist.GitHistory.BranchHead
   alias Tuist.GitHistory.Commit
   alias Tuist.GitHistory.CommitParent
+  alias Tuist.GitHistory.Providers
+  alias Tuist.GitHistory.Workers.CompleteHistoryWorker
   alias Tuist.Projects.Project
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
+  alias Tuist.Tests.Test
+  alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   @defaults %{
     window_days: 365,
@@ -66,6 +72,40 @@ defmodule Tuist.GitHistory do
   end
 
   def settings(nil), do: Map.merge(@defaults, Environment.git_history_defaults())
+
+  @doc """
+  The project's VCS connection when it can answer history questions: a
+  repository connected through a GitHub App installation with credentials.
+  Expects `vcs_connection: :github_app_installation` preloaded.
+  """
+  def provider_connection(%Project{
+        vcs_connection: %VCSConnection{github_app_installation: %GitHubAppInstallation{} = installation} = connection
+      }) do
+    if VCS.github_app_credentials(installation), do: connection
+  end
+
+  def provider_connection(_project), do: nil
+
+  @doc "The `Tuist.GitHistory.Provider` for a connection."
+  def provider(%VCSConnection{provider: :github}), do: Providers.GitHub
+
+  @doc """
+  Enqueues the completion of a run's history from the VCS provider when the
+  client did not send it all, the project has a connected repository and its
+  settings allow the fallback. `project` needs `vcs_connection:
+  :github_app_installation` preloaded.
+  """
+  def enqueue_completion(%Project{} = project, %Test{} = run) do
+    complete? = run.history_source != "client" or run.merge_base_sha in [nil, ""]
+
+    if complete? and settings(project).provider_fallback and provider_connection(project) do
+      %{project_id: project.id, test_run_id: run.id}
+      |> CompleteHistoryWorker.new()
+      |> Oban.insert()
+    else
+      :skipped
+    end
+  end
 
   @doc "Of the given SHAs, the ones the project has no commit for."
   def missing_shas(_project_id, []), do: []

@@ -524,6 +524,16 @@ defmodule Tuist.Tests do
 
   defp normalize_string_keys(value), do: value
 
+  @history_attrs [
+    :base_branch,
+    :merge_base_sha,
+    :is_pull_request,
+    :pull_request_number,
+    :git_object_format,
+    :history_source,
+    :history_fallback_reason
+  ]
+
   defp create_new_test(attrs, shard_index \\ nil, shard_plan \\ nil) do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
@@ -589,6 +599,21 @@ defmodule Tuist.Tests do
   # shard reads `test_runs` by the plan's merged id to decide whether to
   # create or update the run, and a 5-second flush window turns that decision
   # into a race between concurrent shards. That path stays on `insert_all`.
+  @doc """
+  Rewrites a run's Git history columns (see `Tuist.GitHistory`) once the
+  server completed what the client could not send. `test_runs` keeps the
+  latest row per id by `inserted_at`, so this inserts the run again with the
+  new values and a newer version.
+  """
+  def update_test_history(%Test{} = test, attrs) do
+    test = test |> Map.merge(Map.take(attrs, @history_attrs)) |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+    IngestRepo.insert_all(Test, [test_row(test)])
+    {:ok, test}
+  end
+
+  @doc "Stores the files a run changed against its merge base; see `Tuist.Tests.TestRunChangedFile`."
+  def create_test_changed_files(%Test{} = test, files), do: create_run_changed_files(test, files)
+
   defp insert_test_run(test, nil) do
     {:ok, _} = Test.Buffer.insert(test)
     test

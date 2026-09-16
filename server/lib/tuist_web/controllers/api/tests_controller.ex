@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.GitHistory
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
@@ -695,6 +696,10 @@ defmodule TuistWeb.API.TestsController do
             Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
             :ok
           end
+
+        selected_project
+        |> Tuist.Repo.preload(vcs_connection: :github_app_installation)
+        |> GitHistory.enqueue_completion(test_run)
 
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
 
