@@ -12,7 +12,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
@@ -23,6 +23,7 @@ use crate::proxy_proto::{
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
+use crate::store_quarantine::{self, InStore, StoreQuarantine, StoreTag};
 use crate::token::TokenProvider;
 use crate::types::*;
 use crate::upstream::Upstream;
@@ -534,16 +535,16 @@ fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
 /// DerivedData) under this long-lived proxy, so the in-memory `known_local` and
 /// `resolved` marks now describe a store that no longer exists on disk.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct CasGeneration {
-    ino: u64,
+pub(crate) struct CasGeneration {
+    pub(crate) ino: u64,
     // Birth time in nanos since the Unix epoch; 0 when the platform can't report
     // it. Guards the (very unlikely) inode reuse when a directory is recreated.
-    birth_nanos: u128,
+    pub(crate) birth_nanos: u128,
 }
 
 /// The CAS directory's current generation, or `None` if it does not exist
 /// (deleted and not yet recreated).
-fn cas_generation(cas_path: &str) -> Option<CasGeneration> {
+pub(crate) fn cas_generation(cas_path: &str) -> Option<CasGeneration> {
     let meta = std::fs::metadata(cas_path).ok()?;
     let birth_nanos = meta
         .created()
@@ -623,6 +624,16 @@ fn store_verdict(
     }
 }
 
+/// Why `Proxy::path_state` has no store to hand back.
+#[derive(Debug)]
+enum Unavailable {
+    /// The store crashed this proxy and is quarantined, so it is not opened.
+    /// Callers answer as if it held nothing.
+    Quarantined,
+    /// Loading the upstream plugin or opening the store failed.
+    Failed(String),
+}
+
 /// Opens a handle on the store at a path. `open_cas` outside tests.
 type OpenCas = Box<dyn Fn(&'static Upstream, &str) -> Result<llcas_cas_t, String> + Send + Sync>;
 
@@ -650,6 +661,10 @@ pub struct PathState {
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
     // it for wipe detection (see `binding`).
     cas_path: String,
+    // Names this store and the directory identity `cas` is bound to, for the
+    // crash handler (see `store_quarantine`). Replaced when the handle is
+    // rebound to a recreated directory.
+    crash_tag: AtomicPtr<StoreTag>,
     // The directory identity `cas` is bound to and the state of any reopen.
     // Every resolve takes this lock, so it is never held across an FFI call.
     binding: Mutex<StoreBinding>,
@@ -989,6 +1004,19 @@ impl Snapshot {
 }
 
 impl PathState {
+    /// Every upstream call on this store runs inside this, so a crash in one is
+    /// charged to the store (see `store_quarantine`).
+    fn in_store(&self) -> InStore {
+        store_quarantine::enter(self.crash_tag.load(Ordering::Relaxed))
+    }
+
+    /// Points crash attribution at the directory identity the handle is now
+    /// bound to.
+    fn retag(&self, generation: Option<CasGeneration>) {
+        self.crash_tag
+            .store(StoreTag::leak(&self.cas_path, generation), Ordering::Relaxed);
+    }
+
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
     }
@@ -1083,6 +1111,7 @@ impl PathState {
     /// Blocks for as long as the upstream dispose and open take, so outside
     /// tests only the `cas-reopen` thread `check_generation` starts calls it.
     fn reopen_cas(&self) -> Result<(), String> {
+        let _in_store = self.in_store();
         let stale = self.cas.write().unwrap().take();
         self.invalidate();
         self.publish_cache.lock().unwrap().clear();
@@ -1106,6 +1135,7 @@ impl PathState {
                 Ok(()) => {
                     binding.generation = Some(target);
                     binding.reopen = Reopen::Idle;
+                    self.retag(Some(target));
                 }
                 Err(_) => binding.reopen = Reopen::Failed { at: Instant::now() },
             }
@@ -1195,6 +1225,7 @@ impl PathState {
         let Some(prune) = self.up.llcas_cas_prune_ondisk_data else {
             return Err("upstream plugin exports no ondisk prune".into());
         };
+        let _in_store = self.in_store();
         let before = generation_sizes(&self.cas_path);
         // Under the write lock, so no reader is inside a call with the handle.
         // Readers see the empty slot as out of service until the fresh handle is
@@ -1266,6 +1297,7 @@ impl PathState {
     fn graph_present(&self, digest: &[u8]) -> bool {
         let guard = self.cas.read().unwrap();
         let Some(cas) = *guard else { return false };
+        let _in_store = self.in_store();
         unsafe {
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error = std::ptr::null_mut();
@@ -1293,6 +1325,7 @@ impl PathState {
         // Out of service (see `cas`): the honest answer is the one a wiped store
         // gives, which sends the caller back to the remote.
         let Some(cas) = *cas_guard else { return false };
+        let _in_store = self.in_store();
         unsafe {
             let digest_t = llcas_digest_t {
                 data: digest.as_ptr(),
@@ -1787,6 +1820,9 @@ pub struct Proxy {
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
+
+    // Stores that crashed this proxy often enough that it no longer opens them.
+    quarantine: StoreQuarantine,
 }
 
 impl Proxy {
@@ -1801,6 +1837,9 @@ impl Proxy {
             .as_deref()
             .map(load_registry)
             .unwrap_or_default();
+        // Before anything can open a store: this charges the crashes the previous
+        // process died of.
+        let quarantine = StoreQuarantine::open(registry_path.as_deref());
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
@@ -1837,6 +1876,7 @@ impl Proxy {
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
             analytics,
+            quarantine,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
@@ -2078,18 +2118,31 @@ impl Proxy {
     /// limit). The open stays outside the lock deliberately: `open_cas` touches
     /// the filesystem, and holding the map's mutex across it would let one slow
     /// or stuck store wedge every path on the machine.
-    fn path_state(&self, cas_path: &str) -> Result<&'static PathState, String> {
+    ///
+    /// A store that is quarantined for crashing this proxy (see
+    /// `store_quarantine`) is not opened. It never enters `paths`, so this is
+    /// the one place that has to refuse it.
+    fn path_state(&self, cas_path: &str) -> Result<&'static PathState, Unavailable> {
         if let Some(state) = self.paths.lock().unwrap().get(cas_path) {
             return Ok(state);
         }
-        let up = unsafe { Upstream::load(&self.upstream_plugin)? };
+        if self.quarantine.holds(cas_path) {
+            return Err(Unavailable::Quarantined);
+        }
+        let up = unsafe { Upstream::load(&self.upstream_plugin) }.map_err(Unavailable::Failed)?;
         let up: &'static Upstream = Box::leak(Box::new(up));
-        let cas = unsafe { open_cas(up, cas_path)? };
+        let crash_tag = StoreTag::leak(cas_path, cas_generation(cas_path));
+        let cas = {
+            let _in_store = store_quarantine::enter(crash_tag);
+            unsafe { open_cas(up, cas_path) }.map_err(Unavailable::Failed)?
+        };
+        let generation = cas_generation(cas_path);
         // Claim the path BEFORE building the state, so a loser has nothing to
         // leak but the dlopen handle above -- which addresses the plugin, not
         // the store, and so cannot hold the generation chain open.
         let mut paths = self.paths.lock().unwrap();
         if let Some(winner) = paths.get(cas_path).copied() {
+            let _in_store = store_quarantine::enter(crash_tag);
             unsafe { (up.llcas_cas_dispose)(cas) };
             return Ok(winner);
         }
@@ -2098,8 +2151,9 @@ impl Proxy {
             open: Box::new(|up: &'static Upstream, path: &str| unsafe { open_cas(up, path) }),
             cas: RwLock::new(Some(cas)),
             cas_path: cas_path.to_string(),
+            crash_tag: AtomicPtr::new(StoreTag::leak(cas_path, generation)),
             binding: Mutex::new(StoreBinding {
-                generation: cas_generation(cas_path),
+                generation,
                 reopen: Reopen::Idle,
             }),
             gen_counter: AtomicU64::new(0),
@@ -3101,8 +3155,9 @@ impl Proxy {
             let verdict = store_verdict(&binding, current, now);
             match verdict {
                 StoreVerdict::Serve => {
-                    if current.is_some() {
+                    if current.is_some() && binding.generation != current {
                         binding.generation = current;
+                        state.retag(current);
                     }
                 }
                 StoreVerdict::Reopen(_) => {
@@ -3232,6 +3287,12 @@ impl Proxy {
             // on, or a registry read fails open) it hands the sweeper a backlog
             // of everything produced while the project was read-only.
             remove_record(record_path);
+            return;
+        }
+        // Publishing reads the store, which is what a quarantine rules out. The
+        // record stays on disk: a recreated store takes its spool with it, and a
+        // store whose quarantine lapses publishes it then.
+        if self.quarantine.holds(cas_path) {
             return;
         }
         let (branch, trunk) = self.record_tags(instance, record_path);
@@ -3738,6 +3799,11 @@ impl Proxy {
         let owed = spool_records(cas_path);
         if owed == 0 {
             return 0;
+        }
+        // Nothing publishes a quarantined store's records, so waiting would only
+        // spend the caller's budget to report the same count.
+        if self.quarantine.holds(cas_path) {
+            return owed;
         }
         let Some(instance) = instance else {
             return owed;
@@ -4637,6 +4703,7 @@ impl Proxy {
             ));
         }
         drop(paths);
+        parts.extend(self.quarantine.stats());
         for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
             parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
                 remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
@@ -4694,9 +4761,13 @@ impl Proxy {
                     }
                     fresh
                 });
-                let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
-                });
+                let outcome = match self.path_state(&request.cas_path) {
+                    Ok(state) => {
+                        self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
+                    }
+                    Err(Unavailable::Quarantined) => Ok(None),
+                    Err(Unavailable::Failed(message)) => Err(message),
+                };
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
@@ -4792,7 +4863,11 @@ impl Proxy {
                         .resolve_instance(&request.cas_path, &request.instance)
                         .is_some() =>
                     {
-                        self.path_state(&request.cas_path).map(Some)
+                        match self.path_state(&request.cas_path) {
+                            Ok(state) => Ok(Some(state)),
+                            Err(Unavailable::Quarantined) => Ok(None),
+                            Err(Unavailable::Failed(message)) => Err(message),
+                        }
                     }
                     None => Ok(None),
                 };
@@ -5073,6 +5148,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
     // handle that minted them, and a wipe must not swap it out mid-write.
     let cas_guard = state.cas.read().unwrap();
     let Some(cas) = *cas_guard else { return Err("cas store is out of service".into()) };
+    let _in_store = state.in_store();
     let mut ref_ids = Vec::with_capacity(node.refs.len());
     for reference in &node.refs {
         let digest = llcas_digest_t {
@@ -5224,6 +5300,7 @@ unsafe fn read_node_frame(
     let Some(cas) = *cas_guard else {
         return Err("cas store is out of service".into());
     };
+    let _in_store = state.in_store();
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
@@ -6766,6 +6843,7 @@ mod tests {
             open,
             cas: RwLock::new(Some(cas)),
             cas_path: path.to_string(),
+            crash_tag: AtomicPtr::new(StoreTag::leak(path, cas_generation(path))),
             binding: Mutex::new(StoreBinding {
                 generation: cas_generation(path),
                 reopen: Reopen::Idle,
@@ -9040,6 +9118,94 @@ mod tests {
             !state.load_present(&digest),
             "and the path serves the live store"
         );
+    }
+
+    // A restarted proxy warms every store its registry names before any build
+    // asks for one, which is what re-touched a corrupt store after every crash.
+    // A quarantined store is skipped there and everywhere else, while the other
+    // stores keep being served.
+    #[test]
+    fn a_quarantined_store_is_not_opened_warmed_or_published() {
+        let root = TempCasDir::new("quarantined-store");
+        let corrupt = root.0.join("corrupt").to_string_lossy().into_owned();
+        let healthy = root.0.join("healthy").to_string_lossy().into_owned();
+        std::fs::create_dir_all(spool_dir(&corrupt)).unwrap();
+        std::fs::create_dir_all(&healthy).unwrap();
+        let record = spool_dir(&corrupt).join("1234-0");
+        std::fs::write(&record, b"record").unwrap();
+        let registry = root.0.join("registry");
+        std::fs::write(
+            &registry,
+            format!("{corrupt}\ttuist/app\n{healthy}\ttuist/app\n"),
+        )
+        .unwrap();
+        let identity = cas_generation(&corrupt).unwrap();
+        let now = crate::reapi::now_ms();
+        std::fs::write(
+            root.0.join("registry.quarantine"),
+            format!(
+                "{corrupt}\t{}\t{}\t{},{},{}\n",
+                identity.ino,
+                identity.birth_nanos,
+                now - 3_000,
+                now - 2_000,
+                now - 1_000
+            ),
+        )
+        .unwrap();
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".to_string(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(registry),
+            None,
+        );
+
+        let key_hash = [7u8; 32];
+        let node = vec![0u8; 65];
+        let snapshot = Snapshot {
+            nodes: vec![(
+                node.clone(),
+                reapi::Digest {
+                    hash: "00".repeat(32),
+                    size_bytes: 1,
+                },
+            )],
+            node_index: HashMap::from([(node, 0)]),
+            keys: HashMap::from([(key_hash, vec![0])]),
+            key_order: vec![key_hash],
+            watermark: 0,
+        };
+        proxy.prematerialize_snapshot("tuist/app", &snapshot);
+        {
+            let paths = proxy.paths.lock().unwrap();
+            assert!(paths.contains_key(&healthy), "the other store warms");
+            assert!(!paths.contains_key(&corrupt), "the quarantined store is not opened");
+        }
+        assert!(matches!(
+            proxy.path_state(&corrupt),
+            Err(Unavailable::Quarantined)
+        ));
+
+        proxy.enqueue_publish(&corrupt, "tuist/app", &record.to_string_lossy());
+        assert!(record.exists(), "the spooled publication stays on disk");
+        assert!(
+            !tags_path(&record.to_string_lossy()).exists(),
+            "and is not accepted for publishing"
+        );
+
+        let started = Instant::now();
+        assert_eq!(
+            proxy.drain_publications(&corrupt, Some("tuist/app"), Duration::from_secs(60)),
+            1,
+            "a drain reports the record as owed"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "without waiting for a publication that cannot happen"
+        );
+        assert!(!proxy.paths.lock().unwrap().contains_key(&corrupt));
+        assert!(proxy.stats_line().contains(&format!("quarantined {corrupt}: refused=")));
     }
 
     include!("proxy_cold_replay_benchmark.rs");
