@@ -83,7 +83,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
         size: 1,
         cas_id: "cas-#{System.unique_integer([:positive])}",
         project_id: project(account).id,
-        cache_endpoint: "https://cache-eu-central.tuist.dev",
+        cache_endpoint: "cache-eu-central.tuist.dev",
         inserted_at: inserted_at |> seconds() |> DateTime.to_naive()
       }
     ])
@@ -105,7 +105,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
         project_id: project.id,
         account_handle: account.name,
         project_handle: project.name,
-        cache_endpoint: "https://cache-us-west.tuist.dev",
+        cache_endpoint: "cache-us-east-3.tuist.dev",
         inserted_at: inserted_at |> seconds() |> DateTime.to_naive()
       }
     ])
@@ -157,6 +157,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       assert [%Server{status: :provisioning, region: "us-east"}] = servers_for(account)
     end
 
+    # Xcode and Gradle events carry the host the legacy node reported, with no
+    # scheme, and numbered nodes such as cache-us-east-3.
     test "counts Xcode and Gradle traffic to the legacy nodes" do
       xcode = account()
       xcode_cache_event(xcode, ago(1))
@@ -175,6 +177,11 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       account = account()
       module_cache_run(account, at: ago(1), endpoint: "https://#{account.name}-us-east-1.kura.tuist.dev")
       module_cache_run(account, at: ago(1), endpoint: "https://cache-#{account.name}-us-east-1.kura.tuist.dev")
+
+      module_cache_run(account,
+        at: ago(1),
+        endpoint: "kura-cache-us-east-1-1.kura-cache-us-east-1-headless.kura.svc.cluster.local:7443"
+      )
 
       report = seed()
 

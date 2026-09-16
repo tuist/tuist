@@ -72,7 +72,9 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   require Logger
 
   @default_lookback_days 7
-  @legacy_endpoint_pattern "^https://cache-[a-z0-9-]+[.]tuist[.]dev/?$"
+  # Module cache runs record the URL the CLI used; Xcode and Gradle events record
+  # the host the node reported, with no scheme.
+  @legacy_endpoint_pattern "^(https://)?cache-[a-z0-9-]+[.]tuist[.]dev(:[0-9]+)?/?$"
   @plan_order %{enterprise: 0, pro: 1, air: 2}
   @not_live [:destroyed, :archived]
   # Whole-window scans of the cache event tables, far past the repo's per-request budget.
