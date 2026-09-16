@@ -1583,7 +1583,7 @@ and on (cluster, pod) (
 - Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
   the alert value is the median age in seconds
 - Pending period: 60 minutes
-- Severity: critical
+- Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
@@ -1597,11 +1597,11 @@ and on (cluster, pod) (
   ring rotated out over the last day). Overnight and weekend builds will miss.
   Rings run full by design; what this measures is whether the claim is enough
   for the account's write rate. The lever is the account's storage claim,
-  which Tuist.Kura.ClaimSizing sizes and applies on its own, so this fires
-  only where that loop cannot fix it: the claim is clamped at the plan ceiling
-  (64Gi air and pro, 256Gi enterprise), the region has no disk to grow into
-  (see "Kura region cannot place another instance"), or sizing itself is
-  stuck. Only rings that have been full for the whole day count: a ring
+  which Tuist.Kura.ClaimSizing sizes and applies on its own, and it is usually
+  still confirming the reading when this fires: its one-day rungs need two to
+  five qualifying days before they grow the claim. Watch it; it escalates to
+  "Kura instance retention horizon under a day for three days" if sizing does
+  not land. Only rings that have been full for the whole day count: a ring
   rebuilt more recently cannot report an eviction older than itself, so it
   would fire on its own age.`
 
@@ -1623,7 +1623,7 @@ three days in both US regions while every other instance in the fleet sat
 above ten, and the region medians read as "about three days" purely because
 of it.
 
-**There is no warning tier, because sizing is the actor.**
+**Warning, because sizing is the actor.**
 `Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
 its proposals unattended every ten minutes, within a fleet-wide budget of five
 applies an hour. Its own `retention_floor_days` is 3, so any instance whose
@@ -1634,12 +1634,12 @@ once a day over them, and after five when it did not. Days the account did
 not build are passed over rather than restarting the count. The step after a
 resize that landed below its own projection confirms on a single qualifying
 day of the resized ring instead, as long as that day falls within the matching
-rung's own window of the resize. A two-day rule therefore alerts on a control
-loop that is mid-confirmation and would keep alerting for days while it does
-its job. A rule at two days was
-deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
-only on the artifact described below. One day is the tier worth waking
-someone: it means the loop did not keep up, or cannot act at all.
+rung's own window of the resize. A one-day reading is therefore routinely a
+control loop that is mid-confirmation, and this rule paged on exactly that
+while it was critical. It stays as the early signal; the page is **Kura
+instance retention horizon under a day for three days**. A rule at two days
+was deployed with this one on 2026-09-02 and removed on 2026-09-04, having
+fired only on the artifact described below.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
@@ -1685,6 +1685,56 @@ the rest read between ten and thirty days, and three instances have shed no
 segment at all in the window (`NaN`, which the `< 86400` threshold does not
 match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
 the one to watch as its usage grows.
+
+### Kura instance retention horizon under a day for three days
+
+```promql
+histogram_quantile(0.5,
+  sum by (cluster, region, tenant_id, pod, le) (
+    increase(kura_segment_shed_age_seconds_bucket{cluster="tuist-production"}[3d])
+    * on (cluster, pod) group_left(region, tenant_id)
+      max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster="tuist-production"})
+  )
+)
+and on (cluster, pod) (
+  min by (cluster, pod) (
+    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[3d])
+  ) >= 100
+)
+```
+
+- Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
+  the alert value is the median age in seconds
+- Pending period: 60 minutes
+- Severity: critical
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: this is customer-visible.
+- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
+  {{ $labels.region }} has evicted artifacts after a median of
+  {{ $values.A.Value | humanizeDuration }} for three days; claim sizing has
+  not fixed it`
+- Description: `The instance's ring has been full for three days and the
+  median age of the youngest artifact in each segment it rotated out over
+  those three days is under a day. Overnight and weekend builds have been
+  missing all that time. Tuist.Kura.ClaimSizing grows the claim on its own
+  and a resize would have reopened the ring-fullness gate, so this means the
+  loop did not act: the claim is clamped at the plan ceiling (64Gi air and
+  pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
+  region cannot place another instance"), or sizing itself is stuck.`
+
+Same query as the warning with both windows widened to `[3d]`; the threshold
+stays at one day.
+
+**Why three days.** It clears what sizing needs to act on a one-day reading:
+the two-day rung, plus the day its last rollup takes to land and the worker
+to apply. A claim that grew changes the ring's desired segment count, so
+fullness drops below 100 while the ring converges, and `min_over_time(...[3d])`
+keeps the instance out of this rule for three days after the resize. What is
+left is an instance sizing did not touch. The five-day rung (a ring that did
+not cycle about once a day) can still be confirming at day three; three days
+of sub-day retention is customer damage whichever way sizing reads it, so it
+still pages.
 
 ### Kura instance not reconciled
 
@@ -1740,7 +1790,7 @@ the 69 minutes it took to notice one through a downstream customer alert.
 **Why warning rather than critical.** A stalled reconcile is an operator
 problem that becomes a customer problem later, and its customer-visible
 consequences already have critical rules of their own: **Kura instance
-retention horizon under a day** for a resize that never lands, and the
+retention horizon under a day for three days** for a resize that never lands, and the
 StatefulSet replica rule for an instance running short. Paging on this would
 wake someone for a condition whose damage is measured in hours.
 
