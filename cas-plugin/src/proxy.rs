@@ -553,11 +553,13 @@ fn cas_dir_missing(cas_path: &str) -> bool {
 }
 
 /// When a build last used a registered path, and the use the registry on disk
-/// records for it, in seconds since the Unix epoch.
+/// records for it, in seconds since the Unix epoch. `revision` changes on every
+/// use, including two within one second.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PathUse {
     at: u64,
     recorded: u64,
+    revision: u64,
 }
 
 impl PathUse {
@@ -1763,6 +1765,7 @@ pub struct Proxy {
     // cas_path -> when a build last used it, persisted beside the registry (see
     // `forget_unused_paths`). Taken after `path_instance` and `path_instances`.
     path_uses: Mutex<HashMap<String, PathUse>>,
+    path_use_revision: AtomicU64,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -1864,6 +1867,7 @@ impl Proxy {
             path_instance: Mutex::new(path_instance),
             path_instances: Mutex::new(path_instances),
             path_uses: Mutex::new(path_uses),
+            path_use_revision: AtomicU64::new(1),
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
@@ -1983,7 +1987,8 @@ impl Proxy {
             let mut map = self.path_instance.lock().unwrap();
             let mut known = self.path_instances.lock().unwrap();
             let mut uses = self.path_uses.lock().unwrap();
-            note_use(&mut uses, cas_path, now);
+            let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+            note_use(&mut uses, cas_path, now, revision);
             let rerouted = map.get(cas_path).map(String::as_str) != Some(declared);
             if rerouted {
                 map.insert(cas_path.to_string(), declared.to_string());
@@ -2000,7 +2005,8 @@ impl Proxy {
             let map = self.path_instance.lock().unwrap();
             let instance = map.get(cas_path).cloned();
             if instance.is_some() {
-                note_use(&mut self.path_uses.lock().unwrap(), cas_path, now);
+                let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+                note_use(&mut self.path_uses.lock().unwrap(), cas_path, now, revision);
             }
             instance
         };
@@ -2089,9 +2095,10 @@ impl Proxy {
         self.active_instances.lock().unwrap().contains(instance)
     }
 
-    /// Forgets every registered path whose store directory is gone or that no
-    /// build has used for REGISTRY_FORGET_AFTER, and writes the uses that have
-    /// moved past PATH_USE_RECORD_INTERVAL. Runs at startup, before
+    /// Forgets every registered path whose store directory is gone, or that no
+    /// build has used for REGISTRY_FORGET_AFTER and whose spool holds no
+    /// publications, and writes the uses that have moved past
+    /// PATH_USE_RECORD_INTERVAL. Runs at startup, before
     /// `prefetch_known_snapshots`, and from the maintenance loop.
     ///
     /// A path is forgotten with every instance that declared it, so a store in
@@ -2100,45 +2107,51 @@ impl Proxy {
     /// records a project's policy.
     pub fn forget_unused_paths(&self) {
         let now = unix_seconds();
-        let observed: Vec<(String, Option<u64>)> = {
-            let routing = self.path_instance.lock().unwrap();
-            let known = self.path_instances.lock().unwrap();
-            let uses = self.path_uses.lock().unwrap();
-            known
-                .keys()
-                .chain(routing.keys())
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .map(|cas_path| (cas_path.clone(), uses.get(cas_path).map(|path_use| path_use.at)))
-                .collect()
-        };
-        let unused = observed
+        let unused = self
+            .observe_paths()
             .into_iter()
-            .filter_map(|(cas_path, at)| {
+            .filter_map(|(cas_path, path_use)| {
                 let gone = cas_dir_missing(&cas_path);
-                let unused_for = Duration::from_secs(at.map_or(0, |at| now.saturating_sub(at)));
-                should_forget(unused_for, gone).then(|| {
+                let unused_for =
+                    Duration::from_secs(path_use.map_or(0, |path_use| now.saturating_sub(path_use.at)));
+                // A spool is swept and drained only through its path's routing.
+                (should_forget(unused_for, gone) && spool_records(&cas_path) == 0).then(|| {
                     let reason = if gone {
                         "its store directory is gone".to_string()
                     } else {
                         format!("unused for {} days", unused_for.as_secs() / 86_400)
                     };
-                    (cas_path, at, reason)
+                    (cas_path, path_use, reason)
                 })
             })
             .collect();
         self.forget_paths(unused, now);
     }
 
-    /// Forgets each path observed unused at the use it carried then. A build
-    /// that has used the path since keeps it.
-    fn forget_paths(&self, unused: Vec<(String, Option<u64>, String)>, now: u64) {
+    /// Every registered path with the use recorded for it now.
+    fn observe_paths(&self) -> Vec<(String, Option<PathUse>)> {
+        let routing = self.path_instance.lock().unwrap();
+        let known = self.path_instances.lock().unwrap();
+        let uses = self.path_uses.lock().unwrap();
+        known
+            .keys()
+            .chain(routing.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|cas_path| (cas_path.clone(), uses.get(cas_path).copied()))
+            .collect()
+    }
+
+    /// Forgets each path observed unused, unless a build has used it since it
+    /// was observed.
+    fn forget_paths(&self, unused: Vec<(String, Option<PathUse>, String)>, now: u64) {
         let mut routing = self.path_instance.lock().unwrap();
         let mut known = self.path_instances.lock().unwrap();
         let mut uses = self.path_uses.lock().unwrap();
         let mut forgot = false;
         for (cas_path, observed, reason) in unused {
-            if uses.get(&cas_path).map(|path_use| path_use.at) != observed {
+            let current = uses.get(&cas_path).map(|path_use| path_use.revision);
+            if current != observed.map(|path_use| path_use.revision) {
                 continue;
             }
             routing.remove(&cas_path);
@@ -2149,7 +2162,11 @@ impl Proxy {
         }
         // A path with no recorded use starts its clock now.
         for cas_path in known.keys().chain(routing.keys()) {
-            uses.entry(cas_path.clone()).or_insert(PathUse { at: now, recorded: 0 });
+            uses.entry(cas_path.clone()).or_insert(PathUse {
+                at: now,
+                recorded: 0,
+                revision: 0,
+            });
         }
         if forgot || uses.values().any(PathUse::needs_recording) {
             self.persist_registry(&routing, &known, &mut uses);
@@ -5024,16 +5041,33 @@ fn load_path_uses(path: &Path) -> HashMap<String, PathUse> {
         .filter_map(|line| {
             let (cas_path, at) = line.rsplit_once('\t')?;
             let at = at.parse().ok()?;
-            Some((cas_path.to_string(), PathUse { at, recorded: at }))
+            Some((
+                cas_path.to_string(),
+                PathUse {
+                    at,
+                    recorded: at,
+                    revision: 0,
+                },
+            ))
         })
         .collect()
 }
 
-fn note_use(uses: &mut HashMap<String, PathUse>, cas_path: &str, now: u64) {
+fn note_use(uses: &mut HashMap<String, PathUse>, cas_path: &str, now: u64, revision: u64) {
     match uses.get_mut(cas_path) {
-        Some(path_use) => path_use.at = now,
+        Some(path_use) => {
+            path_use.at = now;
+            path_use.revision = revision;
+        }
         None => {
-            uses.insert(cas_path.to_string(), PathUse { at: now, recorded: 0 });
+            uses.insert(
+                cas_path.to_string(),
+                PathUse {
+                    at: now,
+                    recorded: 0,
+                    revision,
+                },
+            );
         }
     }
 }
@@ -7554,11 +7588,20 @@ mod tests {
     #[test]
     fn a_use_is_written_once_it_has_moved_past_the_record_interval() {
         let recorded = unix_seconds() - 24 * 60 * 60;
-        let at = |seconds: u64| PathUse { at: recorded + seconds, recorded };
+        let at = |seconds: u64| PathUse {
+            at: recorded + seconds,
+            recorded,
+            revision: 0,
+        };
         assert!(!at(0).needs_recording());
         assert!(!at(PATH_USE_RECORD_INTERVAL.as_secs() - 1).needs_recording());
         assert!(at(PATH_USE_RECORD_INTERVAL.as_secs()).needs_recording());
-        assert!(PathUse { at: recorded, recorded: 0 }.needs_recording());
+        assert!(PathUse {
+            at: recorded,
+            recorded: 0,
+            revision: 0,
+        }
+        .needs_recording());
     }
 
     #[test]
@@ -7680,23 +7723,52 @@ mod tests {
         assert!(unix_seconds() - recorded < 60, "and the use reaches the disk");
     }
 
+    /// Seconds cannot tell a use apart from the observation it follows: a store
+    /// deleted and recreated by a build can be observed missing and used again
+    /// within one second.
     #[test]
-    fn a_path_used_after_it_was_observed_unused_is_kept() {
+    fn a_path_used_after_it_was_observed_is_kept_even_within_the_same_second() {
         let dir = TempCasDir::new("registry-used-since");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
-        let observed = a_day_past_the_forget_window();
         std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
-        std::fs::write(uses_path_for(&registry), format!("{store}\t{observed}\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
         let proxy = registry_proxy(&registry);
+        let observed = proxy.observe_paths();
 
         proxy.resolve_instance(&store, "");
         proxy.forget_paths(
-            vec![(store.clone(), Some(observed), "unused".to_string())],
+            observed
+                .into_iter()
+                .map(|(cas_path, path_use)| (cas_path, path_use, "gone".to_string()))
+                .collect(),
             unix_seconds(),
         );
 
         assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+    }
+
+    /// A spooled record is only published through the path's routing, by the
+    /// sweep or by a drain that declares no instance.
+    #[test]
+    fn a_path_whose_spool_holds_publications_is_kept_past_the_window_until_it_drains() {
+        let dir = TempCasDir::new("registry-spooled");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let record = spool_dir(&store).join("record");
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        std::fs::write(&record, b"record").unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.drain_instance(&store, "").as_deref(), Some("tuist/app"));
+        std::fs::remove_file(&record).unwrap();
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.drain_instance(&store, ""), None);
     }
 
     /// Resolves run on the build's serial task-setup path, so a use of a path
