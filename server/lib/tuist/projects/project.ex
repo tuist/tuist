@@ -58,6 +58,10 @@ defmodule Tuist.Projects.Project do
     field :git_history_window_days, :integer
     field :git_history_window_commits, :integer
     field :git_history_provider_fallback, :boolean
+    field :coverage_gates_enabled, :boolean, default: false
+    field :coverage_gate_min_patch_coverage, :float
+    field :coverage_gate_max_total_drop, :float
+    field :coverage_patch_partial_runs, :boolean, default: false
 
     belongs_to :account, Account
 
@@ -118,10 +122,16 @@ defmodule Tuist.Projects.Project do
       :bundle_size_approval_policy,
       :git_history_window_days,
       :git_history_window_commits,
-      :git_history_provider_fallback
+      :git_history_provider_fallback,
+      :coverage_gates_enabled,
+      :coverage_gate_min_patch_coverage,
+      :coverage_gate_max_total_drop,
+      :coverage_patch_partial_runs
     ])
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)
+    |> validate_number(:coverage_gate_min_patch_coverage, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> validate_number(:coverage_gate_max_total_drop, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> validate_name()
     |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)

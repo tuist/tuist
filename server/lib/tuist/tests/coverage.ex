@@ -46,10 +46,12 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.Workers.PublishCoverageWorker
+  alias Tuist.VCS
 
   @insert_chunk_size 2_000
 
@@ -104,6 +106,10 @@ defmodule Tuist.Tests.Coverage do
   `expected_shards` is how many shards the run's plan has: until each of them
   reported coverage, the published totals are partial, since the missing
   shards' tests are not in them.
+
+  Once the last expected shard reported, the run's pull request gets its
+  coverage gates checked and its comment refreshed, so both describe the
+  coverage however late it landed (see `Tuist.Tests.Coverage.Gates`).
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
 
@@ -113,13 +119,48 @@ defmodule Tuist.Tests.Coverage do
     shard_index = shard_index || 0
     reported_at = NaiveDateTime.utc_now()
 
-    :telemetry.span(Tuist.Telemetry.event_name_coverage_publish(), %{project_id: test.project_id}, fn ->
-      others = other_shards(test.project_id, test.id, shard_index)
-      folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
-      :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
-      {:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
-    end)
+    result =
+      :telemetry.span(Tuist.Telemetry.event_name_coverage_publish(), %{project_id: test.project_id}, fn ->
+        others = other_shards(test.project_id, test.id, shard_index)
+        folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
+        :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
+
+        {{:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)},
+          others.shards_count + 1 >= expected_shards}, %{files: folded.files}}
+      end)
+
+    case result do
+      {:ok, published, true} ->
+        follow_up(test)
+        {:ok, published}
+
+      {:ok, published, false} ->
+        {:ok, published}
+    end
   end
+
+  defp follow_up(%Test{is_pull_request: true} = test) do
+    case Projects.get_project_by_id(test.project_id) do
+      nil ->
+        :ok
+
+      project ->
+        Gates.enqueue(project, test)
+
+        if is_binary(test.git_ref) and String.starts_with?(test.git_ref, "refs/pull/") do
+          VCS.enqueue_vcs_pull_request_comment(%{
+            git_commit_sha: test.git_commit_sha,
+            git_ref: test.git_ref,
+            git_remote_url_origin: Projects.get_repository_url(project),
+            project_id: project.id
+          })
+        end
+
+        :ok
+    end
+  end
+
+  defp follow_up(_test), do: :ok
 
   @doc """
   Where a client that processed the bundle itself uploads a run's coverage
@@ -370,21 +411,40 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @doc """
+  The published totals of every run of the project that gathered coverage,
+  one row per run with the scheme they were measured for and whether the run
+  was partial.
+  """
+  def run_totals_query(project_id) do
+    from(c in CoverageRun,
+      where: c.project_id == ^project_id,
+      group_by: c.test_run_id,
+      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
+      select: %{
+        test_run_id: c.test_run_id,
+        scheme: fragment("argMax(?, ?)", c.scheme, c.version),
+        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
+        partial: fragment("argMax(?, ?)", c.partial, c.version)
+      }
+    )
+  end
+
+  @doc "The rows of `run_totals_query/1` for the full runs: what branch coverage and baselines read."
+  def full_run_totals_query(project_id) do
+    from(r in subquery(run_totals_query(project_id)), where: r.partial == false)
+  end
+
+  @doc """
   The ids of the project's runs that gathered coverage, narrowed to the full
   (`:full`) or the partial (`:partial`) ones, or all of them for anything else.
   """
   def run_ids_query(project_id, coverage) do
-    query =
-      from(c in CoverageRun,
-        where: c.project_id == ^project_id,
-        group_by: c.test_run_id,
-        having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
-        select: c.test_run_id
-      )
+    query = from(r in subquery(run_totals_query(project_id)), select: r.test_run_id)
 
     case coverage do
-      :full -> from(c in query, having: fragment("argMax(?, ?)", c.partial, c.version) == false)
-      :partial -> from(c in query, having: fragment("argMax(?, ?)", c.partial, c.version) == true)
+      :full -> from(r in query, where: r.partial == false)
+      :partial -> from(r in query, where: r.partial == true)
       _ -> query
     end
   end
@@ -410,6 +470,38 @@ defmodule Tuist.Tests.Coverage do
         ]
       )
     )
+  end
+
+  @doc """
+  Every product file of the run with its shards' reports merged: path, blob,
+  targets and line counts, without the line data. What a comparison of two
+  runs reads.
+  """
+  def merged_files(project_id, test_run_id) do
+    ClickHouseRepo.all(from(f in subquery(merged_files_query(project_id, test_run_id)), order_by: f.path))
+  end
+
+  @doc """
+  The merged per-line execution counts of the given paths in the run, keyed
+  by path, as `{line, count}` pairs in line order. A path with no line data
+  (its archive entry was missing) maps to an empty list.
+  """
+  def line_counts(_project_id, _test_run_id, []), do: %{}
+
+  def line_counts(project_id, test_run_id, paths) do
+    from(f in report_files(project_id, test_run_id),
+      where: f.path in ^paths and not f.is_test,
+      select: {f.path, f.line_numbers, f.execution_counts}
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
+    |> Map.new(fn {path, rows} ->
+      {path,
+       rows
+       |> List.flatten()
+       |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
+       |> Enum.sort()}
+    end)
   end
 
   @doc """
@@ -501,10 +593,12 @@ defmodule Tuist.Tests.Coverage do
     }
   end
 
-  # Runs of executable lines no test ran, in the order of the executable lines:
-  # the non-executable lines between two uncovered ones (blank lines, comments)
-  # do not split a range.
-  defp uncovered_ranges(lines) do
+  @doc """
+  Runs of executable lines no test ran, from `{line, count}` pairs in line
+  order: the non-executable lines between two uncovered ones (blank lines,
+  comments) do not split a range.
+  """
+  def uncovered_ranges(lines) do
     lines
     |> Enum.chunk_by(fn {_line, count} -> count == 0 end)
     |> Enum.filter(fn [{_line, count} | _] -> count == 0 end)

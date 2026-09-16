@@ -15,6 +15,7 @@ defmodule Tuist.VCS do
   alias Tuist.Bundles.Bundle
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client
   alias Tuist.Gradle
   alias Tuist.KeyValueStore
@@ -22,6 +23,8 @@ defmodule Tuist.VCS do
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
@@ -356,7 +359,7 @@ defmodule Tuist.VCS do
 
     args
     |> RemoteURL.strip_credentials_from_params()
-    |> CommentWorker.new(schedule_in: schedule_in)
+    |> CommentWorker.new(schedule_in: schedule_in, replace: [scheduled: [:scheduled_at, :args]])
     |> Oban.insert()
   end
 
@@ -879,13 +882,70 @@ defmodule Tuist.VCS do
 
     "| #{Enum.map_join(columns, " | ", fn {header, _, _} -> header end)} |\n" <>
       "|#{Enum.map_join(columns, "|", fn _ -> ":-:" end)}|\n" <>
-      Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end)
+      Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end) <>
+      get_coverage_body(%{test_runs: test_runs, test_run_url: test_run_url, project: project})
   end
 
   defp test_modules_text(%{has_selective_testing_data: true} = metrics),
     do: "#{metrics.ran_test_modules}/#{metrics.ran_test_modules + metrics.skipped_test_modules}"
 
   defp test_modules_text(metrics), do: metrics.ran_test_modules
+
+  # One row per run that gathered coverage: the total and how it compares with
+  # the baseline, the patch coverage, and the changed files no test executed.
+  # A run whose baseline could not be resolved says why rather than comparing
+  # against another run. Nothing when no run gathered coverage.
+  defp get_coverage_body(%{test_runs: test_runs, test_run_url: test_run_url, project: project}) do
+    if FeatureFlags.xcode_coverage_enabled?(project.account) do
+      totals = Coverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id))
+
+      rows =
+        test_runs
+        |> Enum.filter(&Map.has_key?(totals, &1.id))
+        |> Enum.map_join("", fn test_run ->
+          comparison = Comparison.compare(project, test_run, run_summary: Map.fetch!(totals, test_run.id))
+          scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+          coverage_url = test_run_url.(%{project: project, test_run: test_run}) <> "?tab=coverage"
+
+          "| [#{scheme}](#{coverage_url}) | #{coverage_total_text(comparison)} | #{coverage_delta_text(comparison)} | #{coverage_patch_text(comparison)} | #{coverage_gaps_text(comparison)} |\n"
+        end)
+
+      if rows == "" do
+        ""
+      else
+        "\n**Coverage**\n\n" <>
+          "| Scheme | Coverage | Change | Patch | Gaps |\n" <>
+          "|:-:|:-:|:-:|:-:|:-:|\n" <>
+          rows
+      end
+    else
+      ""
+    end
+  end
+
+  defp coverage_total_text(%{run: %{partial: true, coverage: coverage}}), do: "#{coverage}% (partial)"
+  defp coverage_total_text(%{run: %{coverage: coverage}}), do: "#{coverage}%"
+
+  defp coverage_delta_text(%{total_delta: delta, baseline: baseline}) when is_float(delta) do
+    "#{signed_delta(delta)} pp (#{baseline.coverage}% at #{String.slice(baseline.commit, 0, 7)})"
+  end
+
+  defp coverage_delta_text(%{run: %{partial: true}}), do: "not compared (partial run)"
+  defp coverage_delta_text(%{baseline_reason: reason}), do: "no baseline: #{Comparison.reason_text(reason)}"
+
+  defp coverage_patch_text(%{patch: %{status: :available, executable_lines: 0}}), do: "no changed lines"
+
+  defp coverage_patch_text(%{patch: %{status: :available} = patch}),
+    do: "#{patch.coverage}% (#{patch.covered_lines}/#{patch.executable_lines})"
+
+  defp coverage_patch_text(%{patch: patch}), do: "unavailable: #{Comparison.reason_text(patch)}"
+
+  defp coverage_gaps_text(%{gaps: []}), do: "none"
+  defp coverage_gaps_text(%{gaps: [gap]}), do: "`#{gap.path}`"
+  defp coverage_gaps_text(%{gaps: gaps}), do: "#{length(gaps)} files"
+
+  defp signed_delta(delta) when delta > 0, do: "+#{delta}"
+  defp signed_delta(delta), do: "#{delta}"
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
