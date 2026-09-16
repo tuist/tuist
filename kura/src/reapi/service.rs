@@ -782,6 +782,7 @@ impl ReapiService {
                     &resource.key,
                     "application/octet-stream",
                     StagedArtifactPath::new(temp_path, file_cache_policy),
+                    None,
                 )
                 .await
         }
