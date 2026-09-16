@@ -127,6 +127,36 @@
           selected={@analytics_selected_widget == "failed_test_run_count"}
           empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
         />
+        <.widget
+          :if={@coverage_enabled}
+          loading={!@test_runs_coverage_analytics.ok?}
+          title={dgettext("dashboard_tests", "Line coverage")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Share of executable lines covered across the test runs that gathered code coverage."
+            )
+          }
+          value={
+            if @test_runs_coverage_analytics.ok?,
+              do: "#{@test_runs_coverage_analytics.result.coverage}%"
+          }
+          id="widget-coverage"
+          legend_color="tertiary"
+          trend_value={
+            if @test_runs_coverage_analytics.ok?, do: @test_runs_coverage_analytics.result.trend
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="coverage"
+          selected={@analytics_selected_widget == "coverage"}
+          empty={
+            @test_runs_coverage_analytics.ok? &&
+              @test_runs_coverage_analytics.result.runs_count == 0
+          }
+          empty_label={dgettext("dashboard_tests", "No coverage yet")}
+        />
         <.percentile_dropdown_widget
           loading={!@test_runs_duration_analytics.ok?}
           id="widget-test-run-duration"
@@ -214,11 +244,13 @@
              (@analytics_selected_widget == "test_run_count" and
                 @test_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "failed_test_run_count" and
-                @failed_test_runs_analytics.result.count != 0))
+                @failed_test_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "coverage" and
+                @test_runs_coverage_analytics.result.runs_count != 0))
       }>
         <div data-part="analytics-chart">
           <.chart
-            :if={@analytics_selected_widget != "test_run_duration"}
+            :if={@analytics_selected_widget not in ["test_run_duration", "coverage"]}
             id="test-runs-analytics-chart"
             type="line"
             extra_options={
@@ -283,6 +315,75 @@
               }
             ]}
             y_axis_min={0}
+          />
+          <.chart
+            :if={@coverage_enabled and @analytics_selected_widget == "coverage"}
+            id="coverage-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @analytics_chart_data.result.dates |> List.first(),
+                      @analytics_chart_data.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}%"
+                  }
+                },
+                legend: %{
+                  show: false
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{dateFormat: "hour", valueFormat: "{value}%"}
+                  else
+                    %{valueFormat: "{value}%"}
+                  end
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-tertiary",
+                data:
+                  Enum.zip(
+                    @analytics_chart_data.result.dates,
+                    @analytics_chart_data.result.values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: @analytics_chart_data.result.name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "circle",
+                symbolSize: 4,
+                connectNulls: true
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
           />
           <.chart
             :if={@analytics_selected_widget == "test_run_duration"}
@@ -495,6 +596,17 @@
               :if={test_run.status == "failed_processing"}
               label={dgettext("dashboard_tests", "Failed processing")}
               status="warning"
+            />
+          </:col>
+          <:col
+            :let={test_run}
+            :if={@coverage_enabled}
+            label={dgettext("dashboard_tests", "Coverage")}
+          >
+            <.text_cell
+              label={coverage_label(@coverage_by_run[test_run.id])}
+              sublabel={coverage_sublabel(@coverage_by_run[test_run.id])}
+              title={coverage_title(@coverage_by_run[test_run.id])}
             />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>

@@ -187,4 +187,123 @@ defmodule TuistWeb.TestRunsLiveTest do
       refute html =~ "Queued"
     end
   end
+
+  describe "code coverage" do
+    @render_async_timeout 1000
+
+    defp coverage_run(project, organization, scheme, opts) do
+      lines = Keyword.fetch!(opts, :lines)
+
+      {:ok, test_run} =
+        Tuist.Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: organization.account.id,
+          duration: 1000,
+          status: "success",
+          scheme: scheme,
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
+          is_ci: true,
+          test_modules: [],
+          xcode_coverage: %{
+            partial: Keyword.get(opts, :partial, false),
+            files: [
+              %{
+                path: "Sources/Add.swift",
+                git_blob_id: "abc",
+                targets: ["Calculator"],
+                covered_lines: Enum.count(lines, &(&1 > 0)),
+                executable_lines: length(lines),
+                line_numbers: Enum.to_list(1..length(lines)),
+                execution_counts: lines,
+                functions: []
+              }
+            ]
+          }
+        })
+
+      test_run
+    end
+
+    test "shows the line coverage widget and a run's coverage in the table", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
+      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      render_async(lv, @render_async_timeout)
+
+      # The widget leaves the partial run out, as the tests overview does.
+      assert has_element?(lv, "#widget-coverage", "75.0%")
+
+      table = lv |> element("#test-runs-table") |> render()
+      assert table =~ "75.0%"
+      assert table =~ "25.0%"
+      # The full run is marked F, the partial one P.
+      assert table =~ ~s(<span data-part="sublabel">F</span>)
+      assert table =~ ~s(<span data-part="sublabel">P</span>)
+    end
+
+    test "filters the runs by their coverage", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
+      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
+
+      {:ok, _run_without_coverage} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "SchemeNone",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)
+        )
+
+      full =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "full"})
+        |> render()
+
+      assert full =~ "SchemeFull"
+      refute full =~ "SchemePartial"
+      refute full =~ "SchemeNone"
+
+      partial =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "partial"})
+        |> render()
+
+      assert partial =~ "SchemePartial"
+      refute partial =~ "SchemeFull"
+      refute partial =~ "SchemeNone"
+
+      any =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "any"})
+        |> render()
+
+      assert any =~ "SchemeFull"
+      assert any =~ "SchemePartial"
+      refute any =~ "SchemeNone"
+    end
+
+    defp live_table(conn, organization, project, filters) do
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/tests/test-runs?#{URI.encode_query(filters)}"
+        )
+
+      render_async(lv, @render_async_timeout)
+      element(lv, "#test-runs-table")
+    end
+  end
 end
