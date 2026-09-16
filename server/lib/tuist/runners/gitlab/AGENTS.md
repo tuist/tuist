@@ -16,9 +16,13 @@ assignment upstream if persistence fails.
   guard. Self-managed instances must be reachable over public HTTPS.
 - Assignment responses contain objects; successful job updates may return a
   scalar JSON status. Check cancellation headers before HTTP error handling.
-- Queue at most five waiting assignments per connection, refresh their status,
-  and fail them after ten minutes without a machine. A stopped machine fails
-  through GitLab with `runner_system_failure`; never replay its job response.
+- Queue at most five waiting assignments per connection and refresh their
+  status. GitLab starts a job's timeout at acquisition, so never fail an
+  assignment for waiting before that timeout (capped by payload retention),
+  and stop acquiring while queued assignments take the account's remaining
+  concurrency for their shape. Settlement, not the retention purge, clears
+  waiting payloads. A stopped machine fails through GitLab with
+  `runner_system_failure`; never replay its job response.
 - Poll-worker uniqueness expires after two minutes so a server restart does
   not block a connection until the global Oban rescue interval elapses.
 - Clear execution payloads on completion and after twelve hours. Retain only
