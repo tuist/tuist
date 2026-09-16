@@ -102,7 +102,7 @@ defmodule AtlasWeb.Admin.MemoryLiveTest do
   end
 
   test "renders the memory explorer for employees", %{conn: conn} do
-    {conn, _employee} = log_in_user(conn, %{role: :employee})
+    {conn, _employee} = log_in_user(conn, %{role: :executive})
     {:ok, node} = Memory.create_node(%{kind: :fact, body: "Acme renews in Q3 2026."})
 
     {:ok, view, _html} = live(conn, ~p"/admin/memory")
@@ -113,7 +113,7 @@ defmodule AtlasWeb.Admin.MemoryLiveTest do
   end
 
   test "keeps the legacy admin memory URL available to authenticated users", %{conn: conn} do
-    {conn, _employee} = log_in_user(conn, %{role: :employee})
+    {conn, _employee} = log_in_user(conn, %{role: :executive})
     {:ok, _node} = Memory.create_node(%{kind: :fact, body: "Acme renews in Q3 2026."})
 
     {:ok, view, _html} = live(conn, ~p"/admin/memory")

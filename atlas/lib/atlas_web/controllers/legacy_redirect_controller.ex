@@ -11,7 +11,9 @@ defmodule AtlasWeb.LegacyRedirectController do
   def sales(conn, %{"rest" => rest}), do: moved(conn, "/commercial/sales/" <> Enum.join(rest, "/"), conn.query_string)
 
   def finance_index(conn, _params), do: moved(conn, "/commercial/finance")
-  def finance(conn, %{"rest" => rest}), do: moved(conn, "/commercial/finance/" <> Enum.join(rest, "/"), conn.query_string)
+
+  def finance(conn, %{"rest" => rest}),
+    do: moved(conn, "/commercial/finance/" <> Enum.join(rest, "/"), conn.query_string)
 
   def gtm(conn, %{"rest" => rest}), do: moved(conn, "/commercial/gtm/" <> Enum.join(rest, "/"), conn.query_string)
 
@@ -23,7 +25,9 @@ defmodule AtlasWeb.LegacyRedirectController do
   def postal_index(conn, _params), do: moved(conn, "/outbound/postal")
 
   def hardware_index(conn, _params), do: moved(conn, "/operations/hardware")
-  def hardware(conn, %{"rest" => rest}), do: moved(conn, "/operations/hardware/" <> Enum.join(rest, "/"), conn.query_string)
+
+  def hardware(conn, %{"rest" => rest}),
+    do: moved(conn, "/operations/hardware/" <> Enum.join(rest, "/"), conn.query_string)
 
   def documents_index(conn, _params), do: moved(conn, "/library/documents")
   def documents_show(conn, %{"id" => id}), do: moved(conn, "/library/documents/#{id}")

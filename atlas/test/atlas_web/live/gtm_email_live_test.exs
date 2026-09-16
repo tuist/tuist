@@ -191,7 +191,10 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_subscriber(%{email: "subscribed@example.com", source: "website", status: "subscribed"})
 
     {:ok, view, _html} =
-      live(conn, ~p"/outbound/email?#{%{"filter_subscribers_status_op" => "!=", "filter_subscribers_status_val" => "pending"}}")
+      live(
+        conn,
+        ~p"/outbound/email?#{%{"filter_subscribers_status_op" => "!=", "filter_subscribers_status_val" => "pending"}}"
+      )
 
     assert has_element?(view, "#email-subscribers-table", "subscribed@example.com")
     refute has_element?(view, "#email-subscribers-table", "pending@example.com")

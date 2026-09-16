@@ -30,7 +30,12 @@ defmodule AtlasWeb.AccountsLiveTest do
 
     assert has_element?(view, "#accounts")
     assert has_element?(view, "#accounts-filters-dropdown")
-    assert has_element?(view, ~s(#accounts-table tr[id="#{account.id}"] a[href="/commercial/sales/accounts/#{account.id}"]))
+
+    assert has_element?(
+             view,
+             ~s(#accounts-table tr[id="#{account.id}"] a[href="/commercial/sales/accounts/#{account.id}"])
+           )
+
     assert has_element?(view, "#accounts-table [data-type='text_and_description'] [data-part='label']", "Acme")
     assert has_element?(view, "#accounts-table", "Lifecycle")
     assert has_element?(view, "#accounts-table", "Customer")

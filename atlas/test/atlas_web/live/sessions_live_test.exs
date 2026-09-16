@@ -10,7 +10,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   alias Condukt.SessionID
 
   test "lists recent agent sessions newest first", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "sessions-list@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "sessions-list@example.com", role: :executive})
 
     account = insert_account!(%{account_key: "sessions:list", name: "Sessions List"})
     older = insert_session!(%{agent: "Older", started_at: ~U[2026-05-01 10:00:00.000000Z], account_id: account.id})
@@ -32,7 +32,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "paginates the sessions list when there are more than one page", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "sessions-paginate@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "sessions-paginate@example.com", role: :executive})
 
     base = ~U[2026-05-01 10:00:00.000000Z]
 
@@ -69,7 +69,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "does not render the pagination control when results fit in one page", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "sessions-no-pagination@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "sessions-no-pagination@example.com", role: :executive})
 
     insert_session!(%{agent: "OnlyOne"})
 
@@ -79,7 +79,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "renders the empty state when no sessions exist", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "sessions-empty@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "sessions-empty@example.com", role: :executive})
 
     {:ok, _view, html} = live(conn, ~p"/admin/sessions")
 
@@ -87,7 +87,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "session detail page shows prompt, status, and event timeline", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "session-detail@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "session-detail@example.com", role: :executive})
 
     account = insert_account!(%{account_key: "sessions:detail", name: "Detail Account"})
 
@@ -121,7 +121,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "session detail page renders the transcript when llm_turn events exist", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "session-transcript@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "session-transcript@example.com", role: :executive})
 
     session =
       insert_session!(%{
@@ -169,7 +169,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "session detail page interleaves tool_call and lifecycle items in the activity feed", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "session-activity@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "session-activity@example.com", role: :executive})
 
     session = insert_session!(%{agent: "Atlas.Test.Agent", status: "succeeded", duration_ms: 500})
 
@@ -225,7 +225,7 @@ defmodule AtlasWeb.SessionsLiveTest do
   end
 
   test "session detail page redirects when the id is unknown", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "session-missing@example.com"})
+    {conn, _user} = log_in_user(conn, %{email: "session-missing@example.com", role: :executive})
 
     assert {:error, {:live_redirect, %{to: "/admin/sessions"}}} =
              live(conn, ~p"/admin/sessions/#{SessionID.generate()}")

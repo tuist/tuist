@@ -56,7 +56,13 @@ defmodule AtlasWeb.GTMLiveTest do
     assert has_element?(view, "#new-social-idea-modal [data-part='trigger']", "New social idea")
     assert has_element?(view, ~s(#sidebar-gtm a[href="/commercial/gtm/social"] [data-selected]))
     assert has_element?(view, "#gtm-social-ideas-table", "Share the cache chart")
-    assert has_element?(view, ~s(#gtm-social-ideas-table a[href="/commercial/gtm/social/#{idea.id}"]), "Share the cache chart")
+
+    assert has_element?(
+             view,
+             ~s(#gtm-social-ideas-table a[href="/commercial/gtm/social/#{idea.id}"]),
+             "Share the cache chart"
+           )
+
     assert has_element?(view, "#social-idea-actions-#{idea.id}")
   end
 

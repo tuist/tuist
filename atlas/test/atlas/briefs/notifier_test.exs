@@ -194,8 +194,11 @@ defmodule Atlas.Briefs.NotifierTest do
     assert "*Recommended focus*\n• Review the largest recurring operating costs." in text_blocks
 
     assert Enum.any?(blocks, fn
-             %{"type" => "actions", "elements" => [%{"url" => url}]} -> url == "#{AtlasWeb.Endpoint.url()}/commercial/finance"
-             _block -> false
+             %{"type" => "actions", "elements" => [%{"url" => url}]} ->
+               url == "#{AtlasWeb.Endpoint.url()}/commercial/finance"
+
+             _block ->
+               false
            end)
 
     refute Enum.any?(blocks, &(&1["type"] == "actions" and get_in(&1, ["elements", Access.at(0), "action_id"])))
