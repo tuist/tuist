@@ -109,7 +109,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         path: AbsolutePath,
         disableSandbox: Bool
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
-        let config = try await configLoader.loadConfig(path: path)
+        let config = try await timed("loading the configuration") { try await configLoader.loadConfig(path: path) }
         let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
         let manifestGlobDurations = ManifestGlobDurations()
         defer {
@@ -155,15 +155,20 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         {
             let swiftPackageManagerArguments = config.project.generatedProject?.installOptions
                 .passthroughSwiftPackageManagerArguments ?? []
-            swiftPackageManagerScratchDirectory = try await self.swiftPackageManagerScratchDirectory(
-                packagePath: packagePath.parentDirectory,
-                arguments: swiftPackageManagerArguments
-            )
-            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
-                at: packagePath.parentDirectory,
-                with: plugins,
-                disableSandbox: disableSandbox
-            )
+            let (scratchDirectory, loadedPackageSettings) = try await timed("loading package settings") {
+                (
+                    try await self.swiftPackageManagerScratchDirectory(
+                        packagePath: packagePath.parentDirectory,
+                        arguments: swiftPackageManagerArguments
+                    ),
+                    try await packageSettingsLoader.loadPackageSettings(
+                        at: packagePath.parentDirectory,
+                        with: plugins,
+                        disableSandbox: disableSandbox
+                    )
+                )
+            }
+            swiftPackageManagerScratchDirectory = scratchDirectory
 
             let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await timed("loading the Swift package graph") {
                 try await swiftPackageManagerGraphLoader.load(
@@ -253,10 +258,12 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         }
 
         // Validate scheme code coverage references pointing at local Swift packages
-        let (validatedGraph, coverageLintingIssues) = try await localPackageCoverageTargetsValidator.validate(
-            graph: mappedGraph,
-            disableSandbox: disableSandbox
-        )
+        let (validatedGraph, coverageLintingIssues) = try await timed("validating local package coverage targets") {
+            try await localPackageCoverageTargetsValidator.validate(
+                graph: mappedGraph,
+                disableSandbox: disableSandbox
+            )
+        }
 
         return (
             validatedGraph,
