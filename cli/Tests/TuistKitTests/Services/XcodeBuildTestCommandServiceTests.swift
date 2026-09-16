@@ -66,6 +66,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(xcResultService)
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(nil)
@@ -176,7 +179,7 @@ struct XcodeBuildTestCommandServiceTests {
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
         // Then
-        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
+        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", "\(uniqueID).xcresult")
         verify(xcodeBuildController)
             .run(arguments: .value([
                 "test",
@@ -255,6 +258,9 @@ struct XcodeBuildTestCommandServiceTests {
 
             xcResultService.reset()
             given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
             given(xcResultService)
@@ -280,6 +286,7 @@ struct XcodeBuildTestCommandServiceTests {
             given(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -297,6 +304,7 @@ struct XcodeBuildTestCommandServiceTests {
             verify(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -336,6 +344,9 @@ struct XcodeBuildTestCommandServiceTests {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
         given(xcResultService)
@@ -357,6 +368,7 @@ struct XcodeBuildTestCommandServiceTests {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -384,6 +396,7 @@ struct XcodeBuildTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -446,6 +459,7 @@ struct XcodeBuildTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,

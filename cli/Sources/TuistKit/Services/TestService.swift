@@ -134,6 +134,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
     private let casProxyFailureService: CASProxyFailureServicing
+    private let coverageBuildSourcesService: CoverageBuildSourcesService
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -177,8 +178,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
         stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
+        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService(),
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
+        self.coverageBuildSourcesService = coverageBuildSourcesService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -290,6 +293,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
         let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+        await RunMetadataStorage.current.update(
+            skippedQuarantinedTestIdentifiers: Set(skippedQuarantinedTests.map(\.description))
+        )
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -602,6 +608,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 writtenGraphDirectories.insert(testProductsPath)
 
                 await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
+                await coverageBuildSourcesService.write(to: testProductsPath, config: config)
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -2352,6 +2359,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,

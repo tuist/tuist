@@ -175,6 +175,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -200,6 +201,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -1801,6 +1805,9 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
         given(xcResultService)
@@ -1965,6 +1972,9 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
@@ -4103,6 +4113,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
             xcResultService.reset()
             given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
             given(xcResultService)
@@ -4113,6 +4126,7 @@ final class TestServiceTests: TuistUnitTestCase {
             given(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -4924,6 +4938,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -5022,6 +5039,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -5103,6 +5123,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -5189,6 +5212,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -6154,6 +6180,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(

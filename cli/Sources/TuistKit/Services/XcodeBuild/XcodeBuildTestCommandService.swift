@@ -150,6 +150,16 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments += shard.skipTestIdentifiers.flatMap { ["-skip-testing", $0] }
         }
 
+        if passthroughXcodebuildArguments.contains("test-without-building"),
+           let testProductsPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments),
+           let testProductsPath = try? AbsolutePath(
+               validating: testProductsPathString,
+               relativeTo: try await Environment.current.currentWorkingDirectory()
+           )
+        {
+            await RunMetadataStorage.current.restoreCoverageBuildSources(from: testProductsPath)
+        }
+
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {
@@ -375,9 +385,11 @@ struct XcodeBuildTestCommandService {
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
             return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
+            // With the extension: xcodebuild writes the bundle exactly there, and xccov only
+            // accepts a path that ends in `.xcresult`.
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: uniqueIDGenerator.uniqueID())
+                .appending(component: "\(uniqueIDGenerator.uniqueID()).xcresult")
             return (
                 additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
@@ -550,6 +562,7 @@ extension XcodeBuildTestCommandService {
                 guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,

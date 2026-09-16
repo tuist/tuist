@@ -44,6 +44,10 @@ Compatibility surfaces:
 - `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
 - `React Native Metro`: `HttpStore` / `HttpGetStore` on `GET/PUT /api/metro/cache/{cache_key}`
 
+## Bazel dependency downloads
+
+Kura supports Remote Asset `FetchBlob`: it fetches and verifies dependency archives once, stores them in the project CAS, and serves subsequent builds without contacting the origin while the bytes remain cached. `tuist bazel setup --remote-downloader` explicitly enables it with local fallback after the runtime and gateway are deployed. Ordinary setup leaves it disabled. Fetches are capped at three minutes overall and 60 seconds per mirror. See [configuration, supported qualifiers, limits and rollout](docs/remote-assets.md).
+
 ## Local stack 🧪
 
 Run:

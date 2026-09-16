@@ -50,12 +50,14 @@ import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
+import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let Hooks = {};
+Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
