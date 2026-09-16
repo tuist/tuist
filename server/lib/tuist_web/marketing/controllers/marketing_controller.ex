@@ -1222,8 +1222,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
   end
 
+  # The verify pages render the visitor's email address and signed token,
+  # and the confirm form's CSRF token only validates for the session that
+  # rendered it, so shared caches must not store them.
   defp assign_newsletter_verify_head(conn) do
     conn
+    |> put_resp_header("cache-control", "private, no-store")
     |> assign(
       :head_image,
       SocialCards.image_url("newsletter")

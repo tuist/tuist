@@ -3,7 +3,9 @@ defmodule Tuist.Kura.DemandTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Demand
   alias Tuist.Repo
@@ -119,6 +121,24 @@ defmodule Tuist.Kura.DemandTest do
       assert :ok = Demand.record(nil)
       assert {:ok, 0} = Demand.flush()
     end
+
+    test "skips an account deleted after its region was resolved" do
+      deleted = air_account()
+      live = air_account()
+
+      stub(AccountPolicies, :serving_regions_all, fn accounts ->
+        resolutions = Mimic.call_original(AccountPolicies, :serving_regions_all, [accounts])
+        Repo.delete_all(from(a in Account, where: a.id == ^deleted.id))
+        resolutions
+      end)
+
+      Demand.record(deleted.id)
+      Demand.record(live.id)
+
+      assert {:ok, 1} = Demand.flush()
+      assert Demand.get(deleted.id, "us-east") == nil
+      assert %AccountRegionLifecycle{} = Demand.get(live.id, "us-east")
+    end
   end
 
   describe "upsert_many/1" do
@@ -149,6 +169,20 @@ defmodule Tuist.Kura.DemandTest do
                Demand.get(second.id, "eu-west").last_cache_demand_at,
                DateTime.truncate(earlier, :second)
              ) == :eq
+    end
+
+    test "skips rows for accounts that no longer exist" do
+      live = air_account()
+      deleted = air_account()
+      Repo.delete_all(from(a in Account, where: a.id == ^deleted.id))
+
+      assert {:ok, 1} =
+               Demand.upsert_many([
+                 %{account_id: live.id, service_region: "us-east", last_cache_demand_at: DateTime.utc_now()},
+                 %{account_id: deleted.id, service_region: "us-east", last_cache_demand_at: DateTime.utc_now()}
+               ])
+
+      assert %AccountRegionLifecycle{} = Demand.get(live.id, "us-east")
     end
 
     test "is a no-op on an empty batch" do

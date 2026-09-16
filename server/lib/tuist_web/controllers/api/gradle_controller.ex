@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.GradleExecution
@@ -306,7 +307,7 @@ defmodule TuistWeb.API.GradleController do
     Tuist.VCS.enqueue_vcs_pull_request_comment(%{
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
-      git_remote_url_origin: body[:git_remote_url_origin],
+      git_remote_url_origin: RemoteURL.strip_credentials(body[:git_remote_url_origin]),
       project_id: project.id
     })
   end
