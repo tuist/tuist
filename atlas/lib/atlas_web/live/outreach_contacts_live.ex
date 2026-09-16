@@ -100,7 +100,7 @@ defmodule AtlasWeb.OutreachContactsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/gtm/outreach?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/gtm/outreach?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -110,7 +110,7 @@ defmodule AtlasWeb.OutreachContactsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/gtm/outreach?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/gtm/outreach?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -350,7 +350,7 @@ defmodule AtlasWeb.OutreachContactsLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Contact not found."))
-        |> push_navigate(to: ~p"/gtm/outreach")
+        |> push_navigate(to: ~p"/commercial/gtm/outreach")
 
       contact ->
         recommendation = Outreach.current_recommendation(contact)
@@ -543,7 +543,7 @@ defmodule AtlasWeb.OutreachContactsLive do
               )
             }
             rows={if(@contacts_empty?, do: [], else: @contacts)}
-            row_navigate={fn {_dom_id, contact} -> ~p"/gtm/outreach/#{contact.id}" end}
+            row_navigate={fn {_dom_id, contact} -> ~p"/commercial/gtm/outreach/#{contact.id}" end}
           >
             <:col
               :let={{_dom_id, contact}}
@@ -640,7 +640,7 @@ defmodule AtlasWeb.OutreachContactsLive do
             <div data-part="contact-meta">
               <span>{@contact.title}</span>
               <span :if={@contact.title && @contact.account.name}>·</span>
-              <.link navigate={~p"/sales/accounts/#{@contact.account.id}"}>
+              <.link navigate={~p"/commercial/sales/accounts/#{@contact.account.id}"}>
                 {@contact.account.name}
               </.link>
             </div>
@@ -1176,7 +1176,7 @@ defmodule AtlasWeb.OutreachContactsLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Contact not found."))
-        |> push_navigate(to: ~p"/gtm/outreach")
+        |> push_navigate(to: ~p"/commercial/gtm/outreach")
 
       contact ->
         previous_id = recommendation_id(socket.assigns.recommendation)
@@ -1391,7 +1391,7 @@ defmodule AtlasWeb.OutreachContactsLive do
       |> Query.put_present("sort-order", if(sort_by, do: sort_order))
       |> Map.merge(Filter.Operations.encode_filters_to_query(active_filters))
 
-    if map_size(params) == 0, do: ~p"/gtm/outreach", else: ~p"/gtm/outreach?#{params}"
+    if map_size(params) == 0, do: ~p"/commercial/gtm/outreach", else: ~p"/commercial/gtm/outreach?#{params}"
   end
 
   defp normalize_sort_by(value) when value in ~w(full_name last_outreach_at outreach_enrolled_at), do: value

@@ -265,7 +265,7 @@ defmodule Atlas.Accounts.AccountAttention do
       target_id: account.id,
       target_label: account.name,
       metadata: %{
-        "path" => "/sales/accounts/#{account.id}",
+        "path" => "/commercial/sales/accounts/#{account.id}",
         "suggestion_count" => length(suggestions)
       }
     })
@@ -280,7 +280,7 @@ defmodule Atlas.Accounts.AccountAttention do
         Map.merge(
           %{
             "account_id" => suggestion.account_id,
-            "path" => "/sales/accounts/#{suggestion.account_id}",
+            "path" => "/commercial/sales/accounts/#{suggestion.account_id}",
             "status" => suggestion.status
           },
           metadata

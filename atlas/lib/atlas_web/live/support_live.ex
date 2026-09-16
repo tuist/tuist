@@ -49,7 +49,7 @@ defmodule AtlasWeb.SupportLive do
       |> Map.put("q", String.trim(query))
       |> Map.delete("page")
 
-    {:noreply, push_patch(socket, to: ~p"/support?#{params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/commercial/support?#{params}", replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -60,7 +60,7 @@ defmodule AtlasWeb.SupportLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/support?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/support?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})}
   end
 
@@ -72,7 +72,7 @@ defmodule AtlasWeb.SupportLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/support?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/support?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})}
   end
 
@@ -82,7 +82,7 @@ defmodule AtlasWeb.SupportLive do
         {:noreply,
          socket
          |> put_flash(:info, status_message(status))
-         |> push_patch(to: ~p"/support?#{queue_params(socket)}", replace: true)}
+         |> push_patch(to: ~p"/commercial/support?#{queue_params(socket)}", replace: true)}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, gettext("Could not update the conversation."))}
@@ -108,7 +108,7 @@ defmodule AtlasWeb.SupportLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Conversation assigned."))
-         |> push_patch(to: ~p"/support?#{queue_params(socket)}", replace: true)}
+         |> push_patch(to: ~p"/commercial/support?#{queue_params(socket)}", replace: true)}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, gettext("Could not assign the conversation."))}
@@ -191,7 +191,7 @@ defmodule AtlasWeb.SupportLive do
         {:noreply,
          socket
          |> put_flash(:info, reply_confirmation(message))
-         |> push_navigate(to: ~p"/support/#{socket.assigns.thread.id}")}
+         |> push_navigate(to: ~p"/commercial/support/#{socket.assigns.thread.id}")}
 
       {:error, :body_required} ->
         {:noreply, put_flash(socket, :error, gettext("Write a reply before sending."))}
@@ -418,7 +418,7 @@ defmodule AtlasWeb.SupportLive do
           <tbody :if={!@threads_empty?} id="support-threads-table-body" phx-update="stream">
             <tr :for={{dom_id, thread} <- @threads} id={dom_id} data-part="thread-row">
               <td data-selectable>
-                <.link navigate={~p"/support/#{thread.id}"} data-part="row-link">
+                <.link navigate={~p"/commercial/support/#{thread.id}"} data-part="row-link">
                   <.text_and_description_cell
                     label={thread.subject || gettext("Untitled conversation")}
                     description={customer_label(thread)}
@@ -514,7 +514,7 @@ defmodule AtlasWeb.SupportLive do
       label={gettext("Support")}
       variant="secondary"
       size="medium"
-      navigate={~p"/support"}
+      navigate={~p"/commercial/support"}
       data-part="back-button"
     >
       <:icon_left><.icon name="arrow_left" /></:icon_left>
@@ -826,7 +826,7 @@ defmodule AtlasWeb.SupportLive do
               <span data-part="detail-label">{gettext("Account")}</span>
               <.link
                 :if={@thread.account}
-                navigate={~p"/sales/accounts/#{@thread.account.id}"}
+                navigate={~p"/commercial/sales/accounts/#{@thread.account.id}"}
                 data-part="account-link"
               >
                 {@thread.account.name}
@@ -897,7 +897,7 @@ defmodule AtlasWeb.SupportLive do
       nil ->
         socket
         |> put_flash(:error, gettext("Conversation not found."))
-        |> push_navigate(to: ~p"/support")
+        |> push_navigate(to: ~p"/commercial/support")
 
       thread ->
         socket
@@ -955,7 +955,7 @@ defmodule AtlasWeb.SupportLive do
       |> Map.merge(Filter.Operations.encode_filters_to_query(active_filters))
       |> Map.merge(Map.new(opts))
 
-    ~p"/support?#{params}"
+    ~p"/commercial/support?#{params}"
   end
 
   defp normalize_status(status) when status in ["open", "waiting", "resolved", "all"], do: status

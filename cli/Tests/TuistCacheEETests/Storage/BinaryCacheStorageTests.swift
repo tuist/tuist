@@ -103,9 +103,14 @@ struct BinaryCacheStorageTests {
         await remote.failUploads()
         let artifact = directory.appending(component: "Shared.xcframework")
         try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
-        #expect(try await subject(directory.appending(component: "cache"), remote: remote)
-            .store([item("combined", fingerprints): [artifact]], cacheCategory: .binaries).isEmpty)
+        let cache = subject(directory.appending(component: "cache"), remote: remote)
+        let target = item("combined", fingerprints)
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await cache.store([target: [artifact]], cacheCategory: .binaries)
+        }
+        #expect(error?.failures.map(\.item) == [target])
         #expect(await remote.actions.isEmpty)
+        #expect(try await cache.fetch([target], cacheCategory: .binaries).count == 1)
     }
 
     @Test(.inTemporaryDirectory) func preservesSDKSymbolsAndStoresExternalCompanionsInExactREAPITree() async throws {
@@ -321,11 +326,13 @@ struct BinaryCacheStorageTests {
         let remote = MemoryREAPICache()
         await remote.failUpload(REAPI.digest(Data("failed".utf8)))
         let healthy = item("good", [:])
-        let result = try await subject(directory.appending(component: "producer"), remote: remote).store([
-            healthy: [good], item("failed", [:]): [failed],
-            item("invalid", [:]): [directory.appending(component: "missing.bundle")],
-        ], cacheCategory: .binaries)
-        #expect(result == [healthy])
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject(directory.appending(component: "producer"), remote: remote).store([
+                healthy: [good], item("failed", [:]): [failed],
+                item("invalid", [:]): [directory.appending(component: "missing.bundle")],
+            ], cacheCategory: .binaries)
+        }
+        #expect(error?.failures.map(\.item.hash).sorted() == ["failed", "invalid"])
         #expect(await remote.actions.count == 1)
         let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
             .fetch([healthy], cacheCategory: .binaries).values.first)

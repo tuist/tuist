@@ -17,7 +17,7 @@ defmodule AtlasWeb.FinancingsLiveTest do
 
     financing = insert_financing!()
 
-    {:ok, view, _html} = live(conn, ~p"/hardware/financings")
+    {:ok, view, _html} = live(conn, ~p"/operations/hardware/financings")
 
     assert has_element?(view, "#financings")
     assert has_element?(view, "#financings-row-#{financing.id}")
@@ -32,7 +32,7 @@ defmodule AtlasWeb.FinancingsLiveTest do
 
     financing = insert_financing!()
 
-    {:ok, view, _html} = live(conn, ~p"/hardware/financings/#{financing.id}")
+    {:ok, view, _html} = live(conn, ~p"/operations/hardware/financings/#{financing.id}")
 
     assert has_element?(view, "#financing-show")
     assert has_element?(view, "#financing-breadcrumb-current", financing.provider)
@@ -51,7 +51,7 @@ defmodule AtlasWeb.FinancingsLiveTest do
     financing = insert_financing!(%{supplier: "Apple"})
     document = insert_document!("Apple supplier contract")
 
-    {:ok, view, _html} = live(conn, ~p"/hardware/financings/#{financing.id}")
+    {:ok, view, _html} = live(conn, ~p"/operations/hardware/financings/#{financing.id}")
 
     render_submit(view, "attach_document", %{
       document: %{document_id: document.id, kind: "supplier_contract", notes: "Order 2214808999"}
@@ -79,7 +79,7 @@ defmodule AtlasWeb.FinancingsLiveTest do
     financing = insert_financing!()
     document = insert_document!("Targo financing guarantee")
 
-    {:ok, view, _html} = live(conn, ~p"/hardware/financings/#{financing.id}")
+    {:ok, view, _html} = live(conn, ~p"/operations/hardware/financings/#{financing.id}")
 
     render_change(view, "search_financing_documents", %{
       "document_search" => %{"query" => "Targo financing"}
@@ -107,7 +107,7 @@ defmodule AtlasWeb.FinancingsLiveTest do
         email: "employee-#{System.unique_integer([:positive])}@tuist.dev"
       })
 
-    assert {:error, {:redirect, %{}}} = live(conn, ~p"/hardware/financings")
+    assert {:error, {:redirect, %{}}} = live(conn, ~p"/operations/hardware/financings")
   end
 
   defp insert_document!(title) do

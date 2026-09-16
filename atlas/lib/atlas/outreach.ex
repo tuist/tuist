@@ -809,7 +809,7 @@ defmodule Atlas.Outreach do
           "account_id" => contact.account_id,
           "opportunity_id" => suggestion.opportunity_id,
           "source" => contact.source,
-          "path" => "/gtm/outreach/#{contact.id}"
+          "path" => "/commercial/gtm/outreach/#{contact.id}"
         }
       },
       actor: actor
@@ -829,7 +829,7 @@ defmodule Atlas.Outreach do
               "account_id" => contact.account_id,
               "contact_id" => contact.id,
               "kind" => event.kind,
-              "path" => "/gtm/outreach/#{contact.id}"
+              "path" => "/commercial/gtm/outreach/#{contact.id}"
             },
             Map.take(event.metadata || %{}, ["recommendation_id", "response_outcome", "subject"])
           )
@@ -850,7 +850,7 @@ defmodule Atlas.Outreach do
           "candidate_id" => candidate.id,
           "search_segment" => candidate.search_segment,
           "source" => "apollo",
-          "path" => "/gtm/outreach/#{contact.id}"
+          "path" => "/commercial/gtm/outreach/#{contact.id}"
         }
       },
       actor: actor
@@ -867,7 +867,7 @@ defmodule Atlas.Outreach do
         metadata: %{
           "reason" => candidate.rejection_reason,
           "search_segment" => candidate.search_segment,
-          "path" => "/gtm/outreach"
+          "path" => "/commercial/gtm/outreach"
         }
       },
       actor: actor
@@ -885,7 +885,7 @@ defmodule Atlas.Outreach do
           "slack_channel_id" => candidate.slack_notification_channel_id,
           "slack_thread_ts" => candidate.slack_notification_thread_ts,
           "search_segment" => candidate.search_segment,
-          "path" => "/gtm/outreach"
+          "path" => "/commercial/gtm/outreach"
         }
       }
     )
@@ -917,7 +917,7 @@ defmodule Atlas.Outreach do
           "returned" => result.returned,
           "total_matches" => result.total_matches,
           "segments" => result.segments,
-          "path" => "/gtm/outreach"
+          "path" => "/commercial/gtm/outreach"
         }
       },
       actor: actor
@@ -933,7 +933,7 @@ defmodule Atlas.Outreach do
         target_label: "Apollo outreach search",
         metadata: %{
           "reason" => inspect(reason),
-          "path" => "/gtm/outreach"
+          "path" => "/commercial/gtm/outreach"
         }
       },
       actor: actor

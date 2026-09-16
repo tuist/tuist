@@ -466,7 +466,7 @@ defmodule Atlas.Finance.QontoInvoiceBackfill do
       %{
         target_type: "finance_invoice",
         target_label: "Qonto invoice backfill",
-        metadata: Map.merge(%{"path" => "/finance"}, stringify_summary(summary))
+        metadata: Map.merge(%{"path" => "/commercial/finance"}, stringify_summary(summary))
       },
       opts
     )

@@ -11,7 +11,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
   test "renders the executive documents library", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "documents@example.com", role: :executive})
 
-    {:ok, view, _html} = live(conn, ~p"/documents")
+    {:ok, view, _html} = live(conn, ~p"/library/documents")
 
     assert has_element?(view, "#documents")
     assert has_element?(view, "#documents-add-file")
@@ -26,7 +26,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
            )
 
     assert has_element?(view, ~s(#documents-table a[data-part="sort-link"][href*="sort-by=inserted_at"]), "Added")
-    assert has_element?(view, ~s(a[href="/documents"]), "Documents")
+    assert has_element?(view, ~s(a[href="/library/documents"]), "Documents")
   end
 
   test "renders correspondent and account in separate aligned cells", %{conn: conn} do
@@ -41,7 +41,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
       correspondent_id: correspondent.id
     })
 
-    {:ok, view, _html} = live(conn, ~p"/documents")
+    {:ok, view, _html} = live(conn, ~p"/library/documents")
 
     assert has_element?(
              view,
@@ -51,7 +51,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
 
     assert has_element?(
              view,
-             ~s(#documents-table [data-part="account-cell"] a[href="/sales/accounts/#{account.id}"]),
+             ~s(#documents-table [data-part="account-cell"] a[href="/commercial/sales/accounts/#{account.id}"]),
              "Acme"
            )
 
@@ -71,13 +71,13 @@ defmodule AtlasWeb.DocumentsLiveTest do
 
     insert_document!(%{title: "Unrelated Invoice"})
 
-    {:ok, view, _html} = live(conn, ~p"/documents")
+    {:ok, view, _html} = live(conn, ~p"/library/documents")
 
     view
     |> form("#documents-search-form", search: %{query: "managing director"})
     |> render_change()
 
-    assert_patched(view, ~p"/documents?search=managing+director")
+    assert_patched(view, ~p"/library/documents?search=managing+director")
     refute has_element?(view, "#documents-search-summary")
     assert has_element?(view, "#documents-search-filter", "Search")
     assert has_element?(view, "#documents-search-filter", "contains")
@@ -94,7 +94,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
     insert_document!(%{title: "Acme Security Review"})
     insert_document!(%{title: "Plain Invoice"})
 
-    {:ok, view, _html} = live(conn, ~p"/documents?search=Security")
+    {:ok, view, _html} = live(conn, ~p"/library/documents?search=Security")
 
     refute has_element?(view, "#documents-search-summary")
     assert has_element?(view, "#documents-search-filter", "Security")
@@ -132,7 +132,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
       "filter_tag_val" => "renewal"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/documents?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/library/documents?#{filter_params}")
 
     assert has_element?(view, ~s(#documents-table tr[id="documents-table-row-#{matching_document.id}"]))
     refute has_element?(view, "#documents-table", "Acme Contract")
@@ -159,7 +159,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
       "filter_document_type_val" => "invoice"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/documents?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/library/documents?#{filter_params}")
 
     assert has_element?(view, ~s(#documents-table tr[id="documents-table-row-#{matching_document.id}"]))
     refute has_element?(view, ~s(#documents-table tr[id="documents-table-row-#{other_document.id}"]))
@@ -186,7 +186,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
       "filter_tag_val" => "renewal"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/documents?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/library/documents?#{filter_params}")
 
     assert has_element?(view, ~s(#documents-table tr[id="documents-table-row-#{matching_document.id}"]))
     refute has_element?(view, ~s(#documents-table tr[id="documents-table-row-#{excluded_document.id}"]))
@@ -211,7 +211,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
       })
 
     {:ok, document_date_view, _html} =
-      live(conn, ~p"/documents?#{%{"sort-by" => "document_date", "sort-order" => "asc"}}")
+      live(conn, ~p"/library/documents?#{%{"sort-by" => "document_date", "sort-order" => "asc"}}")
 
     assert has_element?(
              document_date_view,
@@ -224,7 +224,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
            ]
 
     {:ok, added_date_view, _html} =
-      live(conn, ~p"/documents?#{%{"sort-by" => "inserted_at", "sort-order" => "desc"}}")
+      live(conn, ~p"/library/documents?#{%{"sort-by" => "inserted_at", "sort-order" => "desc"}}")
 
     assert has_element?(
              added_date_view,
@@ -240,7 +240,7 @@ defmodule AtlasWeb.DocumentsLiveTest do
   test "redirects employees away from documents", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "employee-documents@example.com", role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/documents")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/library/documents")
   end
 
   describe "subtitle/1" do

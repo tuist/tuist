@@ -30,7 +30,7 @@ defmodule AtlasWeb.HardwareShowLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Asset not found."))
-         |> push_navigate(to: ~p"/hardware")}
+         |> push_navigate(to: ~p"/operations/hardware")}
     end
   end
 
@@ -90,7 +90,7 @@ defmodule AtlasWeb.HardwareShowLive do
             <.breadcrumb
               id="hardware-breadcrumb-list"
               label={gettext("Hardware")}
-              phx-click={JS.navigate(~p"/hardware")}
+              phx-click={JS.navigate(~p"/operations/hardware")}
             />
             <.breadcrumb id="hardware-breadcrumb-current" label={@asset.name} />
           </.breadcrumbs>
@@ -322,7 +322,7 @@ defmodule AtlasWeb.HardwareShowLive do
             id="hardware-financings-table"
             rows={@financings}
             row_key={fn line -> "hardware-financing-#{line.id}" end}
-            row_navigate={fn line -> ~p"/hardware/financings/#{line.financing_id}" end}
+            row_navigate={fn line -> ~p"/operations/hardware/financings/#{line.financing_id}" end}
           >
             <:col :let={line} label={gettext("Provider")}>
               <.text_and_description_cell

@@ -89,7 +89,7 @@ defmodule Atlas.Briefs.NotifierTest do
     })
 
     insert_item!(brief, "finance", "finance:vendors", 2, %{
-      source_path: "/finance/vendors"
+      source_path: "/commercial/finance/vendors"
     })
 
     blocks =
@@ -111,7 +111,7 @@ defmodule Atlas.Briefs.NotifierTest do
       |> Enum.map(&get_in(&1, ["text", "text"]))
       |> Enum.find(&(is_binary(&1) and String.contains?(&1, "Review finance")))
 
-    assert finance_text =~ "<#{AtlasWeb.Endpoint.url()}/finance/vendors|Open source>"
+    assert finance_text =~ "<#{AtlasWeb.Endpoint.url()}/commercial/finance/vendors|Open source>"
 
     footer_text = blocks |> List.last() |> get_in(["elements", Access.at(0), "text"])
     assert footer_text == "Use the actions above to own, acknowledge, or tune these recommendations."
@@ -126,14 +126,14 @@ defmodule Atlas.Briefs.NotifierTest do
       detail: "Estimated runway is 7.16 months with EUR 259,063.33 available.",
       suggested_action: "Review the largest recent outflows.",
       completion_condition: "Leadership has reviewed the risk.",
-      source_path: "/finance"
+      source_path: "/commercial/finance"
     })
 
     insert_item!(brief, "finance", "finance:cash-flow", 2, %{
       kind: "follow_up",
       title: "Review recent outflows",
       detail: "Review the largest recent outflows and committed renewals in Atlas.",
-      source_path: "/finance"
+      source_path: "/commercial/finance"
     })
 
     subscription =
@@ -194,8 +194,11 @@ defmodule Atlas.Briefs.NotifierTest do
     assert "*Recommended focus*\n• Review the largest recurring operating costs." in text_blocks
 
     assert Enum.any?(blocks, fn
-             %{"type" => "actions", "elements" => [%{"url" => url}]} -> url == "#{AtlasWeb.Endpoint.url()}/finance"
-             _block -> false
+             %{"type" => "actions", "elements" => [%{"url" => url}]} ->
+               url == "#{AtlasWeb.Endpoint.url()}/commercial/finance"
+
+             _block ->
+               false
            end)
 
     refute Enum.any?(blocks, &(&1["type"] == "actions" and get_in(&1, ["elements", Access.at(0), "action_id"])))

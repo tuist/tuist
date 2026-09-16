@@ -56,7 +56,7 @@ defmodule Atlas.TuistServer do
 
   @doc """
   Run a bounded read-only ClickHouse query. Only `SELECT`/`WITH` statements are
-  allowed; the Tuist side clamps `:limit` and enforces scan/memory/time limits.
+  allowed; the Tuist side clamps `:limit` and enforces scan/admin/memory/time limits.
 
   `:params` is a map of named ClickHouse parameters (e.g.
   `%{"project_ids" => [1, 2]}` for a `{project_ids:Array(Int64)}` placeholder).

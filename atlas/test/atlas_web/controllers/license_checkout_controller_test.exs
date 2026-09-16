@@ -14,7 +14,7 @@ defmodule AtlasWeb.LicenseCheckoutControllerTest do
     customer = insert_account!()
     license = insert_license!(customer)
 
-    conn = get(conn, ~p"/sales/licenses/#{license.id}/air-gapped")
+    conn = get(conn, ~p"/commercial/sales/licenses/#{license.id}/air-gapped")
 
     certificate = conn |> response(200) |> Base.decode64!()
     assert certificate =~ "BEGIN LICENSE FILE"
@@ -31,7 +31,7 @@ defmodule AtlasWeb.LicenseCheckoutControllerTest do
     {conn, _user} = log_in_user(conn, %{email: "license-download-employee@example.com", role: :employee})
     license = insert_account!() |> insert_license!()
 
-    conn = get(conn, ~p"/sales/licenses/#{license.id}/air-gapped")
+    conn = get(conn, ~p"/commercial/sales/licenses/#{license.id}/air-gapped")
 
     assert response(conn, 403)
   end
@@ -39,7 +39,7 @@ defmodule AtlasWeb.LicenseCheckoutControllerTest do
   test "returns not found for an unknown license", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "license-download-missing@example.com", role: :executive})
 
-    conn = get(conn, ~p"/sales/licenses/#{Ecto.UUID.generate()}/air-gapped")
+    conn = get(conn, ~p"/commercial/sales/licenses/#{Ecto.UUID.generate()}/air-gapped")
 
     assert response(conn, 404)
   end
@@ -47,7 +47,7 @@ defmodule AtlasWeb.LicenseCheckoutControllerTest do
   test "returns not found for a malformed license identifier", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "license-download-malformed@example.com", role: :executive})
 
-    conn = get(conn, "/sales/licenses/not-a-uuid/air-gapped")
+    conn = get(conn, "/commercial/sales/licenses/not-a-uuid/air-gapped")
 
     assert response(conn, 404)
   end
@@ -58,9 +58,9 @@ defmodule AtlasWeb.LicenseCheckoutControllerTest do
     {conn, _user} = log_in_user(conn, %{email: "license-download-unavailable@example.com", role: :executive})
     license = insert_account!() |> insert_license!()
 
-    conn = get(conn, ~p"/sales/licenses/#{license.id}/air-gapped")
+    conn = get(conn, ~p"/commercial/sales/licenses/#{license.id}/air-gapped")
 
-    assert redirected_to(conn) == ~p"/sales/licenses"
+    assert redirected_to(conn) == ~p"/commercial/sales/licenses"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Atlas license signing is not configured."
   end
 

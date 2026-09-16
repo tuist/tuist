@@ -69,7 +69,7 @@ defmodule AtlasWeb.LicensesLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/sales/licenses?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/sales/licenses?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -79,7 +79,7 @@ defmodule AtlasWeb.LicensesLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/sales/licenses?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/sales/licenses?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -407,7 +407,7 @@ defmodule AtlasWeb.LicensesLive do
             >
               <.link
                 id={"license-account-link-#{license.id}"}
-                navigate={~p"/sales/accounts/#{license.account.id}"}
+                navigate={~p"/commercial/sales/accounts/#{license.account.id}"}
                 data-part="customer-link"
               >
                 <.text_and_description_cell
@@ -491,7 +491,7 @@ defmodule AtlasWeb.LicensesLive do
                         id={"air-gapped-checkout-#{license.id}"}
                         value={"air-gapped-checkout-#{license.id}"}
                         label={gettext("Check out air-gapped")}
-                        href={~p"/sales/licenses/#{license.id}/air-gapped"}
+                        href={~p"/commercial/sales/licenses/#{license.id}/air-gapped"}
                       >
                         <:left_icon><.download /></:left_icon>
                       </.dropdown_item>
@@ -661,7 +661,7 @@ defmodule AtlasWeb.LicensesLive do
 
     if clamped? do
       push_patch(socket,
-        to: "/sales/licenses?#{WebQuery.put(socket.assigns.uri.query, "page", meta.current_page)}",
+        to: "/commercial/sales/licenses?#{WebQuery.put(socket.assigns.uri.query, "page", meta.current_page)}",
         replace: true
       )
     else
@@ -780,7 +780,7 @@ defmodule AtlasWeb.LicensesLive do
       |> WebQuery.put_present("sort-order", if(sort_by, do: sort_order))
       |> Map.merge(Filter.Operations.encode_filters_to_query(active_filters))
 
-    ~p"/sales/licenses?#{params}"
+    ~p"/commercial/sales/licenses?#{params}"
   end
 
   defp normalize_sort_by(value) when is_binary(value) do

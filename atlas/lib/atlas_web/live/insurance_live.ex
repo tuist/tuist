@@ -54,7 +54,7 @@ defmodule AtlasWeb.InsuranceLive do
          |> put_flash(:info, gettext("Insurance policy registered."))
          |> assign_new_form()
          |> push_event("close-modal", %{id: "new-policy-modal"})
-         |> push_navigate(to: ~p"/hardware/insurance/#{policy.id}")}
+         |> push_navigate(to: ~p"/operations/hardware/insurance/#{policy.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :policy_form, to_form(changeset, as: :policy))}
@@ -296,7 +296,7 @@ defmodule AtlasWeb.InsuranceLive do
             id="insurance-table"
             rows={@policies}
             row_key={fn p -> "insurance-row-#{p.id}" end}
-            row_navigate={fn p -> ~p"/hardware/insurance/#{p.id}" end}
+            row_navigate={fn p -> ~p"/operations/hardware/insurance/#{p.id}" end}
           >
             <:col
               :let={p}

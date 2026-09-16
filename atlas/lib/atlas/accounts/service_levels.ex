@@ -506,9 +506,9 @@ defmodule Atlas.Accounts.ServiceLevels do
       target_id: document.account_id,
       target_label: document.account.name,
       metadata: %{
-        account_path: "/sales/accounts/#{document.account_id}",
+        account_path: "/commercial/sales/accounts/#{document.account_id}",
         document_id: document.id,
-        document_path: "/documents/#{document.id}",
+        document_path: "/library/documents/#{document.id}",
         incident_contacts_count: length(incident_contacts)
       }
     })
@@ -527,9 +527,9 @@ defmodule Atlas.Accounts.ServiceLevels do
       target_id: document.account_id,
       target_label: document.account.name,
       metadata: %{
-        "path" => "/sales/accounts/#{document.account_id}",
+        "path" => "/commercial/sales/accounts/#{document.account_id}",
         "document_id" => document.id,
-        "document_path" => "/documents/#{document.id}",
+        "document_path" => "/library/documents/#{document.id}",
         "extraction_check_id" => outcome.check.id,
         "status" => Atom.to_string(outcome.status),
         "service_levels_count" => length(outcome.service_levels),
@@ -544,9 +544,9 @@ defmodule Atlas.Accounts.ServiceLevels do
       target_id: document.account_id,
       target_label: document.account.name,
       metadata: %{
-        "path" => "/sales/accounts/#{document.account_id}",
+        "path" => "/commercial/sales/accounts/#{document.account_id}",
         "document_id" => document.id,
-        "document_path" => "/documents/#{document.id}",
+        "document_path" => "/library/documents/#{document.id}",
         "extraction_check_id" => check.id
       }
     })

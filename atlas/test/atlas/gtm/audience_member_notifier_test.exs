@@ -54,7 +54,7 @@ defmodule Atlas.GTM.AudienceMemberNotifierTest do
            }
 
     action = Enum.find(blocks, &(&1["type"] == "actions"))
-    assert get_in(action, ["elements", Access.at(0), "url"]) =~ "/email/audiences/#{audience.id}"
+    assert get_in(action, ["elements", Access.at(0), "url"]) =~ "/outbound/email/audiences/#{audience.id}"
   end
 
   test "reuses an existing Slack message when a retry can reconcile it", %{

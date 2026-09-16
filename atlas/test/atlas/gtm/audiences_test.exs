@@ -29,7 +29,7 @@ defmodule Atlas.GTM.AudiencesTest do
     assert listed.id == subscriber.id
     assert metadata.total_count == 1
 
-    assert Repo.get_by!(Activity, action: "gtm_subscriber.created").metadata["path"] == "/email"
+    assert Repo.get_by!(Activity, action: "gtm_subscriber.created").metadata["path"] == "/outbound/email"
   end
 
   test "adds a subscriber to an audience idempotently and tracks active counts" do
@@ -201,7 +201,7 @@ defmodule Atlas.GTM.AudiencesTest do
     refute Repo.get(AudienceMembership, membership.id)
 
     activity = Repo.get_by!(Activity, action: "gtm_audience.deleted")
-    assert activity.metadata["dashboard_path"] == "/email"
+    assert activity.metadata["dashboard_path"] == "/outbound/email"
   end
 
   test "retains dynamic audiences when deletion is requested" do

@@ -650,7 +650,7 @@ defmodule Atlas.Memory do
           target_id: bulletin.id,
           target_label: Atom.to_string(bulletin.scope),
           metadata: %{
-            "path" => "/memory",
+            "path" => "/admin/memory",
             "scope" => Atom.to_string(bulletin.scope),
             "slack_channel_id" => bulletin.slack_channel_id,
             "body_length" => String.length(bulletin.body)
@@ -693,7 +693,7 @@ defmodule Atlas.Memory do
       metadata:
         Map.merge(
           %{
-            "path" => "/memory/#{node.id}",
+            "path" => "/admin/memory/#{node.id}",
             "scope" => Atom.to_string(node.scope),
             "kind" => Atom.to_string(node.kind),
             "confirmation" => Atom.to_string(node.confirmation),

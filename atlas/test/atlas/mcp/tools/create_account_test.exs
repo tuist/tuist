@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.CreateAccountTest do
     assert payload.account.currency == "EUR"
     assert payload.account.current_value == "42000.00"
     assert payload.account.next_renewal_date == "2027-03-15"
-    assert payload.account_url =~ "/sales/accounts/#{payload.account.id}"
+    assert payload.account_url =~ "/commercial/sales/accounts/#{payload.account.id}"
 
     stored = Repo.get!(Account, payload.account.id)
     assert stored.account_key == "manual:northstar-example"

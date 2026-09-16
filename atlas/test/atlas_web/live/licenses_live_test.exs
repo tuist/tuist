@@ -15,7 +15,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     customer = insert_account!(%{name: "Acme Labs", primary_domain: "acme.example"})
     license = insert_license!(customer, %{key: "ACME-ONLINE-KEY"})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     assert has_element?(view, "#licenses")
     assert has_element?(view, "#new-license-button")
@@ -39,16 +39,16 @@ defmodule AtlasWeb.LicensesLiveTest do
 
     assert has_element?(
              view,
-             "#license-account-link-#{license.id}[href='/sales/accounts/#{customer.id}']"
+             "#license-account-link-#{license.id}[href='/commercial/sales/accounts/#{customer.id}']"
            )
 
-    assert has_element?(view, ~s(a[href="/sales/licenses"]), "Licenses")
+    assert has_element?(view, ~s(a[href="/commercial/sales/licenses"]), "Licenses")
   end
 
   test "renders the license empty state with styled semantic parts", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "licenses-empty@example.com", role: :executive})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     assert has_element?(view, "#licenses-empty-state > [data-part='icon'][aria-hidden='true']")
     assert has_element?(view, "#licenses-empty-state > [data-part='title']", "No matching licenses")
@@ -67,7 +67,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     customer = insert_account!(%{name: "New Customer"})
     expires_on = Date.utc_today() |> Date.add(180)
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     render_submit(view, "create_license", %{
       "license" => %{"account_id" => customer.id, "expires_on" => Date.to_iso8601(expires_on)}
@@ -88,7 +88,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     license = insert_license!(customer, %{})
     new_expiration_date = Date.add(license.expires_on, 365)
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     view
     |> element("#license-actions-#{license.id}-button")
@@ -112,7 +112,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     poc = insert_account!(%{name: "POC Option", segment: :prospect, deal_stage: "poc"})
     prospect = insert_account!(%{name: "Prospect Option", segment: :prospect, deal_stage: "discovery"})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     html = render(view)
     assert html =~ ~s(data-value="#{customer.id}")
@@ -125,7 +125,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     first = insert_account!(%{name: "Acme", primary_domain: "first.example"})
     second = insert_account!(%{name: "Acme", primary_domain: "second.example"})
 
-    {:ok, _view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, _view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     assert LicensesLive.customer_option_label(first) == "Acme (first.example)"
     assert LicensesLive.customer_option_label(second) == "Acme (second.example)"
@@ -140,7 +140,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     assert LicensesLive.customer_option_label(second) == "Acme (account:acme-second)"
 
     params = %{"filter_customer_op" => "==", "filter_customer_val" => first.id}
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses?#{params}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses?#{params}")
 
     assert has_element?(
              view,
@@ -167,7 +167,7 @@ defmodule AtlasWeb.LicensesLiveTest do
       "filter_status_val" => "active"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses?#{params}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses?#{params}")
 
     assert has_element?(view, "#licenses-active-filters")
     assert has_element?(view, "#license-key-#{matching_license.id}")
@@ -182,14 +182,14 @@ defmodule AtlasWeb.LicensesLiveTest do
     zulu_license = insert_license!(zulu, %{key: "ZULU-KEY"})
 
     {:ok, sorted_view, _html} =
-      live(conn, ~p"/sales/licenses?#{%{"sort-by" => "customer", "sort-order" => "asc"}}")
+      live(conn, ~p"/commercial/sales/licenses?#{%{"sort-by" => "customer", "sort-order" => "asc"}}")
 
     assert has_element?(
              sorted_view,
              "#licenses-table-body > tr:first-child #license-key-#{alpha_license.id}"
            )
 
-    {:ok, searched_view, _html} = live(conn, ~p"/sales/licenses?#{%{"q" => "zulu.example"}}")
+    {:ok, searched_view, _html} = live(conn, ~p"/commercial/sales/licenses?#{%{"q" => "zulu.example"}}")
 
     assert has_element?(searched_view, "#license-key-#{zulu_license.id}")
     refute has_element?(searched_view, "#license-key-#{alpha_license.id}")
@@ -213,12 +213,12 @@ defmodule AtlasWeb.LicensesLiveTest do
       })
 
     params = %{"q" => "pages.example", "sort-by" => "expires_on", "sort-order" => "asc"}
-    {:ok, first_page, _html} = live(conn, ~p"/sales/licenses?#{params}")
+    {:ok, first_page, _html} = live(conn, ~p"/commercial/sales/licenses?#{params}")
 
     assert has_element?(first_page, "#licenses-pagination")
     refute has_element?(first_page, "#license-key-#{last_license.id}")
 
-    {:ok, second_page, _html} = live(conn, ~p"/sales/licenses?#{Map.put(params, "page", 2)}")
+    {:ok, second_page, _html} = live(conn, ~p"/commercial/sales/licenses?#{Map.put(params, "page", 2)}")
 
     assert has_element?(second_page, "#license-key-#{last_license.id}")
   end
@@ -240,8 +240,8 @@ defmodule AtlasWeb.LicensesLiveTest do
         expires_on: Date.add(Date.utc_today(), 200)
       })
 
-    assert {:error, {:live_redirect, %{to: path}}} = live(conn, ~p"/sales/licenses?page=999")
-    assert path == ~p"/sales/licenses?page=2"
+    assert {:error, {:live_redirect, %{to: path}}} = live(conn, ~p"/commercial/sales/licenses?page=999")
+    assert path == ~p"/commercial/sales/licenses?page=2"
 
     {:ok, view, _html} = live(conn, path)
 
@@ -254,7 +254,7 @@ defmodule AtlasWeb.LicensesLiveTest do
     customer = insert_account!(%{name: "Accessible Customer"})
     license = insert_license!(customer, %{})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/licenses")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/licenses")
 
     assert has_element?(view, "#licenses-search[aria-label='Search licenses']")
 
@@ -269,7 +269,7 @@ defmodule AtlasWeb.LicensesLiveTest do
   test "redirects employees away from licenses", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "license-employee@example.com", role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/sales/licenses")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/commercial/sales/licenses")
   end
 
   defp insert_account!(attrs) do

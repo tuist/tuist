@@ -123,7 +123,7 @@ defmodule Atlas.GTM.BlogPostIdeaNotifier do
     |> Enum.join("\n")
   end
 
-  defp idea_url(%BlogPostIdea{id: id}), do: url(~p"/gtm/content/#{id}")
+  defp idea_url(%BlogPostIdea{id: id}), do: url(~p"/commercial/gtm/content/#{id}")
 
   defp status_label("idea"), do: "Idea"
   defp status_label("in_progress"), do: "In progress"

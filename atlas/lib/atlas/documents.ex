@@ -1204,7 +1204,7 @@ defmodule Atlas.Documents do
 
   defp invoice_source_metadata(%Document{} = document) do
     %{
-      "document_path" => "/documents/#{document.id}",
+      "document_path" => "/library/documents/#{document.id}",
       "document_source" => document.source,
       "finance_transaction_id" => document.attributes && document.attributes["finance_transaction_id"],
       "qonto_transaction_id" => document.attributes && document.attributes["qonto_transaction_id"],
@@ -1276,7 +1276,7 @@ defmodule Atlas.Documents do
               {:ok, updated} ->
                 audit_document("document.account_associated", updated, %{
                   "account_id" => account.id,
-                  "account_path" => "/sales/accounts/#{account.id}"
+                  "account_path" => "/commercial/sales/accounts/#{account.id}"
                 })
 
               _result ->
@@ -1315,7 +1315,7 @@ defmodule Atlas.Documents do
             {:ok, updated} ->
               audit_document("document.account_reconciled", updated, %{
                 "account_id" => account_id,
-                "account_path" => account_id && "/sales/accounts/#{account_id}"
+                "account_path" => account_id && "/commercial/sales/accounts/#{account_id}"
               })
 
               {:ok, updated, :updated}

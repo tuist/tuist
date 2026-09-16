@@ -75,7 +75,7 @@ defmodule AtlasWeb.SearchPalette do
                   </li>
                   <li :for={account <- @accounts} data-part="item">
                     <.link
-                      navigate={~p"/sales/accounts/#{account.id}"}
+                      navigate={~p"/commercial/sales/accounts/#{account.id}"}
                       data-result-link
                       data-part="link"
                     >

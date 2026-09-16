@@ -27,7 +27,7 @@ defmodule AtlasWeb.LoginLive do
     <div id="login">
       <div data-part="frame">
         <div data-part="content">
-          <img src={~p"/images/logo.svg"} alt="Atlas Logo" data-part="logo" />
+          <img src={~p"/images/tuist-logo.svg"} alt="Atlas Logo" data-part="logo" />
           <div data-part="header">
             <h1 data-part="title">{gettext("Log in to Atlas")}</h1>
             <span data-part="subtitle">

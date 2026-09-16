@@ -54,7 +54,7 @@ defmodule AtlasWeb.DataCentersLive do
          |> put_flash(:info, gettext("Data center registered."))
          |> assign_new_form()
          |> push_event("close-modal", %{id: "new-data-center-modal"})
-         |> push_navigate(to: ~p"/hardware/data-centers/#{dc.id}")}
+         |> push_navigate(to: ~p"/operations/hardware/data-centers/#{dc.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :data_center_form, to_form(changeset, as: :data_center))}
@@ -233,7 +233,7 @@ defmodule AtlasWeb.DataCentersLive do
             id="data-centers-table"
             rows={@data_centers}
             row_key={fn dc -> "data-center-row-#{dc.id}" end}
-            row_navigate={fn dc -> ~p"/hardware/data-centers/#{dc.id}" end}
+            row_navigate={fn dc -> ~p"/operations/hardware/data-centers/#{dc.id}" end}
           >
             <:col
               :let={dc}

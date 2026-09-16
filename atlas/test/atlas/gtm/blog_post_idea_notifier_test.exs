@@ -35,7 +35,7 @@ defmodule Atlas.GTM.BlogPostIdeaNotifierTest do
       action = Enum.find(blocks, &(&1["type"] == "actions"))
       [button] = action["elements"]
       assert button["text"]["text"] == "Open in Atlas"
-      assert button["url"] =~ "/gtm/content/#{idea.id}"
+      assert button["url"] =~ "/commercial/gtm/content/#{idea.id}"
     end
 
     test "omits the description block when there is no description" do

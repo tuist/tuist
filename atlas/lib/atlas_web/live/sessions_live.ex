@@ -48,7 +48,7 @@ defmodule AtlasWeb.SessionsLive do
           <.agent_sessions_table
             id="agent-sessions-table"
             sessions={@sessions}
-            row_navigate={fn session -> ~p"/sessions/#{session.id}" end}
+            row_navigate={fn session -> ~p"/admin/sessions/#{session.id}" end}
           />
           <.pagination_group
             :if={@sessions_meta.total_pages > 1}
