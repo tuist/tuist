@@ -67,7 +67,7 @@ public struct SettingsContentHasher: SettingsContentHashing {
     /// Hashing them splits the cache along axes that have nothing to do with the
     /// code: `COMPILATION_CACHE_PLUGIN_PATH` carries the dylib's install path, which
     /// differs between a Homebrew install and a mise one, and toggling
-    /// `enableCaching` or the `kura` client flag at all moves every target's hash.
+    /// `enableCaching` at all moves every target's hash.
     private static func isCompilationCacheSetting(_ key: String) -> Bool {
         key.hasPrefix("COMPILATION_CACHE_")
     }

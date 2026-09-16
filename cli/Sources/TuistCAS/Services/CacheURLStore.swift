@@ -56,8 +56,9 @@ public struct CacheURLStore: CacheURLStoring {
             return url
         }
 
-        let key =
-            "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(currentCacheEndpointKeySuffix())"
+        // Not the `cache_url_` names earlier releases stored their answers under:
+        // those can still hold endpoints the server no longer routes clients to.
+        let key = "cache_endpoint_\(serverURL.absoluteString)_\(accountHandle ?? "global")"
         let nsKey = key as NSString
 
         if let cachedURLString = localCache.object(forKey: nsKey) as? String {
@@ -197,14 +198,6 @@ public struct CacheURLStore: CacheURLStoring {
         }
 
         return Date().addingTimeInterval(maxAge)
-    }
-
-    private func currentCacheEndpointKeySuffix() -> String {
-        if ClientFeatureFlags.contains("kura") {
-            "kura"
-        } else {
-            "default"
-        }
     }
 }
 

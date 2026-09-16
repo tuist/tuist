@@ -136,7 +136,7 @@ public struct GenerateService {
             cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         } catch where
             ServerErrorClassifier.isTransient(error)
-            || (error as? CacheURLStoreError) == .noReachableEndpoints
+            || (error as? CacheURLStoreError)?.isTransientAbsence == true
         {
             AlertController.current.warning(.alert(
                 "The remote cache is temporarily unavailable.",

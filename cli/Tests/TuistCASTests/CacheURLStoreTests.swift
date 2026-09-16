@@ -403,39 +403,28 @@
         }
 
         @Test(.withMockedEnvironment())
-        func separates_cached_endpoints_by_kura_feature_flag() async throws {
+        func does_not_reuse_endpoints_stored_by_earlier_releases() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
-            let defaultEndpoint = "https://cache.example.com"
-            let kuraEndpoint = "https://kura-cache.example.com"
-            let kuraGetCacheEndpoints = MockGetCacheEndpointsServicing()
-            let kuraSubject = CacheURLStore(
-                cachedValueStore: cachedValueStore,
-                getCacheEndpointsService: kuraGetCacheEndpoints,
-                endpointLatencyService: latencyService
-            )
+            let legacyEndpoint = "https://cache-eu-central.tuist.dev"
+            let kuraEndpoint = "https://acme-eu-west-1.kura.tuist.dev"
+            for suffix in ["", "_default", "_kura"] {
+                _ = try await cachedValueStore.getValue(key: "cache_url_\(serverURL.absoluteString)_acme\(suffix)") {
+                    (value: legacyEndpoint, expiresAt: Date().addingTimeInterval(3600))
+                }
+            }
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [defaultEndpoint], maxAge: nil))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [kuraEndpoint], maxAge: nil))
 
             // When
-            let defaultResult = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
-            given(kuraGetCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [kuraEndpoint], maxAge: nil))
-            let kuraResult = try await kuraSubject.getCacheURL(for: serverURL, accountHandle: nil)
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
 
             // Then
-            #expect(defaultResult.absoluteString == defaultEndpoint)
-            #expect(kuraResult.absoluteString == kuraEndpoint)
+            #expect(result.absoluteString == kuraEndpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .called(1)
-            verify(kuraGetCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
                 .called(1)
         }
     }

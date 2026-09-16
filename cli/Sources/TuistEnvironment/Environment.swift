@@ -77,9 +77,6 @@ public protocol Environmenting: Sendable {
     /// This path is used for cache server communication
     func cacheSocketPath(for fullHandle: String) -> AbsolutePath
 
-    /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
-    func cacheSocketPathString(for fullHandle: String) -> String
-
     /// The machine-wide CAS proxy's unix socket. Unlike `cacheSocketPath(for:)` this
     /// is not per-project: one proxy serves every project on the machine.
     func casProxySocketPath() -> AbsolutePath
@@ -422,10 +419,6 @@ public struct Environment: Environmenting {
 
     public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
-    }
-
-    public func cacheSocketPathString(for fullHandle: String) -> String {
-        homeRelativePathString(cacheSocketPath(for: fullHandle))
     }
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
