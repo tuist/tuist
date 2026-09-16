@@ -20,7 +20,7 @@ public protocol GeneratorFactorying {
     /// - Parameter config: The project configuration
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Parameter skipUnitTests: Whether Unit tests should be skipped.
-    /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+    /// - Parameter cacheProfile: Cache profile to use for binary replacement.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
@@ -32,7 +32,7 @@ public protocol GeneratorFactorying {
         skipUITests: Bool,
         skipUnitTests: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool,
+        cacheProfile: CacheProfile,
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?,
@@ -93,7 +93,7 @@ public struct GeneratorFactory: GeneratorFactorying {
         skipUITests: Bool,
         skipUnitTests: Bool,
         configuration _: String?,
-        ignoreBinaryCache _: Bool,
+        cacheProfile _: CacheProfile,
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?,
@@ -213,7 +213,7 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// Returns the generator to generate a project to run tests on.
         /// - Parameter config: The project configuration
         /// - Parameter skipUITests: Whether UI tests should be skipped.
-        /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+        /// - Parameter cacheProfile: Cache profile to use for binary replacement.
         /// - Parameter ignoreSelectiveTesting: True to run all tests
         /// - Parameter cacheStorage: The cache storage instance.
         /// - Returns: A Generator instance.
@@ -225,7 +225,7 @@ public struct GeneratorFactory: GeneratorFactorying {
             skipUITests: Bool,
             skipUnitTests: Bool,
             configuration: String?,
-            ignoreBinaryCache: Bool,
+            cacheProfile: CacheProfile,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
@@ -333,7 +333,7 @@ public struct GeneratorFactory: GeneratorFactorying {
             skipUITests: Bool,
             skipUnitTests: Bool,
             configuration: String?,
-            ignoreBinaryCache: Bool,
+            cacheProfile: CacheProfile,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
@@ -353,11 +353,11 @@ public struct GeneratorFactory: GeneratorFactorying {
 
             let graphMappers = graphMapperFactory.automation(
                 config: config,
-                ignoreBinaryCache: ignoreBinaryCache,
                 ignoreSelectiveTesting: ignoreSelectiveTesting,
                 testPlan: testPlan,
                 includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
                 excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:))),
+                cacheProfile: cacheProfile,
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 destination: destination,

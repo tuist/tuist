@@ -19,6 +19,8 @@ public enum BaseCacheProfile: String, Codable, Equatable, Sendable {
     case onlyExternal
     /// Replace as many targets as possible (all internal targets), excluding focused targets
     case allPossible
+    /// Reuse the command's contextual default profile and extend it with this profile's queries and exclusions.
+    case commandDefault
     /// No binary replacement
     case none
 }
