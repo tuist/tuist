@@ -37,9 +37,9 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     @Flag(
         name: .long,
         inversion: .prefixedNo,
-        help: "Fetch dependencies through Kura with local fallback. Enabled automatically when Remote Asset support is detected."
+        help: "Fetch dependencies through Kura with local fallback."
     )
-    var remoteDownloader: Bool?
+    var remoteDownloader = true
 
     public func run() async throws {
         try await BazelSetupCommandService().run(

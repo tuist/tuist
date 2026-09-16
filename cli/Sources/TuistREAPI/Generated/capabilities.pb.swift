@@ -34,6 +34,7 @@ private struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAPIVer
     typealias Version = _2
 }
 
+/// A request message for Capabilities.GetCapabilities.
 public struct Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -50,8 +51,9 @@ public struct Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest: Sendable {
     public init() {}
 }
 
-/// Left empty on purpose: the probe only needs to confirm the server responds
-/// successfully, not to inspect the advertised capabilities.
+/// A response message for Capabilities.GetCapabilities. Left empty on purpose:
+/// the probe only needs to confirm the server responds successfully, not to
+/// inspect the advertised capabilities.
 public struct Build_Bazel_Remote_Execution_V2_ServerCapabilities: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for

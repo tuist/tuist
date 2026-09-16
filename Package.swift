@@ -865,7 +865,7 @@ var targets: [Target] = [
         name: "TuistREAPI",
         dependencies: tuistREAPIDependencies,
         path: "cli/Sources/TuistREAPI",
-        exclude: ["capabilities.proto", "remote_asset.proto", "AGENTS.md"],
+        exclude: ["capabilities.proto", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1022,15 +1022,6 @@ var targets: [Target] = [
         linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
     ),
     // MARK: Cross-platform test targets
-    .testTarget(
-        name: "TuistREAPITests",
-        dependencies: [
-            "TuistREAPI",
-            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
-            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
-        ],
-        path: "cli/Tests/TuistREAPITests"
-    ),
     .testTarget(
         name: "TuistConfigLoaderTests",
         dependencies: tuistConfigLoaderTestDependencies,
