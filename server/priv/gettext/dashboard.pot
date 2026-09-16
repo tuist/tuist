@@ -2823,11 +2823,6 @@ msgstr ""
 msgid "No prepaid minutes price is configured for this environment yet."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:623
-#, elixir-autogen, elixir-format
-msgid "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is paid, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.ex:571
 #, elixir-autogen, elixir-format
 msgid "Standing minutes need a subscription that renews monthly, and this one does not."
@@ -2846,4 +2841,9 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.ex:575
 #, elixir-autogen, elixir-format
 msgid "This account is on a runner trial, so standing minutes would buy credit it can never spend."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:623
+#, elixir-autogen, elixir-format
+msgid "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is finalized, shortly after the cycle opens, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
 msgstr ""
