@@ -66,6 +66,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        xcode_coverage_storage_key:
+          description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+          type: string
+          x-struct:
+          x-validate:
         git_object_format:
           description: The repository's Git object format.
           enum:
@@ -201,6 +206,11 @@ components:
           x-validate:
         stress_new_tests:
           $ref: '#/components/schemas/StressNewTestsResult'
+        xcode_coverage_partial:
+          description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
+          type: boolean
+          x-struct:
+          x-validate:
         macos_version:
           description: The version of macOS used during the run.
           type: string
@@ -3358,6 +3368,20 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
       x-validate:
+    CoverageUploadRequest:
+      properties:
+        test_run_id:
+          description: The client-generated id of the test run the coverage belongs to.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_run_id
+      title: CoverageUploadRequest
+      type: object
+      x-struct:
+      x-validate:
     OrganizationList:
       description: The list of organizations the authenticated subject is part of.
       properties:
@@ -5815,6 +5839,25 @@ components:
       type: string
       x-struct:
       x-validate:
+    CoverageUpload:
+      properties:
+        storage_key:
+          description: The key to send with the run as `xcode_coverage_storage_key`.
+          type: string
+          x-struct:
+          x-validate:
+        upload_url:
+          description: A short-lived URL to PUT the compressed coverage to.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - storage_key
+        - upload_url
+      title: CoverageUpload
+      type: object
+      x-struct:
+      x-validate:
     TestSuiteRunsPageSize:
       default: 20
       description: The maximum number of suite runs to return in a single page.
@@ -6155,6 +6198,19 @@ components:
       title: Invitation
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Invitation
+      x-validate:
+    CoverageSettings:
+      properties:
+        inline_threshold_bytes:
+          description: Compressed coverage larger than this goes through an upload.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - inline_threshold_bytes
+      title: CoverageSettings
+      type: object
+      x-struct:
       x-validate:
     TestModuleRunStatus:
       enum:
@@ -8904,6 +8960,92 @@ paths:
       summary: Get a generation by ID.
       tags:
         - Generations
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads:
+    post:
+      callbacks: {}
+      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+      operationId: createCoverageUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                test_run_id:
+                  description: The client-generated id of the test run the coverage belongs to.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - test_run_id
+              title: CoverageUploadRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The run the coverage belongs to
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  storage_key:
+                    description: The key to send with the run as `xcode_coverage_storage_key`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  upload_url:
+                    description: A short-lived URL to PUT the compressed coverage to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - storage_key
+                  - upload_url
+                title: CoverageUpload
+                type: object
+                x-struct:
+                x-validate:
+          description: Where to upload the coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get a signed URL to upload a test run's code coverage.
+      tags:
+        - Tests
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -10564,6 +10706,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                xcode_coverage_storage_key:
+                  description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+                  type: string
+                  x-struct:
+                  x-validate:
                 git_object_format:
                   description: The repository's Git object format.
                   enum:
@@ -10699,6 +10846,11 @@ paths:
                   x-validate:
                 stress_new_tests:
                   $ref: '#/components/schemas/StressNewTestsResult'
+                xcode_coverage_partial:
+                  description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 macos_version:
                   description: The version of macOS used during the run.
                   type: string
@@ -28421,6 +28573,67 @@ paths:
                 x-validate:
               style: simple
       summary: List test module runs for a test run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/settings:
+    get:
+      callbacks: {}
+      description: The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+      operationId: getCoverageSettings
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  inline_threshold_bytes:
+                    description: Compressed coverage larger than this goes through an upload.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - inline_threshold_bytes
+                title: CoverageSettings
+                type: object
+                x-struct:
+                x-validate:
+          description: The settings
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the code coverage upload settings for a project.
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events:

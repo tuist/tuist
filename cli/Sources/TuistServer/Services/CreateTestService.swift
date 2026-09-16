@@ -33,7 +33,8 @@ import TuistHTTP
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
-            gitHistory: TestRunGitHistory?
+            gitHistory: TestRunGitHistory?,
+            coverageUpload: XcodeCoverageUpload?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -90,7 +91,8 @@ import TuistHTTP
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
-            gitHistory: TestRunGitHistory? = nil
+            gitHistory: TestRunGitHistory? = nil,
+            coverageUpload: XcodeCoverageUpload? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -273,6 +275,7 @@ import TuistHTTP
                     body: .json(
                         .init(
                             git_branch: gitBranch,
+                            xcode_coverage_storage_key: coverageUpload?.storageKey,
                             git_object_format: objectFormat,
                             scheme: testSummary.testPlanName,
                             merge_base_sha: gitHistory?.mergeBaseSHA,
@@ -294,6 +297,7 @@ import TuistHTTP
                             ci_project_handle: ciProjectHandle,
                             pull_request_number: gitHistory?.pullRequestNumber,
                             stress_new_tests: stressNewTests,
+                            xcode_coverage_partial: coverageUpload?.partial,
                             macos_version: macOSVersion,
                             id: id,
                             changed_files: changedFiles,

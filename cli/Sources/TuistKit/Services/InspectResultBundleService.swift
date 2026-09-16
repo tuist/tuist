@@ -67,6 +67,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
+    private let coverageUploadService: CoverageUploadServicing
     private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
     private let dateService: DateServicing
@@ -85,6 +86,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
+        coverageUploadService: CoverageUploadServicing = CoverageUploadService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
         dateService: DateServicing = DateService(),
@@ -102,6 +104,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
+        self.coverageUploadService = coverageUploadService
         self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
         self.dateService = dateService
@@ -155,6 +158,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // The server that receives a locally processed run has no Xcode to read the coverage
         // with, so the client reads it, through the same parser the server runs on a bundle.
         var testSummary = testSummary
+        var coverageUpload: XcodeCoverageUpload?
+        var testRunId: String?
         if let resultBundlePath,
            let manifest = await coverageManifest(
                resultBundlePath: resultBundlePath,
@@ -162,9 +167,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                rootDirectory: gitInfoDirectory,
                onlyTestIdentifiers: onlyTestIdentifiers,
                skipTestIdentifiers: skipTestIdentifiers
+           ),
+           let prepared = await coverageUploadService.prepare(
+               resultBundlePath: resultBundlePath,
+               manifest: manifest,
+               fullHandle: fullHandle,
+               serverURL: serverURL
            )
         {
-            testSummary.coverage = try await xcResultService.parseCoverage(path: resultBundlePath, manifest: manifest)
+            testSummary.coverage = prepared.inline
+            coverageUpload = prepared.upload
+            testRunId = prepared.testRunId
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
@@ -178,7 +191,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            id: nil,
+            id: testRunId,
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
@@ -198,7 +211,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
             stressNewTests: stressNewTests,
-            gitHistory: gitHistory?.payload
+            gitHistory: gitHistory?.payload,
+            coverageUpload: coverageUpload
         )
         await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
 
@@ -344,7 +358,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
             stressNewTests: stressNewTests,
-            gitHistory: gitHistory?.payload
+            gitHistory: gitHistory?.payload,
+            coverageUpload: nil
         )
         await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
 
