@@ -77,16 +77,25 @@ defmodule Tuist.Storage do
       :s3 ->
         {config, bucket_name} = s3_config_and_bucket(actor)
 
-        presigned_url_opts = [
-          query_params: query_params,
-          expires_in: Keyword.get(opts, :expires_in, 3600),
-          headers: Keyword.get(opts, :signed_headers, [])
-        ]
+        presigned_url_opts =
+          [
+            query_params: query_params,
+            expires_in: Keyword.get(opts, :expires_in, 3600)
+          ] ++ signed_headers_opt(opts)
 
         {:ok, url} =
           ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
 
         url
+    end
+  end
+
+  # Passed only when there is something to sign, so a URL that signs no headers
+  # is generated exactly as it was before signed headers existed.
+  defp signed_headers_opt(opts) do
+    case Keyword.get(opts, :signed_headers, []) do
+      [] -> []
+      signed_headers -> [headers: signed_headers]
     end
   end
 
