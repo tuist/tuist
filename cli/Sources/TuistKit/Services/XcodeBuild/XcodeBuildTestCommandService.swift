@@ -37,7 +37,6 @@ struct XcodeBuildTestCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
-    private let casProxyFailureService: CASProxyFailureServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -56,8 +55,7 @@ struct XcodeBuildTestCommandService {
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -76,7 +74,6 @@ struct XcodeBuildTestCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
         self.stressNewTestsService = stressNewTestsService
-        self.casProxyFailureService = casProxyFailureService
     }
 
     func run(
@@ -190,11 +187,9 @@ struct XcodeBuildTestCommandService {
             )
         }
 
-        let buildStartedAt = Date()
         do {
             try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
-            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             if let derivedDataPath {
                 await processBuildRun(
                     projectDerivedDataDirectory: derivedDataPath,
@@ -266,7 +261,6 @@ struct XcodeBuildTestCommandService {
             throw error
         }
 
-        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         if let derivedDataPath {
             await processBuildRun(
                 projectDerivedDataDirectory: derivedDataPath,

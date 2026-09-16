@@ -26,7 +26,6 @@ struct XcodeBuildBuildCommandService {
     private let shardPlanService: ShardPlanServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
-    private let casProxyFailureService: CASProxyFailureServicing
     private let coverageBuildSourcesService: CoverageBuildSourcesService
 
     init(
@@ -41,7 +40,6 @@ struct XcodeBuildBuildCommandService {
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        casProxyFailureService: CASProxyFailureServicing = CASProxyFailureService(),
         coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
@@ -56,7 +54,6 @@ struct XcodeBuildBuildCommandService {
         self.shardPlanService = shardPlanService
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
-        self.casProxyFailureService = casProxyFailureService
     }
 
     func run(
@@ -94,7 +91,6 @@ struct XcodeBuildBuildCommandService {
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } catch {
-            await casProxyFailureService.warnIfFailed(since: buildStartedAt)
             await captureBuildRunReport(
                 succeeded: false,
                 startedAt: buildStartedAt,
@@ -102,7 +98,6 @@ struct XcodeBuildBuildCommandService {
             )
             throw error
         }
-        await casProxyFailureService.warnIfFailed(since: buildStartedAt)
         await captureBuildRunReport(
             succeeded: true,
             startedAt: buildStartedAt,

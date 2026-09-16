@@ -1,230 +1,96 @@
-//! The record a process leaves when the proxy fails one of its requests, and the one
-//! warning per build that goes with it.
+//! What surfaces a failing proxy outside `TUIST_CAS_LOG`.
 //!
-//! A failed request degrades to a miss, which is also what a cold cache answers, so a
-//! build that never reached the proxy looks exactly like one that found nothing.
-//! Records live in `cas-proxy-failures/` beside the proxy socket, where `tuist
-//! xcodebuild` and `tuist test` read them once the build finishes.
+//! A failed proxy request degrades to a miss, which is also what a cold cache answers,
+//! so a build that never reached the proxy looks exactly like one that found nothing.
+//! The build service reports it instead: its first failed cross-machine lookup returns a
+//! cache error carrying [`message`], and swift-build turns that into a non-fatal
+//! `warning: CAS error: ...` on the cache key query task. Nowhere else is an error safe:
+//! from a local-only lookup it fails the materialize task, and from `clang -cc1`'s own
+//! cross-machine lookup it fails the compilation, so compilers and every other lookup
+//! keep answering with a miss.
 //!
-//! Every compiler process of a build loads the plugin, so the warning is keyed by the
-//! build rather than the process. llbuild hands every process it spawns for one build
-//! the same random `LLBUILD_BUILD_ID` and draws a new one per build, so a compiler keys
-//! its record on its parent (the build service) plus that id. That tells apart two
-//! builds of one long-lived build service, which Xcode keeps across builds. The check
-//! and the claim run under an exclusive lock on the directory, so concurrent
-//! compilations cannot both claim a build.
-//!
-//! The build service records under its own key and never warns: its stderr is not part
-//! of any task's output, but with frontend replay disabled and uploads off it can be the
-//! only process that talks to the proxy, and its failure still counts for the CLI.
+//! One warning per build. The build service opens its lookup handles for a build,
+//! disposes them when the build ends, and looks up through more than one of them at
+//! once, so the first handle to report holds the claim until it is disposed. A request
+//! the proxy answers releases it too, since a later failure is a new outage.
 
-use std::collections::HashMap;
-use std::io::Write;
-use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
-use serde::{Deserialize, Serialize};
+static CLAIM: ReportClaim = ReportClaim::new();
 
-pub const RECORD_DIRECTORY_NAME: &str = "cas-proxy-failures";
-
-/// Without a build id nothing tells one build from the next under the same parent, so a
-/// failure after this long without one counts as a new build.
-const QUIET_PERIOD_MS: u64 = 10 * 60 * 1000;
-
-/// A process that keeps failing refreshes its record at most this often, so the CLI sees
-/// a failure newer than the build's start without every request taking the lock.
-const REFRESH_INTERVAL_MS: u64 = 1_000;
-
-/// Records older than this are removed whenever a new one is written.
-const RETENTION_MS: u64 = 24 * 60 * 60 * 1000;
-
-#[derive(Serialize, Deserialize)]
-struct Record {
-    socket: String,
-    error: String,
-    failed_at_ms: u64,
+/// Whether this failed lookup is the one that reports the failure, claiming the report
+/// for `handle` when it is.
+pub fn should_report(globally: bool, handle: usize) -> bool {
+    globally && running_in_build_service() && CLAIM.claim(handle)
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum Role {
-    BuildService,
-    Compiler { build_id: Option<String> },
+pub fn handle_disposed(handle: usize) {
+    CLAIM.release_if_held_by(handle);
 }
 
-/// Beside the socket, so the CLI finds it from the socket path it already resolves.
-pub fn record_directory(socket_path: &str) -> Option<PathBuf> {
-    Path::new(socket_path)
-        .parent()
-        .map(|directory| directory.join(RECORD_DIRECTORY_NAME))
+pub fn proxy_answered() {
+    CLAIM.release();
 }
 
-/// Records `error` for this process's build, and warns on stderr when this process is
-/// the one that claimed the build.
-pub fn note(socket_path: &str, error: &str) {
-    let Some(directory) = record_directory(socket_path) else {
-        return;
-    };
-    let role = current_role();
-    let key = record_key(
-        role,
-        std::process::id(),
-        std::os::unix::process::parent_id(),
-    );
-    let path = directory.join(format!("{key}.json"));
-    let now = now_ms();
-
-    static LAST_NOTED: OnceLock<Mutex<HashMap<PathBuf, u64>>> = OnceLock::new();
-    {
-        let mut last_noted = LAST_NOTED
-            .get_or_init(|| Mutex::new(HashMap::new()))
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(noted_at) = last_noted.get(&path) {
-            if now.saturating_sub(*noted_at) < REFRESH_INTERVAL_MS {
-                return;
-            }
-        }
-        last_noted.insert(path.clone(), now);
-    }
-
-    let record = Record {
-        socket: socket_path.to_string(),
-        error: error.to_string(),
-        failed_at_ms: now,
-    };
-    let Ok(warn) = claim(&directory, &path, role, &record) else {
-        return;
-    };
-    if warn {
-        let _ = writeln!(std::io::stderr(), "{}", warning(socket_path, error));
-    }
-}
-
-/// Writes `record` and decides whether this process warns, under an exclusive lock so
-/// that reading the previous record and replacing it cannot interleave with another
-/// process doing the same. The lock is released when the lock file closes.
-fn claim(directory: &Path, path: &Path, role: &Role, record: &Record) -> std::io::Result<bool> {
-    std::fs::create_dir_all(directory)?;
-    let lock = std::fs::File::options()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(directory.join(".lock"))?;
-    if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) } != 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    let previous_failure_at = std::fs::read(path)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<Record>(&bytes).ok())
-        .map(|previous| previous.failed_at_ms);
-    let warn = should_warn(role, previous_failure_at, record.failed_at_ms);
-    if previous_failure_at.is_none() {
-        remove_expired(directory, record.failed_at_ms);
-    }
-    write(path, record)?;
-    Ok(warn)
-}
-
-/// One line starting with `warning: `, which is what `tuist xcodebuild`'s formatter and
-/// CI log annotations recognise.
-fn warning(socket_path: &str, error: &str) -> String {
+/// The warning's text, which swift-build prefixes with `CAS error: `.
+pub fn message(socket_path: &str, error: &str) -> String {
     format!(
-        "warning: The Tuist Xcode cache proxy at {socket_path} failed ({error}). Compilations \
-         that needed it used the local cache only, without remote cache hits. Their uploads are \
-         kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the \
-         proxy is not running."
+        "The Tuist Xcode cache proxy at {socket_path} failed ({error}). Compilations that \
+         needed it used the local cache only, without remote cache hits. Their uploads are \
+         kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if \
+         the proxy is not running."
     )
 }
 
-fn should_warn(role: &Role, previous_failure_at: Option<u64>, now: u64) -> bool {
-    match role {
-        Role::BuildService => false,
-        Role::Compiler { build_id: Some(_) } => previous_failure_at.is_none(),
-        Role::Compiler { build_id: None } => previous_failure_at
-            .is_none_or(|failed_at| now.saturating_sub(failed_at) >= QUIET_PERIOD_MS),
+/// The lookup handle holding the report, or none. A handle is its state's address, which
+/// is never zero.
+struct ReportClaim {
+    held_by: AtomicUsize,
+}
+
+impl ReportClaim {
+    const fn new() -> Self {
+        Self {
+            held_by: AtomicUsize::new(0),
+        }
     }
-}
 
-fn record_key(role: &Role, pid: u32, parent_pid: u32) -> String {
-    match role {
-        Role::BuildService => format!("service-{pid}"),
-        Role::Compiler {
-            build_id: Some(build_id),
-        } => format!("build-{parent_pid}-{build_id}"),
-        Role::Compiler { build_id: None } => format!("parent-{parent_pid}"),
+    fn claim(&self, handle: usize) -> bool {
+        self.held_by
+            .compare_exchange(0, handle, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
     }
-}
 
-fn current_role() -> &'static Role {
-    static ROLE: OnceLock<Role> = OnceLock::new();
-    ROLE.get_or_init(|| {
-        let executable = std::env::current_exe()
-            .ok()
-            .and_then(|path| {
-                path.file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-            })
-            .unwrap_or_default();
-        role_for(
-            &executable,
-            std::env::var("LLBUILD_BUILD_ID").ok().as_deref(),
-        )
-    })
-}
-
-fn role_for(executable_name: &str, build_id: Option<&str>) -> Role {
-    if matches!(executable_name, "SWBBuildService" | "XCBBuildService") {
-        return Role::BuildService;
+    fn release_if_held_by(&self, handle: usize) {
+        let _ = self
+            .held_by
+            .compare_exchange(handle, 0, Ordering::SeqCst, Ordering::SeqCst);
     }
-    let build_id = build_id
-        .map(|id| {
-            id.chars()
-                .filter(char::is_ascii_alphanumeric)
-                .collect::<String>()
-        })
-        .filter(|id| !id.is_empty());
-    Role::Compiler { build_id }
-}
 
-/// Written through a rename so a reader never sees a partial record.
-fn write(path: &Path, record: &Record) -> std::io::Result<()> {
-    let temporary = path.with_extension(format!("{}.tmp", std::process::id()));
-    let bytes = serde_json::to_vec(record).map_err(std::io::Error::other)?;
-    std::fs::write(&temporary, bytes)?;
-    std::fs::rename(&temporary, path)
-}
-
-fn remove_expired(directory: &Path, now: u64) {
-    let Ok(entries) = std::fs::read_dir(directory) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let is_record = path
-            .extension()
-            .is_some_and(|extension| extension == "json" || extension == "tmp");
-        let modified_ms = entry
-            .metadata()
-            .and_then(|metadata| metadata.modified())
-            .ok()
-            .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-            .map(|age| age.as_millis() as u64);
-        if is_record
-            && modified_ms.is_some_and(|modified| now.saturating_sub(modified) > RETENTION_MS)
-        {
-            let _ = std::fs::remove_file(path);
+    fn release(&self) {
+        if self.held_by.load(Ordering::Relaxed) != 0 {
+            self.held_by.store(0, Ordering::SeqCst);
         }
     }
 }
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as u64)
-        .unwrap_or(0)
+fn running_in_build_service() -> bool {
+    static IN_BUILD_SERVICE: OnceLock<bool> = OnceLock::new();
+    *IN_BUILD_SERVICE.get_or_init(|| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|executable| {
+                executable
+                    .file_name()
+                    .map(|name| is_build_service(&name.to_string_lossy()))
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn is_build_service(executable_name: &str) -> bool {
+    matches!(executable_name, "SWBBuildService" | "XCBBuildService")
 }
 
 #[cfg(test)]
@@ -232,72 +98,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_build_service_is_told_apart_by_its_executable() {
-        assert_eq!(role_for("SWBBuildService", Some("1")), Role::BuildService);
-        assert_eq!(role_for("XCBBuildService", None), Role::BuildService);
-        assert_eq!(
-            role_for("swift-frontend", Some("3871203995")),
-            Role::Compiler {
-                build_id: Some("3871203995".into())
-            }
+    fn the_first_handle_to_report_holds_the_claim_until_it_is_disposed() {
+        let claim = ReportClaim::new();
+
+        assert!(claim.claim(0x10));
+        assert!(
+            !claim.claim(0x20),
+            "a second handle of the same build stays quiet"
         );
-        assert_eq!(role_for("clang", None), Role::Compiler { build_id: None });
+        claim.release_if_held_by(0x20);
+        assert!(
+            !claim.claim(0x20),
+            "disposing a handle that did not report keeps the claim"
+        );
+        claim.release_if_held_by(0x10);
+        assert!(claim.claim(0x30), "the next build's handle reports again");
     }
 
     #[test]
-    fn a_build_id_cannot_escape_the_record_directory() {
-        assert_eq!(
-            role_for("clang", Some("../../etc")),
-            Role::Compiler {
-                build_id: Some("etc".into())
-            }
-        );
-        assert_eq!(
-            role_for("clang", Some("/..")),
-            Role::Compiler { build_id: None }
-        );
+    fn a_proxy_that_answers_releases_the_claim() {
+        let claim = ReportClaim::new();
+
+        assert!(claim.claim(0x10));
+        claim.release();
+        assert!(claim.claim(0x10));
     }
 
     #[test]
-    fn compilers_of_one_build_share_a_key_and_the_build_service_has_its_own() {
-        let compiler = Role::Compiler {
-            build_id: Some("1111".into()),
-        };
-        assert_eq!(record_key(&compiler, 7, 42), "build-42-1111");
-        assert_eq!(record_key(&compiler, 8, 42), "build-42-1111");
-        assert_eq!(record_key(&Role::BuildService, 42, 1), "service-42");
-        assert_eq!(
-            record_key(&Role::Compiler { build_id: None }, 7, 42),
-            "parent-42"
-        );
+    fn only_the_build_service_reports() {
+        assert!(is_build_service("SWBBuildService"));
+        assert!(is_build_service("XCBBuildService"));
+        assert!(!is_build_service("swift-frontend"));
+        assert!(!is_build_service("clang"));
     }
 
     #[test]
-    fn only_the_first_failure_of_a_build_warns() {
-        let with_build = Role::Compiler {
-            build_id: Some("1111".into()),
-        };
-        assert!(should_warn(&with_build, None, 1_000));
-        assert!(!should_warn(&with_build, Some(1), 1_000 + QUIET_PERIOD_MS));
-        assert!(!should_warn(&Role::BuildService, None, 1_000));
-
-        let without_build = Role::Compiler { build_id: None };
-        assert!(should_warn(&without_build, None, 1_000));
-        assert!(!should_warn(&without_build, Some(1_000), 2_000));
-        assert!(should_warn(
-            &without_build,
-            Some(1_000),
-            1_000 + QUIET_PERIOD_MS
-        ));
-    }
-
-    #[test]
-    fn the_warning_is_a_single_line_the_formatter_recognises() {
-        let line = warning(
+    fn the_message_names_the_socket_and_the_failure_on_one_line() {
+        let message = message(
             "/Users/me/.local/state/tuist/cas-proxy.sock",
             "proxy connect: refused",
         );
-        assert!(line.starts_with("warning: "));
-        assert!(!line.contains('\n'));
+        assert!(message.contains("/Users/me/.local/state/tuist/cas-proxy.sock"));
+        assert!(message.contains("proxy connect: refused"));
+        assert!(!message.contains('\n'));
     }
 }

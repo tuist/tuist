@@ -61,7 +61,6 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardService: MockShardServicing!
     private var xcActivityLogController: MockXCActivityLogControlling!
     private var uploadBuildRunService: MockUploadBuildRunServicing!
-    private var casProxyFailureService: MockCASProxyFailureServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -90,11 +89,6 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
-        casProxyFailureService = .init()
-
-        given(casProxyFailureService)
-            .failure(since: .any)
-            .willReturn(nil)
 
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
@@ -227,8 +221,7 @@ final class TestServiceTests: TuistUnitTestCase {
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
             xcActivityLogController: xcActivityLogController,
-            uploadBuildRunService: uploadBuildRunService,
-            casProxyFailureService: casProxyFailureService
+            uploadBuildRunService: uploadBuildRunService
         )
 
         given(simulatorController)
@@ -6741,30 +6734,6 @@ private struct TestServiceShardingFixture {
 }
 
 @Suite
-struct TestServiceCASProxyFailureTests {
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_warns_when_the_cas_proxy_failed_during_the_tests() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fixture = TestServiceSchemePlanningFixture(
-            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory),
-            casProxyFailure: CASProxyFailure(
-                socket: "/Users/tuist/.local/state/tuist/cas-proxy.sock",
-                error: "proxy connect: No such file or directory (os error 2)"
-            )
-        )
-
-        try await fixture.run(path: temporaryDirectory)
-
-        #expect(!fixture.testRuns.isEmpty)
-        #expect(
-            AlertController.current.warnings().map { $0.message.plain() }.contains(
-                "The Xcode cache proxy at /Users/tuist/.local/state/tuist/cas-proxy.sock failed during this build: proxy connect: No such file or directory (os error 2)"
-            )
-        )
-    }
-}
-
-@Suite
 struct TestServiceSchemePlanningTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_with_passthrough_destination_validates_explicit_platform() async throws {
@@ -7300,7 +7269,7 @@ private struct TestServiceSchemePlanningFixture {
         capture.runs
     }
 
-    init(scenario: SchemePlanningScenario, casProxyFailure: CASProxyFailure? = nil) {
+    init(scenario: SchemePlanningScenario) {
         let capture = TestRunCapture()
         self.capture = capture
         let generator = MockGenerating()
@@ -7313,11 +7282,6 @@ private struct TestServiceSchemePlanningFixture {
         let configLoader = MockConfigLoading()
         let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
         let derivedDataLocator = MockDerivedDataLocating()
-        let casProxyFailureService = MockCASProxyFailureServicing()
-
-        given(casProxyFailureService)
-            .failure(since: .any)
-            .willReturn(casProxyFailure)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -7423,8 +7387,7 @@ private struct TestServiceSchemePlanningFixture {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
-            derivedDataLocator: derivedDataLocator,
-            casProxyFailureService: casProxyFailureService
+            derivedDataLocator: derivedDataLocator
         )
     }
 

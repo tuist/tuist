@@ -4,7 +4,6 @@ import Logging
 import Mockable
 import Path
 import Testing
-import TuistAlert
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
@@ -29,14 +28,9 @@ struct XcodeBuildBuildCommandServiceTests {
     private let shardPlanService = MockShardPlanServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let uploadBuildRunService = MockUploadBuildRunServicing()
-    private let casProxyFailureService = MockCASProxyFailureServicing()
     private let subject: XcodeBuildBuildCommandService
 
     init() {
-        given(casProxyFailureService)
-            .failure(since: .any)
-            .willReturn(nil)
-
         subject = XcodeBuildBuildCommandService(
             fileSystem: fileSystem,
             xcodeBuildController: xcodeBuildController,
@@ -48,85 +42,8 @@ struct XcodeBuildBuildCommandServiceTests {
             xcActivityLogController: xcActivityLogController,
             shardPlanService: shardPlanService,
             serverEnvironmentService: serverEnvironmentService,
-            uploadBuildRunService: uploadBuildRunService,
-            casProxyFailureService: casProxyFailureService
+            uploadBuildRunService: uploadBuildRunService
         )
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func warnsWhenTheCASProxyFailedDuringTheBuild() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        givenABuildWithoutActivityLog(in: temporaryDirectory)
-        given(xcodeBuildController)
-            .run(arguments: .any)
-            .willReturn()
-        givenTheCASProxyFailed()
-
-        try await subject.run(passthroughXcodebuildArguments: ["-scheme", "MyApp"])
-
-        #expect(AlertController.current.warnings().map { $0.message.plain() } == [Self.casProxyFailureWarning])
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func warnsWhenTheCASProxyFailedDuringABuildThatFailed() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        givenABuildWithoutActivityLog(in: temporaryDirectory)
-        given(xcodeBuildController)
-            .run(arguments: .any)
-            .willThrow(TestError("xcodebuild failed"))
-        givenTheCASProxyFailed()
-
-        await #expect(throws: TestError.self) {
-            try await subject.run(passthroughXcodebuildArguments: ["-scheme", "MyApp"])
-        }
-
-        #expect(AlertController.current.warnings().map { $0.message.plain() } == [Self.casProxyFailureWarning])
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func doesNotWarnWhenTheCASProxyDidNotFail() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        givenABuildWithoutActivityLog(in: temporaryDirectory)
-        given(xcodeBuildController)
-            .run(arguments: .any)
-            .willReturn()
-
-        try await subject.run(passthroughXcodebuildArguments: ["-scheme", "MyApp"])
-
-        #expect(AlertController.current.warnings().isEmpty)
-        verify(casProxyFailureService)
-            .failure(since: .any)
-            .called(1)
-    }
-
-    private static let casProxyFailureWarning =
-        "The Xcode cache proxy at /Users/tuist/.local/state/tuist/cas-proxy.sock failed during this build: proxy connect: No such file or directory (os error 2)"
-
-    private func givenTheCASProxyFailed() {
-        casProxyFailureService.reset()
-        given(casProxyFailureService)
-            .failure(since: .any)
-            .willReturn(
-                CASProxyFailure(
-                    socket: "/Users/tuist/.local/state/tuist/cas-proxy.sock",
-                    error: "proxy connect: No such file or directory (os error 2)"
-                )
-            )
-    }
-
-    private func givenABuildWithoutActivityLog(in temporaryDirectory: AbsolutePath) {
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.runs))
-            .willReturn(temporaryDirectory.appending(component: "cache"))
-        given(uniqueIDGenerator)
-            .uniqueID()
-            .willReturn("unique-id")
-        given(xcodeBuildArgumentParser)
-            .parse(.any)
-            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
-        given(xcActivityLogController)
-            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
-            .willReturn(nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

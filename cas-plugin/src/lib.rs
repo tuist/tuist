@@ -592,6 +592,7 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         return;
     }
     let state_ptr = cas as *mut CasState;
+    proxy_failure::handle_disposed(state_ptr as usize);
     {
         // Workers reference this state; join them before freeing anything.
         // Prefetches are droppable; queued uploads must flush.
@@ -1031,7 +1032,6 @@ unsafe fn load_object_impl(
             }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
-                note_proxy_failure(state, &message);
             }
         }
     }
@@ -1169,6 +1169,7 @@ unsafe fn actioncache_get_impl(
         .unwrap_or_default();
     match client.resolve(&cas_path, &state.proxy_instance, key) {
         Ok(Resolution::Hit(value_digest)) => {
+            proxy_failure::proxy_answered();
             let value_digest_t =
                 llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
             let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1191,7 +1192,9 @@ unsafe fn actioncache_get_impl(
                     client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
                 {
                     log_line(&format!("proxy graph preparation failed: {message}"));
-                    note_proxy_failure(state, &message);
+                    if report_proxy_failure(state, globally, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
                 }
             }
             if !value_graph_is_available(state, value_id) {
@@ -1222,22 +1225,35 @@ unsafe fn actioncache_get_impl(
             return LLCAS_LOOKUP_RESULT_SUCCESS;
         }
         Ok(Resolution::Miss) => {
+            proxy_failure::proxy_answered();
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
         Err(message) => {
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             log_line(&format!("proxy resolve error: {message}"));
-            note_proxy_failure(state, &message);
+            if report_proxy_failure(state, globally, &message, error) {
+                return LLCAS_LOOKUP_RESULT_ERROR;
+            }
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
     }
 }
 
-/// A request the proxy failed degrades to a miss, the same answer a cold cache gives,
-/// so outside `TUIST_CAS_LOG` this record is the only thing telling the two apart.
-fn note_proxy_failure(state: &CasState, message: &str) {
-    proxy_failure::note(&state.proxy.socket_path, message);
+/// A failed proxy request degrades to a miss, the same answer a cold cache gives. The one
+/// lookup `proxy_failure` lets report it returns a cache error instead, which swift-build
+/// shows as a warning; every other failure stays a miss.
+unsafe fn report_proxy_failure(
+    state: &CasState,
+    globally: bool,
+    message: &str,
+    error: *mut *mut c_char,
+) -> bool {
+    if !proxy_failure::should_report(globally, state as *const CasState as usize) {
+        return false;
+    }
+    set_error(error, &proxy_failure::message(&state.proxy.socket_path, message));
+    true
 }
 
 /// Validate the local closure without consulting the remote. Root containment
@@ -1443,13 +1459,9 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            // The spool record survives a failure for the proxy sweep, but a sweep needs
-            // a proxy, so the failure is still noted.
-            if let Err(message) =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy())
-            {
-                note_proxy_failure(state, &message);
-            }
+            // Failure is fine: the record survives for the proxy sweep.
+            let _ =
+                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
         }
         return;
     }
