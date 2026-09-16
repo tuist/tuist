@@ -319,27 +319,24 @@ build {
   # only exposes a downloaded toolchain to the user that installed
   # it. Running the download as `runner` registers it for the user
   # jobs run as.
+  #
+  # The toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
   provisioner "shell" {
     inline = [
-      "set -uo pipefail",
-      "echo 'admin' | sudo -S true",
-      "echo '--- sw_vers'; sw_vers",
-      "echo '--- xcode'; xcodebuild -version",
-      "XB=$(xcodebuild -version | awk '/Build version/ {print $3}'); case \"$XB\" in 17E202) MB=17E188;; 17F113) MB=17F109;; 17C529) MB=17C519;; 17A400) MB=17A324;; *) MB=$XB;; esac; echo \"xcode build $XB -> metal build $MB\"; echo \"$MB\" > /tmp/metal-build; chmod 644 /tmp/metal-build",
-      "echo '--- admin ~/Library/Developer/Xcode'; ls -la ~/Library/Developer/Xcode/ || echo \"exit=$?\"",
-      "echo '--- index reachable'; curl -sS -o /dev/null -w '%%{http_code} %%{size_download}\\n' https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex || echo \"exit=$?\"",
-      "echo '--- 1 runner plain download (repro)'; sudo -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain' || echo \"exit=$?\"",
-      "echo '--- 2 runner explicit buildVersion'; sudo -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $(cat /tmp/metal-build)\" || echo \"exit=$?\"",
-      "echo '--- 2b runner metal'; sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version' || echo \"exit=$?\"",
-      "echo '--- 2c runner showComponent'; sudo -u runner -H /bin/zsh -lc 'xcodebuild -showComponent MetalToolchain' || echo \"exit=$?\"",
-      "echo '--- 2d runner mapping plist'; sudo -u runner -H /bin/zsh -lc 'ls -la ~/Library/Developer/Xcode/ && plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist' || echo \"exit=$?\"",
-      "echo '--- 3 admin metal before any admin download'; /usr/bin/xcrun metal --version || echo \"exit=$?\"",
-      "echo '--- 4 admin plain download'; xcodebuild -downloadComponent MetalToolchain || echo \"exit=$?\"",
-      "echo '--- 4b admin metal'; /usr/bin/xcrun metal --version || echo \"exit=$?\"",
-      "echo '--- 5 admin explicit buildVersion'; xcodebuild -downloadComponent MetalToolchain -buildVersion \"$(cat /tmp/metal-build)\" || echo \"exit=$?\"",
-      "echo '--- 5b admin metal'; /usr/bin/xcrun metal --version || echo \"exit=$?\"",
-      "echo '--- 5c admin mapping plist'; plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist || echo \"exit=$?\"",
-      "echo '--- done, failing on purpose so no image is pushed'; exit 1"
+      "set -euo pipefail",
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
     ]
   }
 

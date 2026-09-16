@@ -81,7 +81,12 @@ thin runtime on top — ~2 min instead of ~30.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
   `xcodebuild -downloadAllPlatforms`.
 - The Metal compiler toolchain from
-  `xcodebuild -downloadComponent MetalToolchain`.
+  `xcodebuild -downloadComponent MetalToolchain -buildVersion <build>`,
+  where `<build>` is the toolchain Apple's downloadable index
+  (`index2.dvtdownloadableindex`, `xcodeToOtherDownloadablesMappings`)
+  maps the Xcode build to. Apple publishes some toolchains under a
+  different build than the Xcode's own (26.4.1: 17E202 to 17E188), and
+  a plain `-downloadComponent` then fails with `Failed fetching catalog`.
 - Dev tools via brew: `xcodes`, `xcbeautify`, `swiftformat`,
   `swiftlint`, `swiftgen`, `licenseplist`, `mint`, `carthage`,
   `fastlane`, `cocoapods`, `libimobiledevice`, `ideviceinstaller`,
