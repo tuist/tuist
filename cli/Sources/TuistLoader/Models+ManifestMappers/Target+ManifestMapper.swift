@@ -253,7 +253,7 @@ extension XcodeGraph.Target {
 
                 let pattern = String(resolvedPath.pathString.dropFirst())
                 let matchedPaths = try await fileSystem
-                    .glob(directory: AbsolutePath.root, include: [pattern])
+                    .manifestGlob(directory: AbsolutePath.root, include: [pattern])
                     .collect()
                     .sorted()
 
