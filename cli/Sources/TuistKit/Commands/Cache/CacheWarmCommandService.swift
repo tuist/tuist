@@ -25,9 +25,22 @@ import XcodeGraph
 
     enum CacheWarmCommandServiceError: LocalizedError {
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
+        case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
 
         var errorDescription: String? {
             switch self {
+            case let .uploadsFailed(failures, storedCount):
+                let failedTargets = failures
+                    .sorted { $0.item.name < $1.item.name }
+                    .map { "  - \($0.item.name) (\($0.item.hash)): \($0.reason)" }
+                    .joined(separator: "\n")
+                return """
+                \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
+                \(failedTargets)
+
+                Warming again uploads them from a machine that doesn't have them in its local cache. On this \
+                machine, run tuist clean binaries first, since targets in the local cache count as cached.
+                """
             case let .diskExhausted(scratchDirectory, space, underlyingError):
                 return """
                 Warming the cache ran out of disk space. The volume holding the build's scratch directory \
@@ -331,6 +344,7 @@ import XcodeGraph
         ///
         /// Returns nil on a volume that still has room, so an ordinary build failure is reported as itself.
         private func diskExhaustionError(for error: Error, scratchDirectory: AbsolutePath) -> Error? {
+            if case CacheWarmCommandServiceError.uploadsFailed = error { return nil }
             guard let space = VolumeSpace.read(at: scratchDirectory), space.isExhausted else { return nil }
             return CacheWarmCommandServiceError.diskExhausted(
                 scratchDirectory: scratchDirectory,
@@ -457,11 +471,20 @@ import XcodeGraph
 
             Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
-            let successfullyStoredTargets = try await store(
-                artifactsToStore,
-                cacheStorage: cacheStorage,
-                scratchDirectory: scratchDirectory
-            )
+            let successfullyStoredTargets: [CacheStorableTarget]
+            do {
+                successfullyStoredTargets = try await store(
+                    artifactsToStore,
+                    cacheStorage: cacheStorage,
+                    scratchDirectory: scratchDirectory
+                )
+            } catch let error as CacheUploadError {
+                let targets = Set(artifactsToStore.map { CacheStorableItem(name: $0.graphTarget.target.name, hash: $0.hash) })
+                throw CacheWarmCommandServiceError.uploadsFailed(
+                    failures: error.failures,
+                    storedCount: targets.subtracting(error.failures.map(\.item)).count
+                )
+            }
 
             let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
             if successfullyStoredTargets.isEmpty {

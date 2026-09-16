@@ -1302,6 +1302,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
             : try await cacheStorageFactory.cacheStorage(config: config)
     }
 
+    /// A hash that didn't reach the remote cache only costs another run the tests it could have skipped,
+    /// so a failed upload doesn't fail the test run.
+    private func storeTestHashes(
+        _ items: [CacheStorableItem: [AbsolutePath]],
+        cacheStorage: CacheStoring
+    ) async throws {
+        do {
+            _ = try await cacheStorage.store(items, cacheCategory: .selectiveTests)
+        } catch let error as CacheUploadError {
+            for failure in error.failures {
+                AlertController.current.warning(
+                    .alert("Failed to upload \(failure.item.name) with hash \(failure.item.hash): \(failure.reason)")
+                )
+            }
+        }
+    }
+
     private func storeSuccessfulTestHashesFromGraph(
         selectiveTestingGraph: SelectiveTestingGraph,
         passingTargetNames: Set<String>,
@@ -1315,7 +1332,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
         guard !cacheableItems.isEmpty else { return }
-        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+        try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
     }
 
     /// The modules that passed, minus any the gate is failing the run over.
@@ -1880,7 +1897,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         ]()
                     }
 
-            try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+            try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
         }
     }
 
