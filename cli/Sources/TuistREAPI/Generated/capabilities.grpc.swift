@@ -1,16 +1,4 @@
-// Minimal subset of the Remote Execution API (REAPI) Capabilities service.
-//
-// It is vendored solely so the CLI can probe a remote cache endpoint with the
-// same GetCapabilities handshake Bazel performs on start-up. Only the pieces
-// required to issue the request and confirm a successful response are declared:
-// the package, service name and method name match the upstream REAPI exactly so
-// the wire path resolves to "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities".
-//
-// ServerCapabilities is intentionally left empty. proto3 ignores unknown fields
-// on decode, so the probe can decode whatever the server returns while only
-// needing to confirm the call completes without a gRPC error.
-//
-// Upstream: https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto
+// Wire-compatible REAPI capability fields used for module-cache negotiation.
 
 // DO NOT EDIT.
 // swift-format-ignore-file

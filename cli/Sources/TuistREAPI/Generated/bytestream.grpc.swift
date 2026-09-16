@@ -1,3 +1,5 @@
+// Wire-compatible subset of google/bytestream/bytestream.proto.
+
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all

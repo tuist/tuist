@@ -5,14 +5,18 @@ import XcodeGraph
 
 /// Hashes each compilation independently of the platform requirements of unrelated consumers.
 public struct BinaryCacheFingerprintHasher {
-    public init() {}
+    private let contentHasher: ContentHashing
+
+    public init(contentHasher: ContentHashing = CachedContentHasher()) {
+        self.contentHasher = contentHasher
+    }
 
     public func fingerprints(
         graph: Graph,
         targets: Set<GraphTarget>,
         additionalStrings: [String]
     ) async throws -> [GraphTarget: [String: String]] {
-        let worker = Worker(graph: graph, targets: targets, additionalStrings: additionalStrings)
+        let worker = Worker(graph: graph, targets: targets, additionalStrings: additionalStrings, contentHasher: contentHasher)
         var result: [GraphTarget: [String: String]] = [:]
         for target in targets
             where [.framework, .staticFramework, .staticLibrary, .dynamicLibrary].contains(target.target.product)
@@ -41,11 +45,12 @@ private final class Worker {
     let graph: Graph
     let targets: [GraphHashedTarget: GraphTarget]
     let additionalStrings: [String]
-    let contentHasher = ContentHasher()
+    let contentHasher: ContentHashing
     var hashes: [Key: String] = [:]
     var hashedPaths: [AbsolutePath: String] = [:]
 
-    init(graph: Graph, targets: Set<GraphTarget>, additionalStrings: [String]) {
+    init(graph: Graph, targets: Set<GraphTarget>, additionalStrings: [String], contentHasher: ContentHashing) {
+        self.contentHasher = contentHasher
         self.graph = graph
         self.targets = Dictionary(uniqueKeysWithValues: targets.map {
             (GraphHashedTarget(projectPath: $0.path, targetName: $0.target.name), $0)

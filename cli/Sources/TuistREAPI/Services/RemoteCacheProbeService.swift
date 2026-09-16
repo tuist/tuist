@@ -23,10 +23,7 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
     public func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String) async throws {
         Logger.current.debug("Probing remote cache availability at \(endpoint.authority) (GetCapabilities)")
 
-        let transport: HTTP2ClientTransport.Posix = try .http2NIOPosix(
-            target: .dns(host: endpoint.host, port: endpoint.port),
-            transportSecurity: endpoint.isTLS ? .tls : .plaintext
-        )
+        let transport = try REAPITransport.make(endpoint: endpoint)
 
         var options = CallOptions.defaults
         options.timeout = Self.probeTimeout

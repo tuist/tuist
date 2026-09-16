@@ -38,6 +38,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     public init(
         contentHasher: ContentHashing = ContentHasher()
     ) {
+        let contentHasher = CachedContentHasher(contentHasher: contentHasher)
         self.init(
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             contentHasher: contentHasher,
@@ -105,13 +106,15 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             additionalStrings: additionalStrings
         )
 
-        let fingerprints = try await BinaryCacheFingerprintHasher().fingerprints(
-            graph: hashingGraph,
-            targets: Set(hashes.keys),
-            additionalStrings: additionalStrings
-        )
-        for (target, values) in fingerprints {
-            hashes[target]?.binaryCacheFingerprints = values
+        if !Environment.current.isLegacyModuleCacheEnabled {
+            let fingerprints = try await BinaryCacheFingerprintHasher(contentHasher: contentHasher).fingerprints(
+                graph: hashingGraph,
+                targets: Set(hashes.keys),
+                additionalStrings: additionalStrings
+            )
+            for (target, values) in fingerprints {
+                hashes[target]?.binaryCacheFingerprints = values
+            }
         }
 
         return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in

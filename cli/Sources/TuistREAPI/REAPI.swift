@@ -39,16 +39,53 @@ public enum REAPI {
     }
 }
 
-public enum REAPICacheError: Error {
+public enum REAPICacheError: Error, LocalizedError {
+    case unsupportedEndpoint
+    case unsupportedProxy
+    case proxyConnectionFailed
     case invalidDigest
     case corruptBlob
     case invalidTree
     case insufficientSpace
+    public var errorDescription: String? {
+        switch self {
+        case .invalidDigest: "The cache returned an invalid content digest."
+        case .corruptBlob: "The cache content failed its integrity check."
+        case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."
+        case .insufficientSpace: "The cache artifact exceeds the available local cache budget."
+        case .unsupportedEndpoint: "The cache endpoint does not advertise REAPI caching with SHA-256. Configure a REAPI-capable endpoint."
+        case .unsupportedProxy: "REAPI requires a CONNECT proxy URL using the http or https scheme."
+        case .proxyConnectionFailed: "The proxy could not establish a connection to the REAPI cache."
+        }
+    }
 }
 
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
+    func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
+    func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
     func uploadBlobs(_ blobs: [REAPI.Digest: URL]) async throws
     func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws
+}
+
+extension REAPICacheStoring {
+    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+        try await uploadBlobs(blobs)
+        return Set(blobs.keys)
+    }
+
+    public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+        var successful = Set<REAPI.Digest>()
+        for (digest, path) in blobs {
+            do {
+                try await downloadBlob(digest, to: path)
+                guard try REAPI.digest(file: path) == digest else { throw REAPICacheError.corruptBlob }
+                successful.insert(digest)
+            } catch {
+                if error is CancellationError { throw error }
+            }
+        }
+        return successful
+    }
 }

@@ -273,6 +273,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .external(name: "SwiftProtobuf"),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -1065,6 +1067,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
@@ -1174,6 +1177,10 @@ public enum Module: String, CaseIterable {
                 ]
             case .reapi:
                 [
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOSSL"),
                     .target(name: Module.logging.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
@@ -2040,6 +2047,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),

@@ -1,3 +1,6 @@
+// Wire-compatible cache subset of bazelbuild/remote-apis remote_execution.proto.
+// Field numbers and service names are upstream REAPI v2. Remote execution is not exposed.
+
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all
@@ -525,6 +528,34 @@ public enum Build_Bazel_Remote_Execution_V2_ContentAddressableStorage: Sendable 
         .ServiceDescriptor(fullyQualifiedService: "build.bazel.remote.execution.v2.ContentAddressableStorage")
     /// Namespace for method metadata.
     public enum Method: Sendable {
+        /// Namespace for "BatchReadBlobs" metadata.
+        public enum BatchReadBlobs: Sendable {
+            /// Request type for "BatchReadBlobs".
+            public typealias Input = Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest
+            /// Response type for "BatchReadBlobs".
+            public typealias Output = Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse
+            /// Descriptor for "BatchReadBlobs".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore
+                    .ServiceDescriptor(fullyQualifiedService: "build.bazel.remote.execution.v2.ContentAddressableStorage"),
+                method: "BatchReadBlobs"
+            )
+        }
+
+        /// Namespace for "BatchUpdateBlobs" metadata.
+        public enum BatchUpdateBlobs: Sendable {
+            /// Request type for "BatchUpdateBlobs".
+            public typealias Input = Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest
+            /// Response type for "BatchUpdateBlobs".
+            public typealias Output = Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse
+            /// Descriptor for "BatchUpdateBlobs".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore
+                    .ServiceDescriptor(fullyQualifiedService: "build.bazel.remote.execution.v2.ContentAddressableStorage"),
+                method: "BatchUpdateBlobs"
+            )
+        }
+
         /// Namespace for "FindMissingBlobs" metadata.
         public enum FindMissingBlobs: Sendable {
             /// Request type for "FindMissingBlobs".
@@ -541,6 +572,8 @@ public enum Build_Bazel_Remote_Execution_V2_ContentAddressableStorage: Sendable 
 
         /// Descriptors for all methods in the "build.bazel.remote.execution.v2.ContentAddressableStorage" service.
         public static let descriptors: [GRPCCore.MethodDescriptor] = [
+            BatchReadBlobs.descriptor,
+            BatchUpdateBlobs.descriptor,
             FindMissingBlobs.descriptor,
         ]
     }
@@ -569,6 +602,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
     /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
     /// or ``SimpleServiceProtocol`` instead.
     public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+        /// Handle the "BatchReadBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse` messages.
+        func batchReadBlobs(
+            request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>
+
+        /// Handle the "BatchUpdateBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse` messages.
+        func batchUpdateBlobs(
+            request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>
+
         /// Handle the "FindMissingBlobs" method.
         ///
         /// - Parameters:
@@ -592,6 +653,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
     /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
     /// use ``StreamingServiceProtocol``.
     public protocol ServiceProtocol: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.StreamingServiceProtocol {
+        /// Handle the "BatchReadBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse` message.
+        func batchReadBlobs(
+            request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>
+
+        /// Handle the "BatchUpdateBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse` message.
+        func batchUpdateBlobs(
+            request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>
+
         /// Handle the "FindMissingBlobs" method.
         ///
         /// - Parameters:
@@ -613,6 +702,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
     /// doesn't provide access to request or response metadata. If you need access to these
     /// then use ``ServiceProtocol`` instead.
     public protocol SimpleServiceProtocol: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ServiceProtocol {
+        /// Handle the "BatchReadBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse` to respond with.
+        func batchReadBlobs(
+            request: Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse
+
+        /// Handle the "BatchUpdateBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse` to respond with.
+        func batchUpdateBlobs(
+            request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse
+
         /// Handle the "FindMissingBlobs" method.
         ///
         /// - Parameters:
@@ -634,6 +751,28 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
 extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.StreamingServiceProtocol {
     public func registerMethods(with router: inout GRPCCore.RPCRouter<some GRPCCore.ServerTransport>) {
         router.registerHandler(
+            forMethod: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.BatchReadBlobs.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>(),
+            handler: { request, context in
+                try await self.batchReadBlobs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.BatchUpdateBlobs.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>(),
+            handler: { request, context in
+                try await self.batchUpdateBlobs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.FindMissingBlobs.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>(),
@@ -650,6 +789,28 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.StreamingSer
 /// Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ServiceProtocol {
+    public func batchReadBlobs(
+        request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse> {
+        let response = try await batchReadBlobs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func batchUpdateBlobs(
+        request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse> {
+        let response = try await batchUpdateBlobs(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
     public func findMissingBlobs(
         request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>,
         context: GRPCCore.ServerContext
@@ -665,6 +826,32 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ServiceProto
 /// Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServiceProtocol {
+    public func batchReadBlobs(
+        request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse> {
+        return GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>(
+            message: try await batchReadBlobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func batchUpdateBlobs(
+        request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse> {
+        return GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>(
+            message: try await batchUpdateBlobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
     public func findMissingBlobs(
         request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>,
         context: GRPCCore.ServerContext
@@ -688,6 +875,46 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
     /// You don't need to implement this protocol directly, use the generated
     /// implementation, ``Client``.
     public protocol ClientProtocol: Sendable {
+        /// Call the "BatchReadBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func batchReadBlobs<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "BatchUpdateBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func batchUpdateBlobs<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
         /// Call the "FindMissingBlobs" method.
         ///
         /// - Parameters:
@@ -723,6 +950,68 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
         public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
+        }
+
+        /// Call the "BatchReadBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func batchReadBlobs<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await client.unary(
+                request: request,
+                descriptor: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.BatchReadBlobs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "BatchUpdateBlobs" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func batchUpdateBlobs<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await client.unary(
+                request: request,
+                descriptor: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.BatchUpdateBlobs.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
         }
 
         /// Call the "FindMissingBlobs" method.
@@ -761,6 +1050,58 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
 /// Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ClientProtocol {
+    /// Call the "BatchReadBlobs" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func batchReadBlobs<Result>(
+        request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await batchReadBlobs(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "BatchUpdateBlobs" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func batchUpdateBlobs<Result>(
+        request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await batchUpdateBlobs(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "FindMissingBlobs" method.
     ///
     /// - Parameters:
@@ -791,6 +1132,66 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ClientProtoc
 /// Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ClientProtocol {
+    /// Call the "BatchReadBlobs" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func batchReadBlobs<Result>(
+        _ message: Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await batchReadBlobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "BatchUpdateBlobs" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func batchUpdateBlobs<Result>(
+        _ message: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await batchUpdateBlobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "FindMissingBlobs" method.
     ///
     /// - Parameters:

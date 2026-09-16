@@ -37,6 +37,8 @@ struct BinaryCacheStorageTests {
         let path = try #require(hits.values.first)
         #expect(try await BinaryCacheArtifact.coverage(at: path).keys.sorted() == ["ios-device", "ios-simulator"])
         #expect(await remote.downloads[shared] == 1)
+        let exact = try BinaryCacheAction(name: ios.name, targetHash: ios.hash)
+        #expect(await remote.queries[exact.digest] == nil)
         #expect(await remote.downloads[REAPI.digest(Data("macos-device".utf8))] == nil)
         let count = await remote.downloads
         #expect(try await reader.fetch([ios], cacheCategory: .binaries).values.first == path)
@@ -263,6 +265,82 @@ struct BinaryCacheStorageTests {
         #expect(try local.blob(secondDigest) != nil)
     }
 
+    @Test(.inTemporaryDirectory) func thousandTargetMissesAreBoundedAndQueriedOnlyOnce() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        await remote.delayLookups()
+        let targets = Set((0 ..< 1000).map { item("target-\($0)", ["ios-device": "sdk-\($0)"]) })
+        #expect(try await subject(directory, remote: remote).fetch(targets, cacheCategory: .binaries).isEmpty)
+        #expect(await remote.queries.count == 2000)
+        #expect(await remote.queries.values.allSatisfy { $0 == 1 })
+        #expect(await remote.maximumActiveLookups > 1)
+        #expect(await remote.maximumActiveLookups <= 32)
+    }
+
+    @Test(.inTemporaryDirectory) func invalidTargetAndPartialUploadDoNotDiscardHealthyTargets() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let good = directory.appending(component: "CustomProduct.macro")
+        let failed = directory.appending(component: "Failed.macro")
+        try Data("good".utf8).write(to: good.url)
+        try Data("failed".utf8).write(to: failed.url)
+        let remote = MemoryREAPICache()
+        await remote.failUpload(REAPI.digest(Data("failed".utf8)))
+        let healthy = item("good", [:])
+        let result = try await subject(directory.appending(component: "producer"), remote: remote).store([
+            healthy: [good], item("failed", [:]): [failed],
+            item("invalid", [:]): [directory.appending(component: "missing.bundle")],
+        ], cacheCategory: .binaries)
+        #expect(result == [healthy])
+        #expect(await remote.actions.count == 1)
+        let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([healthy], cacheCategory: .binaries).values.first)
+        #expect(restored.basename == "CustomProduct.macro")
+        #expect(try Data(contentsOf: restored.url) == Data("good".utf8))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func tightBudgetRetainsMaterializationWithoutKeepingDuplicateCASPayload() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_CACHE_MAX_BYTES"] = "100000"
+        let binaries = directory.appending(component: "Binaries")
+        let provider = MockCacheDirectoriesProviding()
+        given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
+        let local = BinaryCacheLocalStore(
+            directory: binaries, actionDirectory: directory.appending(component: "Actions"),
+            pruner: BinaryCachePruner(cacheDirectoriesProvider: provider)
+        )
+        let remote = MemoryREAPICache()
+        let cache = BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: local, remote: remote)
+        let path = directory.appending(component: "Shared.macro")
+        let body = Data(repeating: 42, count: 60000)
+        try body.write(to: path.url)
+        let target = item("budget", [:])
+        #expect(try await cache.store([target: [path]], cacheCategory: .binaries) == [target])
+        #expect(try local.blob(REAPI.digest(body)) == nil)
+        let restored = try #require(try await cache.fetch([target], cacheCategory: .binaries).values.first)
+        #expect(try Data(contentsOf: restored.url) == body)
+        #expect(await remote.downloads.isEmpty)
+        let fresh = BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: local, remote: remote)
+        #expect(try await fresh.fetch([target], cacheCategory: .binaries).values.first == restored)
+        #expect(await remote.downloads.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func overlappingFetchOperationsShareOneLocalAdmissionAndCAS() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([item("combined", fingerprints): [artifact]], cacheCategory: .binaries)
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        async let ios = reader.fetch([item("ios", fingerprints.filter { $0.key != "macos-device" })], cacheCategory: .binaries)
+        async let mac = reader.fetch([item("mac", fingerprints.filter { $0.key == "macos-device" })], cacheCategory: .binaries)
+        let hits = try await (ios, mac)
+        #expect(hits.0.count == 1)
+        #expect(hits.1.count == 1)
+        #expect(await remote.downloads[REAPI.digest(Data("shared-resource".utf8))] == 1)
+    }
+
     private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {
         BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
             directory: path.appending(component: "Binaries"), actionDirectory: path.appending(component: "Actions")
@@ -299,10 +377,31 @@ actor MemoryREAPICache: REAPICacheStoring {
     var blobs: [REAPI.Digest: Data] = [:]
     var uploads: [REAPI.Digest: Int] = [:]
     var downloads: [REAPI.Digest: Int] = [:]
+    var queries: [REAPI.Digest: Int] = [:]
+    var maximumActiveLookups = 0
+    private var activeLookups = 0
+    private var delayed = false
+    private var rejected: Set<REAPI.Digest> = []
+    func delayLookups() { delayed = true }
+    func failUpload(_ digest: REAPI.Digest) { rejected.insert(digest) }
     private var fail = false
     func failUploads() { fail = true }
     func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data("corrupt".utf8) }
-    func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? { actions[digest] }
+    func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        queries[digest, default: 0] += 1
+        activeLookups += 1
+        maximumActiveLookups = max(maximumActiveLookups, activeLookups)
+        defer { activeLookups -= 1 }
+        if delayed { try await Task.sleep(for: .milliseconds(2)) }
+        return actions[digest]
+    }
+
+    func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+        let accepted = incoming.filter { !rejected.contains($0.key) }
+        try await uploadBlobs(accepted)
+        return Set(accepted.keys)
+    }
+
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws { actions[digest] = result }
     func uploadBlobs(_ incoming: [REAPI.Digest: URL]) async throws {
         if fail { throw REAPICacheError.corruptBlob }

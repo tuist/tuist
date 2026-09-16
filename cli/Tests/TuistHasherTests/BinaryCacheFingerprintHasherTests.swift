@@ -1,3 +1,6 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
 import Path
 import Testing
 import TuistCore
@@ -36,6 +39,27 @@ struct BinaryCacheFingerprintHasherTests {
         #expect(result.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory) func sharesLocalSourceReadsAcrossSDKsAndTheExactHashPass() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let source = path.appending(component: "Shared.swift")
+        try Data("public struct Shared {}".utf8).write(to: source.url)
+        let counting = CountingFileHasher()
+        let cached = CachedContentHasher(contentHasher: counting)
+        _ = try await cached.hash(path: source)
+        let target = Target.test(
+            name: "Shared", destinations: [.iPhone, .mac], product: .staticFramework,
+            sources: [SourceFile(path: source)]
+        )
+        let project = Project.test(path: path, targets: [target])
+        let graphTarget = GraphTarget(path: path, target: target, project: project)
+        let graph = Graph.test(projects: [path: project], dependencies: [.target(name: "Shared", path: path): []])
+        let result = try await BinaryCacheFingerprintHasher(contentHasher: cached).fingerprints(
+            graph: graph, targets: [graphTarget], additionalStrings: ["Debug"]
+        )
+        #expect(result[graphTarget]?.count == 3)
+        #expect(await counting.reads[source] == 1)
+    }
+
     private func fingerprints(
         destinations: Destinations,
         leafSettings: SettingsDictionary = [:],
@@ -68,5 +92,18 @@ struct BinaryCacheFingerprintHasherTests {
             additionalStrings: ["Debug", "test-toolchain", "7"]
         )
         return Dictionary(uniqueKeysWithValues: result.map { ($0.key.target.name, $0.value) })
+    }
+}
+
+private actor CountingFileHasher: ContentHashing {
+    var reads: [AbsolutePath: Int] = [:]
+    nonisolated func hash(_ data: Data) throws -> String { ContentHasher().hash(data) }
+    nonisolated func hash(_ string: String) throws -> String { try ContentHasher().hash(string) }
+    nonisolated func hash(_ boolean: Bool) throws -> String { try ContentHasher().hash(boolean) }
+    nonisolated func hash(_ strings: [String]) throws -> String { try ContentHasher().hash(strings) }
+    nonisolated func hash(_ dictionary: [String: String]) throws -> String { try ContentHasher().hash(dictionary) }
+    func hash(path: AbsolutePath) async throws -> String {
+        reads[path, default: 0] += 1
+        return try await ContentHasher().hash(path: path)
     }
 }

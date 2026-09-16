@@ -3,7 +3,9 @@
 This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `build.bazel.remote.execution.v2`). It is kept separate from `TuistCAS`, which speaks the unrelated compilation-caching CAS protocol (`compilation_cache_service.cas.v1`).
 
 ## Responsibilities
-- Vendor wire-compatible REAPI Capabilities, ActionCache, CAS FindMissingBlobs, and ByteStream protocol subsets and generated Swift stubs.
+- Vendor wire-compatible REAPI Capabilities, ActionCache, CAS FindMissingBlobs/BatchReadBlobs/BatchUpdateBlobs, and ByteStream protocol subsets and generated Swift stubs.
+- Respect configured custom CA roots and HTTP(S) environment proxies, including CONNECT authentication and NO_PROXY, for both probing and cache traffic.
+- Negotiate SHA-256 cache capabilities and batch limits; batch small blobs and stream large blobs with bounded transient retries.
 - Stream SHA-256 blobs with bounded concurrency, verify received size and content, and publish action results only after their referenced blobs exist.
 - Encode directory trees deterministically, preserve relative symlinks and executable bits, and reject escaping paths and malformed trees when materializing.
 - Provide `RemoteCacheProbeService` (`RemoteCacheProbing`), which issues the REAPI `GetCapabilities` handshake Bazel performs on start-up to verify a remote cache endpoint is reachable, terminates TLS, and authorizes the request before it is handed to Bazel.
@@ -14,7 +16,7 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 
 ## Code generation
 - Generated `*.pb.swift`/`*.grpc.swift` are checked in. Regenerate with `mise run cli:generate-reapi-proto` after editing the vendored `.proto` files.
-- The task post-processes the raw `protoc` output so the committed files compile and pass lint: it strips the `type:` argument the pinned `protoc-gen-grpc-swift-2` emits on `MethodDescriptor` (the resolved `grpc-swift-2` runtime rejects it), then runs `swiftformat` (generated files are linted like the rest of `cli/`, not excluded). Once the runtime accepts `type:`, drop the strip step.
+- The task post-processes the raw `protoc` output so the committed files compile and pass lint: it strips the `type:` argument the pinned `protoc-gen-grpc-swift-2` emits on `MethodDescriptor` (the resolved `grpc-swift-2` runtime rejects it), then runs `swiftformat` (generated files are excluded from SwiftLint, like the TuistCAS stubs). Once the runtime accepts `type:`, drop the strip step.
 
 ## Related Context
 - cli/Sources/TuistCAS/AGENTS.md

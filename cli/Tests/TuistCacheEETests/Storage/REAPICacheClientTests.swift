@@ -3,11 +3,36 @@ import FileSystemTesting
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
+import Path
 import SwiftProtobuf
 import Testing
-import TuistREAPI
+import TuistCache
+import TuistCore
+import TuistServer
+@testable import TuistCacheEE
+@testable import TuistREAPI
 
 struct REAPICacheClientTests {
+    @Test func proxySelectionHonorsBypassAndExplicitDisable() throws {
+        let endpoint = GRPCEndpoint(host: "cache.example.com", explicitPort: 443, isTLS: true)
+        #expect(try REAPITransport.proxyURL(
+            endpoint: endpoint,
+            variables: ["HTTPS_PROXY": "http://user:pass@proxy:8080"],
+            enabled: true
+        )?.port == 8080)
+        #expect(try REAPITransport.proxyURL(endpoint: endpoint, variables: ["https_proxy": "https://proxy:8443"], enabled: true)?
+            .scheme == "https")
+        #expect(try REAPITransport.proxyURL(endpoint: endpoint, variables: ["HTTPS_PROXY": "invalid"], enabled: false) == nil)
+        #expect(try REAPITransport.proxyURL(
+            endpoint: endpoint,
+            variables: ["HTTPS_PROXY": "invalid", "NO_PROXY": ".example.com"],
+            enabled: true
+        ) == nil)
+        #expect(throws: REAPICacheError.unsupportedProxy) {
+            try REAPITransport.proxyURL(endpoint: endpoint, variables: ["HTTPS_PROXY": "socks5://proxy:1080"], enabled: true)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func streamsBlobsAndUsesStandardActionCacheRPCs() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
@@ -17,7 +42,7 @@ struct REAPICacheClientTests {
         )
         let server = GRPCServer(
             transport: transport,
-            services: [WireActions(state: state), WireCAS(state: state), WireBytes(state: state)]
+            services: [WireActions(state: state), WireCAS(state: state), WireBytes(state: state), WireCapabilities()]
         )
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { try await server.serve() }
@@ -29,6 +54,54 @@ struct REAPICacheClientTests {
                 accountHandle: "account",
                 instanceName: "project"
             ) { "token" }
+            try await client.validateCapabilities()
+            let storage = BinaryCacheStorage(
+                selectiveTestsStorage: NoBinaryFallback(),
+                local: BinaryCacheLocalStore(
+                    directory: directory.appending(component: "Binaries"),
+                    actionDirectory: directory.appending(component: "Actions")
+                ),
+                remote: client
+            )
+            let coldTargets = Set((0 ..< 1000).map {
+                CacheStorableItem(
+                    name: "Shared",
+                    hash: "target-\($0)",
+                    metadata: .init(binaryCacheFingerprints: ["ios-device": "sdk-\($0)"])
+                )
+            })
+            let start = ContinuousClock.now
+            #expect(try await storage.fetch(coldTargets, cacheCategory: .binaries).isEmpty)
+            print("1000 targets / 2000 real gRPC misses at 50 ms simulated service latency: \(start.duration(to: .now))")
+            #expect(await state.actionQueries.count == 2000)
+            #expect(await state.actionQueries.values.allSatisfy { $0 == 1 })
+            #expect(await state.peakActionQueries > 1)
+            #expect(await state.peakActionQueries <= 32)
+            var inputs: [REAPI.Digest: URL] = [:]
+            for index in 0 ..< 300 {
+                let file = directory.appending(component: "small-\(index)").url
+                let body = Data(repeating: UInt8(index % 256), count: 1024 + index)
+                try body.write(to: file)
+                inputs[REAPI.digest(body)] = file
+            }
+            await state.failNextBatches()
+            #expect(try await client.uploadAvailableBlobs(inputs).count == 300)
+            #expect(await state.updateCalls > 1)
+            #expect(await state.updateCalls < 20)
+            #expect(await state.largestBatch <= 32 * 1024)
+            let corrupt = try #require(inputs.keys.first)
+            await state.corrupt(corrupt)
+            var destinations = Dictionary(uniqueKeysWithValues: inputs.keys.map {
+                ($0, directory.appending(component: "download-" + $0.hash).url)
+            })
+            let missing = REAPI.digest(Data("missing".utf8))
+            destinations[missing] = directory.appending(component: "missing").url
+            let downloaded = try await client.downloadAvailableBlobs(destinations)
+            #expect(downloaded == Set(inputs.keys).subtracting([corrupt]))
+            #expect(await state.readCalls > 1)
+            #expect(await state.readCalls < 20)
+            #expect(!FileManager.default.fileExists(atPath: destinations[corrupt]!.path))
+            #expect(!FileManager.default.fileExists(atPath: destinations[missing]!.path))
             let path = directory.appending(component: "blob").url
             let data = Data(repeating: 42, count: 2 * 1024 * 1024 + 17)
             try data.write(to: path)
@@ -38,7 +111,7 @@ struct REAPICacheClientTests {
             let emptyDigest = REAPI.digest(Data())
             try await client.uploadBlobs([digest: path, emptyDigest: empty])
             try await client.uploadBlobs([digest: path, emptyDigest: empty])
-            #expect(await state.writes == 2)
+            #expect(await state.writes == 302)
             let output = directory.appending(component: "download").url
             try await client.downloadBlob(digest, to: output)
             #expect(try Data(contentsOf: output) == data)
@@ -58,7 +131,36 @@ struct REAPICacheClientTests {
 private actor WireCache {
     var blobs: [REAPI.Digest: Data] = [:]
     var actions: [REAPI.Digest: REAPI.ActionResult] = [:]
+    var actionQueries: [REAPI.Digest: Int] = [:]
+    var peakActionQueries = 0
+    private var activeActionQueries = 0
+    func lookup(_ digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        actionQueries[digest, default: 0] += 1
+        activeActionQueries += 1
+        peakActionQueries = max(peakActionQueries, activeActionQueries)
+        defer { activeActionQueries -= 1 }
+        try await Task.sleep(for: .milliseconds(50))
+        return actions[digest]
+    }
+
     var writes = 0
+    var updateCalls = 0
+    var readCalls = 0
+    var largestBatch = 0
+    private var failUpdate = false
+    private var failRead = false
+    func failNextBatches() { failUpdate = true; failRead = true }
+    func beginUpdate(bytes: Int) throws {
+        updateCalls += 1
+        largestBatch = max(largestBatch, bytes)
+        if failUpdate { failUpdate = false; throw RPCError(code: .unavailable, message: "Injected transient failure") }
+    }
+
+    func beginRead() throws {
+        readCalls += 1
+        if failRead { failRead = false; throw RPCError(code: .resourceExhausted, message: "Injected transient pressure") }
+    }
+
     func put(_ data: Data, digest: REAPI.Digest) { blobs[digest] = data; writes += 1 }
     func put(_ result: REAPI.ActionResult, digest: REAPI.Digest) { actions[digest] = result }
     func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data(repeating: 0, count: Int(digest.sizeBytes)) }
@@ -74,7 +176,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]).first == "account")
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
-        guard let result = await state.actions[request.message.actionDigest] else { throw RPCError(
+        guard let result = try await state.lookup(request.message.actionDigest) else { throw RPCError(
             code: .notFound,
             message: "Missing action"
         ) }
@@ -94,6 +196,28 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
 
 private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServiceProtocol {
     let state: WireCache
+    func batchUpdateBlobs(
+        request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
+        try await state.beginUpdate(bytes: request.requests.reduce(0) { $0 + $1.data.count })
+        for entry in request.requests {
+            await state.put(entry.data, digest: entry.digest)
+        }
+        return .with { $0.responses = request.requests.map { entry in .with { $0.digest = entry.digest } } }
+    }
+
+    func batchReadBlobs(
+        request: Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse {
+        try await state.beginRead()
+        let blobs = await state.blobs
+        return .with { $0.responses = request.digests.map { digest in
+            .with { $0.digest = digest; if let data = blobs[digest] { $0.data = data } else { $0.status.code = 5 } }
+        } }
+    }
+
     func findMissingBlobs(
         request: Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest,
         context _: ServerContext
@@ -147,5 +271,29 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         #expect(parts[parts.count - 3] == "blobs")
         let size = try #require(Int64(parts.last!))
         return .with { $0.hash = String(parts[parts.count - 2]); $0.sizeBytes = size }
+    }
+}
+
+private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.SimpleServiceProtocol {
+    func getCapabilities(
+        request _: Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_ServerCapabilities {
+        .with {
+            $0.cacheCapabilities.digestFunctions = [.sha256]
+            $0.cacheCapabilities.maxBatchTotalSizeBytes = 32 * 1024
+        }
+    }
+}
+
+private struct NoBinaryFallback: CacheStoring {
+    func fetch(_: Set<CacheStorableItem>, cacheCategory _: RemoteCacheCategory) async throws -> [CacheItem: AbsolutePath] {
+        Issue.record("Binary lookup reached the selective-test delegate")
+        return [:]
+    }
+
+    func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory) async throws -> [CacheStorableItem] {
+        Issue.record("Binary store reached the selective-test delegate")
+        return []
     }
 }

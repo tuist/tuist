@@ -234,13 +234,67 @@ struct ModuleCacheRemoteStorageTests {
 
         // Then
         // The undecompressable artifact is a per-item cache miss (the fetch does
-        // not fail), surfaced as a single "could not be decompressed" warning
-        // rather than the misleading "server unavailable" alert.
+        // not fail), surfaced as a single "damaged" warning rather than the
+        // misleading "server unavailable" alert.
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
-            ["These cached artifacts could not be decompressed and were rebuilt from source: target"]
+            [
+                "These cached artifacts were damaged (they failed their integrity check or could not be decompressed) and were rebuilt from source: target",
+            ]
         )
         // The payload won't change on retry, so it must be downloaded only once.
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_the_download_fails_its_integrity_check_is_treated_as_a_cache_miss() async throws {
+        // Given
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(
+                DownloadModuleCacheServiceError.checksumMismatch(
+                    expected: String(repeating: "0", count: 64),
+                    actual: String(repeating: "1", count: 64)
+                )
+            )
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        // A body that fails its uploader's digest is the same per-item miss as one
+        // that cannot be decompressed, not a server outage.
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            [
+                "These cached artifacts were damaged (they failed their integrity check or could not be decompressed) and were rebuilt from source: target",
+            ]
+        )
+        // The download service already fetched it a second time before giving up,
+        // and damage at rest does not repair on another attempt.
         verify(downloadModuleCacheService)
             .downloadModuleCacheArtifact(
                 accountHandle: .any,
