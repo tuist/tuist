@@ -103,7 +103,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: atlas
+          # Context is the monorepo root so the builder can COPY both
+          # atlas/ and noora/ (atlas depends on noora via `path: "../noora"`).
+          context: .
           file: atlas/Dockerfile
           push: true
           platforms: linux/amd64
