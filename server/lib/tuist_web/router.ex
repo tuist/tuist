@@ -217,7 +217,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "json"]
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
