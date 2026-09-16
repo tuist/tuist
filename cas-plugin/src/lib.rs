@@ -16,6 +16,7 @@
 pub mod analytics;
 pub mod endpoint;
 pub mod proxy;
+pub mod proxy_failure;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
@@ -632,6 +633,7 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         return;
     }
     let state_ptr = cas as *mut CasState;
+    proxy_failure::handle_disposed(state_ptr as usize);
     {
         // Workers reference this state; join them before freeing anything.
         // Prefetches are droppable; queued uploads must flush.
@@ -1212,6 +1214,7 @@ unsafe fn actioncache_get_impl(
         .unwrap_or_default();
     match client.resolve(&cas_path, &state.proxy_instance, key) {
         Ok(Resolution::Hit(value_digest)) => {
+            proxy_failure::proxy_answered();
             let value_digest_t =
                 llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
             let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1234,6 +1237,9 @@ unsafe fn actioncache_get_impl(
                     client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
                 {
                     log_line(&format!("proxy graph preparation failed: {message}"));
+                    if report_proxy_failure(state, globally, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
                 }
             }
             if !value_graph_is_available(state, value_id) {
@@ -1264,15 +1270,35 @@ unsafe fn actioncache_get_impl(
             return LLCAS_LOOKUP_RESULT_SUCCESS;
         }
         Ok(Resolution::Miss) => {
+            proxy_failure::proxy_answered();
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
         Err(message) => {
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             log_line(&format!("proxy resolve error: {message}"));
+            if report_proxy_failure(state, globally, &message, error) {
+                return LLCAS_LOOKUP_RESULT_ERROR;
+            }
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
     }
+}
+
+/// A failed proxy request degrades to a miss, the same answer a cold cache gives. The one
+/// lookup `proxy_failure` lets report it returns a cache error instead, which swift-build
+/// shows as a warning; every other failure stays a miss.
+unsafe fn report_proxy_failure(
+    state: &CasState,
+    globally: bool,
+    message: &str,
+    error: *mut *mut c_char,
+) -> bool {
+    if !proxy_failure::should_report(globally, state as *const CasState as usize) {
+        return false;
+    }
+    set_error(error, &proxy_failure::message(&state.proxy.socket_path, message));
+    true
 }
 
 /// Validate the local closure without consulting the remote. Root containment
