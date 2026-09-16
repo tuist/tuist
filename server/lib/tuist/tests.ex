@@ -1935,6 +1935,16 @@ defmodule Tuist.Tests do
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
     |> tap(fn _ -> flush_test_case_run_buffers() end)
+    |> tap(fn {_flaky_ids, all_test_case_runs} ->
+      # Hoisted out of the per-module async block: the alert-lookup query
+      # depends only on project_id, so a run with N modules was hitting
+      # Postgres N times for the same result and starving the pool. One call
+      # per ingest, with the downstream AutomationScheduler still dedup'ing
+      # by cadence.
+      Tuist.Tasks.run_async(fn ->
+        enqueue_flaky_alert_evaluations(test, all_test_case_runs)
+      end)
+    end)
   end
 
   # One flush for the whole run rather than one per module.
@@ -2345,8 +2355,6 @@ defmodule Tuist.Tests do
       if Enum.any?(all_attachments) do
         TestCaseRunAttachment.Buffer.insert_all(all_attachments)
       end
-
-      enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
     # The audit-log row and the outbound webhook fire on the same set:
