@@ -112,40 +112,47 @@ defmodule Cache.CacheArtifactsTest do
       assert CacheArtifacts.content_sha256(key) == digest
     end
 
-    # Entries collapse per key until a flush, so a download's plain access queued
-    # behind a completion must inherit the digest rather than replace its entry.
+    # An access and a digest for the same key are queued as separate entries, each
+    # by a single insert, so neither can overwrite the other whatever the order.
     # Driven on a table no flusher reads, so nothing races the assertions.
-    test "a plain access queued behind a digest inherits it", %{key: key, digest: digest} do
-      table = :"content_digest_merge_#{System.unique_integer([:positive])}"
+    test "an access never replaces a queued digest, in either order", %{key: key, digest: digest} do
+      table = :"content_digest_entries_#{System.unique_integer([:positive])}"
       :ets.new(table, [:set, :public, :named_table])
       now = DateTime.utc_now()
 
-      :ok = CacheArtifactsBuffer.enqueue_access_with_content_sha256(key, 8, now, digest, table)
-      :ok = CacheArtifactsBuffer.enqueue_access(key, 8, now, table)
-      assert CacheArtifactsBuffer.pending_content_sha256(key, table) == {:set, digest}
+      for order <- [:digest_first, :access_first] do
+        if order == :access_first, do: :ok = CacheArtifactsBuffer.enqueue_access(key, 8, now, table)
+        :ok = CacheArtifactsBuffer.enqueue_content_sha256(key, 8, now, digest, table)
+        if order == :digest_first, do: :ok = CacheArtifactsBuffer.enqueue_access(key, 8, now, table)
 
-      assert [{:artifact_accesses, %{^key => %{content_sha256: {:set, ^digest}}}}] =
-               CacheArtifactsBuffer.flush_entries(table, 100)
+        assert CacheArtifactsBuffer.pending_content_sha256(key, table) == {:set, digest}
 
-      :ok = CacheArtifactsBuffer.enqueue_access(key, 8, now, table)
-      assert CacheArtifactsBuffer.pending_content_sha256(key, table) == :keep
+        assert [
+                 {:artifact_accesses, %{^key => _access}},
+                 {:artifact_content_sha256s, %{^key => %{content_sha256: ^digest}}}
+               ] = CacheArtifactsBuffer.flush_entries(table, 100)
+
+        assert CacheArtifactsBuffer.pending_content_sha256(key, table) == :keep
+      end
     end
 
-    test "only an entry that sets a digest changes the stored one", %{key: key, digest: digest} do
-      write = fn content_sha256 ->
-        entry = %{key: key, size_bytes: 8, last_accessed_at: DateTime.utc_now(), content_sha256: content_sha256}
-        CacheArtifactsBuffer.write_batch(:artifact_accesses, %{key => entry})
+    test "only a digest write changes the stored digest", %{key: key, digest: digest} do
+      now = DateTime.utc_now()
+
+      write_digest = fn content_sha256 ->
+        entry = %{key: key, size_bytes: 8, last_accessed_at: now, content_sha256: content_sha256}
+        CacheArtifactsBuffer.write_batch(:artifact_content_sha256s, %{key => entry})
       end
 
-      write.({:set, digest})
+      write_digest.(digest)
       assert CacheArtifacts.content_sha256(key) == digest
 
-      write.(:keep)
+      CacheArtifactsBuffer.write_batch(:artifact_accesses, %{key => %{key: key, size_bytes: 8, last_accessed_at: now}})
       assert CacheArtifacts.content_sha256(key) == digest
 
       # The bytes on disk were published without a digest, so the old one would
       # describe a different object.
-      write.({:set, nil})
+      write_digest.(nil)
       assert CacheArtifacts.content_sha256(key) == nil
     end
   end

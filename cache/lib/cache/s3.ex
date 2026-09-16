@@ -208,19 +208,15 @@ defmodule Cache.S3 do
         |> ExAws.request()
       end)
 
-    case handle_download_result(key, local_path, tmp_path, dl_duration, dl_result) do
-      {:ok, :hit} = hit ->
-        restore_content_sha256(key, head_response)
-        hit
-
-      other ->
-        other
-    end
+    handle_download_result(key, local_path, tmp_path, dl_duration, dl_result, head_response)
   end
 
   # An artifact pulled back from object storage after eviction lost its row, and
   # with it the digest its uploader declared. The object's metadata still carries
-  # it, so the next disk hit serves it again instead of going unverified.
+  # it, so the next disk hit serves it again instead of going unverified. Only for
+  # a download that was installed: when a local copy was already in place the
+  # download is discarded, and that copy can be a different upload under the same
+  # key, whose own digest must stand.
   defp restore_content_sha256(key, %{headers: headers}) do
     case content_sha256_from_headers(headers) do
       nil -> :ok
@@ -239,9 +235,10 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}) do
+  defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}, head_response) do
     case publish_download(tmp_path, local_path) do
-      :ok ->
+      {:ok, published} ->
+        if published == :installed, do: restore_content_sha256(key, head_response)
         :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
         {:ok, :hit}
 
@@ -252,14 +249,14 @@ defmodule Cache.S3 do
     end
   end
 
-  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, {:http_error, 429, _}}) do
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, {:http_error, 429, _}}, _head_response) do
     cleanup_tmp_download(tmp_path)
     :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
     Logger.warning("S3 download rate limited for artifact: #{key}")
     {:error, :rate_limited}
   end
 
-  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, reason}) do
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, reason}, _head_response) do
     cleanup_tmp_download(tmp_path)
     :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
     Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
@@ -269,11 +266,11 @@ defmodule Cache.S3 do
   defp publish_download(tmp_path, local_path) do
     case Cache.Disk.move_file(tmp_path, local_path) do
       :ok ->
-        :ok
+        {:ok, :installed}
 
       {:error, :exists} ->
         cleanup_tmp_download(tmp_path)
-        :ok
+        {:ok, :existing}
 
       {:error, reason} ->
         cleanup_tmp_download(tmp_path)

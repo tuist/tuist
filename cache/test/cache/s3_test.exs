@@ -386,6 +386,41 @@ defmodule Cache.S3Test do
       end)
     end
 
+    test "keeps the local copy's digest when the download is discarded" do
+      key = "test_account/test_project/module/builds/TE/ST/hash/Module.zip"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "Module.zip")
+      # A concurrent upload published its own bytes under the key first.
+      File.write!(local_path, "uploaded meanwhile")
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
+        {:ok, %{status_code: 200, headers: [{"x-amz-meta-tuist-checksum-sha256", String.duplicate("ef", 32)}]}}
+      end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "object storage copy")
+        {:ok, :done}
+      end)
+
+      reject(&Cache.CacheArtifacts.record_content_sha256/2)
+
+      capture_log(fn ->
+        assert {:ok, :hit} = S3.download(key)
+      end)
+
+      assert File.read!(local_path) == "uploaded meanwhile"
+    end
+
     test "returns {:ok, :miss} when file does not exist in S3" do
       key = "test_account/test_project/xcode/TE/ST/test_hash"
 
