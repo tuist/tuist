@@ -69,7 +69,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 50
     permissions:
       contents: write
@@ -167,7 +167,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     # Matches release-app. `app:upload-ios` archives before it uploads,
     # and `tuist generate` runs with --no-binary-cache, so a cold
     # compilation cache (any runner image roll invalidates it) makes
