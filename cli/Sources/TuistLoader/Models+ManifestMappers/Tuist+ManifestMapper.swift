@@ -40,7 +40,10 @@ extension TuistConfig.Tuist {
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
         let network = try makeNetwork(from: manifest, generatorPaths: generatorPaths)
-        let xcodeCache = TuistConfig.Tuist.XcodeCache(upload: manifest.xcodeCache.upload)
+        let xcodeCache = TuistConfig.Tuist.XcodeCache(
+            upload: manifest.xcodeCache.upload,
+            storeSizeLimit: manifest.xcodeCache.storeSizeLimit?.bytes
+        )
         let testInsights = TuistConfig.Tuist.TestInsights(
             coverage: .init(upload: manifest.testInsights.coverage.upload)
         )

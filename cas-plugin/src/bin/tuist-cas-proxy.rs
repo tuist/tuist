@@ -228,6 +228,7 @@ fn main() {
         proxy.sweep();
         proxy.enforce_cache_bounds();
         proxy.reclaim_idle();
+        proxy.bound_stores();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
         proxy.refresh_endpoint();
         proxy.refresh_snapshots();
