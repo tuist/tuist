@@ -19,6 +19,9 @@ pub struct Prefetcher {
     // remote, and eagerly spinning up pools in ~1000 short-lived frontends
     // per build is measurable overhead.
     starter: Mutex<Option<(usize, ProcessFn)>>,
+    // The same function, kept for `run_now`: `starter` hands its copy to the
+    // workers when they spawn.
+    process: Mutex<Option<ProcessFn>>,
 }
 
 /// Balances an inflight increment: dropping it decrements the counter under the
@@ -57,6 +60,7 @@ impl Prefetcher {
             seen: Mutex::new(HashSet::new()),
             workers: Mutex::new(Vec::new()),
             starter: Mutex::new(None),
+            process: Mutex::new(None),
         }
     }
 
@@ -68,7 +72,9 @@ impl Prefetcher {
     where
         F: Fn(Vec<u8>) + Send + Sync + 'static,
     {
-        *self.starter.lock().unwrap() = Some((count, std::sync::Arc::new(process)));
+        let process: ProcessFn = std::sync::Arc::new(process);
+        *self.process.lock().unwrap() = Some(std::sync::Arc::clone(&process));
+        *self.starter.lock().unwrap() = Some((count, process));
     }
 
     fn ensure_started(&self) {
@@ -125,6 +131,30 @@ impl Prefetcher {
         self.ensure_started();
         self.queue.lock().unwrap().push_back(digest);
         self.cvar.notify_one();
+    }
+
+    /// Processes `item` on the calling thread instead of a worker, returning
+    /// whether it ran. It does not run when the same item is already queued or
+    /// being processed, and an `enqueue` of it made while it runs is dropped,
+    /// exactly as for a queued item.
+    ///
+    /// The caller is a build waiting on its own upload: queued behind the pool,
+    /// it would wait out every background item ahead of it, and its concurrency
+    /// is already bounded by how many compiles the build runs at once.
+    pub fn run_now(&self, item: Vec<u8>) -> bool {
+        if item.is_empty() || self.shutdown.load(Ordering::Acquire) {
+            return false;
+        }
+        let Some(process) = self.process.lock().unwrap().clone() else {
+            return false;
+        };
+        if !self.seen.lock().unwrap().insert(item.clone()) {
+            return false;
+        }
+        let key = item.clone();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process(item)));
+        self.seen.lock().unwrap().remove(&key);
+        true
     }
 
     /// Drains for at most `timeout`, then stops workers and returns whatever
@@ -244,5 +274,65 @@ mod tests {
             1,
             "the timed-out wait left the item running rather than dropping it"
         );
+    }
+
+    #[test]
+    fn run_now_processes_on_the_calling_thread() {
+        let pool = leaked_pool();
+        let caller = std::thread::current().id();
+        let ran_on: Arc<Mutex<Option<std::thread::ThreadId>>> = Arc::new(Mutex::new(None));
+        let sink = Arc::clone(&ran_on);
+        pool.configure(1, move |_| {
+            *sink.lock().unwrap() = Some(std::thread::current().id());
+        });
+
+        assert!(pool.run_now(vec![1]));
+        assert_eq!(*ran_on.lock().unwrap(), Some(caller));
+    }
+
+    /// A sweep re-enqueues a record the build is already waiting on. Publishing
+    /// it twice at once would upload the same graph twice, so the queued copy
+    /// is dropped while the inline one runs.
+    #[test]
+    fn an_item_running_now_is_not_queued_again() {
+        let pool = leaked_pool();
+        let processed = Arc::new(AtomicU64::new(0));
+        let sink = Arc::clone(&processed);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        pool.configure(1, move |_| {
+            sink.fetch_add(1, Ordering::Relaxed);
+            let _ = entered_sender.send(());
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+
+        let running = std::thread::spawn(move || pool.run_now(vec![7]));
+        entered.recv_timeout(Duration::from_secs(10)).expect("inline run started");
+        pool.enqueue(vec![7]);
+        release.send(()).unwrap();
+        assert!(running.join().unwrap());
+
+        assert!(pool.wait_idle(Duration::from_secs(10)));
+        assert_eq!(processed.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn a_queued_item_is_not_run_now() {
+        let pool = leaked_pool();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        pool.configure(1, move |item| {
+            if item == vec![1] {
+                let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            }
+        });
+        // The one worker is held on item 1, so item 2 stays queued.
+        pool.enqueue(vec![1]);
+        pool.enqueue(vec![2]);
+
+        assert!(!pool.run_now(vec![2]));
+        release.send(()).unwrap();
+        assert!(pool.wait_idle(Duration::from_secs(10)));
     }
 }

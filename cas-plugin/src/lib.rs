@@ -247,6 +247,23 @@ fn resolve_upload(state: &OptionsState) -> bool {
     }
 }
 
+/// Whether a put hands its record to the proxy and moves on, rather than
+/// waiting for the upload. `TUIST_CAS_UPLOAD_IN_BACKGROUND` decides when set,
+/// and otherwise uploads wait on CI only.
+///
+/// A developer machine keeps its store and a proxy that outlives the build, so
+/// the upload finishes after the build does. A CI job's store, and usually its
+/// machine, go away with the job, taking any record still spooled with them. A
+/// Tuist runner is the exception, and its image sets the variable: its teardown
+/// waits for the spool before the machine goes away, after the job has already
+/// reported its result.
+fn resolve_upload_in_background() -> bool {
+    env_bool("TUIST_CAS_UPLOAD_IN_BACKGROUND", !on_ci())
+}
+
+/// How long a put waits for its upload before leaving it to the proxy.
+const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
@@ -264,6 +281,8 @@ struct CasState {
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
     // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
+    // See `resolve_upload_in_background`.
+    upload_in_background: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -545,6 +564,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
+        upload_in_background: resolve_upload_in_background(),
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -670,6 +690,10 @@ static LOG_BYTES_SINCE_CHECK: AtomicU64 = AtomicU64::new(LOG_SIZE_CHECK_INTERVAL
 /// presence rather than value, exactly as it does.
 const CI_MARKERS: [&str; 3] = ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"];
 
+fn on_ci() -> bool {
+    CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some())
+}
+
 /// Where the diagnostics go, or `None` to write none.
 ///
 /// An explicitly set `TUIST_CAS_LOG` always wins, and setting it EMPTY is the way
@@ -705,7 +729,7 @@ fn log_path() -> Option<String> {
 /// would be state created on every build for a reader who never asked for it; a CI
 /// machine is ephemeral and the job bounds it.
 fn default_log_path() -> Option<String> {
-    if !CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some()) {
+    if !on_ci() {
         return None;
     }
     let state_directory = match std::env::var("XDG_STATE_HOME") {
@@ -1433,9 +1457,22 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            let record_path = path.to_string_lossy();
+            // Either answer is final: the proxy published the record, or it
+            // finishes it in the background. Without an answer (no proxy
+            // listening, one too old to know the op, or one past the budget) the
+            // put sends the plain notice, which a proxy that already took the
+            // record drops as a duplicate.
+            if !state.upload_in_background
+                && state
+                    .proxy
+                    .publish_and_wait(&cas_path, &state.proxy_instance, &record_path, UPLOAD_WAIT_BUDGET)
+                    .is_ok()
+            {
+                return;
+            }
             // Failure is fine: the record survives for the proxy sweep.
-            let _ =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
+            let _ = state.proxy.publish(&cas_path, &state.proxy_instance, &record_path);
         }
         return;
     }

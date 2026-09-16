@@ -263,7 +263,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it.
+  on the VM's boot volume and died with it. It exports
+  `TUIST_CAS_UPLOAD_IN_BACKGROUND=1` too: on CI the CAS plugin otherwise makes
+  every cache put wait for its upload, because off a runner the store goes away
+  with the job, and here `drain_cas_publications` does that wait at teardown,
+  after the job has reported its result. Only for a store on the mount, since
+  only that spool is drained; a job whose own xcconfig moves
+  `COMPILATION_CACHE_CAS_PATH` off the mount uploads in the background with no
+  drain behind it.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown (the prune is second, and in that order deliberately: a prune deletes
   objects, and deleting one the spool still owed would strand the association
@@ -279,10 +286,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   can be found — a record is deleted only by a publication that SUCCEEDED, so an
   empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
   because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it is skipped on a failed job
-  (which never promotes) and is a no-op for a job that never published, which
-  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
-  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  detach because the spool is inside the image; it runs on a failed job too,
+  whose uploads the next job still needs even though its verdict gates nothing
+  (a failed job never promotes), and is a no-op for a job that never published,
+  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
+  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
   `mark_cache_not_promotable`: the account keeps its previous master and loses
   this job's warm set, which is the same trade every other teardown that cannot
   reach a safe state already makes. It cannot be complete — a host that panics or

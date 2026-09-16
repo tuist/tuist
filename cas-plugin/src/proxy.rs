@@ -12,14 +12,14 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PREPARE_ACTION,
-    OP_PRUNE, OP_PUBLISH, OP_RESOLVE,
+    parse_publish_wait_payload, read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT,
+    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -296,6 +296,117 @@ fn drain_timeout(payload: &[u8]) -> Duration {
     }
 }
 
+/// How long a build waits for one upload when its caller names no budget.
+const UPLOAD_WAIT_DEFAULT: Duration = Duration::from_secs(30);
+/// Ceiling on a caller-named upload wait, for the same reason as
+/// `DRAIN_TIMEOUT_MAX`.
+const UPLOAD_WAIT_MAX: Duration = Duration::from_secs(120);
+/// Failed uploads in a row after which builds stop waiting. One failure is as
+/// likely to be the record as the remote; a run of them is the remote.
+const UPLOAD_WAIT_FAILURES_TO_OPEN: u64 = 3;
+/// How long builds stop waiting once uploads fail or stall. Afterwards a single
+/// upload waits again, and only its success lets the rest wait.
+const UPLOAD_WAIT_OPEN_MS: u64 = 60_000;
+/// How often a build waiting on a record another thread is publishing checks
+/// whether it is gone.
+const UPLOAD_WAIT_POLL: Duration = Duration::from_millis(25);
+
+fn upload_wait_budget(millis: u32) -> Duration {
+    match millis {
+        0 => UPLOAD_WAIT_DEFAULT,
+        millis => Duration::from_millis(u64::from(millis)).min(UPLOAD_WAIT_MAX),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitAdmission {
+    Closed,
+    Probe,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitOutcome {
+    Published,
+    Failed,
+    TimedOut,
+    // The breaker opened while this build waited. Says nothing about this
+    // upload, so it is not recorded.
+    Released,
+}
+
+/// Decides whether a build waits for its upload.
+///
+/// A build waits once per cache put, and every compile puts. So a remote that
+/// stalls or refuses uploads would cost a wait per compile: a thousand compiles
+/// at a 30s budget is a build that never finishes. Once uploads stall, or fail
+/// several times in a row, builds stop waiting for `UPLOAD_WAIT_OPEN_MS`,
+/// including the ones already waiting, and their records are published in the
+/// background instead. After the window a single upload waits again, and only
+/// its success lets every build wait.
+#[derive(Default)]
+struct UploadWaitBreaker {
+    // Epoch ms until which builds do not wait; 0 while builds wait.
+    open_until_ms: AtomicU64,
+    probing: AtomicBool,
+    consecutive_failures: AtomicU64,
+}
+
+impl UploadWaitBreaker {
+    fn admit(&self, now_ms: u64) -> Option<UploadWaitAdmission> {
+        let open_until = self.open_until_ms.load(Ordering::Acquire);
+        if open_until == 0 {
+            return Some(UploadWaitAdmission::Closed);
+        }
+        if now_ms < open_until {
+            return None;
+        }
+        self.probing
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| UploadWaitAdmission::Probe)
+    }
+
+    /// Whether builds waiting since before a stall should stop: the breaker
+    /// opened after they were let in. A probe is let in while it is open, so
+    /// only a build let in while it was closed is released.
+    fn releases(&self, admission: UploadWaitAdmission) -> bool {
+        admission == UploadWaitAdmission::Closed && self.open_until_ms.load(Ordering::Acquire) != 0
+    }
+
+    fn record(&self, admission: UploadWaitAdmission, outcome: UploadWaitOutcome, now_ms: u64) {
+        if outcome == UploadWaitOutcome::Released {
+            return;
+        }
+        let probe = admission == UploadWaitAdmission::Probe;
+        if outcome == UploadWaitOutcome::Published {
+            self.consecutive_failures.store(0, Ordering::Release);
+            if probe {
+                self.open_until_ms.store(0, Ordering::Release);
+                self.probing.store(false, Ordering::Release);
+                crate::log_line("upload wait: uploads succeed again; builds wait for them");
+            }
+            return;
+        }
+        let failures = self.consecutive_failures.fetch_add(1, Ordering::AcqRel) + 1;
+        if probe || outcome == UploadWaitOutcome::TimedOut || failures >= UPLOAD_WAIT_FAILURES_TO_OPEN
+        {
+            let previous = self
+                .open_until_ms
+                .swap(now_ms + UPLOAD_WAIT_OPEN_MS, Ordering::AcqRel);
+            if previous == 0 {
+                crate::log_line(&format!(
+                    "upload wait: uploads are {}; builds stop waiting for them for {}s and they are published in the background",
+                    if outcome == UploadWaitOutcome::TimedOut { "stalling" } else { "failing" },
+                    UPLOAD_WAIT_OPEN_MS / 1000
+                ));
+            }
+        }
+        if probe {
+            self.probing.store(false, Ordering::Release);
+        }
+    }
+}
+
 /// The per-generation byte limit a PRUNE request carries. A malformed or zero
 /// payload means "no budget to impose": prune against whatever limit the store
 /// already has rather than refuse, since a caller that only wants the
@@ -309,6 +420,69 @@ fn prune_limit(payload: &[u8]) -> u64 {
 fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(record_path);
     let _ = std::fs::remove_file(tags_path(record_path));
+}
+
+/// Whether the record names the value this proxy last published for its key,
+/// so the remote already holds it. A trunk build may still republish it to claim
+/// the entry for trunk (see `is_redundant_reput`), but that moves a tag, not
+/// bytes, so a build has nothing to wait for.
+fn value_already_published(state: &PathState, record_path: &str) -> bool {
+    let Ok(bytes) = std::fs::read(record_path) else {
+        return false;
+    };
+    let Some(record) = PublishRecord::decode_body(&bytes, None) else {
+        return false;
+    };
+    matches!(
+        state.resolved.lock().unwrap().get(&record.key),
+        Some(Resolution::Hit(value)) if value == &record.value_digest
+    )
+}
+
+/// Waits until `record_path` is gone, `deadline` passes, or `released` says the
+/// build should stop waiting, given the channel the publishing thread reports
+/// on. A record is deleted only by a publication that succeeded or found nothing
+/// to upload, so its absence is the answer whichever thread published it: when
+/// the build's own thread did not run it, a sweep had already queued it, and the
+/// wait watches the file instead.
+fn await_publication(
+    ran: &std::sync::mpsc::Receiver<bool>,
+    record_path: &str,
+    deadline: Instant,
+    released: impl Fn() -> bool,
+) -> UploadWaitOutcome {
+    let mut ran_here = None;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match ran_here {
+            None => match ran.recv_timeout(UPLOAD_WAIT_POLL.min(remaining)) {
+                Ok(true) => {
+                    return if Path::new(record_path).exists() {
+                        UploadWaitOutcome::Failed
+                    } else {
+                        UploadWaitOutcome::Published
+                    };
+                }
+                Ok(false) => ran_here = Some(false),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return UploadWaitOutcome::Failed;
+                }
+            },
+            Some(_) => {
+                if !Path::new(record_path).exists() {
+                    return UploadWaitOutcome::Published;
+                }
+                std::thread::sleep(UPLOAD_WAIT_POLL.min(remaining));
+            }
+        }
+        if released() {
+            return UploadWaitOutcome::Released;
+        }
+        if deadline <= Instant::now() {
+            return UploadWaitOutcome::TimedOut;
+        }
+    }
 }
 
 /// Whether a re-put can be dropped without a `publish` round trip. True only
@@ -755,6 +929,13 @@ pub struct PathState {
     // moved says which half moved, and a `write_duration` that did not move
     // says whether that is health or silence.
     pub stats_publish_shed: AtomicU64,
+    // Uploads a build waited for and saw published, uploads it stopped waiting
+    // for with the record still owed, and the milliseconds builds spent waiting.
+    // Together they are what synchronous uploads cost a build and how often
+    // they fell back to the background.
+    pub stats_upload_waited: AtomicU64,
+    pub stats_upload_unwaited: AtomicU64,
+    pub ms_upload_wait: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -1732,6 +1913,8 @@ pub struct Proxy {
     source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Whether a build's put waits for its upload; see `publish_and_wait`.
+    upload_wait: UploadWaitBreaker,
     // Resolves/publishes that arrived with no declared instance and no primed
     // registry mapping. They answer a silent miss by design (an unprimed ⌘B
     // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
@@ -1822,6 +2005,7 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            upload_wait: UploadWaitBreaker::default(),
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
@@ -2131,6 +2315,9 @@ impl Proxy {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }));
         paths.insert(cas_path.to_string(), state);
         Ok(state)
@@ -3201,7 +3388,16 @@ impl Proxy {
         (branch, trunk)
     }
 
-    /// instance + cas_path + the (branch, trunk) bound here + record path.
+    /// Queues a record for the publisher pool.
+    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+        if let Some(item) = self.publish_item_bytes(cas_path, instance, record_path) {
+            self.publisher.enqueue(item);
+        }
+    }
+
+    /// The publisher item for a record: instance + cas_path + the (branch, trunk)
+    /// bound here + record path. `None` when the project does not upload, in which
+    /// case the record is already removed.
     ///
     /// The tags are resolved NOW, when the build hands us the record, and not
     /// where they are used (the upload, which runs after the queue wait, the
@@ -3216,7 +3412,7 @@ impl Proxy {
     ///
     /// Binding at accept costs a `stat`: the context is memoized, so this reads
     /// the registry only when setup has replaced it or the TTL has run out.
-    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+    fn publish_item_bytes(&self, cas_path: &str, instance: &str, record_path: &str) -> Option<Vec<u8>> {
         // The project's answer, enforced where both lanes meet. The plugin
         // declines to publish when its own option says so, but that option only
         // reaches Swift: the build system's Clang caching creates its CAS with a
@@ -3232,7 +3428,7 @@ impl Proxy {
             // on, or a registry read fails open) it hands the sweeper a backlog
             // of everything produced while the project was read-only.
             remove_record(record_path);
-            return;
+            return None;
         }
         let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
@@ -3249,7 +3445,92 @@ impl Proxy {
         item.extend_from_slice(&(trunk.len() as u16).to_be_bytes());
         item.extend_from_slice(trunk.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
-        self.publisher.enqueue(item);
+        Some(item)
+    }
+
+    /// PUBLISH_WAIT: publishes a record while the build that wrote it waits,
+    /// and reports whether the remote is still owed it.
+    ///
+    /// On CI outside a Tuist runner the store, and usually the machine, go away
+    /// with the job, so a record still spooled when it ends is an upload that
+    /// never happens. The put that wrote the record waits here instead, and the
+    /// compile or build-system task that issued it finishes once its output is
+    /// on the remote. The publication runs on a thread of its own rather than in
+    /// the pool: queued there it would wait out the background work ahead of it,
+    /// and this way the waits are bounded by how many compiles the build runs.
+    ///
+    /// Nothing waits when nothing is owed (the project does not upload, or the
+    /// remote already holds this value and at most its tags would move), when
+    /// the remote is shedding writes, or while `UploadWaitBreaker` holds waits
+    /// off; the record then goes to the pool as a PUBLISH would. A wait that runs
+    /// out of budget leaves its publication running.
+    fn publish_and_wait(
+        &'static self,
+        cas_path: &str,
+        declared: &str,
+        record_path: &str,
+        budget: Duration,
+    ) -> bool {
+        let deadline = Instant::now() + budget;
+        let Some(instance) = self.resolve_instance(cas_path, declared) else {
+            // Left spooled for a sweep once a build primes the path, as PUBLISH
+            // does.
+            self.note_unprimed(cas_path);
+            return false;
+        };
+        let Some(item) = self.publish_item_bytes(cas_path, &instance, record_path) else {
+            return true;
+        };
+        let Ok(state) = self.path_state(cas_path) else {
+            self.publisher.enqueue(item);
+            return false;
+        };
+        if value_already_published(state, record_path) {
+            self.publisher.enqueue(item);
+            return true;
+        }
+        let admission = if self.remote_for(&instance).shedding_writes() {
+            None
+        } else {
+            self.upload_wait.admit(reapi::now_ms())
+        };
+        let Some(admission) = admission else {
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            self.publisher.enqueue(item);
+            return false;
+        };
+
+        let started = Instant::now();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let publisher = &self.publisher;
+        let running = item.clone();
+        let outcome = match std::thread::Builder::new()
+            .name("cas-upload-wait".into())
+            .spawn(move || {
+                let _ = sender.send(publisher.run_now(running));
+            }) {
+            Ok(_) => await_publication(&receiver, record_path, deadline, || {
+                self.upload_wait.releases(admission)
+            }),
+            Err(error) => {
+                crate::log_line(&format!("upload wait could not start: {error}"));
+                self.publisher.enqueue(item);
+                UploadWaitOutcome::Failed
+            }
+        };
+        self.upload_wait.record(admission, outcome, reapi::now_ms());
+        state
+            .ms_upload_wait
+            .fetch_add(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if outcome == UploadWaitOutcome::Published {
+            state.stats_upload_waited.fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            // A failed publication keeps its record for the next sweep, and a
+            // stalled one is still running.
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            false
+        }
     }
 
     fn publish_item(&self, item: &[u8]) {
@@ -4611,7 +4892,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={} | upload_waited={} upload_unwaited={} upload_wait_ms={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -4634,6 +4915,9 @@ impl Proxy {
                 state.us_publish_local.load(Ordering::Relaxed),
                 state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
                 state.stats_publish_shed.load(Ordering::Relaxed),
+                state.stats_upload_waited.load(Ordering::Relaxed),
+                state.stats_upload_unwaited.load(Ordering::Relaxed),
+                state.ms_upload_wait.load(Ordering::Relaxed),
             ));
         }
         drop(paths);
@@ -4653,7 +4937,7 @@ impl Proxy {
         }
     }
 
-    fn handle(&self, mut stream: UnixStream) -> std::io::Result<()> {
+    fn handle(&'static self, mut stream: UnixStream) -> std::io::Result<()> {
         let request: Request = read_request(&mut stream)?;
         // A plugin from a different CLI version speaks a different frame layout;
         // reject rather than misparse, so the plugin degrades to a local miss.
@@ -4717,6 +5001,18 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_PUBLISH_WAIT => {
+                let Some((millis, record_path)) = parse_publish_wait_payload(&request.payload) else {
+                    return write_response(&mut stream, STATUS_ERROR, b"malformed publish wait");
+                };
+                let published = self.publish_and_wait(
+                    &request.cas_path,
+                    &request.instance,
+                    &record_path,
+                    upload_wait_budget(millis),
+                );
+                write_response(&mut stream, if published { STATUS_HIT } else { STATUS_MISS }, &[])
             }
             OP_DRAIN => {
                 let owed = self.drain_publications(
@@ -5804,6 +6100,316 @@ mod tests {
         assert_eq!(drain_timeout(&u32::MAX.to_be_bytes()), DRAIN_TIMEOUT_MAX);
     }
 
+    #[test]
+    fn an_upload_wait_budget_is_bounded() {
+        assert_eq!(upload_wait_budget(5_000), Duration::from_secs(5));
+        assert_eq!(upload_wait_budget(0), UPLOAD_WAIT_DEFAULT);
+        assert_eq!(upload_wait_budget(u32::MAX), UPLOAD_WAIT_MAX);
+    }
+
+    #[test]
+    fn builds_wait_until_an_upload_stalls() {
+        let breaker = UploadWaitBreaker::default();
+        let admission = breaker.admit(1_000).expect("builds wait by default");
+        assert_eq!(admission, UploadWaitAdmission::Closed);
+
+        breaker.record(admission, UploadWaitOutcome::TimedOut, 1_000);
+
+        assert_eq!(breaker.admit(1_001), None);
+        assert_eq!(breaker.admit(1_000 + UPLOAD_WAIT_OPEN_MS - 1), None);
+    }
+
+    /// One failed upload is as likely to be its record as the remote, and not
+    /// waiting costs a job its uploads, so it takes a run of them.
+    #[test]
+    fn builds_stop_waiting_after_a_run_of_failures_not_one() {
+        let breaker = UploadWaitBreaker::default();
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Published, 1_000);
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        assert_eq!(
+            breaker.admit(1_000),
+            Some(UploadWaitAdmission::Closed),
+            "a success in between resets the run"
+        );
+
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        assert_eq!(breaker.admit(1_000), None);
+    }
+
+    /// After the window one build waits, and the rest keep moving until its
+    /// upload shows the remote is back. Letting all of them wait again would cost
+    /// a stalled budget per compile, once per window, for as long as the outage.
+    #[test]
+    fn after_the_window_one_build_probes_and_its_result_decides() {
+        let breaker = UploadWaitBreaker::default();
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::TimedOut, 0);
+
+        let reopened = UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the window has passed");
+        assert_eq!(probe, UploadWaitAdmission::Probe);
+        assert_eq!(breaker.admit(reopened), None, "only one probe at a time");
+
+        breaker.record(probe, UploadWaitOutcome::Failed, reopened);
+        assert_eq!(
+            breaker.admit(reopened + 1),
+            None,
+            "a failed probe opens a fresh window"
+        );
+
+        let reopened = reopened + UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the second window has passed");
+        breaker.record(probe, UploadWaitOutcome::Published, reopened);
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+    }
+
+    /// A proxy over a real store whose publisher, instead of uploading, runs
+    /// `publish` on each record path.
+    fn waiting_proxy<F>(dir: &Path, publish: F) -> &'static Proxy
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.join("registry")),
+            None,
+        );
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        proxy
+    }
+
+    /// A temp dir with a sources registry, a store path and a spooled record
+    /// for `key`.
+    fn upload_wait_fixture(name: &str, sources: &str) -> (PathBuf, String, String) {
+        let dir = std::env::temp_dir().join(format!("tuist-upload-wait-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let cas_path = dir.join("cas");
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        std::fs::write(sources_path_for(&dir.join("registry")), sources).expect("sources");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, record_body(b"key", b"value")).expect("record");
+        (
+            dir,
+            cas_path.to_string_lossy().into_owned(),
+            record.to_string_lossy().into_owned(),
+        )
+    }
+
+    fn record_body(key: &[u8], value: &[u8]) -> Vec<u8> {
+        let mut body = (key.len() as u16).to_be_bytes().to_vec();
+        body.extend_from_slice(key);
+        body.extend_from_slice(value);
+        body
+    }
+
+    const UPLOADING: &str = r#"{"tuist/mastodon":{"trunk":"main","branch":"feature"}}"#;
+
+    #[test]
+    fn a_build_waits_until_its_record_is_published() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("published", UPLOADING);
+        let proxy = waiting_proxy(&dir, |record_path| {
+            std::thread::sleep(Duration::from_millis(200));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(published);
+        assert!(started.elapsed() >= Duration::from_millis(200));
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_waited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_failed_upload_is_left_to_the_sweep() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("failed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| {});
+
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(!published);
+        assert!(Path::new(&record_path).exists(), "the record stays for the sweep");
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_unwaited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build moves on at its budget, the upload keeps running, and the next
+    /// builds stop waiting at all rather than each paying the budget again.
+    #[test]
+    fn a_stalled_upload_releases_the_build_and_the_ones_after_it() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("stalled", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        let next_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&next_record, record_body(b"other-key", b"value")).expect("record");
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &next_record.to_string_lossy(),
+            Duration::from_secs(10),
+        ));
+        assert!(
+            started.elapsed() < Duration::from_millis(150),
+            "the next build did not wait"
+        );
+
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Path::new(&record_path).exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&record_path).exists(), "the stalled upload finished");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Compiles run in parallel, so a stall catches several puts mid-wait. Each
+    /// running out its own budget would stagger the build's delay across all of
+    /// them; the first timeout releases the rest.
+    #[test]
+    fn the_first_stalled_upload_releases_the_builds_already_waiting() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("released", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        let other_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&other_record, record_body(b"other-key", b"value")).expect("record");
+        let other_record = other_record.to_string_lossy().into_owned();
+
+        let started = Instant::now();
+        let waiting = {
+            let cas_path = cas_path.clone();
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &other_record, Duration::from_secs(10))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+
+        assert!(!waiting.join().unwrap());
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the build waiting with a 10s budget was released when the other one stalled"
+        );
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_project_that_does_not_upload_owes_nothing() {
+        let (dir, cas_path, record_path) = upload_wait_fixture(
+            "read-only",
+            r#"{"tuist/mastodon":{"trunk":"main","upload":false}}"#,
+        );
+        let proxy = waiting_proxy(&dir, |_| panic!("nothing is published"));
+
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(!Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build service re-puts most keys its compilers already put. When the
+    /// compiler's wait published the value, the re-put has no bytes to wait for.
+    #[test]
+    fn a_reput_of_a_published_value_does_not_wait() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("reput", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+        proxy.resolve_instance(&cas_path, "tuist/mastodon");
+        let state = proxy.path_state(&cas_path).unwrap();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"key".to_vec(), Resolution::Hit(b"value".to_vec()));
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(started.elapsed() < Duration::from_millis(150));
+
+        release.send(()).unwrap();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+        assert!(
+            !Path::new(&record_path).exists(),
+            "the re-put still reached the publisher"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_unprimed_path_is_not_waited_on() {
+        let (dir, cas_path, record_path) = upload_wait_fixture("unprimed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| panic!("nowhere to publish to"));
+
+        assert!(!proxy.publish_and_wait(&cas_path, "", &record_path, Duration::from_secs(10)));
+        assert!(Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
     /// sidecar has to be found from the claimed name too.
     #[test]
@@ -6799,6 +7405,9 @@ mod tests {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }))
     }
 
