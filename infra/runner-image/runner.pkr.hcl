@@ -321,8 +321,28 @@ build {
   # jobs run as.
   provisioner "shell" {
     inline = [
-      "set -euo pipefail",
-      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'"
+      "set -uo pipefail",
+      "echo 'admin' | sudo -S true",
+      "echo '--- sw_vers'; sw_vers",
+      "echo '--- xcode'; xcodebuild -version",
+      "XB=$(xcodebuild -version | awk '/Build version/ {print $3}'); case \"$XB\" in 17E202) MB=17E188;; 17F113) MB=17F109;; 17C529) MB=17C519;; 17A400) MB=17A324;; *) MB=$XB;; esac; echo \"xcode build $XB -> metal build $MB\"; echo \"$MB\" > /tmp/metal-build",
+      "echo '--- admin ~/Library/Developer/Xcode'; ls -la ~/Library/Developer/Xcode/ 2>&1",
+      "echo '--- admin mapping plist'; plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist 2>&1 | head -40",
+      "echo '--- index reachable'; curl -sS -o /dev/null -w '%%{http_code} %%{size_download}\\n' https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex",
+      "echo '--- showComponent admin'; xcodebuild -showComponent MetalToolchain; echo exit=$?",
+      "echo '--- 1 runner plain download (repro)'; sudo -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'; echo exit=$?",
+      "echo '--- 1b runner mapping plist'; sudo -u runner -H /bin/zsh -lc 'ls -la ~/Library/Developer/Xcode/; plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist | head -20'; echo exit=$?",
+      "echo '--- 2 admin plain download'; xcodebuild -downloadComponent MetalToolchain; echo exit=$?",
+      "echo '--- 2b admin mapping plist'; plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist 2>&1 | head -20",
+      "echo '--- 2c admin metal'; /usr/bin/xcrun metal --version; echo exit=$?",
+      "echo '--- 3 runner plain download after admin'; sudo -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'; echo exit=$?",
+      "echo '--- 3b runner metal'; sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'; echo exit=$?",
+      "echo '--- 4 admin explicit buildVersion'; xcodebuild -downloadComponent MetalToolchain -buildVersion \"$(cat /tmp/metal-build)\"; echo exit=$?",
+      "echo '--- 4b admin metal'; /usr/bin/xcrun metal --version; echo exit=$?",
+      "echo '--- 5 runner explicit buildVersion'; sudo -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $(cat /tmp/metal-build)\"; echo exit=$?",
+      "echo '--- 5b runner metal'; sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'; echo exit=$?",
+      "echo '--- 5c runner mapping plist'; sudo -u runner -H /bin/zsh -lc 'plutil -p ~/Library/Developer/Xcode/XcodeToMetalToolchainIndexMapping.plist | head -20'",
+      "echo '--- done, failing on purpose so no image is pushed'; exit 1"
     ]
   }
 
