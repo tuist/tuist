@@ -41,14 +41,6 @@ defmodule TuistWeb.CoverageLive do
     {:ok, socket}
   end
 
-  def handle_params(
-        %{"tab" => "settings"},
-        _uri,
-        %{assigns: %{selected_project: project, selected_account: account}} = socket
-      ) do
-    {:noreply, push_navigate(socket, to: ~p"/#{account.name}/#{project.name}/settings/coverage")}
-  end
-
   def handle_params(params, uri, %{assigns: %{selected_project: project}} = socket) do
     query = uri |> Query.query_params() |> Map.delete("pull_request_number")
     uri = URI.new!("?" <> URI.encode_query(query))
