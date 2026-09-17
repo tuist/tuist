@@ -8,6 +8,7 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 - Negotiate SHA-256 cache capabilities and batch limits; batch small blobs and stream large blobs with bounded transient retries.
 - Stream SHA-256 blobs with bounded concurrency, verify received size and content, and publish action results only after their referenced blobs exist.
 - Encode directory trees deterministically, preserve relative symlinks and executable bits, and reject escaping paths and malformed trees when materializing.
+- Output snapshots publish one `Tree` blob and the file-content blobs it references. Child `Directory` messages are embedded in the tree, not published as separate CAS blobs; their digests still identify directory edges.
 - Provide `RemoteCacheProbeService` (`RemoteCacheProbing`), which issues the REAPI `GetCapabilities` handshake Bazel performs on start-up to verify a remote cache endpoint is reachable, terminates TLS, and authorizes the request before it is handed to Bazel.
 
 ## Boundaries

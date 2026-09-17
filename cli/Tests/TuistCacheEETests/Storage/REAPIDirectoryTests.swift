@@ -12,6 +12,7 @@ struct REAPIDirectoryTests {
         let version = source.appendingPathComponent("Shared.framework/Versions/A")
         let manager = FileManager.default
         try manager.createDirectory(at: version, withIntermediateDirectories: true)
+        try manager.createDirectory(at: version.appendingPathComponent("Resources/Empty"), withIntermediateDirectories: true)
         let binary = version.appendingPathComponent("Shared")
         try Data("executable".utf8).write(to: binary)
         try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
@@ -27,12 +28,16 @@ struct REAPIDirectoryTests {
         try manager.createDirectory(at: scratch, withIntermediateDirectories: true)
         let snapshot = try REAPIDirectory.snapshot(at: source, scratch: scratch)
         let tree = try REAPI.Tree(serializedBytes: Data(contentsOf: #require(snapshot.blobs[snapshot.tree])))
+        #expect(!tree.children.isEmpty)
+        #expect(Set(snapshot.blobs.keys) == [snapshot.tree, REAPI.digest(Data("executable".utf8))])
+        #expect(try manager.contentsOfDirectory(atPath: scratch.path) == [snapshot.tree.hash])
         let output = directory.appending(component: "output").url
         try REAPIDirectory.materialize(tree, at: output) { try #require(snapshot.blobs[$0]) }
         #expect(try Data(contentsOf: output.appendingPathComponent("Shared.framework/Shared")) == Data("executable".utf8))
         #expect(try manager
             .destinationOfSymbolicLink(atPath: output.appendingPathComponent("Shared.framework/Versions/Current").path) == "A")
         #expect(manager.isExecutableFile(atPath: output.appendingPathComponent("Shared.framework/Shared").path))
+        #expect(manager.fileExists(atPath: output.appendingPathComponent("Shared.framework/Versions/A/Resources/Empty").path))
         let second = try REAPIDirectory.snapshot(at: output, scratch: scratch)
         #expect(second.tree == snapshot.tree)
     }

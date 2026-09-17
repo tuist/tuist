@@ -33,7 +33,7 @@ public enum REAPIDirectory {
                     directory.symlinks.append(.with { $0.name = file.lastPathComponent; $0.target = target })
                 case .typeDirectory:
                     let child = try visit(file, depth: depth + 1)
-                    let digest = try persist(child.serializedData())
+                    let digest = REAPI.digest(try child.serializedData())
                     children[digest] = child
                     directory.directories.append(.with { $0.name = file.lastPathComponent; $0.digest = digest })
                 case .typeRegular:
