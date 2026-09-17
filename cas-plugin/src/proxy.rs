@@ -1203,6 +1203,17 @@ impl Snapshot {
 }
 
 impl PathState {
+    fn printed_node_id(&self, digest: &[u8]) -> Option<String> {
+        let cas_guard = self.cas.read().unwrap();
+        let cas = (*cas_guard)?;
+        unsafe {
+            self.up.print_digest(cas, llcas_digest_t {
+                data: digest.as_ptr(),
+                size: digest.len(),
+            })
+        }
+    }
+
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
     }
@@ -2884,22 +2895,15 @@ impl Proxy {
                                 * (compressed as f64 / total_compressed as f64)
                         };
                         let codec = crate::analytics::millis(codec_elapsed);
-                        // This node's own transfer. Keyed by the node, not by a hex
-                        // of its digest: the checksum the server joins on is the
-                        // separate digest this node's PARENT carries next to its
-                        // casID, which the root of this graph records below.
-                        analytics.record_cas_output(
-                            &entry.llcas_digest,
-                            frame.len() as i64,
-                            compressed,
-                            transfer + codec,
-                            transfer,
-                            codec,
-                        );
-                        // The (casID -> checksum) references this node makes, for the
-                        // nodes table the server maps build-log node ids through.
-                        for (cas_id, hex) in crate::analytics::parse_cas_references(&node.data) {
-                            analytics.record_node(&cas_id, &hex);
+                        if let Some(node_id) = state.printed_node_id(&entry.llcas_digest) {
+                            analytics.record_cas_output(
+                                node_id,
+                                &entry.blob.hash,
+                                frame.len() as i64,
+                                compressed,
+                                transfer,
+                                codec,
+                            );
                         }
                     }
                     let phase = Instant::now();
@@ -3310,6 +3314,8 @@ impl Proxy {
             return Ok(false);
         };
         let blob = pending.blob.clone();
+        let inlined = pending.contents.is_some();
+        let fetch_started = Instant::now();
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
             None => {
@@ -3323,12 +3329,19 @@ impl Proxy {
                 }
             }
         };
+        let transfer = if inlined {
+            0.0
+        } else {
+            crate::analytics::millis(fetch_started.elapsed())
+        };
+        let codec_started = Instant::now();
         let Some(frame) = reapi::decompress_frame(&blob_bytes) else {
             return Ok(false);
         };
         let Some(node) = reapi::decode_frame(&frame) else {
             return Ok(false);
         };
+        let codec = crate::analytics::millis(codec_started.elapsed());
         // Instructions outlive the manifest's withhold (and proxy restarts can
         // reconstruct just one instruction from the snapshot). References in
         // the node itself are therefore the durable write-side safety check.
@@ -3352,6 +3365,18 @@ impl Proxy {
             return Ok(false);
         }
         unsafe { store_node(state, &node)? };
+        if let Some(analytics) = &self.analytics {
+            if let Some(node_id) = state.printed_node_id(digest) {
+                analytics.record_cas_output(
+                    node_id,
+                    &blob.hash,
+                    frame.len() as i64,
+                    blob.size_bytes,
+                    transfer,
+                    codec,
+                );
+            }
+        }
         // Retain the digest-only instruction — including one the snapshot
         // fallback just reconstructed — so the next prune of this object is
         // produced without another snapshot wait.
@@ -3806,9 +3831,9 @@ impl Proxy {
             .map(|digest| (digest.hash, digest.size_bytes))
             .collect();
         let mut uploads: Vec<(reapi::Digest, Vec<u8>)> = Vec::new();
-        // (llcas_digest, uncompressed size, compressed size, node data) per
+        // (printed node id, uncompressed size, compressed size, blob checksum) per
         // uploaded node, recorded once the batch transfer time is known.
-        let mut upload_meta: Vec<(Vec<u8>, i64, i64, Vec<u8>)> = Vec::new();
+        let mut upload_meta: Vec<(String, i64, i64, String)> = Vec::new();
         for (entry, (blob, chunked)) in entries.iter().zip(blobs) {
             if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
                 continue;
@@ -3820,17 +3845,17 @@ impl Proxy {
                 }
             };
             if self.analytics.is_some() {
-                let (size, data) = reapi::decompress_frame(&bytes)
-                    .and_then(|frame| {
-                        reapi::decode_frame(&frame).map(|node| (frame.len(), node.data))
-                    })
-                    .unwrap_or((bytes.len(), Vec::new()));
-                upload_meta.push((
-                    entry.llcas_digest.clone(),
-                    size as i64,
-                    entry.blob.size_bytes,
-                    data,
-                ));
+                if let Some(node_id) = state.printed_node_id(&entry.llcas_digest) {
+                    let size = reapi::decompress_frame(&bytes)
+                        .map(|frame| frame.len())
+                        .unwrap_or(bytes.len());
+                    upload_meta.push((
+                        node_id,
+                        size as i64,
+                        entry.blob.size_bytes,
+                        entry.blob.hash.clone(),
+                    ));
+                }
             }
             uploads.push((entry.blob.clone(), bytes));
         }
@@ -3840,19 +3865,16 @@ impl Proxy {
             if let Some(analytics) = &self.analytics {
                 let elapsed = crate::analytics::millis(upload_start.elapsed());
                 let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
-                for (digest, size, compressed, data) in &upload_meta {
-                    let transfer = elapsed * (*compressed as f64 / total as f64);
+                for (node_id, size, compressed, checksum) in upload_meta {
+                    let transfer = elapsed * (compressed as f64 / total as f64);
                     analytics.record_cas_output(
-                        digest,
-                        *size,
-                        *compressed,
-                        transfer,
+                        node_id,
+                        &checksum,
+                        size,
+                        compressed,
                         transfer,
                         0.0,
                     );
-                    for (cas_id, hex) in crate::analytics::parse_cas_references(data) {
-                        analytics.record_node(&cas_id, &hex);
-                    }
                 }
             }
         }
@@ -9135,6 +9157,79 @@ mod tests {
                     blob: entry.blob.clone(),
                     contents: entry.contents.clone(),
                 });
+        }
+    }
+
+    #[test]
+    fn demand_and_background_downloads_record_joinable_output_analytics() {
+        let source_dir = TempCasDir::new("analytics-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"analytics-child");
+        let root = store_probe_object_with_refs(source, b"analytics-root", &[child]);
+        let remote = test_proxy().remote_for("tuist/analytics");
+        let (mut manifest, blobs) = walk_closure(source, &root, &remote).unwrap();
+        for (entry, (blob, _)) in manifest.iter_mut().zip(blobs) {
+            entry.contents = blob;
+        }
+
+        for demand in [true, false] {
+            let dir = TempCasDir::new(if demand {
+                "analytics-demand"
+            } else {
+                "analytics-background"
+            });
+            let database = format!("{}/analytics.db", dir.path());
+            let proxy = Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                crate::upstream_path(),
+                None,
+                Some(crate::analytics::Analytics::open(&database).unwrap()),
+            );
+            let state = proxy.path_state(&dir.path()).unwrap();
+            register_instructions(state, &manifest);
+            if demand {
+                assert!(proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+            } else {
+                proxy
+                    .materialize_manifest(&remote, state, &manifest, 0)
+                    .unwrap();
+            }
+
+            let conn = rusqlite::Connection::open(&database).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let count: usize = conn
+                    .query_row("SELECT count(*) FROM cas_outputs", [], |row| row.get(0))
+                    .unwrap();
+                if count == manifest.len() {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "demand={demand}: missing output analytics"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            for entry in &manifest {
+                let node_id = source.printed_node_id(&entry.llcas_digest).unwrap();
+                let (checksum, size, compressed): (String, i64, i64) = conn
+                    .query_row(
+                        "SELECT n.checksum, c.size, c.compressed_size FROM nodes n \
+                     JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = ?1",
+                        [&node_id],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!(checksum, entry.blob.hash.to_uppercase());
+                assert_eq!(
+                    size,
+                    reapi::decompress_frame(entry.contents.as_ref().unwrap())
+                        .unwrap()
+                        .len() as i64
+                );
+                assert_eq!(compressed, entry.blob.size_bytes);
+            }
         }
     }
 

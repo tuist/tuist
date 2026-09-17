@@ -1002,18 +1002,8 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 /// `missing object '0~...'` a build reports.
 unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
-    let mut printed: *mut c_char = std::ptr::null_mut();
-    let mut print_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut printed, &mut print_error);
-    if !print_error.is_null() {
-        (state.up.llcas_string_dispose)(print_error);
-    }
-    if failed || printed.is_null() {
-        return hex(&digest_bytes(state, id));
-    }
-    let text = CStr::from_ptr(printed).to_string_lossy().into_owned();
-    (state.up.llcas_string_dispose)(printed);
-    text
+    state.up.print_digest(state.cas, digest)
+        .unwrap_or_else(|| hex(&digest_bytes(state, id)))
 }
 
 fn hex(bytes: &[u8]) -> String {
