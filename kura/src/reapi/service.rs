@@ -849,7 +849,6 @@ impl ReapiService {
                 "keep-alive declined under memory pressure",
             ));
         }
-        let mut budget = MaterializationBudget::new(&self.state);
         for (index, action) in actions.iter().enumerate() {
             if index > 0 && index % KEEP_ALIVE_YIELD_INTERVAL == 0 {
                 tokio::task::yield_now().await;
@@ -864,6 +863,10 @@ impl ReapiService {
                 summary.missing += 1;
                 continue;
             };
+            // Released at the end of each action, so one request holds at most
+            // one result's worth of the pool.
+            let mut budget = MaterializationBudget::new(&self.state);
+            budget.claim(manifest.size, "action result")?;
             let Ok(action_result) = read_manifest_bytes(&self.state, &manifest)
                 .await
                 .map_err(|error| error.to_string())
@@ -6226,6 +6229,60 @@ mod tests {
             "nothing left to promote: {young:?} ({:?}/action)",
             young / ACTIONS as u32
         );
+    }
+
+    #[tokio::test]
+    async fn a_keep_alive_reserves_materialization_memory_for_each_result_it_reads() {
+        let context = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let (first, _) = seed_locally_served_entry(&service, "reserved-first").await;
+        let (second, _) = seed_locally_served_entry(&service, "reserved-second").await;
+        while !store.segment_ring_is_aging() {
+            store
+                .rotate_segment_ring_for_test()
+                .await
+                .expect("rotation should succeed");
+        }
+        let memory = &context.state.memory;
+        let limit = memory.reapi_materialization_limit_bytes();
+        let exhaust = || {
+            [
+                memory
+                    .try_acquire_reapi_materialization(limit)
+                    .expect("the pool should have room")
+                    .expect("a permit"),
+                memory
+                    .try_acquire_reapi_materialization(limit)
+                    .expect("the pool should have room")
+                    .expect("a permit"),
+            ]
+        };
+
+        let held = exhaust();
+        let status = service
+            .get_action_result(keep_alive_request(&[&first, &second]))
+            .await
+            .expect_err("reading a result needs materialization memory the pool does not have");
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+        assert!(
+            status.message().contains("materialization"),
+            "declined by the materialization pool, not the pressure gate: {}",
+            status.message()
+        );
+        drop(held);
+
+        service
+            .get_action_result(keep_alive_request(&[&first, &second]))
+            .await
+            .expect("a keep-alive should be answered once the pool has room");
+        drop(exhaust());
     }
 
     #[tokio::test]
