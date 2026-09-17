@@ -230,6 +230,24 @@ To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_C
 
 ## Troubleshooting {#troubleshooting}
 
+### Builds warn that the Xcode cache proxy failed {#cas-proxy-failed}
+
+If a build shows a warning like the following, which Xcode prefixes with `CAS error:` or `CAS operation failed:` depending on which compilation hit the failure first:
+
+```
+warning: CAS error: The Tuist Xcode cache proxy at /Users/you/.local/state/tuist/cas-proxy.sock failed (proxy connect: No such file or directory (os error 2)). Compilations that needed it used the local cache only, without remote cache hits. Their uploads are kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the proxy is not running.
+```
+
+then the compilation cache could not reach the local cache proxy that `tuist setup cache` installs. The build still succeeds, but the affected compilations get no remote cache hits, so it runs like a build with an empty cache. Their uploads are kept on disk and sent once the proxy handles requests again: later in the same build if it comes back in time, otherwise during the next build on the same machine. A CI machine that is discarded after the job loses them. The warning appears once per build, in Xcode's Issue navigator and in `xcodebuild` output.
+
+To check whether the proxy is running, look for a process listening on the socket named in the warning:
+
+```bash
+lsof ~/.local/state/tuist/cas-proxy.sock
+```
+
+If the command prints nothing, run `tuist setup cache` to start the proxy again. On CI, run `tuist setup cache` before any `xcodebuild` invocation in every job.
+
 ### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
 
 If your builds take much longer than expected and the Xcode build log is full of warnings like:

@@ -334,7 +334,7 @@ defmodule Atlas.Outreach.PublicResearch do
         metadata: %{
           "account_id" => contact.account_id,
           "event_id" => event.id,
-          "path" => "/gtm/outreach/#{contact.id}",
+          "path" => "/commercial/gtm/outreach/#{contact.id}",
           "query" => payload.query,
           "result_count" => length(payload.results)
         }
@@ -352,7 +352,7 @@ defmodule Atlas.Outreach.PublicResearch do
         metadata: %{
           "account_id" => contact.account_id,
           "event_id" => event.id,
-          "path" => "/gtm/outreach/#{contact.id}",
+          "path" => "/commercial/gtm/outreach/#{contact.id}",
           "queries" => Enum.map(searches, & &1.query),
           "research_type" => "person",
           "result_count" => Enum.sum(Enum.map(searches, &length(&1.results)))
@@ -371,7 +371,7 @@ defmodule Atlas.Outreach.PublicResearch do
         metadata: %{
           "account_id" => contact.account_id,
           "event_id" => event.id,
-          "path" => "/gtm/outreach/#{contact.id}",
+          "path" => "/commercial/gtm/outreach/#{contact.id}",
           "truncated" => page.truncated,
           "url" => page.final_url
         }

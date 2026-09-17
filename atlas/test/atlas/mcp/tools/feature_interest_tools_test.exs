@@ -53,7 +53,7 @@ defmodule Atlas.MCP.Tools.FeatureInterestToolsTest do
              execute_tool(ListAccountFeatureInterests, conn, %{"account_id" => account.id})
 
     assert account_interest.id == interest_account.id
-    assert account_interest.account_event_path == "/sales/accounts/#{account.id}#timeline-event-#{event.id}"
+    assert account_interest.account_event_path == "/commercial/sales/accounts/#{account.id}#timeline-event-#{event.id}"
   end
 
   test "updates account-specific context through the tool surface" do

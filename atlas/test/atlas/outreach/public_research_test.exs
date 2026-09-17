@@ -61,7 +61,7 @@ defmodule Atlas.Outreach.PublicResearchTest do
              )
 
     assert metadata["event_id"] == event.id
-    assert metadata["path"] == "/gtm/outreach/#{contact.id}"
+    assert metadata["path"] == "/commercial/gtm/outreach/#{contact.id}"
   end
 
   test "researches identity, company, GitHub, and authored public sources together" do
@@ -162,7 +162,7 @@ defmodule Atlas.Outreach.PublicResearchTest do
              )
 
     assert metadata["url"] == url
-    assert metadata["path"] == "/gtm/outreach/#{contact.id}"
+    assert metadata["path"] == "/commercial/gtm/outreach/#{contact.id}"
   end
 
   defp insert_contact! do

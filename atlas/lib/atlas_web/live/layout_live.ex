@@ -36,7 +36,7 @@ defmodule AtlasWeb.LayoutLive do
           {:halt,
            socket
            |> put_flash(:error, gettext("You do not have access to that page."))
-           |> redirect(to: ~p"/sales")}
+           |> redirect(to: ~p"/commercial/sales")}
         else
           {:cont, socket |> assign_user(user) |> assign_search_palette()}
         end

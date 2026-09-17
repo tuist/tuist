@@ -112,7 +112,7 @@ defmodule AtlasWeb.MCPLive do
                 <:button :if={entry.server.auth_type == :oauth2}>
                   <.button
                     id={"mcp-connect-#{entry.server.name}"}
-                    href={~p"/mcps/#{entry.server.name}/authorize?return_to=/mcps"}
+                    href={~p"/mcps/#{entry.server.name}/authorize?return_to=/admin/mcps"}
                     label={action_label(entry.status)}
                     size="small"
                     variant={if(entry.status == :connected, do: "secondary", else: "primary")}

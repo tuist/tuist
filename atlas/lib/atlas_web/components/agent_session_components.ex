@@ -63,7 +63,7 @@ defmodule AtlasWeb.AgentSessionComponents do
       |> assign(:activity, assigns.session.events |> Enum.sort_by(& &1.occurred_at, DateTime) |> build_activity())
       |> assign(:account, loaded_account(assigns.session))
       |> assign(:back_label, assigns.back_label || gettext("Back to sessions"))
-      |> assign(:back_path, assigns.back_path || ~p"/sessions")
+      |> assign(:back_path, assigns.back_path || ~p"/admin/sessions")
 
     ~H"""
     <div id={@id} data-part="agent-session-detail">
@@ -89,7 +89,7 @@ defmodule AtlasWeb.AgentSessionComponents do
               <.metadata_item title={gettext("Account")}>
                 <.link
                   :if={@account}
-                  navigate={~p"/sales/accounts/#{@account.id}"}
+                  navigate={~p"/commercial/sales/accounts/#{@account.id}"}
                   data-part="account-link"
                 >
                   {@account.name}

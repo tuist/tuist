@@ -50,7 +50,7 @@ defmodule Atlas.GTM.Workers.PostAudienceMemberNotificationTest do
     assert activity.metadata["subscriber_email"] == subscriber.email
     assert activity.metadata["slack_channel_id"] == "C0AGV3YU8ET"
     assert activity.metadata["slack_message_ts"] == "1717400000.000100"
-    assert activity.metadata["dashboard_path"] == "/email/audiences/#{audience.id}"
+    assert activity.metadata["dashboard_path"] == "/outbound/email/audiences/#{audience.id}"
   end
 
   test "returns Slack errors so the job can retry", %{membership: membership} do

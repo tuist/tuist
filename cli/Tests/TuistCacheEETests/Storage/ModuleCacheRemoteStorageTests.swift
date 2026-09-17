@@ -922,4 +922,67 @@ struct ModuleCacheRemoteStorageTests {
             ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
     }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func store_when_an_upload_fails_uploads_the_rest_and_throws_the_failure() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let failingPath = temporaryDirectory.appending(component: "Failing.framework")
+        let uploadedPath = temporaryDirectory.appending(component: "Uploaded.framework")
+        try await fileSystem.makeDirectory(at: failingPath)
+        try await fileSystem.makeDirectory(at: uploadedPath)
+        given(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("failing-hash"),
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(StartModuleCacheMultipartUploadServiceError.forbidden("The token can't write to this project"))
+        given(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("uploaded-hash"),
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn()
+
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [
+                    CacheStorableItem(name: "Failing", hash: "failing-hash"): [failingPath],
+                    CacheStorableItem(name: "Uploaded", hash: "uploaded-hash"): [uploadedPath],
+                ],
+                cacheCategory: .binaries
+            )
+        }
+
+        #expect(error?.failures == [
+            CacheUploadFailure(item: CacheStorableItem(name: "Failing", hash: "failing-hash"), reason: "authentication failed"),
+        ])
+
+        verify(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("uploaded-hash"),
+                name: .value("Uploaded.zip"),
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
 }

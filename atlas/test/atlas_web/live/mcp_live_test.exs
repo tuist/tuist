@@ -27,6 +27,6 @@ defmodule AtlasWeb.MCPLiveTest do
     assert html =~ "grafana"
     assert html =~ "OAuth"
     assert html =~ "Not connected"
-    assert html =~ ~s(href="/mcps/grafana/authorize?return_to=/mcps")
+    assert html =~ ~s(href="/mcps/grafana/authorize?return_to=/admin/mcps")
   end
 end

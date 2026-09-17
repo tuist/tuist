@@ -196,15 +196,20 @@ Two limits to keep in mind:
   An empty node in a pool that runs a cache pod on another node does count, so
   a node added to a live region contributes its capacity immediately.
 - Grafana Cloud Adaptive Metrics can aggregate a label away without the series
-  disappearing. It has already done so for `tuist_kura_capacity_reserved_gibibytes`
-  and `tuist_kura_capacity_allocatable_gibibytes` (`cluster`, `region` and
-  `pod` are gone; only a fleet-wide sum is queryable), which is why no rule
-  below reads them. A rule that selects on `region` then **errors** rather than
-  returning nothing, so set **Error** to **Alerting** on the region rules and
-  check the Adaptive Metrics recommendations before trusting a new one. The
-  same applies to `label_node_cluster_x_k8s_io_pool` on `kube_node_labels`:
-  if it is aggregated away, `kura:node_pool` empties and every region rollup
-  goes with it.
+  disappearing, and its recommendations are applied automatically, so a label
+  that no query reads can disappear and come back later. `region` has come and
+  gone this way on the `tuist_kura_*` series: on 2026-09-17 the
+  `tuist_kura_capacity_*` gauges carry `cluster` and `region` (only `pod` and
+  `instance` are aggregated, by the `tuist_` prefix rule, which stores `sum`,
+  `count` and `max`), while `tuist_kura_lifecycle_claim_apply_refused_count`
+  lost `region` and got it back within the same day. A query over an
+  aggregated label either **errors** or returns a single
+  `region="<aggregated>"` row, never nothing, so set **Error** to **Alerting**
+  on the region rules and check the Adaptive Metrics recommendations
+  (`/aggregations/recommendations`) before trusting a new one. The same
+  applies to `label_node_cluster_x_k8s_io_pool` on `kube_node_labels`: if it
+  is aggregated away, `kura:node_pool` empties and every region rollup goes
+  with it.
 
 ## Critical alerts
 
@@ -1315,7 +1320,7 @@ label_replace(sum by (cluster, region) (
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
-  floor((0.85 * max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
+  floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
@@ -1333,6 +1338,7 @@ label_replace(sum by (cluster, region) (
   value is the number of instances that still fit
 - Pending period: 15 minutes
 - Severity: critical
+- Live: rule `efx1xqen168zka`
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting** (the
@@ -1346,10 +1352,8 @@ label_replace(sum by (cluster, region) (
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
   ephemeral-storage request (the storage claim, 50 GiB per replica today)
-  against 85% of allocatable disk, where capacity admission refuses before the
-  scheduler would (Tuist.Kura.Capacity @pressure_fraction), "egress" is the
-  tuist.dev/egress-mbps floor (25 Mbps per replica) against the box's
-  advertised budget. Zero means the
+  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
+  replica) against the box's advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
   does shrinking claims (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
@@ -1383,12 +1387,23 @@ comment: the cache is a local-path directory, so the request is the only
 admission control the claim has), and the scheduler bin-packs that against
 allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
-`Tuist.Kura.ClaimSizing`), 50 GiB per replica on nearly every live instance,
-so the disk row counts in units of two replicas at 50 GiB, measured against 85%
-of allocatable: the pressure line at which `Tuist.Kura.Capacity` admission
-refuses a new instance or a claim growth and Air's archival window shortens,
-which sits below where the scheduler would refuse. Shrinking claims is a lever
-here as well as a node.
+`Tuist.Kura.ClaimSizing`), and the disk row counts in units of two replicas at
+50 GiB against allocatable, per node: where the scheduler refuses. Shrinking
+claims is a lever here as well as a node.
+
+**This row is not the admission check, and the region fills up before it
+fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
+claim growth once the region's reservations reach 85% of its allocatable disk
+(`Tuist.Kura.Capacity` `@pressure_fraction`), summed over the region rather
+than per node, and it counts rows the cluster has not scheduled yet. A region
+therefore stops admitting while this row still reads one or more. That case is
+**Kura region admission cannot take an enterprise instance**, which reads the
+server's own number. Air's archival window shortens once what is left under
+that line can no longer take a new enterprise instance
+(`Tuist.Kura.Capacity.under_pressure?/1`). This document gave the row a
+`0.85 *` factor on 2026-09-14 that was never applied to the live rule, and it
+would not have made the row an admission check anyway: see that rule for what
+each version read while us-west, us-central and eu-west filled.
 
 The fourth constraint is egress. On a governed region every replica requests
 the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the
@@ -1429,6 +1444,105 @@ second node that carries no cache pod yet, which is the case the pool-derived
 join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
 a staging runner region past the disk pressure line does not fire.
+
+### Kura region admission cannot take an enterprise instance
+
+```promql
+max by (cluster, region) (
+  tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
+)
+or
+(
+  floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+  - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+)
+```
+
+- Threshold: `< 32`, as a separate threshold expression on `A`, so the alert
+  value is the GiB admission can still place
+- Pending period: 15 minutes
+- Severity: critical
+- Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take an
+  enterprise instance`
+- Production only (the `cluster` matchers). Folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**
+  (see the Adaptive Metrics note under **Recording rules for Kura regions**).
+- Summary: `Kura region {{ $labels.region }} can admit
+  {{ $values.A.Value | printf "%.0f" }} GiB more in {{ $labels.cluster }},
+  less than one enterprise instance; free reservations or add a node`
+- Description: `Tuist.Kura.Admission refuses any instance whose reservation
+  (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
+  less the larger of what its pods request and what its kura_servers rows
+  reserve. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
+  every enterprise claim growth; below 16 GiB, every new or returning instance
+  of any plan. A refused account stays on whatever lane it was on and raises
+  nothing else. The value is negative when reservations already sit above the
+  line. Check "Kura admission refusing instances" for what is being turned
+  down, then free reservations (archive instances that store nothing) or add a
+  node to the region's pool. Zero with the region's nodes Ready means the
+  server cannot read the cluster, which refuses everything as well.`
+
+The admission check, as opposed to the scheduler check in **Kura region cannot
+place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
+only if `max(observed, desired) + candidate <= pressure_line`:
+
+- `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
+  region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
+- `observed` is the `ephemeral-storage` request of every non-terminal cache
+  pod in the region (`Capacity.reserved_gib/1`),
+- `desired` is claim x replicas over every `kura_servers` row in the region
+  that still holds a volume, which covers rows the controller has not turned
+  into pods yet,
+- `candidate` is the new instance's claim x 2: 16 GiB for Air and Pro, 32 GiB
+  for Enterprise (`Tuist.Kura.Regions.storage_profile/1`), more for a claim
+  sizing has grown.
+
+`tuist_kura_capacity_admission_headroom_gibibytes` is
+`pressure_line - max(observed, desired)`, polled every minute on every web pod
+by `Tuist.Kura.PromExPlugin` from `Capacity.admission_headroom_gib/1`: the
+function admission decides with (`Admission.headroom_gib/1`), cached for a
+minute per region and shared with placement's `Capacity.room_for?/2`, so the
+rule cannot drift from the code and reports the reading placement acted on. Every pod reports the
+same number, hence `max` (which the `tuist_` Adaptive Metrics rule stores) and
+not `sum`. The second operand is the same arithmetic without `desired`, from
+the occupancy gauges; it is what the rule reads until a server that emits the
+headroom gauge is deployed, and for any region the headroom gauge is missing
+from. It overstates headroom only while rows are waiting for pods.
+
+32 GiB is one enterprise instance at its starting claim. Change it with
+`@enterprise_storage_claim` in `Tuist.Kura.Regions`.
+
+**Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
+2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,
+us-central 2, us-west 6. Three independent gaps:
+
+1. The live disk row of **Kura region cannot place another instance**
+   (`efx1xqen168zka`) compares against raw allocatable. This document added
+   `0.85 *` to it on 2026-09-14 and the live rule was never changed. The live
+   rule's firing history matches the raw form exactly: it fired only for
+   `scw-fr-par-runners`, 2026-09-10 15:14 to 2026-09-11 10:44 UTC, and the raw
+   form read below 1 there from 15:00 to 11:00. Read raw, us-west and
+   us-central each had about 125 GiB below allocatable and eu-west's emptier
+   node about 270, so the row read 1, 1 and 2 on 2026-09-17.
+2. With `0.85 *` the row still does not model admission. It is per node, and
+   one node over the line cancels another node's room: it read below 1 for
+   eu-west from 2026-09-11, when the region still had 308 GiB of headroom,
+   and for us-east for most of the time since 2026-09-09. Its unit is a 100 GiB instance, while claims start at 8 or 16
+   GiB and grow per account, so it reads 0 long before a region stops
+   admitting 16 GiB instances in some cases and after it in others.
+3. Nothing alerted on a refusal. A refused provision or cold return was only
+   logged (`[Kura.Lifecycle] could not provision instance ...
+   :capacity_exhausted`), and a refused claim growth was counted by
+   `tuist_kura_lifecycle_claim_apply_refused_count`, which no rule read and
+   whose `region` label Adaptive Metrics had aggregated away. On 2026-09-17 it
+   was counting about 5 refusals an hour in each of eu-west and us-east.
+
+Backtested against 2026-09-03 to 2026-09-17 with the second operand (the
+headroom gauge did not exist yet), this rule would have been below 32 for:
+us-east 2026-09-05 05:33 to 2026-09-11 10:33 (while claim sizing was
+blocked there), us-central from 2026-09-10 17:33, us-west from 2026-09-15 18:03, and eu-west
+from 2026-09-16 14:03. ap-southeast (121), eu-east (313) and sa-west (586)
+were never below it.
 
 ### Kura cache box out of memory
 
@@ -1583,7 +1697,7 @@ and on (cluster, pod) (
 - Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
   the alert value is the median age in seconds
 - Pending period: 60 minutes
-- Severity: critical
+- Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
@@ -1597,11 +1711,11 @@ and on (cluster, pod) (
   ring rotated out over the last day). Overnight and weekend builds will miss.
   Rings run full by design; what this measures is whether the claim is enough
   for the account's write rate. The lever is the account's storage claim,
-  which Tuist.Kura.ClaimSizing sizes and applies on its own, so this fires
-  only where that loop cannot fix it: the claim is clamped at the plan ceiling
-  (64Gi air and pro, 256Gi enterprise), the region has no disk to grow into
-  (see "Kura region cannot place another instance"), or sizing itself is
-  stuck. Only rings that have been full for the whole day count: a ring
+  which Tuist.Kura.ClaimSizing sizes and applies on its own, and it is usually
+  still confirming the reading when this fires: its one-day rungs need two to
+  five qualifying days before they grow the claim. Watch it; it escalates to
+  "Kura instance retention horizon under a day for three days" if sizing does
+  not land. Only rings that have been full for the whole day count: a ring
   rebuilt more recently cannot report an eviction older than itself, so it
   would fire on its own age.`
 
@@ -1623,7 +1737,7 @@ three days in both US regions while every other instance in the fleet sat
 above ten, and the region medians read as "about three days" purely because
 of it.
 
-**There is no warning tier, because sizing is the actor.**
+**Warning, because sizing is the actor.**
 `Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
 its proposals unattended every ten minutes, within a fleet-wide budget of five
 applies an hour. Its own `retention_floor_days` is 3, so any instance whose
@@ -1633,13 +1747,13 @@ shed age grows the claim after two qualifying days when the ring cycled about
 once a day over them, and after five when it did not. Days the account did
 not build are passed over rather than restarting the count. The step after a
 resize that landed below its own projection confirms on a single qualifying
-day of the resized ring instead, as long as that day falls within the matching
-rung's own window of the resize. A two-day rule therefore alerts on a control
-loop that is mid-confirmation and would keep alerting for days while it does
-its job. A rule at two days was
-deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
-only on the artifact described below. One day is the tier worth waking
-someone: it means the loop did not keep up, or cannot act at all.
+day of the resized ring instead, as long as that day shed at least a whole ring
+and falls within the matching rung's own window of the resize. A one-day
+reading is therefore routinely a control loop that is mid-confirmation, and
+this rule paged on exactly that while it was critical. It stays as the early
+signal; the page is **Kura instance retention horizon under a day for three
+days**. A rule at two days was deployed with this one on 2026-09-02 and
+removed on 2026-09-04, having fired only on the artifact described below.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
@@ -1685,6 +1799,56 @@ the rest read between ten and thirty days, and three instances have shed no
 segment at all in the window (`NaN`, which the `< 86400` threshold does not
 match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
 the one to watch as its usage grows.
+
+### Kura instance retention horizon under a day for three days
+
+```promql
+histogram_quantile(0.5,
+  sum by (cluster, region, tenant_id, pod, le) (
+    increase(kura_segment_shed_age_seconds_bucket{cluster="tuist-production"}[3d])
+    * on (cluster, pod) group_left(region, tenant_id)
+      max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster="tuist-production"})
+  )
+)
+and on (cluster, pod) (
+  min by (cluster, pod) (
+    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[3d])
+  ) >= 100
+)
+```
+
+- Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
+  the alert value is the median age in seconds
+- Pending period: 60 minutes
+- Severity: critical
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: this is customer-visible.
+- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
+  {{ $labels.region }} has evicted artifacts after a median of
+  {{ $values.A.Value | humanizeDuration }} for three days; claim sizing has
+  not fixed it`
+- Description: `The instance's ring has been full for three days and the
+  median age of the youngest artifact in each segment it rotated out over
+  those three days is under a day. Overnight and weekend builds have been
+  missing all that time. Tuist.Kura.ClaimSizing grows the claim on its own
+  and a resize would have reopened the ring-fullness gate, so this means the
+  loop did not act: the claim is clamped at the plan ceiling (64Gi air and
+  pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
+  region cannot place another instance"), or sizing itself is stuck.`
+
+Same query as the warning with both windows widened to `[3d]`; the threshold
+stays at one day.
+
+**Why three days.** It clears what sizing needs to act on a one-day reading:
+the two-day rung, plus the day its last rollup takes to land and the worker
+to apply. A claim that grew changes the ring's desired segment count, so
+fullness drops below 100 while the ring converges, and `min_over_time(...[3d])`
+keeps the instance out of this rule for three days after the resize. What is
+left is an instance sizing did not touch. The five-day rung (a ring that did
+not cycle about once a day) can still be confirming at day three; three days
+of sub-day retention is customer damage whichever way sizing reads it, so it
+still pages.
 
 ### Kura instance not reconciled
 
@@ -1743,7 +1907,7 @@ the 69 minutes it took to notice one through a downstream customer alert.
 **Why warning rather than critical.** A stalled reconcile is an operator
 problem that becomes a customer problem later, and its customer-visible
 consequences already have critical rules of their own: **Kura instance
-retention horizon under a day** for a resize that never lands, and the
+retention horizon under a day for three days** for a resize that never lands, and the
 StatefulSet replica rule for an instance running short. Paging on this would
 wake someone for a condition whose damage is measured in hours.
 
@@ -3816,6 +3980,120 @@ ingress served its default self-signed certificate, the reconciler's `/up`
 probe failed TLS verification every tick, and the endpoint-not-ready branch
 logged at info and returned `:ok` without writing anything. The instance was
 indistinguishable from one thirty seconds old.
+
+### Kura region admission headroom running out
+
+```promql
+predict_linear(
+  (
+    max by (cluster, region) (
+      tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
+    )
+    or
+    (
+      floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+      - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+    )
+  )[3d:30m],
+  3 * 86400
+)
+```
+
+- Threshold: `< 32`, as a separate threshold expression on `A`
+- Pending period: 2 hours
+- Severity: warning
+- Live: rule `cfyi8f0lyqayof`, titled `Kura - region admission headroom
+  running out`
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura region {{ $labels.region }} in {{ $labels.cluster }} is on
+  course to stop admitting enterprise instances within three days (projected
+  headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
+- Description: `Extrapolates the last three days of capacity admission
+  headroom (see "Kura region admission cannot take an enterprise instance")
+  three days forward. A box takes days to order and join, so this is the tier
+  to act on: order a node for the region's pool, or find what is reserving
+  disk it does not use (instances that have stored nothing, claims far above
+  their rings).`
+
+The lead-time tier for **Kura region admission cannot take an enterprise
+instance**. An absolute threshold does not give lead time here, because
+regions fill at very different rates: over the week to 2026-09-17 us-central
+lost about 95 GiB of headroom a day and us-west about 40, and ap-southeast
+fell from 633 GiB to 121 in nine days. Three days forward from three days of
+history is the time an order takes. The 2-hour pending period keeps a region
+that has just started reporting, whose first samples are a steep drop, from
+firing on its first hour: eu-east did that for 1.5 hours on 2026-09-10.
+
+Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
+2026-09-11 14:33 and eu-west from 2026-09-11 12:03, four and five days before
+each crossed 32 GiB, for us-central from 2026-09-11 12:33, and for
+ap-southeast from 2026-09-16 12:33 (121 GiB left, projected -329 on
+2026-09-17). us-east fired from 2026-09-04 16:33, dropping out whenever
+archival released reservations.
+
+### Kura admission refusing instances
+
+```promql
+label_replace(
+  sum by (cluster, region, reason) (
+    increase(tuist_kura_lifecycle_provision_refused_count{cluster="tuist-production"}[30m])
+  ),
+  "operation", "provision", "", ""
+)
+or
+label_replace(
+  sum by (cluster, region, reason) (
+    increase(tuist_kura_lifecycle_claim_apply_refused_count{cluster="tuist-production"}[30m])
+  ),
+  "operation", "claim_growth", "", ""
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Live: rule `bfyi8f8z3whkwa`, titled `Kura - admission refusing instances`
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura capacity admission in {{ $labels.region }} is refusing
+  {{ $labels.operation }} ({{ $labels.reason }}) in {{ $labels.cluster }}`
+- Description: `Tuist.Kura.Admission turned down a provision or cold return
+  (operation=provision) or a storage-claim growth (operation=claim_growth) in
+  this region for 30 minutes. A refused account keeps the lane it had, and a
+  refused claim leaves its proposal open while the ring keeps evicting, so
+  nothing else reports it. capacity_exhausted: the reservation does not fit
+  under the region's pressure line, see "Kura region admission cannot take an
+  enterprise instance". capacity_unknown: the server cannot read the region's
+  nodes or pods. The server logs name the account:
+  "[Kura.Lifecycle] could not provision" and "[Kura.ClaimSizing] <region>
+  refused".`
+
+The refusal itself, which the headroom rule can only infer. It is not
+redundant with it: a claim growth or a return at a grown claim needs more than
+32 GiB, so a region can refuse those while the headroom rule is quiet, and
+`capacity_unknown` refuses everything whatever the headroom. This is also the
+"sizing blocked" rule **Kura instance retention horizon under a day** says is
+missing, for the half of it that is a capacity refusal; a claim clamped at the
+plan ceiling is still uncovered.
+
+A claim is account-wide, and `Kura.apply_claim_proposal/2` admits it region by
+region in alphabetical order and stops at the first refusal, so the region on
+a `claim_growth` row is the first one that refused, not the only one. On
+2026-09-17 the eu-west rows were monzo (32Gi to 64Gi, open since 09-15) and
+the us-east rows pinterest (50Gi to 200Gi, open since 09-16); both accounts
+also run in us-west, which would refuse them as well. `kura_claim_proposals`
+with `status` open names the accounts.
+
+Both counters are retried, not one-off: `Tuist.Kura.Lifecycle` retries a
+refused account on every pass and `Tuist.Kura.Workers.ClaimSizingWorker`
+retries an open proposal every ten minutes, so a region that keeps refusing
+keeps the rule firing, and one that recovers resolves it within 30 minutes.
+`sum by` rather than `max by`: a refusal is counted on the one web pod that
+made it, and Adaptive Metrics stores `sum:counter` for these counters.
+`region` on both must survive Adaptive Metrics; it was aggregated away on
+`tuist_kura_lifecycle_claim_apply_refused_count` on 2026-09-16 and restored
+on 2026-09-17, which shows as a single `region="<aggregated>"` row.
 
 ### Kura region has room for one more instance
 

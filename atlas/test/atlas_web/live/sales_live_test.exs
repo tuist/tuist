@@ -68,7 +68,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "#sales")
     assert has_element?(view, "#sales > [data-part='header'] [data-part='title']", "Sales")
@@ -119,7 +119,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "[data-part='pagination']")
     assert has_element?(view, "#sales-attention-items-table", "Attention 01")
@@ -139,7 +139,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "#sales-attention-items-table", "Nothing needs attention right now")
     assert has_element?(view, "#sales-widget-on-track [data-part='value']", "0")
@@ -162,7 +162,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "#sales-widget-mrr", "MRR Equivalent")
     assert has_element?(view, "#sales-widget-mrr [data-part='value']", "EUR 665.00")
@@ -243,7 +243,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "#sales-renewals-table tr[id='#{first_account.id}']", "First Renewal")
     assert has_element?(view, "#sales-renewals-table tr[id='#{first_account.id}']", format_date(first_renewal))
@@ -331,7 +331,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales?_stripe_fixture=#{fixture_key}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales?_stripe_fixture=#{fixture_key}")
 
     assert has_element?(view, "#sales-invoices-table", "INV-OPEN")
     assert has_element?(view, "#sales-invoices-table", "Billing Co")
@@ -384,7 +384,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales?_stripe_fixture=#{fixture_key}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales?_stripe_fixture=#{fixture_key}")
 
     assert has_element?(view, "[data-part='pagination']")
     assert has_element?(view, "[data-part='pagination'] a[href*=\"invoices-after=in_last\"]", "Next")
@@ -420,7 +420,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales?invoices-after=in_prev&_stripe_fixture=#{fixture_key}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales?invoices-after=in_prev&_stripe_fixture=#{fixture_key}")
 
     assert_receive {:list_invoices_page_opts, opts}
     assert Keyword.get(opts, :after) == "in_prev"
@@ -435,7 +435,7 @@ defmodule AtlasWeb.SalesLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales")
 
     assert has_element?(view, "#sales-invoices-table", "No open or scheduled invoices")
   end

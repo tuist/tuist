@@ -11,7 +11,7 @@ defmodule AtlasWeb.SessionLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Agent session not found."))
-         |> push_navigate(to: ~p"/sessions")}
+         |> push_navigate(to: ~p"/admin/sessions")}
 
       session ->
         {:ok,
@@ -27,7 +27,7 @@ defmodule AtlasWeb.SessionLive do
       id="agent-session"
       session={@session}
       back_label={gettext("Back to sessions")}
-      back_path={~p"/sessions"}
+      back_path={~p"/admin/sessions"}
     />
     """
   end

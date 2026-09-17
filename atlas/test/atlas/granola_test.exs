@@ -36,7 +36,7 @@ defmodule Atlas.GranolaTest do
       assert [%{"email" => "maya@acme.example"}] = event.metadata["attendees"]
 
       activity = Repo.get_by!(Activity, action: "account_event.synced_from_granola", target_id: event.id)
-      assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+      assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
     end
 
     test "updates the existing event when Granola edits the note" do

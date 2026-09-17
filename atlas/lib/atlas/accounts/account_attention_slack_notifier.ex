@@ -125,7 +125,7 @@ defmodule Atlas.Accounts.AccountAttentionSlackNotifier do
 
   defp evidence_summary(_suggestion), do: "Evidence available in Atlas"
 
-  defp account_url(account_id), do: url(~p"/sales/accounts/#{account_id}")
+  defp account_url(account_id), do: url(~p"/commercial/sales/accounts/#{account_id}")
 
   defp url_button(label, url, style) do
     %{

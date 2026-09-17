@@ -104,10 +104,10 @@ defmodule AtlasWeb.Utilities.Query do
 
   ## Examples
 
-      iex> AtlasWeb.Utilities.Query.query_params("/sessions?page=2")
+      iex> AtlasWeb.Utilities.Query.query_params("/admin/sessions?page=2")
       %{"page" => "2"}
 
-      iex> AtlasWeb.Utilities.Query.query_params("/sessions")
+      iex> AtlasWeb.Utilities.Query.query_params("/admin/sessions")
       %{}
 
       iex> AtlasWeb.Utilities.Query.query_params(nil)

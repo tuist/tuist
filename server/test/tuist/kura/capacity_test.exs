@@ -7,6 +7,7 @@ defmodule Tuist.Kura.CapacityTest do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -22,6 +23,11 @@ defmodule Tuist.Kura.CapacityTest do
   # arithmetic under test is the arithmetic production does.
   @node_allocatable_bytes 847_551_469_804
   @allocatable_gib trunc(@node_allocatable_bytes / @gib)
+  @pressure_line_gib trunc(@allocatable_gib * 0.85)
+  # us-east co-locates an account's two replicas on one box, so a new instance
+  # reserves its plan's starting claim twice.
+  @air_instance_gib 8 * 2
+  @enterprise_instance_gib 16 * 2
 
   defp account(plan \\ nil) do
     user = AccountsFixtures.user_fixture()
@@ -40,6 +46,8 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   defp region, do: elem(Regions.fetch(@region), 1)
+
+  defp new_instance(claim_size), do: %Server{region: @region, status: :provisioning, storage_claim_size: claim_size}
 
   defp installed(machines) do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
@@ -133,11 +141,44 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "under_pressure?/1" do
-    test "is false while the region is under its pressure line" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
+    test "is false while the region has room for a new instance of any plan" do
       installed(1)
       stub_region_pods([reserved_pod(50)])
 
       refute Capacity.under_pressure?(@region)
+    end
+
+    test "engages while admission still admits, once a new enterprise instance no longer fits" do
+      installed(1)
+      stub_region_pods([reserved_pod(@pressure_line_gib - @air_instance_gib)])
+
+      assert :ok = Admission.admit?(region(), new_instance("8Gi"))
+      assert {:error, :capacity_exhausted} = Admission.admit?(region(), new_instance("16Gi"))
+      assert Capacity.under_pressure?(@region)
+    end
+
+    test "stays off while admission can still take a new enterprise instance" do
+      installed(1)
+      stub_region_pods([reserved_pod(@pressure_line_gib - @enterprise_instance_gib)])
+
+      assert :ok = Admission.admit?(region(), new_instance("16Gi"))
+      refute Capacity.under_pressure?(@region)
+    end
+
+    test "counts instances committed before the cluster observes their pods, as admission does" do
+      installed(1)
+      stub_region_pods([])
+
+      for _ <- 1..div(@pressure_line_gib, @enterprise_instance_gib) do
+        account() |> instance() |> Ecto.Changeset.change(storage_claim_size: "16Gi") |> Repo.update!()
+      end
+
+      assert Capacity.under_pressure?(@region)
     end
 
     test "is true once the region has reserved past its pressure line" do
@@ -145,6 +186,14 @@ defmodule Tuist.Kura.CapacityTest do
       stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
 
       assert Capacity.under_pressure?(@region)
+    end
+
+    test "is false where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+      installed(1)
+      stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
+
+      refute Capacity.under_pressure?(@region)
     end
 
     test "is false when capacity is unknown, so pressure archival never runs uninformed" do
@@ -163,7 +212,7 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "pressure_line_gib/1" do
-    test "leaves headroom below allocatable, so archival makes room before placement fails" do
+    test "leaves kubelet's eviction margin below allocatable" do
       installed(1)
 
       assert Capacity.pressure_line_gib(@region) == trunc(@allocatable_gib * 0.85)
@@ -744,13 +793,139 @@ defmodule Tuist.Kura.CapacityTest do
 
       assert Capacity.room_for?(@region, :enterprise) == nil
     end
+
+    test "has no room where admission would refuse the instance, however much the nodes have free" do
+      # us-west on 2026-09-17: one box, 789 GiB allocatable, 664 GiB reserved.
+      # The box has 125 GiB free, but admission stops at 85% of allocatable,
+      # 670 GiB, which leaves 6 GiB against the 16 GiB two Air claims reserve.
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "664Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == false
+
+      # 16 GiB of headroom admits two Air claims and not two Enterprise ones.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "654Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "counts rows admission counts that no pod holds yet" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
+
+      # 85 GiB of headroom less a provisioning Enterprise instance's 32.
+      account = account(:enterprise)
+      instance(account, :provisioning)
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+
+      instance(account(:enterprise), :provisioning)
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "reads the nodes alone where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "664Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == true
+    end
+
+    test "is unknown, not full, when admission cannot read the region the nodes have room in" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub_pool([pool_box("box-1")])
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+
+    test "is full when the nodes are, whether or not admission can read the region" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "90Gi"})]
+        )
+      ])
+
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+  end
+
+  describe "admission_headroom_gib/1" do
+    test "is the reading room_for?/2 places against, taken once a minute per region" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      {:ok, region} = Regions.fetch(@region)
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
+      memoize_key_value_store()
+
+      assert Capacity.admission_headroom_gib(region) == 85
+
+      # Two Enterprise instances are created inside the minute. Measured again,
+      # they would leave 21 GiB, too little for a third. Both readings keep the
+      # first measurement, so the metric reports what placement acted on.
+      instance(account(:enterprise), :provisioning)
+      instance(account(:enterprise), :provisioning)
+
+      assert Capacity.admission_headroom_gib(region) == 85
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "passes through a region admission cannot read or does not enforce" do
+      {:ok, region} = Regions.fetch(@region)
+      stub_pool([pool_box("box-1")])
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      assert Capacity.admission_headroom_gib(region) == nil
+
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+      assert Capacity.admission_headroom_gib(region) == :unbounded
+    end
+  end
+
+  # A key-value store that keeps the first value it computes per key, standing
+  # in for the minute-long cache within a single test.
+  defp memoize_key_value_store do
+    store = start_supervised!({Agent, fn -> %{} end})
+
+    stub(KeyValueStore, :get_or_update, fn key, _opts, func ->
+      case Agent.get(store, &Map.fetch(&1, key)) do
+        {:ok, value} -> value
+        :error -> tap(func.(), fn value -> Agent.update(store, &Map.put(&1, key, value)) end)
+      end
+    end)
   end
 
   # `room_for?/2` reads each node of the pool and everything scheduled on it,
-  # so shaping a region here means answering both lists.
+  # and admission reads the same region's Ready nodes and pods as a whole, so
+  # shaping a region here means answering all four lists.
   defp stub_pool(boxes) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+    stub(Client, :list_nodes, fn _selector -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+    stub(Client, :list_pods, fn _namespace, _selector -> {:ok, Enum.flat_map(boxes, & &1.pods)} end)
 
     stub(Client, :list_pods_on_node, fn name, _opts ->
       case Enum.find(boxes, &(&1.name == name)) do

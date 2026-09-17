@@ -243,7 +243,7 @@ defmodule Atlas.GTM.Outreach.SlackNotifier do
   defp status_label("converted"), do: "Converted"
   defp status_label(status), do: to_string(status)
 
-  defp opportunity_url(%Opportunity{}), do: url(~p"/gtm/outreach")
+  defp opportunity_url(%Opportunity{}), do: url(~p"/commercial/gtm/outreach")
 
   defp notification_channel_id(%Opportunity{slack_notification_channel_id: channel_id}, _opts)
        when is_binary(channel_id) and channel_id != "" do

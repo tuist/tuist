@@ -14,15 +14,16 @@ defmodule Tuist.Kura.Capacity do
 
     * whether the region as a whole is tight enough that Air's inactivity
       window should shorten from 90 complete days to 60, so archival starts
-      making room before provisioning starts being declined
-      (`under_pressure?/1`). A region-level reading: the ephemeral-storage the
-      region's pods have reserved, against what its Ready nodes make
-      allocatable.
+      making room while admission still admits (`under_pressure?/1`). A
+      region-level reading of the headroom admission refuses against, which
+      stops fitting a new enterprise instance before it stops fitting a
+      smaller one.
     * whether the region has room for one more instance of a plan at all
       (`room_for?/2`), so first placement can choose a sibling region that has
       instead of leaving the instance Pending in one that does not. A per-node
       reading over every resource the pod requests, because the scheduler
-      declines per node and the resource that binds differs by region.
+      declines per node and the resource that binds differs by region, and the
+      region-level headroom `Tuist.Kura.Admission` creates instances against.
 
   Reservations rather than live usage on purpose. A freshly provisioned
   instance holds almost nothing and fills over days, so a region full of new
@@ -41,18 +42,18 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
   @gib 1024 * 1024 * 1024
 
-  # Share of a region's allocatable disk that may be reserved before Air's
-  # window shortens. Below 1 on purpose: pressure has to arrive while there is
-  # still room to place instances, so archival creates space ahead of the
-  # scheduler starting to decline. It also leaves the margin kubelet needs --
-  # it evicts at `imagefs.available<15%`, on the same disk the cache ring
-  # lives on, and an eviction takes the node's whole region with it.
+  # Share of a region's allocatable disk its instances may reserve. Admission
+  # refuses past it, and pressure engages once what is left under it can no
+  # longer take a new enterprise instance. Below 1 for the margin kubelet needs:
+  # it evicts at `imagefs.available<15%`, on the same disk the cache ring lives
+  # on, and an eviction takes the node's whole region with it.
   @pressure_fraction 0.85
 
   # Replicas an instance runs when its region declares none, matching the
@@ -525,8 +526,8 @@ defmodule Tuist.Kura.Capacity do
   defp container_requested_bytes(_container), do: 0
 
   @doc """
-  Gibibytes a region may reserve before Air's window shortens, or `nil` when
-  its nodes cannot be read.
+  Gibibytes a region's instances may reserve before admission refuses more, or
+  `nil` when its nodes cannot be read.
   """
   def pressure_line_gib(region_id) do
     case allocatable_gib(region_id) do
@@ -536,19 +537,33 @@ defmodule Tuist.Kura.Capacity do
   end
 
   @doc """
-  Whether the region has reserved more of its disk than it may before Air's
-  window shortens. Only under that pressure may Air instances be drained at 60
-  complete inactive days instead of 90.
+  Whether the region's admission headroom (`Tuist.Kura.Admission.headroom_gib/1`)
+  can no longer take a new enterprise instance, the largest claim a plan starts
+  at, so pressure engages while admission still admits the smaller plans. Only
+  under that pressure may Air instances be drained at 60 complete inactive days
+  instead of 90.
 
-  False whenever either side cannot be read, so pressure archival never runs
-  uninformed.
+  False where admission is not enforced, and whenever the headroom cannot be
+  read, so pressure archival never runs uninformed.
   """
   def under_pressure?(region_id) do
-    with target when is_integer(target) <- pressure_line_gib(region_id),
-         reserved when is_integer(reserved) <- reserved_gib(region_id) do
-      reserved > target
+    case pressure_deficit_gib(region_id) do
+      deficit when is_integer(deficit) -> deficit > 0
+      nil -> false
+    end
+  end
+
+  @doc """
+  Gibibytes the region has to free before it is out of pressure, zero or less
+  when it is not under pressure, or `nil` where admission is not enforced or
+  its headroom cannot be read.
+  """
+  def pressure_deficit_gib(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         headroom when is_integer(headroom) <- Admission.headroom_gib(region) do
+      div(claim_bytes(region, :enterprise), @gib) * replicas(region) - headroom
     else
-      _ -> false
+      _ -> nil
     end
   end
 
@@ -598,6 +613,14 @@ defmodule Tuist.Kura.Capacity do
   co-location, so replicas that cannot share a node split across two, and a
   pool that can take them split is a pool the scheduler will place them in.
 
+  The instance also has to get past `Tuist.Kura.Admission`, which refuses to
+  create one once the region's reservations would cross 85% of its allocatable
+  disk. A node can have room beyond that line, so the plan's starting claim
+  across every replica has to fit `Tuist.Kura.Admission.headroom_gib/1` too.
+  Where admission is not enforced, only the nodes are read. Either reading
+  saying no is enough for `false`; one that cannot be read, while the other
+  says yes, is `nil`.
+
   The request is the plan's, not the account's: the plan's starting claim
   rather than one sizing has already grown, and the region's egress floor for
   the plans entitled to one rather than a per-account override. Both understate
@@ -621,12 +644,45 @@ defmodule Tuist.Kura.Capacity do
   """
   def room_for?(region_id, plan) do
     with {:ok, region} <- Regions.fetch(region_id),
-         %{nodes: [_ | _] = nodes} = pool <- node_headroom(region) do
-      request = pod_request(region, plan, pool)
-
-      nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+         schedulable when schedulable != false <- schedulable_room?(region, plan),
+         admissible when admissible != false <- admissible_room?(region, plan) do
+      schedulable && admissible
     else
+      false -> false
       _ -> nil
+    end
+  end
+
+  defp schedulable_room?(region, plan) do
+    case node_headroom(region) do
+      %{nodes: [_ | _] = nodes} = pool ->
+        request = pod_request(region, plan, pool)
+
+        nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  `Tuist.Kura.Admission.headroom_gib/1` for the region, cached for a minute per
+  region: the reading `room_for?/2` places against, and the one the admission
+  headroom metric reports, so the two cannot disagree.
+
+  Admission reads every live server row in the region to count reservations
+  the cluster has not observed yet, so this is also what keeps that query off
+  every placement and every metric poll.
+  """
+  def admission_headroom_gib(%Regions{id: region_id} = region) do
+    cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end)
+  end
+
+  defp admissible_room?(%Regions{} = region, plan) do
+    case admission_headroom_gib(region) do
+      :unbounded -> true
+      headroom when is_integer(headroom) -> div(claim_bytes(region, plan), @gib) * replicas(region) <= headroom
+      nil -> nil
     end
   end
 

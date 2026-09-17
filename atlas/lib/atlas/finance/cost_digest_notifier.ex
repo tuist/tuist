@@ -91,7 +91,7 @@ defmodule Atlas.Finance.CostDigestNotifier do
   end
 
   defp finance_url do
-    url(~p"/finance/vendors")
+    url(~p"/commercial/finance/vendors")
   rescue
     _error -> nil
   end

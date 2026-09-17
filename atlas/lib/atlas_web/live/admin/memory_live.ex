@@ -56,7 +56,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
         {:noreply,
          socket
          |> put_flash(:error, gettext("Memory not found."))
-         |> push_navigate(to: ~p"/memory")}
+         |> push_navigate(to: ~p"/admin/memory")}
     end
   end
 
@@ -84,7 +84,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
       |> current_query_params()
       |> put_search_param(query)
 
-    {:noreply, push_patch(socket, to: ~p"/memory?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/admin/memory?#{query_params}", replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -92,7 +92,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/memory?#{updated_params}")
+     |> push_patch(to: ~p"/admin/memory?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -102,7 +102,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/memory?#{updated_params}")
+     |> push_patch(to: ~p"/admin/memory?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -732,7 +732,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
 
   defp memory_node_path(%Node{id: id}, %URI{} = uri) do
     params = URI.decode_query(uri.query || "")
-    ~p"/memory/#{id}?#{params}"
+    ~p"/admin/memory/#{id}?#{params}"
   end
 
   defp adjacent_memory_path(%Edge{dst: %Node{} = node}, :outgoing, %URI{} = uri), do: memory_node_path(node, uri)
@@ -741,7 +741,7 @@ defmodule AtlasWeb.Admin.MemoryLive do
 
   defp memory_index_path(%URI{} = uri) do
     params = URI.decode_query(uri.query || "")
-    ~p"/memory?#{params}"
+    ~p"/admin/memory?#{params}"
   end
 
   defp search_form(query), do: to_form(%{"query" => query}, as: :search)

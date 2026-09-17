@@ -31,7 +31,7 @@ defmodule Atlas.Finance.Briefs.SlackRenderer do
       next_steps(report["next_steps"]) ++
       [
         %{"type" => "divider"},
-        section("<#{AtlasWeb.Endpoint.url()}/finance|Explore the finance dashboard>")
+        section("<#{AtlasWeb.Endpoint.url()}/commercial/finance|Explore the finance dashboard>")
       ]
   end
 

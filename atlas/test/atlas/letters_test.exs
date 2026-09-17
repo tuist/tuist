@@ -97,7 +97,7 @@ defmodule Atlas.LettersTest do
     activity = Repo.get_by!(Activity, action: "letter.tax_certificate_prepared", target_id: letter.id)
     assert activity.actor_id == executive.id
     assert activity.interface == "dashboard"
-    assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+    assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
 
     upload_activity = Repo.get_by!(Activity, action: "letter.document_attached", target_id: letter.id)
     assert upload_activity.metadata["signed_document_id"] == signed.signed_document_id
@@ -250,7 +250,7 @@ defmodule Atlas.LettersTest do
     assert ready.recipient_city == "Berlin"
 
     upload_activity = Repo.get_by!(Activity, action: "letter.uploaded", target_id: uploaded.id)
-    assert upload_activity.metadata["path"] == "/postal"
+    assert upload_activity.metadata["path"] == "/outbound/postal"
   end
 
   test "persists a delivery confirmation after a leadership status check" do

@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Mockable
 import Path
 import ProjectDescription
@@ -12,8 +13,9 @@ import XcodeGraph
 @testable import TuistTesting
 
 /// `Derived/FrameworkSearchPaths` is preserved across generations and holds one symbolic link per precompiled
-/// framework into the binary cache. Recursive manifest lookups must not follow those links: on large graphs there
-/// are thousands of them, and walking each destination tree dominated the time spent loading the workspace.
+/// framework into the binary cache. Recursive manifest lookups and the globs a manifest declares must not follow those
+/// links: on large graphs there are thousands of them, and walking each destination tree dominated the time spent
+/// loading the workspace.
 struct ManifestLookupDerivedDirectoryTests {
     private let fileSystem = FileSystem()
 
@@ -88,6 +90,75 @@ struct ManifestLookupDerivedDirectoryTests {
         #expect(got.map(\.path) == [projectPath.appending(component: "Project.swift")])
     }
 
+    @Test(.inTemporaryDirectory)
+    func projectRootedSourcesGlob_doesNotDescendIntoFrameworkSearchPathLinks() async throws {
+        // Given
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = workspacePath.appending(components: "Projects", "App")
+        try await createProjectWithFrameworkSearchPathLinks(at: projectPath, cacheDirectory: workspacePath)
+        let sourceFile = projectPath.appending(components: "Sources", "App.swift")
+        try await fileSystem.makeDirectory(at: sourceFile.parentDirectory)
+        try await fileSystem.touch(sourceFile)
+
+        // When
+        let got = try await XcodeGraph.Target.sources(
+            targetName: "App",
+            sources: [SourceFileGlob(glob: projectPath.appending(components: "**", "*.swift").pathString)],
+            fileSystem: fileSystem
+        )
+
+        // Then
+        #expect(Set(got.map(\.path)) == [sourceFile, projectPath.appending(component: "Project.swift")])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func projectRootedBuildableFolder_doesNotDescendIntoFrameworkSearchPathLinks() async throws {
+        // Given
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = workspacePath.appending(components: "Projects", "App")
+        try await createProjectWithFrameworkSearchPathLinks(at: projectPath, cacheDirectory: workspacePath)
+
+        // When
+        let got = try await XcodeGraph.BuildableFolder.from(
+            manifest: .folder(.path(projectPath.pathString)),
+            generatorPaths: GeneratorPaths(manifestDirectory: projectPath, rootDirectory: workspacePath),
+            targetName: "App"
+        )
+
+        // Then
+        #expect(try #require(got).resolvedFiles.map(\.path) == [projectPath.appending(component: "Project.swift")])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func projectRootedFileListGlobExcludes_doNotDescendIntoFrameworkSearchPathLinks() async throws {
+        // Given: excluding patterns such as `**/*.docc` resolve against the manifest directory, so each one is a glob
+        // over the whole project. The cached framework contains an unreadable directory: listing it fails, so the
+        // lookup only succeeds if the links are never followed.
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = workspacePath.appending(components: "Projects", "App")
+        try await createProjectWithFrameworkSearchPathLinks(at: projectPath, cacheDirectory: workspacePath)
+        let sourceFile = projectPath.appending(components: "Sources", "App.swift")
+        try await fileSystem.makeDirectory(at: sourceFile.parentDirectory)
+        try await fileSystem.touch(sourceFile)
+        let unreadableDirectory = workspacePath.appending(components: "Binaries", "hash", "Module.framework", "Unreadable")
+        try await fileSystem.makeDirectory(at: unreadableDirectory)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: unreadableDirectory.pathString)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: unreadableDirectory.pathString) }
+        let fileListGlob = ProjectDescription.FileListGlob.glob(
+            .relativeToManifest("Sources/**/*.swift"),
+            excluding: [.relativeToManifest("**/*.docc"), .relativeToManifest("**/*.docc/**")]
+        )
+
+        // When
+        let got = try await fileListGlob.unfold(
+            generatorPaths: GeneratorPaths(manifestDirectory: projectPath, rootDirectory: workspacePath),
+            fileSystem: fileSystem
+        )
+
+        // Then
+        #expect(got == [sourceFile])
+    }
+
     /// Lays out a project whose `Derived/FrameworkSearchPaths/Swift/App` directory links many times into a sizeable
     /// cached framework tree. The tree contains manifests so the tests can tell whether the links were followed.
     private func createProjectWithFrameworkSearchPathLinks(
@@ -107,6 +178,8 @@ struct ManifestLookupDerivedDirectoryTests {
         }
         try await fileSystem.touch(cachedFramework.appending(component: "Project.swift"))
         try await fileSystem.touch(cachedFramework.appending(component: "Package.swift"))
+        try await fileSystem.makeDirectory(at: cachedFramework.appending(component: "Sources"))
+        try await fileSystem.touch(cachedFramework.appending(components: "Sources", "Cached.swift"))
 
         let linksDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths", "Swift", "App")
         try await fileSystem.makeDirectory(at: linksDirectory)

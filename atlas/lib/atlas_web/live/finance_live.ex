@@ -475,7 +475,7 @@ defmodule AtlasWeb.FinanceLive do
 
       <.card title={gettext("Vendor invoices")} icon="file" data-part="invoices-card">
         <:actions>
-          <.link navigate={~p"/finance/vendors"}>
+          <.link navigate={~p"/commercial/finance/vendors"}>
             <.button
               id="finance-vendors-button"
               label={gettext("Open vendor costs")}
@@ -528,7 +528,7 @@ defmodule AtlasWeb.FinanceLive do
             </:empty_state>
           </.table>
           <div data-part="table-footer">
-            <.link id="finance-vendors-link" navigate={~p"/finance/vendors"}>
+            <.link id="finance-vendors-link" navigate={~p"/commercial/finance/vendors"}>
               {gettext("View vendor cost analytics")}
             </.link>
           </div>
@@ -538,7 +538,7 @@ defmodule AtlasWeb.FinanceLive do
       <.card title={gettext("Transactions")} icon="history" data-part="transactions-card">
         <:actions>
           <div data-part="transactions-actions">
-            <.link patch={~p"/finance"}>
+            <.link patch={~p"/commercial/finance"}>
               <.button
                 id="finance-reset-filters-button"
                 label={gettext("Reset filters")}
@@ -700,7 +700,7 @@ defmodule AtlasWeb.FinanceLive do
       |> put_search_param(query)
       |> reset_transactions_page()
 
-    {:noreply, push_patch(socket, to: ~p"/finance?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance?#{query_params}", replace: true)}
   end
 
   def handle_event("select_overview_widget", %{"widget" => widget}, socket) do
@@ -713,7 +713,7 @@ defmodule AtlasWeb.FinanceLive do
         true -> Map.put(base, "overview-widget", widget)
       end
 
-    {:noreply, push_patch(socket, to: ~p"/finance?#{query_params}", replace: true)}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance?#{query_params}", replace: true)}
   end
 
   def handle_event(
@@ -735,7 +735,7 @@ defmodule AtlasWeb.FinanceLive do
         |> Map.drop(["runway-start-date", "runway-end-date"])
       end
 
-    {:noreply, push_patch(socket, to: ~p"/finance?#{query_params}")}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance?#{query_params}")}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -746,7 +746,7 @@ defmodule AtlasWeb.FinanceLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/finance?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/finance?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -759,7 +759,7 @@ defmodule AtlasWeb.FinanceLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/finance?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/finance?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -787,7 +787,7 @@ defmodule AtlasWeb.FinanceLive do
       end
       |> reset_transactions_page()
 
-    {:noreply, push_patch(socket, to: ~p"/finance?#{query_params}")}
+    {:noreply, push_patch(socket, to: ~p"/commercial/finance?#{query_params}")}
   end
 
   defp put_search_param(params, query) do
