@@ -243,13 +243,15 @@ spec:
             {{- end }}
           # Checked every second so a started pod joins its Service as soon as
           # it serves; 30 failures keep the 30s a serving pod tolerates a slow
-          # /ready before it leaves the Service.
+          # /ready before it leaves the Service. The timeout matches the period:
+          # the kubelet runs a pod's probes one at a time, so a longer timeout
+          # would stretch that budget for a /ready that hangs.
           readinessProbe:
             httpGet:
               path: /ready
               port: http
             periodSeconds: 1
-            timeoutSeconds: 5
+            timeoutSeconds: 1
             failureThreshold: 30
           livenessProbe:
             httpGet:
@@ -265,7 +267,7 @@ spec:
               path: /up
               port: http
             periodSeconds: 1
-            timeoutSeconds: 5
+            timeoutSeconds: 1
             failureThreshold: 300
           lifecycle:
             preStop:

@@ -115,21 +115,38 @@ func TestStatefulSetAdoptsFastProbesOnlyWhenItsPodsAreReplacedAnyway(t *testing.
 }
 
 // Faster probes must not change how long Kubernetes waits before giving up on
-// a starting pod or before taking a serving pod out of its Service.
+// a starting pod or before taking a serving pod out of its Service, whether the
+// probe fails at once (connection refused) or hangs until its timeout. The
+// kubelet runs a pod's probes one at a time, so a hanging probe fails once per
+// period or per timeout, whichever is longer.
 func TestFastProbesKeepTheirBudgets(t *testing.T) {
-	budget := func(probe *corev1.Probe) time.Duration {
-		threshold := probe.FailureThreshold
-		if threshold == 0 {
-			threshold = 3
+	threshold := func(probe *corev1.Probe) int32 {
+		if probe.FailureThreshold == 0 {
+			return 3
 		}
-		return time.Duration(probe.PeriodSeconds*threshold) * time.Second
+		return probe.FailureThreshold
+	}
+	failingBudget := func(probe *corev1.Probe) time.Duration {
+		return time.Duration(probe.PeriodSeconds*threshold(probe)) * time.Second
+	}
+	hangingBudget := func(probe *corev1.Probe) time.Duration {
+		return time.Duration(max(probe.PeriodSeconds, probe.TimeoutSeconds)*threshold(probe)) * time.Second
 	}
 
-	if got, want := budget(startupProbe(true)), budget(startupProbe(false)); got != want || got != 300*time.Second {
-		t.Fatalf("startup budget = %v, want %v (and 300s)", got, want)
+	for name, probes := range map[string][2]*corev1.Probe{
+		"startup":   {startupProbe(true), startupProbe(false)},
+		"readiness": {readinessProbe(true), readinessProbe(false)},
+	} {
+		fast, legacy := probes[0], probes[1]
+		if got, want := failingBudget(fast), failingBudget(legacy); got != want {
+			t.Fatalf("%s budget for a failing probe = %v, want %v", name, got, want)
+		}
+		if got, want := hangingBudget(fast), hangingBudget(legacy); got != want {
+			t.Fatalf("%s budget for a hanging probe = %v, want %v", name, got, want)
+		}
 	}
-	if got, want := budget(readinessProbe(true)), budget(readinessProbe(false)); got != want {
-		t.Fatalf("readiness failure budget = %v, want %v", got, want)
+	if got := failingBudget(startupProbe(true)); got != 300*time.Second {
+		t.Fatalf("startup budget = %v, want 300s", got)
 	}
 	fastReadiness := readinessProbe(true)
 	fastStartup := startupProbe(true)

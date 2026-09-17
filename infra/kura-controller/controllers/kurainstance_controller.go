@@ -4612,11 +4612,17 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 // replaced: probes are part of the pod template, so switching every instance
 // at once would roll the whole fleet outside the runtime rollout gate. See
 // templateUsesFastProbes.
+//
+// A fast probe times out after its period rather than the legacy 5s. The
+// kubelet runs a pod's probes one at a time, so a probe that hangs fails once
+// per timeout when that is the longer of the two, and a 5s timeout would stretch
+// the startup budget to 25 minutes and the readiness budget to 150 seconds.
 func readinessProbe(fast bool) *corev1.Probe {
 	if !fast {
 		return httpProbe("/ready", 5, legacyProbePeriodSeconds)
 	}
 	probe := httpProbe("/ready", 0, fastProbePeriodSeconds)
+	probe.TimeoutSeconds = fastProbePeriodSeconds
 	probe.FailureThreshold = readinessFailureBudgetSeconds / fastProbePeriodSeconds
 	return probe
 }
@@ -4627,6 +4633,9 @@ func startupProbe(fast bool) *corev1.Probe {
 		period = fastProbePeriodSeconds
 	}
 	probe := httpProbe("/up", 0, period)
+	if fast {
+		probe.TimeoutSeconds = fastProbePeriodSeconds
+	}
 	probe.FailureThreshold = startupBudgetSeconds / period
 	return probe
 }
