@@ -41,6 +41,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - Do not edit translation `.po` files; only the `tuistit` bot should change them.
 - Do not modify content in languages other than English (source language).
 
+## Repository Build Configuration
+- Keep Swift project prefix mapping disabled in the root project's Debug configuration. Unit and acceptance tests resolve fixtures and snapshots relative to `#file` and `#filePath`, which Xcode 27's project prefix mapping rewrites to the non-existent `/^src` directory. Compilation caching and SDK/toolchain prefix mapping can remain enabled.
+
 ## Intent Layer Maintenance
 When making changes in a directory with an `AGENTS.md`, keep that node up to date. If a new subsystem or boundary is introduced, add a new leaf `AGENTS.md` and link it from the nearest parent node.
 

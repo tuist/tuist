@@ -6,6 +6,8 @@ let baseSettings: SettingsDictionary = [:]
 func debugSettings() -> SettingsDictionary {
     var settings = baseSettings
     settings["ENABLE_TESTABILITY"] = "YES"
+    // Tests locate fixtures relative to #filePath, which project prefix mapping rewrites to /^src.
+    settings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "NO"
     return settings
 }
 
