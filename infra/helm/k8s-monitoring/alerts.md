@@ -1351,8 +1351,8 @@ label_replace(sum by (cluster, region) (
   region can place, per placement constraint: "ceiling" is the
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
-  ephemeral-storage request (in units of a 50 GiB claim per replica) against
-  allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
+  ephemeral-storage request (the storage claim, 50 GiB per replica today)
+  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
   replica) against the box's advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
@@ -1460,6 +1460,8 @@ or
   value is the GiB admission can still place
 - Pending period: 15 minutes
 - Severity: critical
+- Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take an
+  enterprise instance`
 - Production only (the `cluster` matchers). Folder `Alerts`, group `Cache`,
   receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**
   (see the Adaptive Metrics note under **Recording rules for Kura regions**).
@@ -3943,6 +3945,8 @@ predict_linear(
 - Threshold: `< 32`, as a separate threshold expression on `A`
 - Pending period: 2 hours
 - Severity: warning
+- Live: rule `cfyi8f0lyqayof`, titled `Kura - region admission headroom
+  running out`
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura region {{ $labels.region }} in {{ $labels.cluster }} is on
@@ -3992,6 +3996,7 @@ label_replace(
 - Threshold: `> 0`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
 - Severity: warning
+- Live: rule `bfyi8f8z3whkwa`, titled `Kura - admission refusing instances`
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `Kura capacity admission in {{ $labels.region }} is refusing
@@ -4014,6 +4019,14 @@ redundant with it: a claim growth or a return at a grown claim needs more than
 "sizing blocked" rule **Kura instance retention horizon under a day** says is
 missing, for the half of it that is a capacity refusal; a claim clamped at the
 plan ceiling is still uncovered.
+
+A claim is account-wide, and `Kura.apply_claim_proposal/2` admits it region by
+region in alphabetical order and stops at the first refusal, so the region on
+a `claim_growth` row is the first one that refused, not the only one. On
+2026-09-17 the eu-west rows were monzo (32Gi to 64Gi, open since 09-15) and
+the us-east rows pinterest (50Gi to 200Gi, open since 09-16); both accounts
+also run in us-west, which would refuse them as well. `kura_claim_proposals`
+with `status` open names the accounts.
 
 Both counters are retried, not one-off: `Tuist.Kura.Lifecycle` retries a
 refused account on every pass and `Tuist.Kura.Workers.ClaimSizingWorker`
