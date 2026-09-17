@@ -667,7 +667,7 @@ cas_spool_records() {
 # The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
 # that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
 # installs no launch agent and puts no tuist on PATH. Those jobs still write a
-# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
+# compilation cache — the compilers' own `builtin` lane, into this same volume — and
 # without a binary in the image they were exactly the jobs whose store nothing
 # could ever prune, which is the unbounded growth this path exists to stop. (The
 # drain is a legitimate no-op for them: no plugin means no spool.)
@@ -786,10 +786,10 @@ EOF
 }
 
 # cas_store_dirs lists the llcas STORES inside the mounted image. A store is a
-# directory holding `v1.N` generation dirs; the compiler picks the lane name
-# under COMPILATION_CACHE_CAS_PATH (`plugin` for ours, `generic` for Xcode's
-# builtin), so discover them by that shape rather than assume the set. Both need
-# bounding: the builtin lane never loads our plugin but writes to the same image.
+# directory holding `v1.N` generation dirs; Swift Build picks the lane name under
+# COMPILATION_CACHE_CAS_PATH (`plugin` for ours, otherwise `builtin` for the
+# compilers and `generic` for Swift Build itself), so discover them by that shape
+# rather than assume the set. All need bounding.
 cas_store_dirs() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
@@ -831,12 +831,11 @@ cas_store_dirs() {
 #     finishes here, so it cannot be the straggler that writes past
 #     capture_settled_inventory's measurement.
 #
-# The prune runs through the proxy binary rather than in this shell because llcas
-# rotates a store as its LAST handle closes, and the per-machine proxy holds one
-# open for its process lifetime. A prune driven from a handle of its own would
-# find the chain still live, collect nothing, and report success. `--prune` asks
-# the running proxy first for exactly that reason, and only prunes in-process for
-# a store no proxy holds (the builtin lane).
+# The prune runs through the proxy binary rather than in this shell because the
+# per-machine proxy holds its stores open, and only the holder can rotate a
+# store. `--prune` asks the running proxy first for exactly that reason, and
+# prunes a store no proxy holds itself, on its generation directories, which
+# works on a full volume.
 #
 # Best-effort: a store we could not prune costs the volume space, which
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks

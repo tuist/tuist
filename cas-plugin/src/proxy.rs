@@ -8,7 +8,7 @@
 //! is multi-process by design) and materializes fetched graphs into it
 //! before answering a resolve, so consumers' demand loads are local hits.
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -591,13 +591,13 @@ fn generation_limit(store_size_limit: u64) -> u64 {
 fn newest_generation_size(sizes: &HashMap<String, u64>) -> Option<u64> {
     sizes
         .iter()
-        .filter_map(|(name, size)| {
-            name.strip_prefix("v1.")
-                .and_then(|index| index.parse::<u64>().ok())
-                .map(|index| (index, *size))
-        })
+        .filter_map(|(name, size)| generation_index(name).map(|index| (index, *size)))
         .max_by_key(|(index, _)| *index)
         .map(|(_, size)| size)
+}
+
+fn generation_index(name: &str) -> Option<u64> {
+    name.strip_prefix("v1.")?.parse().ok()
 }
 
 /// The size limit of a store several projects share: the smallest any of them
@@ -5509,43 +5509,100 @@ fn reclaimed_bytes(path: &str, before: &HashMap<String, u64>) -> u64 {
         .sum()
 }
 
-/// Prunes a store NOTHING holds open, without going through a proxy: the same
-/// set-limit / rotate / reopen / prune sequence `PathState::prune_ondisk`
-/// performs, with handles this call owns end to end.
-///
-/// This is the right path only for a store no live proxy has registered -- the
-/// builtin (`generic`) lane, which never loads our plugin, or any store on a
-/// machine with no proxy running. Used on a path the proxy DOES hold it would
-/// silently collect nothing: the proxy's handle keeps the chain live, so the
-/// dispose here is not the last close and no rotation happens.
-pub fn prune_store(upstream_plugin: &str, cas_path: &str, limit_bytes: u64) -> Result<u64, String> {
-    let up = unsafe { Upstream::load(upstream_plugin)? };
-    let up: &'static Upstream = Box::leak(Box::new(up));
-    let Some(set_limit) = up.llcas_cas_set_ondisk_size_limit else {
-        return Err("upstream plugin exports no ondisk size limit".into());
-    };
-    let Some(prune) = up.llcas_cas_prune_ondisk_data else {
-        return Err("upstream plugin exports no ondisk prune".into());
-    };
-    let before = generation_sizes(cas_path);
-    unsafe {
-        let live = open_cas(up, cas_path)?;
-        set_ondisk_limit(up, set_limit, live, limit_bytes)?;
-        // The close that rotates -- only the last one because nothing else on
-        // this machine holds the store.
-        (up.llcas_cas_dispose)(live);
+/// What `prune_store` did to a store.
+#[derive(Debug, PartialEq, Eq)]
+pub struct StorePrune {
+    pub reclaimed: u64,
+    /// Another process held the store open, so it was not rotated.
+    pub held_open: bool,
+}
 
-        let fresh = open_cas(up, cas_path)?;
-        set_ondisk_limit(up, set_limit, fresh, limit_bytes)?;
-        let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-        let failed = prune(fresh, &mut error);
-        let detail = take_error(up, error);
-        (up.llcas_cas_dispose)(fresh);
-        if failed {
-            return Err(detail.unwrap_or_else(|| "prune failed".into()));
+/// Prunes a store no proxy holds by rotating and collecting its `v1.N`
+/// generation directories under the store's `lock`, the way llcas does, without
+/// opening it: an open needs room on the volume, and only reads a store in the
+/// upstream plugin's own layout, which the compilers' stores and another Xcode's
+/// are not.
+pub fn prune_store(cas_path: &str, limit_bytes: u64) -> Result<StorePrune, String> {
+    let before = generation_sizes(cas_path);
+    let sizes: BTreeMap<u64, u64> = before
+        .iter()
+        .filter_map(|(name, size)| Some((generation_index(name)?, *size)))
+        .collect();
+    let lock = lock_store_exclusively(cas_path);
+    let plan = plan_generations(&sizes, limit_bytes, lock.is_some());
+    let generation = |index: u64| Path::new(cas_path).join(format!("v1.{index}"));
+    let collect = |index: u64| {
+        let path = generation(index);
+        std::fs::remove_dir_all(&path)
+            .map_err(|error| format!("could not collect {}: {error}", path.display()))
+    };
+
+    // Collected first, so a full volume has room for the new directory.
+    for &index in plan.unreachable.iter().chain(&plan.demoted) {
+        collect(index)?;
+    }
+    if let Some(next) = plan.rotate_to {
+        let path = generation(next);
+        std::os::unix::fs::DirBuilderExt::mode(&mut std::fs::DirBuilder::new(), 0o770)
+            .create(&path)
+            .map_err(|error| format!("could not start {}: {error}", path.display()))?;
+    }
+
+    let held_open = lock.is_none();
+    drop(lock);
+    Ok(StorePrune { reclaimed: reclaimed_bytes(cas_path, &before), held_open })
+}
+
+/// `None` while anything holds the store open: every handle holds its `lock`
+/// shared.
+fn lock_store_exclusively(cas_path: &str) -> Option<std::fs::File> {
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(Path::new(cas_path).join("lock"))
+        .ok()?;
+    lock.try_lock().ok()?;
+    Some(lock)
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct GenerationPlan {
+    /// Below the newest two generations, so no handle reads them.
+    unreachable: Vec<u64>,
+    rotate_to: Option<u64>,
+    /// Live generations taken off the chain.
+    demoted: Vec<u64>,
+}
+
+/// Plans a prune from each generation's allocated bytes, keyed by index. With
+/// the store to itself (`exclusive`), it rotates once the primary is past half
+/// the limit, as llcas does, and also collects an upstream larger than the
+/// store's whole allowance (twice the limit), which no later rotation can reach
+/// on a full volume.
+fn plan_generations(sizes: &BTreeMap<u64, u64>, limit_bytes: u64, exclusive: bool) -> GenerationPlan {
+    let mut newest_first = sizes.iter().rev().map(|(index, size)| (*index, *size));
+    let primary = newest_first.next();
+    let mut upstream = newest_first.next();
+    let mut plan = GenerationPlan {
+        unreachable: newest_first.map(|(index, _)| index).rev().collect(),
+        ..GenerationPlan::default()
+    };
+    let Some((primary_index, primary_size)) = primary else { return plan };
+    if !exclusive || limit_bytes == 0 {
+        return plan;
+    }
+    if primary_size > limit_bytes / 2 {
+        plan.rotate_to = Some(primary_index + 1);
+        plan.demoted.extend(upstream.map(|(index, _)| index));
+        upstream = primary;
+    }
+    if let Some((index, size)) = upstream {
+        if size > limit_bytes.saturating_mul(2) {
+            plan.demoted.push(index);
         }
     }
-    Ok(reclaimed_bytes(cas_path, &before))
+    plan
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
@@ -8020,6 +8077,131 @@ mod tests {
     }
 
     #[test]
+    fn a_prune_rotates_a_primary_past_half_its_limit_and_collects_what_falls_off() {
+        const MIB: u64 = 1024 * 1024;
+        let sizes = BTreeMap::from([(1, 3 * MIB), (2, 3 * MIB), (3, 3 * MIB)]);
+
+        assert_eq!(
+            plan_generations(&sizes, 4 * MIB, true),
+            GenerationPlan { unreachable: vec![1], rotate_to: Some(4), demoted: vec![2] }
+        );
+        assert_eq!(
+            plan_generations(&sizes, 6 * MIB, true),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a primary within half the limit does not rotate, as llcas's would not"
+        );
+        assert_eq!(
+            plan_generations(&sizes, 0, true),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a prune with no limit to impose only collects what is unreachable"
+        );
+        assert_eq!(
+            plan_generations(&sizes, 4 * MIB, false),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a store something holds open is not ours to rotate"
+        );
+    }
+
+    #[test]
+    fn a_prune_collects_an_upstream_larger_than_the_stores_whole_allowance() {
+        const MIB: u64 = 1024 * 1024;
+
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB)]), 4 * MIB, true),
+            GenerationPlan { unreachable: vec![], rotate_to: Some(2), demoted: vec![1] }
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB), (2, MIB)]), 4 * MIB, true),
+            GenerationPlan { unreachable: vec![], rotate_to: None, demoted: vec![1] }
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 8 * MIB), (2, MIB)]), 4 * MIB, true),
+            GenerationPlan::default(),
+            "an upstream within the allowance is the warm cache and stays"
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB), (2, MIB)]), 4 * MIB, false),
+            GenerationPlan::default(),
+            "an upstream is live for whoever holds the store open"
+        );
+    }
+
+    /// `v9.*` is the compilers' own layout, which no upstream plugin reads.
+    #[test]
+    fn a_prune_bounds_a_store_in_a_layout_the_upstream_plugin_does_not_read() {
+        const MIB: usize = 1024 * 1024;
+        let dir = TempCasDir::new("prune-foreign-layout");
+        std::fs::write(dir.0.join("lock"), b"").unwrap();
+        write_generation(&dir, 1, "v9.data", 3 * MIB);
+        write_generation(&dir, 2, "v9.data", 3 * MIB);
+        let upstream = directory_size(&dir.0.join("v1.1").to_string_lossy());
+
+        let pruned = prune_store(&dir.path(), 4 * MIB as u64).unwrap();
+
+        assert_eq!(pruned, StorePrune { reclaimed: upstream, held_open: false });
+        assert_eq!(generations(&dir), vec!["v1.2", "v1.3"]);
+        assert_eq!(entries_of(&dir.0.join("v1.2")), vec!["v9.data"]);
+        assert!(entries_of(&dir.0.join("v1.3")).is_empty());
+    }
+
+    #[test]
+    fn a_prune_of_a_store_held_open_collects_only_what_is_unreachable() {
+        const MIB: usize = 1024 * 1024;
+        let dir = TempCasDir::new("prune-held-lock");
+        write_generation(&dir, 1, "v9.data", MIB);
+        write_generation(&dir, 2, "v9.data", 3 * MIB);
+        write_generation(&dir, 3, "v9.data", 3 * MIB);
+        let handle = std::fs::File::create(dir.0.join("lock")).unwrap();
+        handle.try_lock_shared().unwrap();
+        let unreachable = directory_size(&dir.0.join("v1.1").to_string_lossy());
+
+        let pruned = prune_store(&dir.path(), 1).unwrap();
+
+        assert_eq!(pruned, StorePrune { reclaimed: unreachable, held_open: true });
+        assert_eq!(generations(&dir), vec!["v1.2", "v1.3"]);
+    }
+
+    #[test]
+    fn a_store_rotated_on_disk_is_the_chain_the_upstream_plugin_expects() {
+        let dir = TempCasDir::new("prune-upstream-roundtrip");
+        let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
+        let up: &'static Upstream = Box::leak(Box::new(up));
+        let payload = b"stored before the rotation";
+        let digest = unsafe {
+            let cas = open_cas(up, &dir.path()).unwrap();
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+            let data = llcas_data_t { data: payload.as_ptr().cast(), size: payload.len() };
+            assert!(!(up.llcas_cas_store_object)(cas, data, std::ptr::null(), 0, &mut id, &mut error));
+            let digest = (up.llcas_objectid_get_digest)(cas, id);
+            let digest = std::slice::from_raw_parts(digest.data, digest.size).to_vec();
+            (up.llcas_cas_dispose)(cas);
+            digest
+        };
+
+        let limit = directory_size(&dir.0.join("v1.1").to_string_lossy());
+        prune_store(&dir.path(), limit).unwrap();
+        assert_eq!(generations(&dir), vec!["v1.1", "v1.2"]);
+        assert!(path_state_for(&dir.path()).load_present(&digest));
+    }
+
+    fn write_generation(dir: &TempCasDir, index: u64, file: &str, bytes: usize) {
+        let generation = dir.0.join(format!("v1.{index}"));
+        std::fs::create_dir_all(&generation).unwrap();
+        std::fs::write(generation.join(file), vec![0xA5u8; bytes]).unwrap();
+    }
+
+    fn entries_of(path: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(path)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
     fn a_store_size_limit_is_a_footprint_split_across_two_generations() {
         assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
         assert_eq!(
@@ -8539,10 +8721,7 @@ mod tests {
     }
 
     /// Why the prune is an op on the proxy rather than something its caller can
-    /// do with handles of its own: llcas rotates a store as its LAST handle
-    /// closes, and on any machine running the proxy that handle is the proxy's.
-    /// A caller pruning alongside it collects nothing -- and, worse, reports
-    /// success while doing so.
+    /// do on its own: only the holder of a store's handle can rotate it.
     #[test]
     fn a_prune_alongside_a_live_handle_cannot_rotate_the_chain() {
         const LIMIT: u64 = 1024 * 1024;
@@ -8551,14 +8730,9 @@ mod tests {
         fill_to(state, &dir, 24 * 1024 * 1024);
         let before = generations(&dir);
 
-        // The proxy still holds its handle, so this dispose is not the last one.
-        prune_store(&crate::upstream_path(), &dir.path(), LIMIT).unwrap();
-        assert_eq!(
-            generations(&dir),
-            before,
-            "a prune driven from a second handle has to be understood as a \
-             no-op, not mistaken for enforcement"
-        );
+        let pruned = prune_store(&dir.path(), LIMIT).unwrap();
+        assert_eq!(generations(&dir), before);
+        assert!(pruned.held_open);
 
         // The same store, pruned by the handle's owner.
         state.prune_ondisk(LIMIT).unwrap();

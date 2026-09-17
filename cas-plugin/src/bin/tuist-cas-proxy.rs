@@ -101,9 +101,7 @@ const DEFAULT_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 ///
 /// It asks the RUNNING proxy first and only prunes in-process if the proxy says
 /// it holds no handle on the path. That order is load-bearing rather than an
-/// optimisation: llcas rotates a store as its LAST handle closes, so on a
-/// machine where the proxy holds one, a prune driven from here would find the
-/// chain still live and collect nothing while reporting success.
+/// optimisation: only the proxy can rotate a store it holds open.
 ///
 /// Exit 0 pruned (or found nothing to collect), 1 could not. There is no third
 /// answer to keep apart the way `--drain` has one: a prune that did not run
@@ -144,13 +142,13 @@ fn prune(arguments: &[String]) -> i32 {
             "the proxy could not be asked"
         }
     };
-    match tuist_cas_plugin::proxy::prune_store(
-        &tuist_cas_plugin::upstream_path(),
-        &cas_path,
-        limit_bytes,
-    ) {
-        Ok(reclaimed) => {
-            eprintln!("pruned {cas_path} directly ({why_local}), reclaiming {reclaimed} bytes");
+    match tuist_cas_plugin::proxy::prune_store(&cas_path, limit_bytes) {
+        Ok(pruned) => {
+            let held = if pruned.held_open { ", held open elsewhere so not rotated" } else { "" };
+            eprintln!(
+                "pruned {cas_path} directly ({why_local}{held}), reclaiming {} bytes",
+                pruned.reclaimed
+            );
             0
         }
         Err(reason) => {

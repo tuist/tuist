@@ -242,13 +242,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
   CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
   days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and a
-  prune alongside it collects nothing while reporting success. Both lanes are
-  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
-  generation dirs, and the staged allowance is SPLIT between them: the marker
-  budgets the CAS as a whole while llcas only takes a per-generation bound per
-  store, so handing each the full figure would let a two-lane job occupy twice
-  the CAS the image was sized for. Teardown is the only place that can count the
+  because the per-machine proxy holds a handle per path for its lifetime and
+  only the holder can rotate a store. A store no proxy holds is pruned on its
+  generation dirs under the store's `lock` without opening it, so it works on a
+  full volume and on stores the compilers or another Xcode wrote. Every lane is
+  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
+  discovered by their `v1.N` generation dirs, and the staged allowance is SPLIT
+  between them: the marker budgets the CAS as a whole while llcas only takes a
+  per-generation bound per store, so handing each the full figure would let a
+  multi-lane job occupy a multiple of the CAS the image was sized for. Teardown is the only place that can count the
   lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
   The teardown pass (second, after the drain) bounds what the FLEET inherits: the
   image is measured and promoted right after it. The attach pass bounds what THIS
@@ -335,7 +337,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   that `tuist setup cache` installed (it matches the proxy actually running,
   which is what a drain must talk to) and falls back to this one. It exists
   because a plain `xcodebuild` workflow never runs Tuist, so it installs no
-  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
+  cas-proxy at all — and those jobs still write the compilers' `builtin` CAS
   lane into the volume, so without a binary here nothing on the machine could
   ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
   no CAS daemon of its own.
