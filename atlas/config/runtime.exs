@@ -596,23 +596,18 @@ end
 #
 #   Local — atlas hosts the inference relay itself. ReqLLM's HTTP calls
 #   are routed in-process through Atlas.LLMs.LocalTransport, which
-#   dispatches to Atlas.Inference.relay_request/3. No API key needed —
-#   the atlas-role token on the profile marked atlas_inference: true is
-#   used automatically.
+#   dispatches to Atlas.Inference.relay_request/3. No API key and no
+#   model string in env: the profile marked atlas_inference: true in
+#   the `inference_model_bindings` table is the default for chat, and
+#   atlas_embedding: true is the default for embeddings.
 #     LLM_MODE=local
-#     LLM_MODEL=openai:Balanced
 llm_mode = present_env.(["LLM_MODE"])
 llm_config = Application.get_env(:atlas, :llm, [])
 
 cond do
   llm_mode == "local" ->
-    model =
-      present_env.(["LLM_MODEL"]) ||
-        raise "environment variable LLM_MODEL is required when LLM_MODE=local"
-
     config :atlas, :llm,
       mode: :local,
-      model: model,
       receive_timeout: Keyword.get(llm_config, :receive_timeout)
 
   language_model_api_key != nil ->

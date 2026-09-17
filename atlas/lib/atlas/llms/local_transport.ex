@@ -38,7 +38,16 @@ defmodule Atlas.LLMs.LocalTransport do
 
     with %ModelBinding{} = binding <- Inference.get_atlas_profile(role),
          %Token{} = token <- fetch_role_token(binding, role) do
-      params = decode_params(conn)
+      # The profile marked with the atlas role IS the "default profile"
+      # for that role. Callers pass an opaque model identifier through
+      # ReqLLM (see `Runner.client_opts/1`); we rewrite it to the
+      # binding's real name so the downstream `Inference.model_allowed?/3`
+      # check succeeds without the caller having to know which profile
+      # is currently default.
+      params =
+        conn
+        |> decode_params()
+        |> Map.put("model", binding.name)
 
       conn
       |> assign(:inference_token, token)

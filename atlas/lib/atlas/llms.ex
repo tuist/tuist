@@ -11,10 +11,11 @@ defmodule Atlas.LLMs do
     * **Local** (`LLM_MODE=local`): atlas hosts the inference relay
       itself. Requests are routed in-process through
       `Atlas.LLMs.LocalTransport`, which dispatches straight to
-      `Atlas.Inference.relay_request/3`. No `LLM_API_KEY` needed — the
-      atlas-role tokens on the local `inference_tokens` table are used.
-      `LLM_MODEL` still selects which model string to send upstream
-      (e.g. `openai:Balanced`).
+      `Atlas.Inference.relay_request/3`. Which profile is used isn't
+      configured here — it's the profile marked with the appropriate
+      role bit (`atlas_inference: true` for chat, `atlas_embedding: true`
+      for embeddings) in the `inference_model_bindings` table. No
+      `LLM_API_KEY` and no `LLM_MODEL` needed.
 
   When neither mode is configured, callers receive
   `{:error, :llm_not_configured}` and features stay disabled.
@@ -28,22 +29,15 @@ defmodule Atlas.LLMs do
     * remote:
       `%{mode: :remote, api_key: String.t(), model: String.t(), base_url: String.t() | nil, receive_timeout: pos_integer() | nil}`
     * local:
-      `%{mode: :local, model: String.t(), receive_timeout: pos_integer() | nil}`
+      `%{mode: :local, receive_timeout: pos_integer() | nil}`
   """
   def config(conf \\ Application.get_env(:atlas, :llm, [])) do
     cond do
       Keyword.get(conf, :mode) == :local ->
-        case Keyword.get(conf, :model) do
-          model when is_binary(model) ->
-            %{
-              mode: :local,
-              model: model,
-              receive_timeout: Keyword.get(conf, :receive_timeout)
-            }
-
-          _ ->
-            nil
-        end
+        %{
+          mode: :local,
+          receive_timeout: Keyword.get(conf, :receive_timeout)
+        }
 
       api_key = Keyword.get(conf, :api_key) ->
         case api_key do

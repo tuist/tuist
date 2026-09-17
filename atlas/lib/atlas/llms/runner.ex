@@ -29,13 +29,20 @@ defmodule Atlas.LLMs.Runner do
 
   In local mode, `req_http_options: [plug: {Atlas.LLMs.LocalTransport, []}]`
   is injected so ReqLLM routes the underlying `Req` request through
-  `LocalTransport` instead of the network. The `api_key` and `base_url`
-  are set to dummy values so ReqLLM's option validation passes; neither
-  is used by `LocalTransport`.
+  `LocalTransport` instead of the network. The `api_key`, `base_url`,
+  and `model` are set to sentinel values because none of them travel
+  outside the process — `LocalTransport` looks up the profile marked
+  as the default for the atlas role (`atlas_inference` for chat,
+  `atlas_embedding` for embeddings) and rewrites the model identifier
+  to that profile's name before delegating to the controller.
   """
-  def client_opts(%{mode: :local, model: _} = llm) do
+  def client_opts(%{mode: :local} = llm) do
     [
-      model: build_model(llm),
+      # ReqLLM's OpenAI provider validates that `model.provider == :openai`
+      # to select the right request shape (Atlas.Inference speaks the
+      # OpenAI-compatible surface). The `id` is a sentinel — LocalTransport
+      # replaces it with the current default profile's name.
+      model: ReqLLM.model!(%{id: "atlas-default", provider: :openai}),
       api_key: "local",
       base_url: "http://atlas-local",
       req_http_options: [plug: {LocalTransport, []}]

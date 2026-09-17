@@ -51,14 +51,14 @@ defmodule Atlas.LLMs.RunnerTest do
       refute Keyword.has_key?(opts, :timeout)
     end
 
-    test "local mode injects the LocalTransport plug and skips api_key requirement" do
-      opts =
-        Runner.client_opts(%{
-          mode: :local,
-          model: "openai:Balanced"
-        })
+    test "local mode injects the LocalTransport plug and needs no model or api_key" do
+      opts = Runner.client_opts(%{mode: :local})
 
-      assert %{id: "Balanced", provider: :openai} = opts[:model]
+      # The model id is a sentinel — LocalTransport rewrites it to the
+      # default profile's name before the request reaches the controller.
+      # Provider is fixed to :openai because Atlas.Inference speaks the
+      # OpenAI-compatible surface.
+      assert %{id: "atlas-default", provider: :openai} = opts[:model]
       assert opts[:api_key] == "local"
       assert opts[:retry] == false
       assert opts[:req_http_options] == [plug: {LocalTransport, []}]
