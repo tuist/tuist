@@ -226,9 +226,12 @@ Three layers trim what leaves the cluster, cheapest first:
 Histogram buckets are the single largest shape, around a third of all billable
 series, and their cardinality tracks route and worker coverage rather than
 traffic. They are dropped for `tuist-staging`, `tuist-canary` and
-`tuist-pentest`. Production Kura keeps the request and replication histograms,
-but drops alternating buckets so `histogram_quantile` continues to work with
-coarser boundaries. `_count` and `_sum` survive every reduction, so request rates and
+`tuist-pentest`. Production Kura keeps its public request and multipart
+admission histograms, but drops alternating buckets so `histogram_quantile`
+continues to work with coarser boundaries.
+`kura_replication_request_duration_seconds` keeps every bucket: since pull
+replication it only times catch-up passes, is labelled by operation alone, and
+coarser buckets overstated its p99 by 50-75%. `_count` and `_sum` survive every reduction, so request rates and
 mean latency remain intact. The production reduction targets the Kura fleet
 because it grew from 53 nodes / 17k series on September 1 to 344 nodes /
 roughly 120k series in the latest cardinality sample.
@@ -236,8 +239,8 @@ roughly 120k series in the latest cardinality sample.
 At the current measured rate, roughly $0.008 per excess metrics series-month,
 the Kura-specific 65-second scrape interval should save up to about $75/month
 by removing the small DPM overage. The bucket reduction is expected to remove
-around 12,000 active series at the current fleet size, worth approximately
-$95/month. Together, the two changes are expected to save roughly
+around 11,000 active series at the current fleet size, worth approximately
+$88/month. Together, the two changes are expected to save roughly
 $150-$175/month, before any further Kura fleet growth. The additional Kura
 ingress log sampling change should save another roughly $15-$30/month based
 on the current 40 MB/hour Kura log volume, bringing the expected total to
@@ -275,7 +278,19 @@ response remains unsampled.
 
 Application traces use [tail sampling](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
 The sampler keeps every trace marked as an error, every trace lasting more than
-two seconds, and 5 percent of the remaining healthy traces. Production runs
+two seconds, and 5 percent of the remaining healthy traces, with two
+exclusions:
+
+- Kura's pull-replication long-polls (`/_internal/sync/forward` and the region
+  listing on `/_internal/backfill/entries`) are held open for up to 25 seconds
+  by design, so they do not count as slow. They are still kept when they fail
+  and still take part in the 5 percent sample.
+- Healthy probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and
+  Kura's peer `/_internal/status` health check) are not sampled. They are kept
+  only when they fail or take longer than two seconds.
+
+Both exclusions match on the `http.route` span attribute, so they apply to any
+service that reports one of those routes. Production runs
 two sampler replicas; staging and canary run one. Trace collection and the
 sampler remain disabled in the management cluster.
 
