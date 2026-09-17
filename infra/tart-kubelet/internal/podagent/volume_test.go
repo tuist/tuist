@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1709,5 +1711,65 @@ func TestDeclinedMaterializeReleasesTheGuestCold(t *testing.T) {
 	}
 	if got := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold")); got != coldBefore {
 		t.Fatalf("cold materialize counter moved %v -> %v for a decline", coldBefore, got)
+	}
+}
+
+// A declined job was refused space in the runner-cache volume, and converging
+// its account's master downloads into that same volume with nothing reserved, so
+// it could take the space the running jobs were admitted with.
+func TestDeclinedMaterializeDoesNotConverge(t *testing.T) {
+	downloads := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case downloads <- struct{}{}:
+		default:
+		}
+		_, _ = w.Write([]byte(masterImageContent("42")))
+	}))
+	defer srv.Close()
+
+	root := t.TempDir()
+	statusDir := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	stageHead(t, statusDir, volumeHead{Generation: 4, Digest: "0000000000000000000000000000000000000000", DownloadURL: srv.URL})
+
+	store := NewStore()
+	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
+	}})
+
+	select {
+	case <-downloads:
+		t.Fatal("a declined job downloaded its account's master into the volume it was refused space in")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+// A declined branch still gets the materialized marker, so a restart does not
+// materialize it again, but it has no image and nothing writes to it. It must not
+// come back from a kubelet restart holding a reservation.
+func TestReattachDoesNotReserveADeclinedBranch(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
+	}
+	m.MarkMaterialized(att)
+
+	restarted := NewVolumeManager(root, 1, be)
+	if got, ok := restarted.ReattachBranch(ReservedTuistCacheVolume, "vm-declined"); !ok || !got.Materialized {
+		t.Fatalf("ReattachBranch = %+v, %v; want the materialized branch back", got, ok)
+	}
+	if err := restarted.SweepBranches(); err != nil {
+		t.Fatalf("SweepBranches: %v", err)
+	}
+	if got := restarted.reservedBranches(); got != 0 {
+		t.Fatalf("reserved branches after restart = %d; a declined branch holds no reservation", got)
 	}
 }

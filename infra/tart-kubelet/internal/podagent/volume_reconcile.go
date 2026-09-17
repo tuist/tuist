@@ -411,9 +411,12 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
-	if !declined {
-		RecordVolumeMaterialized(warm)
+	// A declined job was refused space in this volume, and converging downloads
+	// into the same volume with nothing reserved.
+	if declined {
+		return
 	}
+	RecordVolumeMaterialized(warm)
 
 	// Converge the on-disk master toward the account's HEAD in the background,
 	// off the job-start critical path. The running job already holds its own

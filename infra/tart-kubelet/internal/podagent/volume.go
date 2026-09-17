@@ -875,8 +875,10 @@ func (m *VolumeManager) ReattachBranch(volume, vm string) (VolumeAttachment, boo
 		m.retained = map[string]bool{}
 	}
 	m.retained[vm] = true
-	// A materialized branch's job is still writing, so it keeps its reservation.
-	if materialized {
+	// A branch that was admitted has an image and a job still writing to it, so it
+	// keeps its reservation. A declined branch is marked materialized too, but has
+	// no image.
+	if _, err := os.Stat(filepath.Join(branch, branchImageName)); materialized && err == nil {
 		if m.reserved == nil {
 			m.reserved = map[string]bool{}
 		}
