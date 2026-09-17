@@ -216,6 +216,8 @@ defmodule Tuist.Tests.Coverage.Comparison do
   def reason_text(%{kind: :no_merge_base, base_branch: branch} = reason),
     do: with_detail("the merge base with `#{branch}` is unknown", reason)
 
+  def reason_text(%{kind: :no_history, commit: ""} = reason), do: with_detail("the run's commit is unknown", reason)
+
   def reason_text(%{kind: :no_history, commit: sha} = reason),
     do: with_detail("commit `#{String.slice(sha, 0, 7)}` is not in the project's Git history", reason)
 
