@@ -11,6 +11,7 @@ public enum Module: String, CaseIterable {
     case projectDescription = "ProjectDescription"
     case projectAutomation = "ProjectAutomation"
     case acceptanceTesting = "TuistAcceptanceTesting"
+    case testSupport = "TuistTestSupport"
     case testing = "TuistTesting"
     case constants = "TuistConstants"
     case environment = "TuistEnvironment"
@@ -263,6 +264,7 @@ public enum Module: String, CaseIterable {
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
+                    .target(name: Module.testSupport.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cacheCommand.targetName),
@@ -538,7 +540,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("domain:cli-tools")
-        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
+        case .testSupport, .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("domain:testing")
         case .automation:
             moduleTags.append("domain:automation")
@@ -571,7 +573,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
-        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
+        case .testSupport, .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("layer:testing")
         default:
             moduleTags.append("layer:feature")
@@ -640,8 +642,11 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "LoggingOSLog", condition: .when([.macos])),
                 ]
+            case .testSupport:
+                [.external(name: "SnapshotTesting"), .xctest]
             case .testing:
                 [
+                    .target(name: Module.testSupport.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -1641,7 +1646,7 @@ public enum Module: String, CaseIterable {
                 []
             case .xcodeGraph:
                 []
-            case .logging:
+            case .testSupport, .logging:
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -2172,6 +2177,9 @@ public enum Module: String, CaseIterable {
                 .external(name: "SnapshotTesting"),
             ]
 
+        if [.xcodeMetadata, .xcodeGraphMapper, .rosalind, .kit, .xcActivityLog, .xcResultService].contains(self) {
+            dependencies.append(.target(name: Module.testSupport.targetName))
+        }
         return dependencies
     }
 

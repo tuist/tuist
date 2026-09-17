@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Path
 import Testing
+import TuistTestSupport
 
 @testable import Rosalind
 
@@ -224,9 +225,7 @@ struct AndroidBundleMetadataServiceTests {
     // MARK: - Helpers
 
     private func fixturePath(_ relativePath: String) throws -> AbsolutePath {
-        try AbsolutePath(validating: "\(#filePath)")
-            .parentDirectory.parentDirectory
-            .appending(components: "Fixtures", "Rosalind")
+        try TestPaths.fixturesDirectory.appending(component: "Rosalind")
             .appending(try RelativePath(validating: relativePath))
     }
 }
