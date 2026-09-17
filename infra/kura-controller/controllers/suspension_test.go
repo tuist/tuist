@@ -363,6 +363,116 @@ func TestResumingInstanceScalesBackOntoItsVolumes(t *testing.T) {
 	}
 }
 
+// A return keeps the customer host published while its pods are not scheduled
+// yet. Deleting the record for that moment would undo what suspension kept.
+func TestResumingInstanceKeepsItsCustomerDNSRecordBeforeAPodIsScheduled(t *testing.T) {
+	instance := suspendableInstance(false)
+	r := suspensionTestReconciler(t,
+		instance,
+		statefulSetWithReplicas(instance, 0),
+		wipedClaim(instance, 0, "16Gi"),
+		wipedClaim(instance, 1, "16Gi"),
+		publicDNSEndpoint(instance.Name+"-public-dns", instance.Spec.PublicHost, "203.0.113.50"),
+	)
+
+	reconcileInstance(t, r, instance)
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	if err := getObject(t, r, instance.Name+"-public-dns", endpoint); err != nil {
+		t.Fatalf("expected the customer DNSEndpoint to survive the return: %v", err)
+	}
+	if targets := recordTargets(t, endpoint); len(targets) != 1 || targets[0] != "203.0.113.50" {
+		t.Fatalf("expected the record to keep its target until a pod is scheduled, got %v", targets)
+	}
+}
+
+func wipeJobCreated(t *testing.T, instance *kurav1alpha1.KuraInstance, claimName string, age time.Duration) *batchv1.Job {
+	t.Helper()
+	job := wipeJob(instance, claimName)
+	job.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	return job
+}
+
+func TestWipeJobHasADeadline(t *testing.T) {
+	job := wipeJob(suspendableInstance(true), "data-kura-acme-eu-west-1-0")
+
+	if job.Spec.ActiveDeadlineSeconds == nil || *job.Spec.ActiveDeadlineSeconds != int64(wipeJobDeadline.Seconds()) {
+		t.Fatalf("expected the wipe job to have a %v deadline, got %v", wipeJobDeadline, job.Spec.ActiveDeadlineSeconds)
+	}
+}
+
+// A wipe whose pod never runs, because its volume's machine is gone or
+// cordoned, never fails on its own. Once it is past its deadline the volume
+// is released like one whose wipe failed, so suspension finishes.
+func TestSuspendedInstanceReleasesAVolumeWhoseWipeOutlivedItsDeadline(t *testing.T) {
+	instance := suspendableInstance(true)
+	claimName := fmt.Sprintf("data-%s-0", instance.Name)
+	r := suspensionTestReconciler(t,
+		instance,
+		statefulSetWithReplicas(instance, 0),
+		retainedClaim(instance, 0, "16Gi"),
+		wipeJobCreated(t, instance, claimName, wipeJobDeadline+time.Minute),
+	)
+
+	reconcileInstance(t, r, instance)
+
+	if err := getObject(t, r, claimName, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the volume whose wipe never finished to be released, got %v", err)
+	}
+	if err := getObject(t, r, wipeJobName(instance, claimName), &batchv1.Job{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the expired wipe job to be removed, got %v", err)
+	}
+}
+
+func TestSuspendedInstanceWaitsOnAWipeInsideItsDeadline(t *testing.T) {
+	instance := suspendableInstance(true)
+	claimName := fmt.Sprintf("data-%s-0", instance.Name)
+	r := suspensionTestReconciler(t,
+		instance,
+		statefulSetWithReplicas(instance, 0),
+		retainedClaim(instance, 0, "16Gi"),
+		wipeJobCreated(t, instance, claimName, time.Minute),
+	)
+
+	reconcileInstance(t, r, instance)
+
+	if err := getObject(t, r, claimName, &corev1.PersistentVolumeClaim{}); err != nil {
+		t.Fatalf("expected the volume to be kept while its wipe runs: %v", err)
+	}
+	if err := getObject(t, r, wipeJobName(instance, claimName), &batchv1.Job{}); err != nil {
+		t.Fatalf("expected the running wipe job to be kept: %v", err)
+	}
+}
+
+// A return waits on a wipe still running, but not past the wipe's deadline:
+// the volume is released and the return goes ahead once its claim is gone.
+func TestResumingInstanceIsNotHeldByAWipeThatOutlivedItsDeadline(t *testing.T) {
+	instance := suspendableInstance(false)
+	claimName := fmt.Sprintf("data-%s-0", instance.Name)
+	r := suspensionTestReconciler(t,
+		instance,
+		statefulSetWithReplicas(instance, 0),
+		retainedClaim(instance, 0, "16Gi"),
+		wipedClaim(instance, 1, "16Gi"),
+		wipeJobCreated(t, instance, claimName, wipeJobDeadline+time.Minute),
+	)
+
+	reconcileInstance(t, r, instance)
+	reconcileInstance(t, r, instance)
+
+	sts := &appsv1.StatefulSet{}
+	if err := getObject(t, r, instance.Name, sts); err != nil {
+		t.Fatal(err)
+	}
+	if sts.Spec.Replicas == nil || *sts.Spec.Replicas != 2 {
+		t.Fatalf("expected the return to scale up once the expired wipe is settled, got %v", sts.Spec.Replicas)
+	}
+	if err := getObject(t, r, claimName, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the volume whose wipe never finished to be released, got %v", err)
+	}
+}
+
 // A retained volume pins its pod to one machine, and nothing reserved room
 // there while the instance was suspended. An empty volume costs nothing to
 // give up, so it is released and the pod is placed wherever there is room.

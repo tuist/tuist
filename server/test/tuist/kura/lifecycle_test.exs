@@ -1641,6 +1641,45 @@ defmodule Tuist.Kura.LifecycleTest do
       refute reload_lifecycle(account).suspension_released_at
     end
 
+    test "does not delete an instance that returned after the expired suspensions were read" do
+      account = account()
+      server = archived_days_ago(account, Lifecycle.suspension_days() + 2)
+      returning_account = account()
+      returning_server = archived_days_ago(returning_account, Lifecycle.suspension_days() + 1)
+
+      # While the older suspension is released, the other account returns: the
+      # row it flips to `:provisioning` is one this pass has already read.
+      expect(Provisioner, :destroy, fn %Server{id: id} ->
+        assert id == server.id
+        returning_server |> Ecto.Changeset.change(%{status: :provisioning}) |> Repo.update!()
+        :ok
+      end)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload_lifecycle(account).suspension_released_at
+      refute reload_lifecycle(returning_account).suspension_released_at
+    end
+
+    test "does not date a suspension by an archival the account has returned from since" do
+      # Archival marks the row archived before it records `archived_at`, so for a
+      # moment the row is archived again while `archived_at` is still the one
+      # before the account's last return.
+      account = account()
+      archived_days_ago(account, Lifecycle.suspension_days() + 10)
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{last_returned_at: ago(Lifecycle.suspension_days() + 5)})
+      |> Repo.update!()
+
+      reject(&Provisioner.destroy/1)
+
+      assert :ok = Lifecycle.sweep()
+
+      refute reload_lifecycle(account).suspension_released_at
+    end
+
     test "releases the suspension of a later archival too" do
       account = account()
       archived_days_ago(account, Lifecycle.suspension_days() + 1)

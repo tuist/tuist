@@ -35,6 +35,12 @@ const (
 
 	wipeJobComponent      = "kura-volume-wipe"
 	suspensionRequeueTime = 10 * time.Second
+
+	// wipeJobDeadline bounds a wipe, including the time its pod waits to be
+	// placed. A volume's machine that is gone or cordoned leaves the pod
+	// pending, and a pending pod never fails on its own. Past it the volume is
+	// released as for a failed wipe.
+	wipeJobDeadline = 10 * time.Minute
 )
 
 // reconcileSuspended converges a suspended instance: its StatefulSet scaled to
@@ -181,6 +187,11 @@ const (
 // settleWipeJob records a finished wipe on its volume and removes the Job. A
 // volume whose wipe failed may be half emptied, which is worse than full or
 // empty for a store that is about to be opened on it, so it is released.
+//
+// A wipe past its deadline is treated as failed from its age rather than from
+// the Job's own condition: a Job created without a deadline never gets one, and
+// the Job controller holds the Failed condition back while a pod on an
+// unreachable machine has not terminated.
 func (r *KuraInstanceReconciler) settleWipeJob(ctx context.Context, job *batchv1.Job) (wipeOutcome, error) {
 	claim := &corev1.PersistentVolumeClaim{}
 	claimName := wipeJobClaimName(job)
@@ -203,7 +214,7 @@ func (r *KuraInstanceReconciler) settleWipeJob(ctx context.Context, job *batchv1
 			}
 		}
 		return wipeSucceeded, r.deleteJob(ctx, job)
-	case jobConditionTrue(job, batchv1.JobFailed):
+	case jobConditionTrue(job, batchv1.JobFailed) || time.Since(job.CreationTimestamp.Time) > wipeJobDeadline:
 		log.FromContext(ctx).Info("releasing a retained Kura data volume that could not be emptied", "pvc", claimName, "job", job.Name)
 		if claimExists {
 			if err := r.reclaimDataVolume(ctx, claim); err != nil {
@@ -285,7 +296,8 @@ func wipeJob(instance *kurav1alpha1.KuraInstance, claimName string) *batchv1.Job
 			Labels:    podLabels,
 		},
 		Spec: batchv1.JobSpec{
-			BackoffLimit: ptr(int32(2)),
+			BackoffLimit:          ptr(int32(2)),
+			ActiveDeadlineSeconds: ptr(int64(wipeJobDeadline.Seconds())),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: podLabels},
 				Spec: corev1.PodSpec{

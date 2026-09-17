@@ -801,13 +801,18 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 		target = ip
 	}
 
-	// No public host, or no routable target yet (failover IP unset and no pod
-	// scheduled): tear down any DNSEndpoint created earlier so external-dns stops
-	// publishing a dead peer record, mirroring reconcileInstancePublicPeerService.
-	if instance.Spec.MeshPublicPeerHost == "" || target == "" {
+	// No public host: tear down any DNSEndpoint created earlier so external-dns
+	// stops publishing it, mirroring reconcileInstancePublicPeerService.
+	if instance.Spec.MeshPublicPeerHost == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
+		return nil
+	}
+	// No routable target yet (failover IP unset and no pod scheduled): an
+	// existing record keeps its last target until a replacement is known, as
+	// reconcilePublicDNSEndpoint does.
+	if target == "" {
 		return nil
 	}
 
@@ -1513,13 +1518,19 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 		return err
 	}
 
-	// No client host, or no eligible gateway address:
-	// tear down any DNSEndpoint created earlier so external-dns stops publishing
-	// a dead record, mirroring reconcilePublicIngress.
-	if clientHost(instance) == "" || target == "" {
+	// No client host: tear down any DNSEndpoint created earlier so external-dns
+	// stops publishing it, mirroring reconcilePublicIngress.
+	if clientHost(instance) == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
+		return nil
+	}
+	// No target yet, as while an instance scales back up from suspension before
+	// its pods are scheduled. An existing record keeps its last target until a
+	// replacement is known: deleting it would have external-dns unpublish the
+	// host, and resolvers would cache the NXDOMAIN well past the pods returning.
+	if target == "" {
 		return nil
 	}
 

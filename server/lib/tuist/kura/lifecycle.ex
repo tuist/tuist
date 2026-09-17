@@ -1068,22 +1068,53 @@ defmodule Tuist.Kura.Lifecycle do
   defp release_expired_suspensions(%Regions{id: region_id}) do
     cutoff = DateTime.add(now(), -@suspension_days * 86_400, :second)
 
+    cutoff
+    |> expired_suspensions()
+    |> where([s, _l], s.region == ^region_id)
+    |> order_by([_s, l], asc: l.archived_at)
+    |> limit(^@max_archival_transitions_per_pass)
+    |> select([s, _l], s.id)
+    |> Repo.all()
+    |> Enum.each(&release_suspension(&1, cutoff))
+  end
+
+  # `archived_at` older than the account's last return belongs to an earlier
+  # archival: archival marks the row archived before it records the new date.
+  defp expired_suspensions(cutoff) do
     from(s in Server,
       join: l in AccountRegionLifecycle,
       on: l.account_id == s.account_id and l.service_region == s.region,
-      where: s.region == ^region_id,
       where: s.status == :archived,
       where: l.archived_at <= ^cutoff,
-      where: is_nil(l.suspension_released_at) or l.suspension_released_at < l.archived_at,
-      order_by: [asc: l.archived_at],
-      limit: ^@max_archival_transitions_per_pass,
-      select: {s, l}
+      where: is_nil(l.last_returned_at) or l.last_returned_at < l.archived_at,
+      where: is_nil(l.suspension_released_at) or l.suspension_released_at < l.archived_at
     )
-    |> Repo.all()
-    |> Enum.each(&release_suspension/1)
   end
 
-  defp release_suspension({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}) do
+  # Checked again and deleted under the row lock a return takes before it moves
+  # the row out of `:archived`. A return that committed since the pass read the
+  # row leaves nothing to release, and one that starts meanwhile applies its
+  # instance only after the deletion was issued, so the reconciler recreates it
+  # rather than the deletion removing a returned instance.
+  defp release_suspension(server_id, cutoff) do
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        Repo.one(from(s in Server, where: s.id == ^server_id, lock: "FOR UPDATE", select: s.id))
+
+        cutoff
+        |> expired_suspensions()
+        |> where([s, _l], s.id == ^server_id)
+        |> select([s, l], {s, l})
+        |> Repo.one()
+        |> delete_suspended_workload()
+      end)
+
+    :ok
+  end
+
+  defp delete_suspended_workload(nil), do: :ok
+
+  defp delete_suspended_workload({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}) do
     case Provisioner.destroy(server) do
       :ok ->
         {:ok, _lifecycle} =
