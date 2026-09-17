@@ -56,6 +56,12 @@ kura-eu-west-ingress-nginx:
     # would mangle every connection. Turn it off here.
     config:
       use-proxy-protocol: "false"
+    # Endpoint changes reach nginx through the controller's sync, which the
+    # default rate limit (0.3/s) spaces ~3.3s apart. A Kura instance returning
+    # from suspension is routable only after the sync that follows its pods
+    # turning Ready, so one sync a second bounds that wait at a second.
+    extraArgs:
+      sync-rate-limit: "1"
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-dedibox
     tolerations:
@@ -87,6 +93,12 @@ kura-ca-east-ingress-nginx:
     # would mangle every connection. Turn it off here.
     config:
       use-proxy-protocol: "false"
+    # Endpoint changes reach nginx through the controller's sync, which the
+    # default rate limit (0.3/s) spaces ~3.3s apart. A Kura instance returning
+    # from suspension is routable only after the sync that follows its pods
+    # turning Ready, so one sync a second bounds that wait at a second.
+    extraArgs:
+      sync-rate-limit: "1"
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-ca-east
     tolerations:
