@@ -32,6 +32,15 @@ For an environment, in order:
 4. `parity`. If a table differs, fix the cause, run `backfill` again with a later cutoff, then `parity` again.
 5. `check-reads`. It refuses to run once reads have moved.
 6. `enable-reads`. `disable-reads` moves them back.
+7. Make the in-cluster server the system of record: set `clickhouse.mode` to `managed` in the environment's values and deploy. Every workload then reads and writes it through `TUIST_CLICKHOUSE_URL`, and ClickHouse Cloud receives nothing. The launcher refuses every step from then on.
+
+Before step 7:
+
+- Run `parity` and `check-reads` again, and deploy the switch only if both pass.
+- Check that `schema_migrations` holds the same versions on both servers. The first deploy after the switch migrates the in-cluster server, and any version missing there runs again, including data migrations.
+- Keep the switch in a deploy of its own, so the deploy it rolls back to still writes to both servers.
+
+Going back to `external` after step 7 does not copy anything back: rows written since the switch exist only on the in-cluster server.
 
 ## Reading a step
 

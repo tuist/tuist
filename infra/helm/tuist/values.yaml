@@ -3147,11 +3147,13 @@ clickhouse:
   #
   # `embedded` is one unreplicated pod for self-hosters and previews.
   # `external` points at a URL somebody else operates (ClickHouse Cloud today).
-  # `managed` is the in-cluster shape Tuist operates itself: replicated tables
-  # on the tainted `stateful-worker` bare-metal pool with a Keeper quorum. See
-  # `templates/clickhouse-managed.yaml`.
+  # `managed` makes the in-cluster server below the system of record: every
+  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret, and nothing
+  # is mirrored. It requires `managed.enabled`, and it replaces ClickHouse Cloud
+  # without copying anything, so run the migration steps before switching.
   mode: embedded
-  # In-cluster ClickHouse operated by Tuist.
+  # In-cluster ClickHouse operated by Tuist: replicated tables on bare metal
+  # with a Keeper quorum. See `templates/clickhouse-managed.yaml`.
   #
   # Deliberately gated on its own `enabled` rather than on `mode`, because the
   # migration needs both at once: during the dual-run the application still
@@ -3170,7 +3172,8 @@ clickhouse:
     # schema clone: a destination with no tables rejects every mirrored write,
     # so a single switch would fill the logs on the deploy that first brings
     # the server up. Cloud stays the system of record either way; a failed
-    # mirror is counted and ignored, never surfaced to a request.
+    # mirror is counted and ignored, never surfaced to a request. Ignored in
+    # `managed` mode, where there is nothing left to mirror to.
     shadowWrites:
       enabled: false
     # Backups of the in-cluster server to object storage, as a weekly full and

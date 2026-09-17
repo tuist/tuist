@@ -470,9 +470,11 @@ TUIST_CLICKHOUSE_URL env-var block. Emits a `value:` literal by default, or a
 `valueFrom.secretKeyRef` pointing at clickhouse.external.existingSecret when
 that field is set — the escape hatch for Vault-synced installs that don't
 want ClickHouse credentials rendered into the manifest. Mutually exclusive
-with `clickhouse.external.url`.
+with `clickhouse.external.url`. Empty in `managed` mode, where
+`tuist.clickhouseManagedEnv` supplies the URL instead.
 */}}
 {{- define "tuist.clickhouseUrlEnv" -}}
+{{- if ne .Values.clickhouse.mode "managed" -}}
 {{- $existingSecret := "" -}}
 {{- if eq .Values.clickhouse.mode "external" -}}
 {{- $existingSecret = .Values.clickhouse.external.existingSecret | default "" -}}
@@ -493,6 +495,7 @@ with `clickhouse.external.url`.
 {{- else }}
 - name: TUIST_CLICKHOUSE_URL
   value: {{ include "tuist.clickhouseUrl" . | quote }}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -527,7 +530,7 @@ is set — the escape hatch for Vault-synced installs. Mutually exclusive with
 {{- end -}}
 
 {{- define "tuist.clickhouseReadyUrl" -}}
-{{- if eq .Values.clickhouse.mode "embedded" -}}
+{{- if or (eq .Values.clickhouse.mode "embedded") (eq .Values.clickhouse.mode "managed") -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
 {{- else if .Values.clickhouse.external.pingUrl -}}
 {{- .Values.clickhouse.external.pingUrl -}}
@@ -827,34 +830,41 @@ processor, and xcresult-processor pods stay aligned without relying on the
 runtime secret bundle.
 */}}
 {{- /*
-The in-cluster ClickHouse the workload is migrating onto, for as long as
-ClickHouse Cloud is still the system of record. Absent unless the managed
-workload is enabled, which is what keeps the schema clone, the backfill and
-the shadow writes inert everywhere else.
+The in-cluster ClickHouse, for every workload that reads or writes analytics.
+
+In `external` mode ClickHouse Cloud is the system of record, and this is the
+server the workload is migrating onto: the schema clone, the backfill and the
+shadow writes read it from TUIST_CLICKHOUSE_BARE_METAL_URL. Absent unless the
+managed workload is enabled, which is what keeps all of that inert everywhere
+else.
+
+In `managed` mode the in-cluster server is the system of record, so it is
+TUIST_CLICKHOUSE_URL instead, and nothing is mirrored.
 */ -}}
-{{- define "tuist.clickhouseBareMetalEnv" -}}
-{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- define "tuist.clickhouseManagedEnv" -}}
+{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 
 {{/*
 The same env, but reading the tailnet URL. Only for writers that are not on the
 pod network: the macOS fleet's xcresult-processor runs in a Tart VM with a
 tailnet address, so the in-cluster Service name in `url` does not resolve for
-it. It wrote the whole test family to the system of record and mirrored none
-of it until this existed.
+it.
 */}}
-{{- define "tuist.clickhouseBareMetalTailnetEnv" -}}
+{{- define "tuist.clickhouseManagedTailnetEnv" -}}
 {{- if .Values.clickhouse.managed.tailscale.enabled }}
-{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url-tailnet") }}
+{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url-tailnet") }}
 {{- else }}
-{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 {{- end }}
 
-{{- define "tuist.clickhouseBareMetalEnvForKey" -}}
+{{- define "tuist.clickhouseManagedEnvForKey" -}}
 {{- $key := .key }}
 {{- with .root }}
-{{- if .Values.clickhouse.managed.enabled }}
+{{- if eq .Values.clickhouse.mode "managed" }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" $key) }}
+{{- else if .Values.clickhouse.managed.enabled }}
 - name: TUIST_CLICKHOUSE_BARE_METAL_URL
   valueFrom:
     secretKeyRef:
@@ -873,6 +883,31 @@ of it until this existed.
 - name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
   value: "1"
 {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+TUIST_CLICKHOUSE_URL for the in-cluster server as the system of record. Set as
+`env`, which takes precedence over the URL the managed config Secret still
+carries through `envFrom`.
+
+Not `optional`, unlike the destination above: a missing Secret has to keep the
+pod from starting, because the alternative is falling back to that other URL
+and writing to the wrong server.
+*/}}
+{{- define "tuist.clickhouseManagedUrlEnvForKey" -}}
+{{- $key := .key }}
+{{- with .root }}
+{{- if eq .Values.clickhouse.mode "managed" }}
+{{- if not .Values.clickhouse.managed.enabled }}
+{{- fail "clickhouse.mode \"managed\" requires clickhouse.managed.enabled, which deploys the server it points at." }}
+{{- end }}
+- name: TUIST_CLICKHOUSE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
+      key: {{ $key }}
 {{- end }}
 {{- end }}
 {{- end }}
