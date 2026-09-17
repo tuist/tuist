@@ -30,6 +30,7 @@ public protocol Generating {
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
+    private let runpathSearchPathsLinter: RunpathSearchPathsLinting = RunpathSearchPathsLinter()
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
@@ -77,6 +78,8 @@ public class Generator: Generating {
             defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
         )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
+        // Linted after generation because the cache mappers add run paths that the pre-mapping graph lint can't see.
+        lintingIssues.append(contentsOf: runpathSearchPathsLinter.lint(workspace: workspaceDescriptor))
 
         // Write
         try await writer.write(workspace: workspaceDescriptor)
