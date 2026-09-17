@@ -4871,15 +4871,25 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
+            /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/provisioning`.
+            public var provisioning: Swift.Bool?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            public init(endpoints: [Swift.String]) {
+            ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            public init(
+                endpoints: [Swift.String],
+                provisioning: Swift.Bool? = nil
+            ) {
                 self.endpoints = endpoints
+                self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
+                case provisioning
             }
         }
         /// The page number to return.
@@ -15839,14 +15849,14 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
                 public struct Headers: Sendable, Hashable {
-                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
                     public var cache_hyphen_control: Swift.String?
                     /// Creates a new `Headers`.
                     ///
                     /// - Parameters:
-                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
                     public init(cache_hyphen_control: Swift.String? = nil) {
                         self.cache_hyphen_control = cache_hyphen_control
                     }
@@ -15861,15 +15871,25 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
+                        /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/provisioning`.
+                        public var provisioning: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        public init(endpoints: [Swift.String]) {
+                        ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        public init(
+                            endpoints: [Swift.String],
+                            provisioning: Swift.Bool? = nil
+                        ) {
                             self.endpoints = endpoints
+                            self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
+                            case provisioning
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
