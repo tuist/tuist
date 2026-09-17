@@ -81,10 +81,13 @@ env:
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
   # is set per-deploy by the GitHub Actions workflow (`--set env.SENTRY_RELEASE=…`).
   SENTRY_ENVIRONMENT: production
-  # Language model identifier in ReqLLM `provider:model_id` form. Hive exposes
-  # an OpenAI-compatible endpoint backed by profile tokens.
-  LLM_MODEL: "openai:Balanced"
-  LLM_BASE_URL: "https://hive.tuist.dev/inference/v1"
+  # Atlas hosts its own inference relay. Atlas.LLMs.LocalTransport routes
+  # ReqLLM's HTTP calls in-process to Atlas.Inference. Which profile is
+  # used isn't configured here — it's the one marked atlas_inference: true
+  # in the inference_model_bindings table. To point atlas at an external
+  # LLM endpoint instead, unset LLM_MODE and set LLM_API_KEY, LLM_MODEL,
+  # and optionally LLM_BASE_URL.
+  LLM_MODE: "local"
   # Both finance reports are intended for the private Tuist leadership channel.
   # The Atlas Slack bot is already a member of this channel.
   ATLAS_FINANCE_COST_DIGEST_SLACK_CHANNEL_ID: "C07MU2C1VA8"
@@ -92,11 +95,11 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
-  # Document page embeddings. Hive exposes the Embedder profile through the
-  # same OpenAI-compatible endpoint as language model traffic. The profile's
-  # upstream model emits native 4096-dim vectors, matching the vector
-  # collection's `dimensions` below.
-  ATLAS_DOCUMENT_EMBEDDING_BASE_URL: "https://hive.tuist.dev/inference/v1"
+  # Document page embeddings. In local mode Atlas.LLMs.LocalTransport
+  # routes the /embeddings call in-process to the profile marked
+  # atlas_embedding: true. The profile's upstream model emits native
+  # 4096-dim vectors, matching the vector collection's `dimensions`
+  # below.
   ATLAS_DOCUMENT_EMBEDDING_MODEL: "Embedder"
   # App-level object persistence through Hetzner's S3-compatible Object Storage.
   ATLAS_OBJECT_STORAGE_ENDPOINT_URL: "https://fsn1.your-objectstorage.com"

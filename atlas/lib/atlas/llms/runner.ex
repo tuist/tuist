@@ -10,6 +10,8 @@ defmodule Atlas.LLMs.Runner do
   this module is the only piece of LLM infrastructure they share.
   """
 
+  alias Atlas.LLMs.LocalTransport
+
   @doc """
   Returns the configured LLM as `{:ok, map}` or `{:error, :llm_not_configured}`.
   """
@@ -24,7 +26,31 @@ defmodule Atlas.LLMs.Runner do
   Builds the keyword list passed to a session `start_link/1`:
   `[model: %ReqLLM.Model{}, api_key: ..., base_url: ..., timeout: ...]`.
   Optional keys are omitted when the config doesn't override them.
+
+  In local mode, `req_http_options: [plug: {Atlas.LLMs.LocalTransport, []}]`
+  is injected so ReqLLM routes the underlying `Req` request through
+  `LocalTransport` instead of the network. The `api_key`, `base_url`,
+  and `model` are set to sentinel values because none of them travel
+  outside the process — `LocalTransport` looks up the profile marked
+  as the default for the atlas role (`atlas_inference` for chat,
+  `atlas_embedding` for embeddings) and rewrites the model identifier
+  to that profile's name before delegating to the controller.
   """
+  def client_opts(%{mode: :local} = llm) do
+    [
+      # ReqLLM's OpenAI provider validates that `model.provider == :openai`
+      # to select the right request shape (Atlas.Inference speaks the
+      # OpenAI-compatible surface). The `id` is a sentinel — LocalTransport
+      # replaces it with the current default profile's name.
+      model: ReqLLM.model!(%{id: "atlas-default", provider: :openai}),
+      api_key: "local",
+      base_url: "http://atlas-local",
+      req_http_options: [plug: {LocalTransport, []}]
+    ]
+    |> maybe_put(:timeout, operation_timeout(llm))
+    |> Keyword.put(:retry, false)
+  end
+
   def client_opts(%{model: _, api_key: api_key} = llm) do
     [model: build_model(llm), api_key: api_key]
     |> maybe_put(:base_url, Map.get(llm, :base_url))
