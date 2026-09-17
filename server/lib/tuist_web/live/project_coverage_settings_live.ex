@@ -44,25 +44,58 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
-  @impl true
-  def handle_event("save_settings", params, socket) do
-    update_settings(socket, %{
-      coverage_gate_min_patch_coverage: number_or_nil(params["min_patch_coverage"]),
-      coverage_gate_max_total_drop: number_or_nil(params["max_total_drop"]),
-      coverage_excluded_path_globs: globs_or_nil(params["excluded_path_globs"]),
-      git_history_window_days: integer_or_nil(params["git_history_window_days"]),
-      git_history_window_commits: integer_or_nil(params["git_history_window_commits"]),
-      tracked_file_globs: globs_or_nil(params["tracked_file_globs"])
-    })
-  end
+  @modals %{
+    "gates" => "coverage-gates-modal",
+    "excluded_paths" => "coverage-excluded-paths-modal",
+    "git_history" => "coverage-git-history-modal",
+    "tracked_files" => "coverage-tracked-files-modal"
+  }
 
+  @impl true
   def handle_event("toggle_setting", %{"setting" => setting}, socket) when setting in @toggles do
     key = String.to_existing_atom(setting)
     current = Map.get(socket.assigns.selected_project, key) || false
-    update_settings(socket, %{key => not current})
+
+    case update_project(socket, %{key => not current}) do
+      {:ok, socket} -> {:noreply, socket}
+      {:error, socket} -> {:noreply, socket}
+    end
   end
 
-  defp update_settings(%{assigns: %{selected_project: project}} = socket, attrs) do
+  def handle_event("update_form", %{"form" => form} = params, socket) when is_map_key(@modals, form) do
+    {:noreply, update(socket, :forms, &Map.put(&1, form, Map.drop(params, ["form", "_target"])))}
+  end
+
+  def handle_event("close_modal", %{"form" => form}, socket) when is_map_key(@modals, form) do
+    {:noreply, socket |> assign_forms() |> push_event("close-modal", %{id: @modals[form]})}
+  end
+
+  def handle_event("save_form", %{"form" => form}, socket) when is_map_key(@modals, form) do
+    case update_project(socket, attrs(form, socket.assigns.forms[form])) do
+      {:ok, socket} -> {:noreply, push_event(socket, "close-modal", %{id: @modals[form]})}
+      {:error, socket} -> {:noreply, socket}
+    end
+  end
+
+  defp attrs("gates", form) do
+    %{
+      coverage_gate_min_patch_coverage: number_or_nil(form["min_patch_coverage"]),
+      coverage_gate_max_total_drop: number_or_nil(form["max_total_drop"])
+    }
+  end
+
+  defp attrs("excluded_paths", form), do: %{coverage_excluded_path_globs: globs_or_nil(form["globs"])}
+
+  defp attrs("git_history", form) do
+    %{
+      git_history_window_days: integer_or_nil(form["window_days"]),
+      git_history_window_commits: integer_or_nil(form["window_commits"])
+    }
+  end
+
+  defp attrs("tracked_files", form), do: %{tracked_file_globs: globs_or_nil(form["globs"])}
+
+  defp update_project(%{assigns: %{selected_project: project}} = socket, attrs) do
     case Projects.update_project(project, attrs) do
       {:ok, updated} ->
         # The published totals of past runs were computed with the previous
@@ -71,14 +104,14 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
           RecomputeTotalsWorker.enqueue(updated.id)
         end
 
-        {:noreply,
+        {:ok,
          socket
          |> assign(:selected_project, updated)
          |> assign_settings()
          |> put_flash(:info, dgettext("dashboard_projects", "Coverage settings saved."))}
 
       {:error, changeset} ->
-        {:noreply,
+        {:error,
          put_flash(
            socket,
            :error,
@@ -90,10 +123,32 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
   defp assign_settings(%{assigns: %{selected_project: project}} = socket) do
     socket
     |> assign(:gates, Gates.settings(project))
+    |> assign(:excluded_path_globs, ExcludedPaths.globs(project))
     |> assign(:git_history, GitHistory.settings(project))
     |> assign(:git_history_defaults, GitHistory.settings(nil))
     |> assign(:retention, Environment.coverage_retention_days())
+    |> assign_forms()
   end
+
+  # What each modal starts from: the project's own values, so an empty field
+  # stays empty where the server default applies.
+  defp assign_forms(%{assigns: %{selected_project: project}} = socket) do
+    assign(socket, :forms, %{
+      "gates" => %{
+        "min_patch_coverage" => to_field(project.coverage_gate_min_patch_coverage),
+        "max_total_drop" => to_field(project.coverage_gate_max_total_drop)
+      },
+      "excluded_paths" => %{"globs" => Enum.join(project.coverage_excluded_path_globs || [], "\n")},
+      "git_history" => %{
+        "window_days" => to_field(project.git_history_window_days),
+        "window_commits" => to_field(project.git_history_window_commits)
+      },
+      "tracked_files" => %{"globs" => Enum.join(project.tracked_file_globs || [], "\n")}
+    })
+  end
+
+  defp to_field(nil), do: ""
+  defp to_field(value), do: to_string(value)
 
   defp number_or_nil(value) when is_binary(value) do
     case Float.parse(String.trim(value)) do
