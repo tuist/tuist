@@ -4,7 +4,10 @@ defmodule Atlas.Repo.Migrations.CreateErrorsIssues do
   def change do
     create table(:errors_issues, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :domain_id, references(:domains, type: :binary_id, on_delete: :delete_all)
       add :fingerprint, :string, size: 64, null: false
       add :title, :text, null: false

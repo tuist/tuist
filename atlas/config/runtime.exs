@@ -686,18 +686,6 @@ if config_env() in [:dev, :test] do
     secret_key: "dev-only-guardian-secret-do-not-use-in-prod-aaaaaaaaaaaaaaaa"
 end
 
-# Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
-# read-only database access. Atlas authenticates with a projected ServiceAccount
-# token (audience `tuist-server`) read from `token_path`; the file is absent in
-# dev/test, so the tools report the database as unreachable there.
-# Where operators justify access to a customer account. Atlas sends them here
-# with a return destination that receives the minted grant.
-config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL") || "https://ops.tuist.dev/grants/new"
-
-config :atlas, :tuist_server,
-  base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
-  token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"
-
 # ClickHouse (Engineering.Errors) - separate instance from Tuist server's analytics DB.
 # Feature-gated so Atlas can boot without ClickHouse in dev/test.
 parse_boolean = fn
@@ -709,9 +697,19 @@ parse_boolean = fn
 end
 
 clickhouse_enabled? =
-  parse_boolean.(
-    System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false"))
-  )
+  parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
+# Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
+# read-only database access. Atlas authenticates with a projected ServiceAccount
+# token (audience `tuist-server`) read from `token_path`; the file is absent in
+# dev/test, so the tools report the database as unreachable there.
+# Where operators justify access to a customer account. Atlas sends them here
+# with a return destination that receives the minted grant.
+config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL") || "https://ops.tuist.dev/grants/new"
+
+config :atlas, :tuist_server,
+  base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
+  token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"
 
 if clickhouse_enabled? do
   clickhouse_database =
@@ -748,8 +746,8 @@ if clickhouse_enabled? do
       System.get_env("ATLAS_INGEST_MAX_BUFFER_SIZE", "1048576") |> String.to_integer()
     )
 
-  config :atlas, Atlas.IngestRepo, ingest_repo_config
   config :atlas, Atlas.ClickHouseRepo, Keyword.put(clickhouse_config, :read_only, true)
-  config :atlas, :ecto_repos, [Atlas.Repo, Atlas.IngestRepo]
+  config :atlas, Atlas.IngestRepo, ingest_repo_config
   config :atlas, :clickhouse_enabled, true
+  config :atlas, :ecto_repos, [Atlas.Repo, Atlas.IngestRepo]
 end

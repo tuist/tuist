@@ -46,8 +46,8 @@ llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
-
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
+config :atlas, Atlas.ClickHouseRepo, read_only: true
 config :atlas, Atlas.Mailer, adapter: Local
 
 config :atlas, Atlas.Vault,
@@ -175,8 +175,6 @@ config :atlas, :support,
 config :atlas,
   ecto_repos: [Atlas.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id_type: :binary_id]
-
-config :atlas, Atlas.ClickHouseRepo, read_only: true
 
 config :boruta, Boruta.Oauth,
   repo: Atlas.Repo,

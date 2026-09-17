@@ -16,11 +16,11 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeController do
 
   use AtlasWeb, :controller
 
-  require Logger
-
   alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Auth
   alias Atlas.Engineering.Errors.Envelope
+
+  require Logger
 
   @max_body_bytes 20 * 1024 * 1024
 
@@ -61,8 +61,7 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeController do
     do_read(conn, "")
   end
 
-  defp do_read(_conn, acc) when byte_size(acc) > @max_body_bytes,
-    do: {:error, :body_too_large}
+  defp do_read(_conn, acc) when byte_size(acc) > @max_body_bytes, do: {:error, :body_too_large}
 
   defp do_read(conn, acc) do
     case Plug.Conn.read_body(conn, length: 1_000_000) do
@@ -110,8 +109,7 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeController do
 
   @inflate_chunk 65_536
 
-  defp inflate_stream(_z, _rest, _acc, size) when size > @max_body_bytes,
-    do: {:error, :body_too_large}
+  defp inflate_stream(_z, _rest, _acc, size) when size > @max_body_bytes, do: {:error, :body_too_large}
 
   defp inflate_stream(_z, <<>>, acc, _size) do
     {:ok, acc |> Enum.reverse() |> IO.iodata_to_binary()}

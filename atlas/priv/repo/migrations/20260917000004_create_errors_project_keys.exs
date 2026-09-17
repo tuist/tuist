@@ -6,7 +6,10 @@ defmodule Atlas.Repo.Migrations.CreateErrorsProjectKeys do
 
     create table(:errors_project_keys, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :domain_id, references(:domains, type: :binary_id, on_delete: :delete_all)
       add :public_key, :string, size: 32, null: false
       add :secret_key, :string, size: 32
