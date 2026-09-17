@@ -63,7 +63,7 @@ object CacheEndpointResolver {
      * is prepared on demand, typically in seconds, so waiting beats running the build without it.
      */
     private const val PROVISIONING_WAIT_MS = 30_000L
-    private const val PROVISIONING_POLL_INTERVAL_MS = 1_000L
+    private const val PROVISIONING_POLL_INTERVAL_MS = 250L
 
     private val logger = Logging.getLogger(CacheEndpointResolver::class.java)
 
