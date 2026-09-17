@@ -257,6 +257,12 @@
           navigate={~p"/admin/memory"}
           selected={String.starts_with?(@current_path, "/admin/memory")}
         />
+        <.sidebar_item
+          label={gettext("Inference")}
+          icon="lock"
+          navigate={~p"/admin/inference"}
+          selected={String.starts_with?(@current_path, "/admin/inference")}
+        />
       </.sidebar_group>
     </.sidebar>
     <div class="layout__content">

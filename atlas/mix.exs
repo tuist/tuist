@@ -53,6 +53,7 @@ defmodule Atlas.MixProject do
       {:swoosh, "~> 1.16"},
       {:mdex, "~> 0.13.0"},
       {:req, "~> 0.6"},
+      {:server_sent_events, "~> 1.0"},
       {:ex_aws_auth, "~> 1.3"},
       {:sweet_xml, "~> 0.7"},
       {:toml, "~> 0.7"},
