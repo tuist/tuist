@@ -136,7 +136,7 @@ jobs:
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
         env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
 
   deploy:
     name: Deploy to atlas-production
