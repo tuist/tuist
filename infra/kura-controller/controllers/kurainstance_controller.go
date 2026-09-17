@@ -1850,6 +1850,14 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		// This Ingress exists so ingress-nginx renders these paths with
 		// grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
 		servicePort := grpcIngressServicePort(pods, observed, primaryPod)
+		// With no pod ready nothing is routed, so there is no evidence to act
+		// on and no traffic a stale port could misroute. Keeping the port an
+		// existing Ingress already names spares a starting or resuming instance
+		// two nginx reloads, which the regional gateway rate-limits and which
+		// would otherwise delay the moment its endpoint becomes routable.
+		if current := grpcIngressBackendPort(ingress); current != "" && !anyPodReady(pods) {
+			servicePort = current
+		}
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcPublicPathPrefixes))
 		for _, prefix := range grpcPublicPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
@@ -1905,6 +1913,29 @@ func grpcIngressServicePort(pods []corev1.Pod, observed map[string]runtimeStatus
 		return "http"
 	}
 	return "grpc"
+}
+
+func grpcIngressBackendPort(ingress *networkingv1.Ingress) string {
+	for _, rule := range ingress.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.Service != nil && path.Backend.Service.Port.Name != "" {
+				return path.Backend.Service.Port.Name
+			}
+		}
+	}
+	return ""
+}
+
+func anyPodReady(pods []corev1.Pod) bool {
+	for i := range pods {
+		if podReady(&pods[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 func podDeclaresContainerPort(pod *corev1.Pod, name string, port int32) bool {

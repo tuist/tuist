@@ -566,3 +566,51 @@ func TestFastProbesKeepTheirBudgets(t *testing.T) {
 		t.Fatalf("probe endpoints must not change, got readiness %q startup %q", fastReadiness.HTTPGet.Path, fastStartup.HTTPGet.Path)
 	}
 }
+
+// A pod that is not ready receives no traffic, so which port the gRPC Ingress
+// names does not matter until one is. Re-deriving it from no evidence moved a
+// resuming instance to the co-hosted port and back, and every change is an nginx
+// reload the regional gateway rate-limits, holding back the ready endpoint.
+func TestReconcileGRPCIngressKeepsItsPortWhileNoPodIsReady(t *testing.T) {
+	ctx := context.Background()
+	instance := suspendableInstance(false)
+	r := suspensionTestReconciler(t, instance)
+	backendPort := func() string {
+		t.Helper()
+		ingress := &networkingv1.Ingress{}
+		if err := getObject(t, r, grpcServiceName(instance), ingress); err != nil {
+			t.Fatal(err)
+		}
+		return ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Name
+	}
+	primary := instance.Name + "-0"
+
+	if err := r.reconcileGRPCIngress(ctx, instance, nil, nil, primary); err != nil {
+		t.Fatal(err)
+	}
+	if got := backendPort(); got != "http" {
+		t.Fatalf("a new Ingress with no pod to vouch for the gateway port starts on the co-hosted port, got %q", got)
+	}
+
+	serving := runtimeStatus{Ready: true, State: "serving", GatewayGRPCPort: gatewayGRPCPort}
+	servingPods := []corev1.Pod{gatewayGRPCTestPod(primary, true, true), gatewayGRPCTestPod(instance.Name+"-1", true, true)}
+	samples := map[string]runtimeStatus{primary: serving, instance.Name + "-1": serving}
+	if err := r.reconcileGRPCIngress(ctx, instance, servingPods, samples, primary); err != nil {
+		t.Fatal(err)
+	}
+	if got := backendPort(); got != "grpc" {
+		t.Fatalf("expected the gateway port once the pods serve it, got %q", got)
+	}
+
+	for _, pods := range [][]corev1.Pod{
+		nil,
+		{gatewayGRPCTestPod(primary, false, true), gatewayGRPCTestPod(instance.Name+"-1", false, true)},
+	} {
+		if err := r.reconcileGRPCIngress(ctx, instance, pods, nil, primary); err != nil {
+			t.Fatal(err)
+		}
+		if got := backendPort(); got != "grpc" {
+			t.Fatalf("expected the port to stay while no pod is ready (%d pods), got %q", len(pods), got)
+		}
+	}
+}
