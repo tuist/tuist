@@ -4525,7 +4525,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
-    func test_runPathSearchPaths_excludes_xcframeworks() throws {
+    func test_runPathSearchPaths_excludes_xcframeworks_and_keeps_frameworks() throws {
         // Given
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a", targets: [unitTests])
@@ -4541,6 +4541,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let foreignXCFrameworkDependency = GraphDependency.foreignBuildOutput(
             .init(name: "Foreign", path: "/binaries/hash-b/Foreign.xcframework", linking: .dynamic)
         )
+        let foreignFrameworkDependency = GraphDependency.foreignBuildOutput(
+            .init(name: "ForeignFramework", path: "/foreign/ForeignFramework.framework", linking: .dynamic)
+        )
         let graph = Graph.test(
             projects: [project.path: project],
             dependencies: [
@@ -4548,10 +4551,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     frameworkDependency,
                     xcframeworkDependency,
                     foreignXCFrameworkDependency,
+                    foreignFrameworkDependency,
                 ]),
                 frameworkDependency: Set(),
                 xcframeworkDependency: Set(),
                 foreignXCFrameworkDependency: Set(),
+                foreignFrameworkDependency: Set(),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4560,7 +4565,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [try AbsolutePath(validating: "/frameworks")])
+        XCTAssertEqual(got, [
+            try AbsolutePath(validating: "/foreign"),
+            try AbsolutePath(validating: "/frameworks"),
+        ])
     }
 
     func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
