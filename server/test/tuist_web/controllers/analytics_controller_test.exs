@@ -971,6 +971,41 @@ defmodule TuistWeb.AnalyticsControllerTest do
                url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
     end
 
+    test "strips credentials from the remote URL before enqueuing the VCS comment", %{conn: conn, user: user} do
+      test_pid = self()
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn args ->
+        send(test_pid, {:vcs_comment_enqueued, args})
+        :ok
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/api/analytics?project_id=#{account.name}/#{project.name}",
+        %{
+          name: "share",
+          command_arguments: ["share"],
+          duration: 3000,
+          tuist_version: "4.56.0",
+          swift_version: "5.9",
+          macos_version: "14.0",
+          is_ci: true,
+          client_id: "client-id",
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git"
+        }
+      )
+      |> json_response(:ok)
+
+      assert_received {:vcs_comment_enqueued, args}
+      assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
+    end
+
     test "does not create test run when CLI version is 4.110.0 or higher", %{
       conn: conn,
       user: user

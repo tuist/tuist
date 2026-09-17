@@ -77,9 +77,11 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
+        let endpoints = try await cacheURLStore.getCacheEndpoints(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
+            endpoints: endpoints.map(\.absoluteString),
             token: token,
             accountHandle: accountHandle,
             projectHandle: projectHandle
@@ -132,12 +134,15 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
 
 struct CacheConfiguration: Codable {
     let url: String
+    /// Every endpoint the account is served from. `url` is the nearest of them.
+    let endpoints: [String]
     let token: String
     let accountHandle: String
     let projectHandle: String
 
     enum CodingKeys: String, CodingKey {
         case url
+        case endpoints
         case token
         case accountHandle = "account_handle"
         case projectHandle = "project_handle"

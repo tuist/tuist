@@ -60,11 +60,15 @@ private struct RegisteredSource: Codable {
     /// Swift, while the build system's Clang caching runs in its own process
     /// with no plugin options at all. Recorded here so one answer covers both.
     let upload: Bool
+    /// The project's `xcodeCache.storeSizeLimit`, in bytes. The proxy prunes the
+    /// project's stores back to it while the machine is idle.
+    let storeSizeLimit: Int?
 
-    init(trunk: String?, branch: String?, upload: Bool) {
+    init(trunk: String?, branch: String?, upload: Bool, storeSizeLimit: Int?) {
         self.trunk = trunk
         self.branch = branch
         self.upload = upload
+        self.storeSizeLimit = storeSizeLimit
     }
 
     /// Hand-written rather than synthesized, so that an absent field means here
@@ -78,10 +82,11 @@ private struct RegisteredSource: Codable {
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         // Nothing recorded is nothing to withhold (`uploads_by_default` there).
         upload = try container.decodeIfPresent(Bool.self, forKey: .upload) ?? true
+        storeSizeLimit = try container.decodeIfPresent(Int.self, forKey: .storeSizeLimit)
     }
 }
 
-struct SetupCacheCommandService {
+struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -91,6 +96,8 @@ struct SetupCacheCommandService {
     private let getProjectService: GetProjectServicing
     private let gitController: GitControlling
     private let cacheSocketService: CacheSocketServicing
+    private let resourceLocator: ResourceLocating
+    private let xcodeController: XcodeControlling
     private let cacheDaemonStartupTimeout: Duration
 
     init(
@@ -103,6 +110,8 @@ struct SetupCacheCommandService {
         getProjectService: GetProjectServicing = GetProjectService(),
         gitController: GitControlling = GitController(),
         cacheSocketService: CacheSocketServicing = CacheSocketService(),
+        resourceLocator: ResourceLocating = ResourceLocator(),
+        xcodeController: XcodeControlling = XcodeController.current,
         cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService
@@ -114,6 +123,8 @@ struct SetupCacheCommandService {
         self.getProjectService = getProjectService
         self.gitController = gitController
         self.cacheSocketService = cacheSocketService
+        self.resourceLocator = resourceLocator
+        self.xcodeController = xcodeController
         self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
     }
 
@@ -162,7 +173,8 @@ struct SetupCacheCommandService {
         fullHandle: String,
         trunk: String?,
         branch: String?,
-        upload: Bool
+        upload: Bool,
+        storeSizeLimit: Int?
     ) async throws {
         // Derived from the proxy's OWN socket, not from `stateDirectory`. The two
         // agree by default and diverge under `XDG_STATE_HOME`, which the socket
@@ -203,7 +215,15 @@ struct SetupCacheCommandService {
                 let contents = try await fileSystem.readTextFile(at: sourcesPath)
                 entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
             }
-            entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
+            entries[fullHandle] = RegisteredSource(
+                trunk: trunk,
+                branch: branch,
+                upload: upload,
+                // The proxy reads the limit as an unsigned integer and rejects the
+                // whole registry when one does not parse, so a non-positive limit
+                // is recorded as none.
+                storeSizeLimit: storeSizeLimit.flatMap { $0 > 0 ? $0 : nil }
+            )
 
             let encoder = JSONEncoder()
             // Sorted so a rewrite that changes nothing produces the same bytes,
@@ -334,7 +354,8 @@ struct SetupCacheCommandService {
                 fullHandle: fullHandle,
                 trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
                 branch: await ciBranch(sourceRoot: path),
-                upload: config.xcodeCache.upload
+                upload: config.xcodeCache.upload,
+                storeSizeLimit: config.xcodeCache.storeSizeLimit
             )
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
         } else {
@@ -432,7 +453,7 @@ struct SetupCacheCommandService {
     /// opted into. `tuist generate` sets them automatically; this is the
     /// equivalent for projects Tuist doesn't generate.
     private func prefixMappingInstructions() async -> String {
-        guard let version = try? await XcodeController.current.selectedVersion(),
+        guard let version = try? await xcodeController.selectedVersion(),
               version >= Version(27, 0, 0)
         else { return "" }
         return """
@@ -534,6 +555,15 @@ struct SetupCacheCommandService {
             environmentVariables["TUIST_CAS_PREFETCH"] = "keys"
         }
 
+        // Not read by the proxy, which resolves the Xcode it loads its CAS plugin
+        // from by itself, once, when it starts. Recording the one it resolves
+        // makes a machine switched to another Xcode a changed configuration,
+        // which a running proxy has to be restarted for.
+        let developerDirectory = try? await xcodeController.systemDeveloperDirectory()
+        if let developerDirectory {
+            environmentVariables["TUIST_CAS_PROXY_DEVELOPER_DIR"] = developerDirectory.pathString
+        }
+
         // One proxy per machine. Boot out any legacy per-project cache daemon so
         // the two do not both run.
         let legacyLabel = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
@@ -543,6 +573,25 @@ struct SetupCacheCommandService {
         )
 
         let label = Environment.current.casProxyLaunchAgentLabel()
+        let socketPath = Environment.current.casProxySocketPath()
+
+        // Every CI job runs this, and between two jobs on one machine what differs
+        // is usually only what `registerSource` wrote, which a running proxy reads
+        // by itself (the upload policy included). Reinstalling the proxy then
+        // changes nothing but its process, and puts the job through a bootout
+        // for nothing.
+        let launchInputs = await proxyLaunchInputs(developerDirectory: developerDirectory)
+        if await launchAgentService.isLaunchAgentCurrent(
+            label: label,
+            plistFileName: "\(label).plist",
+            programArguments: programArguments,
+            environmentVariables: environmentVariables,
+            launchInputs: launchInputs
+        ), await isCacheDaemonReady(label: label, socketPath: socketPath, displacing: nil) {
+            Logger.current.debug("\(label) is already running this configuration. Leaving it running.")
+            return
+        }
+
         let displacedProcessIdentifier = try await launchAgentService.setupLaunchAgent(
             label: label,
             plistFileName: "\(label).plist",
@@ -551,9 +600,25 @@ struct SetupCacheCommandService {
         )
         try await ensureCacheDaemonIsListening(
             label: label,
-            socketPath: Environment.current.casProxySocketPath(),
+            socketPath: socketPath,
             displacing: displacedProcessIdentifier
         )
+    }
+
+    /// The files the proxy reads once, when it starts: its own binary, and the CAS
+    /// plugin of the Xcode it resolves.
+    private func proxyLaunchInputs(developerDirectory: AbsolutePath?) async -> [AbsolutePath] {
+        var inputs: [AbsolutePath] = []
+        if let proxy = try? await resourceLocator.casProxy() {
+            inputs.append(proxy)
+        }
+        if let developerDirectory {
+            let plugin = developerDirectory.appending(components: "usr", "lib", "libToolchainCASPlugin.dylib")
+            if (try? await fileSystem.exists(plugin)) == true {
+                inputs.append(plugin)
+            }
+        }
+        return inputs
     }
 
     /// Installs the legacy per-project CAS daemon (non-kura path): one launchd

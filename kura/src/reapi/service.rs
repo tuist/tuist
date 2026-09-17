@@ -56,11 +56,10 @@ use crate::{
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
-    replication::replication_targets,
     state::SharedState,
     store::{
         ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
-        is_outbox_full_error, try_allocate_exact_vec,
+        try_allocate_exact_vec,
     },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
@@ -102,16 +101,16 @@ impl Drop for SpliceVerificationSlot {
 }
 #[derive(Clone)]
 pub struct ReapiService {
-    state: SharedState,
+    pub(super) state: SharedState,
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
 #[derive(Clone, Copy)]
-struct GrpcRequestSpec<'a> {
-    operation: &'a str,
-    namespace_id: Option<&'a str>,
+pub(super) struct GrpcRequestSpec<'a> {
+    pub(super) operation: &'a str,
+    pub(super) namespace_id: Option<&'a str>,
 }
 
 struct ReapiCacheObservation<'a> {
@@ -158,17 +157,16 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
 // fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
-    let service = ReapiService {
-        snapshot_cache: state.snapshot_cache.clone(),
-        state: state.clone(),
-    };
+    let service = ReapiService::new(state.clone());
     spawn_snapshot_refresh_task(service.clone());
+    let assets = super::asset::server(service.clone());
     let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
         .add_service(build_events)
+        .add_service(assets)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -263,7 +261,14 @@ impl std::io::Write for BoundedZstdDecoderSink {
 }
 
 impl ReapiService {
-    async fn authorize_request<T>(
+    pub(super) fn new(state: SharedState) -> Self {
+        Self {
+            snapshot_cache: state.snapshot_cache.clone(),
+            state,
+        }
+    }
+
+    pub(super) async fn authorize_request<T>(
         &self,
         request: &Request<T>,
         spec: GrpcRequestSpec<'_>,
@@ -275,7 +280,7 @@ impl ReapiService {
     // request into a stream before it learns its namespace (from the first
     // chunk's resource_name), so it captures the metadata up front and authorizes
     // here once the namespace is known.
-    async fn authorize_metadata(
+    pub(super) async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         spec: GrpcRequestSpec<'_>,
@@ -353,7 +358,7 @@ impl ReapiService {
 
     // Record a received gRPC upload (ingress) against the usage rollups. See
     // [`record_reapi_download`] for the parity and call-site conventions.
-    fn record_reapi_upload(
+    pub(super) fn record_reapi_upload(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         namespace_id: &str,
@@ -641,7 +646,7 @@ impl ReapiService {
                             stored_written = stored_written.saturating_add(data.len() as u64);
                             if file_cache_policy.should_drop(
                                 self.state.memory.should_reclaim_file_cache(),
-                                self.state.memory.transient_reserved_bytes(),
+                                self.state.memory.foreground_transient_reserved_bytes(),
                             ) && stored_written.saturating_sub(advised_through)
                                 >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                             {
@@ -750,7 +755,6 @@ impl ReapiService {
             drop(file);
         }
 
-        let targets = replication_targets(&self.state);
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
         // blob (retry, or a client that skips FindMissingBlobs) must not be
@@ -760,35 +764,30 @@ impl ReapiService {
         let persisted = if let Some(payload) = memory_payload.as_deref() {
             self.state
                 .store
-                .persist_admitted_artifact_from_bytes_and_enqueue(
+                .persist_admitted_artifact_from_bytes_and_replicate(
                     ArtifactProducer::Reapi,
                     &resource.namespace_id,
                     &resource.key,
                     "application/octet-stream",
                     payload,
                     file_cache_policy,
-                    &targets,
                 )
                 .await
         } else {
             self.state
                 .store
-                .persist_artifact_from_path_and_enqueue(
+                .persist_artifact_from_path_and_replicate(
                     ArtifactProducer::Reapi,
                     &resource.namespace_id,
                     &resource.key,
                     "application/octet-stream",
                     StagedArtifactPath::new(temp_path, file_cache_policy),
-                    &targets,
+                    None,
                 )
                 .await
         }
         .map_err(|error| {
-            if is_outbox_full_error(&error) {
-                Status::resource_exhausted(format!(
-                    "replication backlog is full while persisting CAS blob: {error}"
-                ))
-            } else if is_fd_pool_exhausted_error(&error) {
+            if is_fd_pool_exhausted_error(&error) {
                 Status::resource_exhausted(format!(
                     "file descriptor pool exhausted while persisting CAS blob: {error}"
                 ))
@@ -796,7 +795,6 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
-        self.state.notify.notify_one();
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -1766,13 +1764,12 @@ impl ActionCache for ReapiService {
             .expect("action result was checked before authorization");
         let bytes = action_result.encode_to_vec();
         // Reject an action result we could never replicate. Entries are stored
-        // inline and pushed to peers inline, and the inline replication path
+        // inline and fetched by peers inline, and the inline catch-up path
         // buffers the whole body in RAM, so it is bounded by
         // MAX_INLINE_REPLICATION_BODY_BYTES. Accepting a larger entry would
-        // strand it on this node (peers 413 the oversized inline push) and
-        // churn a poison outbox message forever. failed_precondition is
-        // non-retriable, so Bazel records the miss and moves on instead of
-        // retrying the doomed write.
+        // strand it on this node, where no peer could ever fetch it.
+        // failed_precondition is non-retriable, so Bazel records the miss and
+        // moves on instead of retrying the doomed write.
         if bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
             // Count the rejection but report 0 written bytes, matching the other
             // failed-write sites, so a rejected write never inflates
@@ -1786,23 +1783,20 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let targets = replication_targets(&self.state);
         let (manifest, applied) = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf",
                 &bytes,
-                &targets,
                 branch.as_deref(),
                 trunk.as_deref(),
             )
             .await
             .map_err(|error| store_write_status("failed to store action result", error))?;
-        self.state.notify.notify_one();
         // A damped refresh (identical bytes, fresh version) counts under its own
         // result and books no bytes: it stored nothing and wrote no replication
         // feed row, so folding it into "ok" both overstates ingest and makes the
@@ -2015,13 +2009,10 @@ impl ContentAddressableStorage for ReapiService {
                         status: Some(rpc_status(0, "")),
                     })
                 }
-                Err(error) => {
-                    let code = if is_outbox_full_error(&error) { 8 } else { 13 };
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: Some(digest),
-                        status: Some(rpc_status(code, error)),
-                    })
-                }
+                Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
+                    digest: Some(digest),
+                    status: Some(rpc_status(13, error)),
+                }),
             }
         }
 
@@ -2347,23 +2338,20 @@ impl ContentAddressableStorage for ReapiService {
         // the recipe before those chunks; the composite presence and read
         // gates keep it unavailable until every dependency arrives.
         let key = recipe_key(&digest_key(&blob_digest)?);
-        let targets = replication_targets(&self.state);
         let manifest = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_and_enqueue(
+            .persist_inline_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf; message=tuist.kura.ChunkedBlobRecipe",
                 &recipe_bytes,
-                &targets,
                 None,
                 None,
             )
             .await
             .map_err(|error| store_write_status("failed to store blob recipe", error))?;
-        self.state.notify.notify_one();
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
@@ -3632,19 +3620,16 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let targets = replication_targets(state);
     let persisted = state
         .store
-        .persist_artifact_from_bytes_and_enqueue(
+        .persist_artifact_from_bytes_and_replicate(
             ArtifactProducer::Reapi,
             namespace_id,
             &key,
             "application/octet-stream",
             bytes,
-            &targets,
         )
         .await?;
-    state.notify.notify_one();
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -3945,7 +3930,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     Ok(format!("{}/{}", digest.hash, digest.size_bytes))
 }
 
-fn require_sha256(digest_function: i32) -> Result<(), Status> {
+pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     if digest_function == 0 || digest_function == reapi::digest_function::Value::Sha256 as i32 {
         return Ok(());
     }
@@ -3954,7 +3939,7 @@ fn require_sha256(digest_function: i32) -> Result<(), Status> {
     ))
 }
 
-fn namespace_from_instance(instance_name: &str) -> &str {
+pub(super) fn namespace_from_instance(instance_name: &str) -> &str {
     if instance_name.is_empty() {
         DEFAULT_INSTANCE_NAME
     } else {
@@ -3971,11 +3956,7 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
 }
 
 fn store_write_status(context: &str, error: String) -> Status {
-    if is_outbox_full_error(&error) {
-        Status::resource_exhausted(format!("{context}: {error}"))
-    } else {
-        Status::internal(format!("{context}: {error}"))
-    }
+    Status::internal(format!("{context}: {error}"))
 }
 
 fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
@@ -4870,57 +4851,6 @@ mod tests {
         assert!(!is_reapi_write_path(
             "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
         ));
-    }
-
-    #[tokio::test]
-    async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
-        let context = crate::test_support::test_context(|config| {
-            config.outbox_max_depth = Some(1);
-        })
-        .await;
-        context
-            .state
-            .store
-            .enqueue(crate::replication::outbox_message::OutboxMessage {
-                target: "http://peer".into(),
-                operation: crate::replication::operation::ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 1,
-                },
-            })
-            .expect("seed full outbox");
-        let app = axum::Router::new()
-            .fallback(|| async { axum::http::StatusCode::NO_CONTENT })
-            .layer(axum::middleware::from_fn_with_state(
-                context.state.clone(),
-                reject_overloaded_grpc_writes,
-            ));
-
-        let rejected = app
-            .clone()
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(ACTION_CACHE_UPDATE_PATH)
-                    .body(axum::body::Body::empty())
-                    .expect("write request"),
-            )
-            .await
-            .expect("write response");
-        assert_eq!(rejected.status(), axum::http::StatusCode::OK);
-        assert_eq!(rejected.headers().get("grpc-status").unwrap(), "8");
-
-        let allowed = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(
-                        "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs",
-                    )
-                    .body(axum::body::Body::empty())
-                    .expect("read request"),
-            )
-            .await
-            .expect("read response");
-        assert_eq!(allowed.status(), axum::http::StatusCode::NO_CONTENT);
     }
 
     fn bytestream_admission(
@@ -7918,6 +7848,105 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bytestream_read_burst_waits_without_shedding() {
+        for compressed in [false, true] {
+            let context = test_context(|config| {
+                config.memory_limit_bytes = 128 * 1024 * 1024;
+                config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+                config.memory_hard_limit_bytes = 96 * 1024 * 1024;
+            })
+            .await;
+            let blob = vec![0xA5; 1024 * 1024];
+            let hash = hex::encode(Sha256::digest(&blob));
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    DEFAULT_INSTANCE_NAME,
+                    &blob_key(&format!("{hash}/{}", blob.len())),
+                    "application/octet-stream",
+                    &blob,
+                )
+                .await
+                .expect("seed blob");
+            let resource = format!(
+                "{}/{hash}/{}",
+                if compressed {
+                    "compressed-blobs/zstd"
+                } else {
+                    "blobs"
+                },
+                blob.len()
+            );
+            let completed_admission = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (release, released) = tokio::sync::watch::channel(false);
+            let mut tasks = tokio::task::JoinSet::new();
+            let reads = if compressed { 24 } else { 32 };
+            for _ in 0..reads {
+                let service = ReapiService {
+                    state: context.state.clone(),
+                    snapshot_cache: Default::default(),
+                };
+                let resource_name = resource.clone();
+                let completed = completed_admission.clone();
+                let mut released = released.clone();
+                tasks.spawn(async move {
+                    let response = service
+                        .read(Request::new(bytestream::ReadRequest {
+                            resource_name,
+                            read_offset: 0,
+                            read_limit: 0,
+                        }))
+                        .await;
+                    completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let response = response?;
+                    released
+                        .wait_for(|released| *released)
+                        .await
+                        .expect("release readers");
+                    let (_, mut stream, guard) = response.into_parts();
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) = stream.next().await {
+                        bytes.extend(chunk?.data);
+                    }
+                    drop(guard);
+                    if compressed {
+                        bytes = zstd::stream::decode_all(bytes.as_slice()).expect("decode read");
+                    }
+                    assert_eq!(bytes, vec![0xA5; 1024 * 1024]);
+                    Ok::<_, Status>(())
+                });
+            }
+            // Hold admitted bodies until every read is either queued or admitted.
+            // This reproduces a burst without depending on scheduler timing.
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let waiting = context.state.memory.response_stream_waiter_count();
+                    if waiting + completed_admission.load(std::sync::atomic::Ordering::SeqCst)
+                        == reads
+                    {
+                        assert!(waiting > 0, "the burst must exercise queued admission");
+                        break;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("all reads should reach admission");
+            release.send(true).expect("release burst");
+            let mut rejected = Vec::new();
+            while let Some(result) = tasks.join_next().await {
+                if let Err(error) = result.expect("read task") {
+                    rejected.push(error);
+                }
+            }
+            assert!(rejected.is_empty(), "compressed={compressed}: {rejected:?}");
+            assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+        }
+    }
+
+    #[tokio::test]
     async fn bytestream_route_keeps_stream_memory_until_encoded_bytes_drop() {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
@@ -10076,9 +10105,8 @@ mod tests {
     }
 
     // An action result larger than the inline replication ceiling can never be
-    // pushed to peers (the inline replicate path 413s it), so we reject the
-    // write with a non-retriable status instead of storing an entry that would
-    // strand on this node and churn a poison outbox message forever.
+    // fetched by a peer, so we reject the write with a non-retriable status
+    // instead of storing an entry that would strand on this node.
     #[tokio::test]
     async fn update_action_result_rejects_oversized_action_result() {
         let context = test_context(|config| {
@@ -10124,7 +10152,7 @@ mod tests {
             .expect_err("oversized action result should be rejected");
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
 
-        // Nothing was stored, so no poison outbox message can exist.
+        // Nothing was stored.
         let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
         assert!(
             context

@@ -222,7 +222,7 @@ defmodule Tuist.Runners do
     # and stops concurrent promotes clobbering the object the HEAD points at.
     download_url =
       if head && head.tree_digest do
-        key = volume_master_object_key(account.id, head.tree_digest)
+        key = volume_master_object_key(account.id, head_master_object_id(head))
         Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
       end
 
@@ -233,6 +233,7 @@ defmodule Tuist.Runners do
       %{
         generation: (head && head.generation) || 0,
         digest: head && head.tree_digest,
+        content_digest: head && head.content_digest,
         download_url: download_url
       }
     end
@@ -251,15 +252,36 @@ defmodule Tuist.Runners do
   traversal-free object-key component under the account's own prefix. Returns
   `:error` for an invalid account or digest, or a URL that would target a
   non-public host (SSRF guard, the write-side twin of the download guard).
+
+  `content_digest`, when the guest reports one (a 64-char SHA-256 hex of the
+  image bytes it is about to PUT), is signed into the URL as an
+  `x-amz-checksum-sha256` header so the object store verifies the received
+  bytes at ingest — corruption in the uploader or on the wire fails the PUT
+  instead of becoming the fleet's master. Returns `{:ok, url, checksum}` where
+  `checksum` is the base64 value the guest MUST send as that header (the URL's
+  signature covers it), or nil when nothing was signed (no digest reported, an
+  invalid one, or a storage provider that cannot sign upload headers) — the
+  guest then PUTs with no checksum header, the status quo.
+
+  A reported content digest also goes into the object key (see
+  `master_object_id/2`), so two promotes whose images share an inventory but
+  differ in bytes upload distinct objects, and neither can overwrite the object
+  the other's HEAD advertises.
   """
-  def volume_master_upload_url(account_id, tree_digest) when is_integer(account_id) and is_binary(tree_digest) do
+  def volume_master_upload_url(account_id, tree_digest, content_digest \\ nil)
+
+  def volume_master_upload_url(account_id, tree_digest, content_digest)
+      when is_integer(account_id) and is_binary(tree_digest) do
     if valid_inventory_digest?(tree_digest) do
+      content_digest = reported_content_digest(content_digest)
+
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
-           key = volume_master_object_key(account_id, tree_digest),
+           key = volume_master_object_key(account_id, master_object_id(tree_digest, content_digest)),
+           {checksum, upload_opts} = upload_checksum_and_opts(account, content_digest),
            url when is_binary(url) <-
-             Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+             Storage.generate_upload_url(key, account, upload_opts),
            true <- Tuist.URL.public_host_url?(url) do
-        {:ok, url}
+        {:ok, url, checksum}
       else
         _ -> :error
       end
@@ -270,7 +292,22 @@ defmodule Tuist.Runners do
     _ -> :error
   end
 
-  def volume_master_upload_url(_account_id, _tree_digest), do: :error
+  def volume_master_upload_url(_account_id, _tree_digest, _content_digest), do: :error
+
+  # The base64 SHA-256 to sign into the presigned PUT, plus the storage opts
+  # that sign it. No digest — or a provider whose presigned URLs cannot carry
+  # signed headers — signs nothing, and the guest is told so (nil) rather than
+  # sending a header the URL's signature does not cover.
+  defp upload_checksum_and_opts(account, content_digest) do
+    base_opts = [expires_in: @volume_master_url_ttl_seconds]
+
+    if is_binary(content_digest) and Storage.supports_signed_upload_headers?(account) do
+      checksum = content_digest |> Base.decode16!(case: :lower) |> Base.encode64()
+      {checksum, base_opts ++ [signed_headers: [{"x-amz-checksum-sha256", checksum}]]}
+    else
+      {nil, base_opts}
+    end
+  end
 
   @doc """
   Whether a promote built on `base_generation` could still win `account_id`'s
@@ -311,6 +348,16 @@ defmodule Tuist.Runners do
 
   defp reported_unverifiable_digest(_digest), do: nil
 
+  # A reported content digest is honored only as a 64-char SHA-256 hex. An
+  # absent or malformed one reads as unreported, so the HEAD row carries no
+  # content digest and converging hosts skip the content check — exactly what
+  # every promote did before the guest began hashing its image.
+  defp reported_content_digest(digest) when is_binary(digest) do
+    if Regex.match?(~r/^[a-f0-9]{64}$/, digest), do: digest
+  end
+
+  defp reported_content_digest(_digest), do: nil
+
   @doc """
   Records a runner's promote of `account_id`'s cache volume: fast-forwards the
   account's HEAD to `tree_digest` published from `node_name`, but ONLY when
@@ -332,13 +379,28 @@ defmodule Tuist.Runners do
   wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
   `tree_digest`, since it too reaches a query.
 
+  `content_digest`, when the runner reports one, is the SHA-256 of the image
+  bytes it uploaded (the same digest its PUT was checksum-verified against).
+  Stored on the HEAD row so converging hosts can verify the downloaded object
+  bit-for-bit before adopting it. Optional for rollout: an absent or malformed
+  value stores nil and hosts skip the content check for that HEAD.
+
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid
   digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest, base_generation, unverifiable_digest \\ nil) do
+  def report_volume_head(
+        account_id,
+        node_name,
+        tree_digest,
+        base_generation,
+        unverifiable_digest \\ nil,
+        content_digest \\ nil
+      ) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
+      content_digest = reported_content_digest(content_digest)
+      master_id = master_object_id(tree_digest, content_digest)
 
       case VolumeHeads.bump_head(
              account_id,
@@ -346,15 +408,16 @@ defmodule Tuist.Runners do
              tree_digest,
              base_generation,
              VolumeHeads.reserved_tuist_cache(),
-             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest),
+             content_digest: content_digest
            ) do
         {:ok, generation} ->
-          # This digest is now HEAD, so it is no longer an orphan candidate even if
-          # an earlier job's promote of the same inventory was rejected — forget it
-          # so the scheduled reclaim below becomes a no-op and never deletes the
-          # live master. Its lifecycle now belongs to the supersession prune.
-          VolumeMasterOrphans.forget(account_id, tree_digest)
-          schedule_superseded_master_prune(account_id, superseded, tree_digest)
+          # This object is now HEAD, so it is no longer an orphan candidate even if
+          # an earlier job's promote of the same image was rejected — forget it so
+          # the scheduled reclaim below becomes a no-op and never deletes the live
+          # master. Its lifecycle now belongs to the supersession prune.
+          VolumeMasterOrphans.forget(account_id, master_id)
+          schedule_superseded_master_prune(account_id, superseded, master_id)
           {:ok, generation}
 
         :conflict ->
@@ -368,7 +431,7 @@ defmodule Tuist.Runners do
           # is what keeps rejected uploads from accumulating indefinitely under
           # contention, without the conflict-time-guessing hazard of pruning
           # straight away.
-          reclaim_rejected_master_upload(account_id, tree_digest)
+          reclaim_rejected_master_upload(account_id, master_id)
           :conflict
       end
     else
@@ -376,15 +439,24 @@ defmodule Tuist.Runners do
     end
   end
 
-  # Content-addressed keys mean every distinct promoted inventory is a distinct,
-  # immutable object, so a superseded master is no longer overwritten — it lingers
-  # until deleted. Schedule its deletion for the presigned-URL TTL from now: that
-  # grace keeps the object alive as long as any dispatch that already handed out
-  # its download URL could still be converging to it, then reclaims the storage.
-  # Skipped when there was no prior HEAD or the digest is unchanged (idempotent
-  # re-report of the same set).
-  defp schedule_superseded_master_prune(account_id, %{tree_digest: old}, new) when is_binary(old) and old != new do
-    case %{account_id: account_id, tree_digest: old}
+  # Every distinct promoted image is a distinct, immutable object, so a superseded
+  # master is no longer overwritten — it lingers until deleted. Schedule its
+  # deletion for the presigned-URL TTL from now: that grace keeps the object alive
+  # as long as any dispatch that already handed out its download URL could still be
+  # converging to it, then reclaims the storage. Skipped when there was no prior
+  # HEAD or the object is unchanged (idempotent re-report of the same image).
+  defp schedule_superseded_master_prune(account_id, superseded, new_master_id) do
+    case head_master_object_id(superseded) do
+      old_master_id when is_binary(old_master_id) and old_master_id != new_master_id ->
+        enqueue_superseded_master_prune(account_id, old_master_id)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp enqueue_superseded_master_prune(account_id, master_id) do
+    case %{account_id: account_id, master_id: master_id}
          |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
          |> Oban.insert() do
       {:ok, _job} ->
@@ -399,36 +471,32 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp schedule_superseded_master_prune(_account_id, _superseded, _new), do: :ok
-
   @doc """
-  Deletes the account's superseded cache-volume master object for `tree_digest`,
-  UNLESS that digest is (again) the account's current HEAD — content-addressed
-  keys mean a re-promoted, content-identical set reuses the same object, so
+  Deletes the account's superseded cache-volume master object `master_id` (see
+  `volume_master_object_key/2`), UNLESS it is (again) the object the account's
+  current HEAD points at — a re-promoted, identical image reuses the same key, so
   deleting it would drop the live master. Best-effort; called from
-  `PruneVolumeMasterWorker` on a delay after the digest was superseded.
+  `PruneVolumeMasterWorker` on a delay after the object was superseded.
   """
-  def prune_superseded_volume_master(account_id, tree_digest) do
-    case VolumeHeads.get_head(account_id) do
-      %{tree_digest: ^tree_digest} ->
-        :ok
-
-      _ ->
-        with {:ok, account} <- Accounts.get_account_by_id(account_id) do
-          Storage.delete_object(volume_master_object_key(account_id, tree_digest), account)
-        end
+  def prune_superseded_volume_master(account_id, master_id) do
+    if head_master_object_id(VolumeHeads.get_head(account_id)) == master_id do
+      :ok
+    else
+      with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+        Storage.delete_object(volume_master_object_key(account_id, master_id), account)
+      end
     end
   end
 
   # Record a rejected promote's uploaded object as an orphan and schedule its
   # reclaim after the URL-TTL grace. The grace covers the window where a
-  # concurrent job might accept this same digest (which forgets the orphan); a
-  # digest that stays orphaned past it never became HEAD, so no download URL
+  # concurrent job might accept this same image (which forgets the orphan); an
+  # object that stays orphaned past it never became HEAD, so no download URL
   # points at it.
-  defp reclaim_rejected_master_upload(account_id, tree_digest) do
-    VolumeMasterOrphans.record(account_id, tree_digest)
+  defp reclaim_rejected_master_upload(account_id, master_id) do
+    VolumeMasterOrphans.record(account_id, master_id)
 
-    case %{account_id: account_id, tree_digest: tree_digest}
+    case %{account_id: account_id, master_id: master_id}
          |> PruneVolumeMasterOrphanWorker.new(schedule_in: @volume_master_url_ttl_seconds)
          |> Oban.insert() do
       {:ok, _job} ->
@@ -444,23 +512,23 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Reclaims the object for a rejected-promote `tree_digest`, UNLESS it has since
-  been accepted as the account's HEAD. Deletes only a digest that is still
-  recorded as an orphan (never accepted) and is not the current HEAD — a rejected
-  digest a later job committed is forgotten on acceptance and skipped here, so a
-  live master is never dropped. Best-effort; called from
+  Reclaims the rejected-promote master object `master_id`, UNLESS it has since
+  been accepted as the account's HEAD. Deletes only an object that is still
+  recorded as an orphan (never accepted) and is not the current HEAD's — a
+  rejected image a later job committed is forgotten on acceptance and skipped
+  here, so a live master is never dropped. Best-effort; called from
   `PruneVolumeMasterOrphanWorker` on a delay after the promote was rejected.
   """
-  def prune_orphan_volume_master(account_id, tree_digest) do
+  def prune_orphan_volume_master(account_id, master_id) do
     cond do
-      not VolumeMasterOrphans.exists?(account_id, tree_digest) ->
+      not VolumeMasterOrphans.exists?(account_id, master_id) ->
         # Accepted as HEAD (forgotten on acceptance) or already reclaimed.
         :ok
 
-      match?(%{tree_digest: ^tree_digest}, VolumeHeads.get_head(account_id)) ->
+      head_master_object_id(VolumeHeads.get_head(account_id)) == master_id ->
         # Belt-and-suspenders: it is the live HEAD, so it is not an orphan. Forget
         # the stale row without deleting the object.
-        VolumeMasterOrphans.forget(account_id, tree_digest)
+        VolumeMasterOrphans.forget(account_id, master_id)
         :ok
 
       true ->
@@ -468,8 +536,8 @@ defmodule Tuist.Runners do
         # stays so the worker's retry (or a later run) reclaims the object rather
         # than orphaning it permanently.
         with {:ok, account} <- Accounts.get_account_by_id(account_id),
-             :ok <- Storage.delete_object(volume_master_object_key(account_id, tree_digest), account) do
-          VolumeMasterOrphans.forget(account_id, tree_digest)
+             :ok <- Storage.delete_object(volume_master_object_key(account_id, master_id), account) do
+          VolumeMasterOrphans.forget(account_id, master_id)
           :ok
         end
     end
@@ -519,16 +587,31 @@ defmodule Tuist.Runners do
     "runner-volume-masters/#{account_id}/"
   end
 
-  # Content-addressed, immutable per-inventory-digest key. Every distinct warm
-  # set is a distinct object, so a concurrent promote of a different digest
-  # writes a different key instead of clobbering the one the current HEAD points
-  # at (the bug that stranded the master on the promoting host). Dispatch derives
-  # the download key from the HEAD's stored digest; the guest mints the matching
-  # upload key at promote time. `digest` is validated hex (valid_inventory_digest?/1),
-  # so it is a safe, `/`-free key component under the account's prefix.
-  defp volume_master_object_key(account_id, digest) do
-    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}/#{digest}.image"
+  # Content-addressed, immutable per-image key. Every distinct image is a distinct
+  # object, so a concurrent promote of a different image writes a different key
+  # instead of clobbering the one the current HEAD points at (the bug that
+  # stranded the master on the promoting host). Dispatch derives the download key
+  # from the HEAD row; the guest mints the matching upload key at promote time.
+  defp volume_master_object_key(account_id, master_id) do
+    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}/#{master_id}.image"
   end
+
+  # A master object's identity, which its key is built from: the inventory digest,
+  # followed by the content digest when the promote reported one. The inventory
+  # digest alone stops being unique once objects are verified by their bytes: two
+  # jobs can end with the same entry names and sizes in images whose bytes differ,
+  # and under one shared key the losing promote's upload would overwrite the
+  # object the winning HEAD's content digest describes, so every host would reject
+  # it. Both parts are validated hex, so the id is a safe, `/`-free key component.
+  # A promote that reports no content digest keeps the inventory-only key.
+  defp master_object_id(tree_digest, nil), do: tree_digest
+  defp master_object_id(tree_digest, content_digest), do: "#{tree_digest}-#{content_digest}"
+
+  defp head_master_object_id(%{tree_digest: tree_digest} = head) when is_binary(tree_digest) do
+    master_object_id(tree_digest, Map.get(head, :content_digest))
+  end
+
+  defp head_master_object_id(_head), do: nil
 
   @doc """
   Returns the raw load signals the runners-controller's autoscaler

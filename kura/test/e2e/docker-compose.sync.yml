@@ -19,9 +19,6 @@
 # node could list back.
 #
 # Interpolated knobs (all optional, set per suite via suite_env):
-#   KURA_E2E_SYNC_PULL              KURA_REPLICATION_PULL of region-a and solo
-#   KURA_E2E_SYNC_PULL_B            KURA_REPLICATION_PULL of region-b (the
-#                                   mixed-mesh suite sets it to false)
 #   KURA_E2E_SYNC_FEED_MAX_ROWS     arrival-feed cap (the fall-off suite: 100)
 #   KURA_E2E_SYNC_LONG_POLL_SECS    forward-read long-poll wait
 #   KURA_E2E_SYNC_PASS_START_BUFFER_MS
@@ -53,7 +50,6 @@ x-kura-env: &kura_env
   KURA_METADATA_STORE_MAX_OPEN_FILES: "1024"
   KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: "4"
   KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
-  KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL:-true}
   KURA_SYNC_FEED_MAX_ROWS: ${KURA_E2E_SYNC_FEED_MAX_ROWS:-1000000}
   KURA_SYNC_LONG_POLL_SECS: ${KURA_E2E_SYNC_LONG_POLL_SECS:-25}
   KURA_SYNC_REGION_SETTLE_MS: "500"
@@ -124,7 +120,6 @@ services:
       KURA_NODE_URL: http://kura-b1.kura.internal:7443
       KURA_PEERS: http://kura-b1.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-b1
-      KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL_B:-true}
     ports:
       - "${KURA_B1_PORT:-0}:4000"
     volumes:
@@ -144,7 +139,6 @@ services:
       KURA_NODE_URL: http://kura-b2.kura.internal:7443
       KURA_PEERS: http://kura-b2.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-b2
-      KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL_B:-true}
     ports:
       - "${KURA_B2_PORT:-0}:4000"
     volumes:

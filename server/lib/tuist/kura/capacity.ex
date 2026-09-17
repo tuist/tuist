@@ -22,7 +22,8 @@ defmodule Tuist.Kura.Capacity do
       (`room_for?/2`), so first placement can choose a sibling region that has
       instead of leaving the instance Pending in one that does not. A per-node
       reading over every resource the pod requests, because the scheduler
-      declines per node and the resource that binds differs by region.
+      declines per node and the resource that binds differs by region, and the
+      region-level headroom `Tuist.Kura.Admission` creates instances against.
     * whether a particular instance can be placed or grown where it already
       is (`placeable?/2`), so admission refuses a claim the scheduler will not
       be able to honour rather than leaving a replica Pending and its rolling
@@ -46,6 +47,7 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -770,6 +772,14 @@ defmodule Tuist.Kura.Capacity do
   co-location, so replicas that cannot share a node split across two, and a
   pool that can take them split is a pool the scheduler will place them in.
 
+  The instance also has to get past `Tuist.Kura.Admission`, which refuses to
+  create one once the region's reservations would cross 85% of its allocatable
+  disk. A node can have room beyond that line, so the plan's starting claim
+  across every replica has to fit `Tuist.Kura.Admission.headroom_gib/1` too.
+  Where admission is not enforced, only the nodes are read. Either reading
+  saying no is enough for `false`; one that cannot be read, while the other
+  says yes, is `nil`.
+
   The request is the plan's, not the account's: the plan's starting claim
   rather than one sizing has already grown, and the region's egress floor for
   the plans entitled to one rather than a per-account override. Both understate
@@ -793,12 +803,32 @@ defmodule Tuist.Kura.Capacity do
   """
   def room_for?(region_id, plan) do
     with {:ok, region} <- Regions.fetch(region_id),
-         %{nodes: [_ | _] = nodes} = pool <- node_headroom(region) do
-      request = pod_request(region, plan, pool)
-
-      nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+         schedulable when schedulable != false <- schedulable_room?(region, plan),
+         admissible when admissible != false <- admissible_room?(region, plan) do
+      schedulable && admissible
     else
+      false -> false
       _ -> nil
+    end
+  end
+
+  defp schedulable_room?(region, plan) do
+    case node_headroom(region) do
+      %{nodes: [_ | _] = nodes} = pool ->
+        request = pod_request(region, plan, pool)
+
+        nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp admissible_room?(%Regions{id: region_id} = region, plan) do
+    case cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end) do
+      :unbounded -> true
+      headroom when is_integer(headroom) -> div(claim_bytes(region, plan), @gib) * replicas(region) <= headroom
+      nil -> nil
     end
   end
 

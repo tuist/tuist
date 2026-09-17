@@ -11,6 +11,7 @@ This directory contains the core business logic and domain modules for the serve
 - Ecto schemas, contexts, and domain services.
 - `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
 - External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.
+- Xcode code coverage (`Tuist.Tests.XcodeCoverage`) is tool-specific. Coverage is read from the result bundle by the shared Swift parser (`xccov` report + archive) wherever the bundle is processed: the macOS xcresult processor for uploaded bundles (the CLI writes a `tuist_coverage_manifest.json` with root spellings, the covered files' Git blob ids and a partial flag into the bundle), or the client in local mode (sent as `xcode_coverage`). `xcode_coverage_files` holds one row per file per shard report with per-line execution counts and function arrays; a report's rows share `inserted_at`, readers use only each shard's latest report (so retries replace rather than add), and merge shards per path as the union of lines. Shards report concurrently, so nothing rewrites merged totals on `test_runs`: the run page derives them from the reports, and each report publishes its totals over the shards reported so far to `xcode_coverage_runs`, versioned by shards included then newest report, which the trend reads with `argMax(…, version)`; those totals stay partial until every shard of the plan reported coverage. Only the repository's own code is kept: the parser drops files outside the checkout and dependency checkouts (`.build`, DerivedData, SourcePackages, Pods, Carthage), and in a Git checkout any file Git ignores. Test code (files only `.xctest` bundles compiled, flagged `is_test` by the parser from xccov's `buildProductPath`) is stored with counts only (no line or function arrays) and excluded from totals, targets and files. Local-mode uploads are deflate-compressed by the CLI. Partial runs (tests skipped on purpose) are labelled and excluded from the trend: coverage is never borrowed from other runs, since file-level evidence cannot be reused without per-test attribution. The whole feature is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/1` (FunWithFlags `:xcode_coverage` per account on canary/production, on elsewhere): ingestion drops `xcode_coverage`, the xcresult processor removes the manifest before parsing, and the run page tab and tests overview widget are hidden when it is off. Gradle coverage gets its own model rather than a generic one.
 - Internal Slack delivery succeeds only when Slack returns `ok: true`; API errors must propagate to reporting workers even when the HTTP status is 200.
 - Business rules for accounts, projects, bundles, previews, and analytics.
 - Module-cache daily hits, misses, miss reasons and distinct module counts can be derived from the full invalidation breakdown with `module_timeseries_from_breakdown/2`. Derive these before filtering out hit-only modules or applying a list limit; count a module name once across products within the selected cohort. The old raw `module_invalidation_timeseries/1` and `modules_timeseries/1` queries are retained solely as independent test oracles.
@@ -19,6 +20,8 @@ This directory contains the core business logic and domain modules for the serve
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
+
+- Application startup and shutdown ordering: `server/lib/tuist/application/AGENTS.md`.
 
 - Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
   `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
@@ -39,8 +42,14 @@ This directory contains the core business logic and domain modules for the serve
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
-- `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
-  so Oban retries them and the final attempt marks the build as `failed_processing`.
+- `Processor.BuildProcessor` maps known archive-corruption errors from
+  `:zip.unzip` (`:bad_eocd`, `:bad_eocd64`, `:bad_central_directory`,
+  `:bad_local_file_header`, and per-entry `:bad_crc`) to
+  `{:error, :corrupt_archive}`. `ProcessBuildWorker` discards those jobs on
+  the first attempt and marks the build as `failed_processing` right away,
+  since the archive is a bad upload and retries won't heal it. Other
+  extraction errors still bubble up as `{:error, reason}` so Oban retries
+  them and the final attempt marks the build as `failed_processing`.
 
 ## Related Context (Downlinks)
 
@@ -106,3 +115,5 @@ This directory contains the core business logic and domain modules for the serve
 - Kura capacity admission refuses on two readings that are not interchangeable. `Capacity.pressure_line_gib/1` is region-wide and says the region is out of room (`:capacity_exhausted`, answered by another machine). `Capacity.placeable?/2` is per node and says the scheduler cannot place the instance's replicas where their local volumes pin them (`:capacity_unplaceable`, answered by moving the instance or freeing that box). A resize counts back what the instance's own replicas release, since the rebuild hands those in first. A per-node reading that is missing admits: a false refusal there blocks every claim growth in the region and shows up nowhere the account would see.
 
 - Runner Kura participates in account disk sizing and plan memory/CPU profiles. New and returning instances pin the account claim; the enrollment migration immediately pins unpinned live runner instances to their account-sized claim (or plan default), capped at the historical 50Gi to avoid bypassing growth admission. The runner pool does not advertise `tuist.dev/memory-ceiling-mib`, so keep `memory_ceiling_bin_packed` disabled there. The region retains a conservative 50Gi accounting fallback for legacy rows without a pin or loaded account; governed creation and cold return pin the sized account budget before rendering. Disk sizing remains account-scoped across public and runner regions, including their telemetry and resize history.
+
+- `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service once `Environment.kura_unused_days/0` has passed. The evidence is `kura_storage_rollups` covering the whole service life: snapshots on every full day since the service start, and no day with live segment bytes or evictions. Missing telemetry is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.

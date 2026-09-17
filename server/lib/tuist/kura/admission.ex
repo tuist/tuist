@@ -47,6 +47,18 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
+  @doc """
+  Gibibytes the region can still admit: `:unbounded` when admission is not
+  enforced, `nil` when the region cannot be read, which `admit?/2` refuses.
+  """
+  def headroom_gib(%Regions{} = region) do
+    if Environment.kura_capacity_admission_required?() do
+      measured_headroom_gib(region)
+    else
+      :unbounded
+    end
+  end
+
   def admit_replacements?(%Regions{} = region, replacements) when is_list(replacements) do
     if Environment.kura_capacity_admission_required?() do
       admit_replacements_with_capacity(region, replacements)
@@ -62,18 +74,26 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
-  defp admit_with_capacity(%Regions{id: region_id} = region, candidate) do
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region),
+  defp admit_with_capacity(%Regions{} = region, candidate) do
+    with headroom when is_integer(headroom) <- measured_headroom_gib(region),
          candidate_reservation when is_integer(candidate_reservation) <- Capacity.resident_gib(region, candidate) do
       cond do
-        max(observed, desired) + candidate_reservation > target -> {:error, :capacity_exhausted}
+        candidate_reservation > headroom -> {:error, :capacity_exhausted}
         unplaceable?(region, [candidate]) -> {:error, :capacity_unplaceable}
         true -> :ok
       end
     else
       _ -> {:error, :capacity_unknown}
+    end
+  end
+
+  defp measured_headroom_gib(%Regions{id: region_id} = region) do
+    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
+         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
+         desired when is_integer(desired) <- desired_reservation_gib(region) do
+      target - max(observed, desired)
+    else
+      _ -> nil
     end
   end
 

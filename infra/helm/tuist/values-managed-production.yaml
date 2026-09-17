@@ -73,6 +73,15 @@ server:
   turnstile:
     enabled: true
 
+  # Interstitial Turnstile challenge in front of public project dashboards.
+  # Defence in depth on top of Cloudflare Super Bot Fight Mode at the edge
+  # (bot-management.yaml sets `sbfm_definitely_automated: managed_challenge`);
+  # SBFM still lets a real chunk of automated traffic through, so browser
+  # sessions get gated at the app layer too before they can touch the
+  # ClickHouse-backed dashboards. See PR #13205.
+  publicPageChallenge:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 
@@ -131,6 +140,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -1081,11 +1095,13 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Six boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
-    # chart's 1 vCPU / 4 GB slot size, so 192 in total. Slots and threads are 1:1
+    # Ten boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 320 in total. Slots and threads are 1:1
     # on this shape, so there is no oversubscription headroom to absorb a burst;
-    # capacity grows by box count rather than by packing slots tighter.
-    replicas: 6
+    # capacity grows by box count rather than by packing slots tighter. A box
+    # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
+    # concurrent 16 vCPU jobs.
+    replicas: 10
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -1553,10 +1569,7 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1577,6 +1590,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 14
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

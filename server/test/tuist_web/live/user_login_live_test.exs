@@ -125,6 +125,7 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       assert has_element?(lv, "a[href='/users/auth/google']")
+      assert has_element?(lv, "#google-one-tap[phx-hook='GoogleOneTap']")
     end
 
     test "hides the Google button when Google auth is disabled", %{conn: conn} do
@@ -134,6 +135,7 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       refute has_element?(lv, "a[href='/users/auth/google']")
+      refute has_element?(lv, "#google-one-tap")
     end
 
     test "hides the Apple button when Apple auth is disabled", %{conn: conn} do

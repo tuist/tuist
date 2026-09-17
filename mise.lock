@@ -111,36 +111,43 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
 
 [[tools.caddy]]
-version = "2.11.2"
+version = "2.11.4"
 backend = "aqua:caddyserver/caddy"
 
 [tools.caddy."platforms.linux-arm64"]
-checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+checksum = "sha256:52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912318"
 
 [tools.caddy."platforms.linux-arm64-musl"]
-checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+checksum = "sha256:52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912318"
 
 [tools.caddy."platforms.linux-x64"]
-checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+checksum = "sha256:527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912315"
 
 [tools.caddy."platforms.linux-x64-musl"]
-checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+checksum = "sha256:527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912315"
 
 [tools.caddy."platforms.macos-arm64"]
-checksum = "sha256:7ab765777e953574d5713a69cab3f5a2f643a5c1cc264d4239a60ff845b465d8"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_arm64.tar.gz"
+checksum = "sha256:9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_mac_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912311"
 
 [tools.caddy."platforms.macos-x64"]
-checksum = "sha256:dc44b5b27d306098e79e50d002cbc14349d5b6c298913dffca1f84318cd4c4c3"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_amd64.tar.gz"
+checksum = "sha256:34bc9e5cceee8d67844ef51da624f5b79e8d070f27236e050c3f0066a2dba534"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_mac_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912339"
 
 [tools.caddy."platforms.windows-x64"]
-checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147afad8"
-url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
+checksum = "sha256:1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_windows_amd64.zip"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912304"
 
 [[tools.elixir]]
 version = "1.20.2"
@@ -606,43 +613,44 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.209.0-canary.2"
+version = "4.209.0-canary.17"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:61d3c937676a62d3103660c167d3b0a535d4aa00144d7df44681f05f908ed13b"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:725dc0472199d96fe05bea9acf6ed0f443bc1ad36eb005f114b160980e2b572d"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:61d3c937676a62d3103660c167d3b0a535d4aa00144d7df44681f05f908ed13b"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:725dc0472199d96fe05bea9acf6ed0f443bc1ad36eb005f114b160980e2b572d"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:899f4be2ecb8e07cc04faf6fbf58ce7ce120326e9282e6adf527749b9a12ca0a"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:b0ede49dbc4c7ff7aec9cd729d34725cac38fbb91e01a10a4fc5d425bd587a99"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:899f4be2ecb8e07cc04faf6fbf58ce7ce120326e9282e6adf527749b9a12ca0a"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:b0ede49dbc4c7ff7aec9cd729d34725cac38fbb91e01a10a4fc5d425bd587a99"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:03de0facb7c565649fbb2f735b22402073000e9c5abe95ee077c0a212b650fbc"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist.zip"
+checksum = "sha256:afb90658ec1d54df345aa4db678fffee94af8e27c64f7e1a26fe050e388324e0"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:03de0facb7c565649fbb2f735b22402073000e9c5abe95ee077c0a212b650fbc"
-url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.2/tuist.zip"
+checksum = "sha256:afb90658ec1d54df345aa4db678fffee94af8e27c64f7e1a26fe050e388324e0"
+url = "https://github.com/tuist/tuist/releases/download/4.209.0-canary.17/tuist.zip"
 
 [[tools.xcodes]]
-version = "1.6.0"
+version = "2.1.0"
 backend = "aqua:XcodesOrg/xcodes"
 
 [tools.xcodes."platforms.macos-arm64"]
-checksum = "blake3:efa423dc3ecc1da1decdc10fe4f2afec2918c8469eb0e894aa4a80a21f2c3a99"
-url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
+checksum = "sha256:f1519afe934a513e85dd9b32fc872394becbbb6a41db15d9ac3926a09a891888"
+url = "https://github.com/XcodesOrg/xcodes/releases/download/2.1.0/xcodes.zip"
 
 [tools.xcodes."platforms.macos-x64"]
-url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
+checksum = "sha256:f1519afe934a513e85dd9b32fc872394becbbb6a41db15d9ac3926a09a891888"
+url = "https://github.com/XcodesOrg/xcodes/releases/download/2.1.0/xcodes.zip"
 
 [[tools.yq]]
 version = "4.52.5"

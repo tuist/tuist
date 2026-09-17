@@ -21,6 +21,8 @@ Tuist Module Cache provides a powerful way to optimize build times by caching yo
 > **Combine with the Xcode cache**
 >
 > The module cache and the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> are complementary because they work at different granularity levels. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
+>
+> Compilation cache settings aren't part of module cache hashes, so turning the Xcode cache on or off keeps the binaries you already warmed. On Xcode 27 and later, the prefix mapping settings that come with it are hashed. See <.localized_link href="/guides/features/cache/xcode-cache#module-cache-hashes">module cache hashes</.localized_link>.
 
 
 ## Warming {#warming}
@@ -35,6 +37,8 @@ tuist cache
 ```
 
 The command re-uses binaries to speed up the process.
+
+If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
 ### Configuration selection {#configuration-selection}
 

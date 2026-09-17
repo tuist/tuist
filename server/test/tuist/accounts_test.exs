@@ -1931,6 +1931,28 @@ defmodule Tuist.AccountsTest do
       # When / Then
       assert {:error, :not_found} == Accounts.get_organization_by_id(999)
     end
+
+    test "returns not found error when id is a non-integer string" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1,`")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("not-a-number")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1abc")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("")
+    end
+
+    test "returns not found error when id is nil or an unexpected type" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id(nil)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(-1)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(%{})
+    end
+
+    test "returns organization when id is a string of digits" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org-string-id", creator: user})
+
+      # When / Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(Integer.to_string(organization.id))
+    end
   end
 
   describe "find_or_create_user_from_oauth2" do
@@ -3437,28 +3459,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_members_with_role/1" do
-    test "returns members of an organization" do
-      user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user_one)
-      user_two = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_two, organization, role: :user)
-      user_three = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_three, organization, role: :admin)
-
-      organization_two = AccountsFixtures.organization_fixture()
-      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
-
-      # When
-      got =
-        organization
-        |> Accounts.get_organization_members_with_role()
-        |> Enum.sort(&(hd(&1).id < hd(&2).id))
-
-      # Then
-      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
-    end
-
+  describe "list_organization_members_with_role/2 with SSO" do
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
       domain = unique_sso_domain()
@@ -3482,7 +3483,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin, regular user, and SSO user
@@ -3516,13 +3518,135 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin and SSO user
       assert length(got) == 2
       assert Enum.any?(got, fn [user, role] -> user.id == user_one.id and role == "admin" end)
       assert Enum.any?(got, fn [user, role] -> user.id == sso_user.id and role == "user" end)
+    end
+  end
+
+  describe "list_organization_members_with_role/2" do
+    test "paginates members ordered by account name with the total count" do
+      creator = AccountsFixtures.user_fixture(handle: "aaa-creator#{System.unique_integer([:positive])}")
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      members =
+        for index <- 1..4 do
+          user = AccountsFixtures.user_fixture(handle: "member-#{index}-#{System.unique_integer([:positive])}")
+          Accounts.add_user_to_organization(user, organization, role: :user)
+          user
+        end
+
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(hd(members), other_organization, role: :admin)
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_members_with_role(organization, page: 1, page_size: 3)
+      {second_page, second_total} = Accounts.list_organization_members_with_role(organization, page: 2, page_size: 3)
+
+      # Then
+      assert first_total == 5
+      assert second_total == 5
+
+      assert Enum.map(first_page ++ second_page, fn [user, role] -> {user.id, role} end) ==
+               [{creator.id, "admin"} | Enum.map(members, &{&1.id, "user"})]
+
+      assert Enum.all?(first_page, fn [user, _role] -> user.account.name end)
+    end
+
+    test "filters members by email or account name, case-insensitively" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+      by_email = AccountsFixtures.user_fixture(email: "Alice-#{System.unique_integer([:positive])}@example.com")
+      by_name = AccountsFixtures.user_fixture(handle: "alice-#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(by_email, organization)
+      Accounts.add_user_to_organization(by_name, organization)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "ALICE")
+
+      # Then
+      assert total == 2
+      assert members |> Enum.map(fn [user, _role] -> user.id end) |> Enum.sort() == Enum.sort([by_email.id, by_name.id])
+    end
+
+    test "treats LIKE wildcards in the search term literally" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "%")
+
+      # Then
+      assert members == []
+      assert total == 0
+    end
+  end
+
+  describe "list_organization_invitations/2" do
+    test "paginates the organization's invitations newest first with the total count" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      other_organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      invitations =
+        for index <- 1..3 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization("invitee-#{index}@tuist.dev", %{
+              inviter: inviter,
+              to: organization,
+              url: &"/auth/invitations/#{&1}"
+            })
+
+          Tuist.Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
+          )
+
+          invitation
+        end
+
+      Accounts.invite_user_to_organization("other@tuist.dev", %{
+        inviter: inviter,
+        to: other_organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_invitations(organization, page: 1, page_size: 2)
+      {second_page, second_total} = Accounts.list_organization_invitations(organization, page: 2, page_size: 2)
+
+      # Then
+      assert first_total == 3
+      assert second_total == 3
+      assert Enum.map(first_page ++ second_page, & &1.id) == invitations |> Enum.reverse() |> Enum.map(& &1.id)
+    end
+
+    test "filters invitations by invitee email, case-insensitively, with LIKE wildcards taken literally" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      {:ok, alice} =
+        Accounts.invite_user_to_organization("alice@tuist.dev", %{
+          inviter: inviter,
+          to: organization,
+          url: &"/auth/invitations/#{&1}"
+        })
+
+      Accounts.invite_user_to_organization("bob@tuist.dev", %{
+        inviter: inviter,
+        to: organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When / Then
+      assert {[%{id: id}], 1} = Accounts.list_organization_invitations(organization, search: "ALICE")
+      assert id == alice.id
+      assert {[], 0} = Accounts.list_organization_invitations(organization, search: "%")
     end
   end
 
@@ -4029,13 +4153,13 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
 
-    test "purges the account's runner cache-volume masters from object storage" do
+    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4046,6 +4170,30 @@ defmodule Tuist.AccountsTest do
       # Then
       assert_receive {:purged, "runner-volume-masters/" <> rest}
       assert rest == "#{account.id}/"
+      assert_receive {:purged, gitlab_cache_prefix}
+      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+    end
+
+    test "a failed cache-master purge does not skip the GitLab cache purge" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      stub(Tuist.Storage, :delete_all_objects, fn
+        "runner-volume-masters/" <> _, _actor ->
+          raise "storage down"
+
+        prefix, _actor ->
+          send(test_pid, {:purged, prefix})
+          {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
     end
 
     test "account deletion still succeeds when the cache-master purge fails" do
@@ -6150,5 +6298,15 @@ defmodule Tuist.AccountsTest do
     jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
     {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
     token
+  end
+
+  describe "get_account_ids_by_handles/1" do
+    test "keys each account id by the handle as requested, whatever its casing" do
+      account = organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
+      downcased = String.downcase(account.name)
+
+      assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
+               %{account.name => account.id, downcased => account.id}
+    end
   end
 end

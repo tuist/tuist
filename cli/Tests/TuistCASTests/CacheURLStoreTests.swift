@@ -138,6 +138,78 @@
         }
 
         @Test(.withMockedEnvironment())
+        func a_single_failed_probe_does_not_rule_out_the_nearest_endpoint() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let near = "https://acme-us-central-1.kura.tuist.dev"
+            let far = "https://acme-ap-southeast-1.kura.tuist.dev"
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [near, far], maxAge: nil))
+
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: near)!))
+                .willReturn(nil)
+                .measureLatency(for: .value(URL(string: near)!))
+                .willReturn(0.007)
+
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: far)!))
+                .willReturn(0.230)
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(result.absoluteString == near)
+            verify(latencyService)
+                .measureLatency(for: .value(URL(string: near)!))
+                .called(2)
+            verify(latencyService)
+                .measureLatency(for: .value(URL(string: far)!))
+                .called(1)
+        }
+
+        @Test(.withMockedEnvironment())
+        func lists_every_endpoint_the_account_is_served_from() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let near = "https://acme-us-central-1.kura.tuist.dev"
+            let far = "https://acme-ap-southeast-1.kura.tuist.dev"
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [near, far], maxAge: nil))
+
+            // When
+            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result == [URL(string: near)!, URL(string: far)!])
+            verify(latencyService)
+                .measureLatency(for: .any)
+                .called(0)
+        }
+
+        @Test(.withMockedEnvironment())
+        func lists_only_the_override_endpoint_when_one_is_set() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let overrideEndpoint = "https://override.example.com"
+            Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = overrideEndpoint
+
+            // When
+            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(result == [URL(string: overrideEndpoint)!])
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .any, accountHandle: .any)
+                .called(0)
+        }
+
+        @Test(.withMockedEnvironment())
         func throws_when_all_endpoints_unreachable() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!

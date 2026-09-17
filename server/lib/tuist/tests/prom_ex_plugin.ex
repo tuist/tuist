@@ -30,6 +30,13 @@ defmodule Tuist.Tests.PromExPlugin do
             event_name: Telemetry.event_name_ingestion_buffer_dropped(),
             measurement: :bytes,
             description: "Buffered ClickHouse bytes dropped during process shutdown."
+          ),
+          sum(
+            [:tuist, :ingestion, :buffer, :shutdown_retry_bytes],
+            event_name: TuistCommon.Ingestion.Buffer.shutdown_retry_event(),
+            measurement: :bytes,
+            description:
+              "Buffered ClickHouse bytes still in flight on each retry of the shutdown flush; non-zero means the pod's grace period was chewed up by a slow ClickHouse."
           )
         ]
       )

@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "atlas.fullname" . }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+    # external-dns picks the host out of `spec.tls.hosts` + `rules.host`.
+    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.host }}
+      secretName: {{ include "atlas.fullname" . }}-tls
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "atlas.fullname" . }}
+                port:
+                  name: http
+---
+# ops.tuist.dev hands the operator grant back on the query string, and
+# ingress-nginx's default access log records the full request line — a log
+# Phoenix's parameter filtering never sees. This second Ingress exists only to
+# turn access logging off for that one path, using the supported annotation
+# rather than a hand-rolled server snippet that would have to restate the
+# proxying the controller generates.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "atlas.fullname" . }}-operator-grant
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  # No `tls:` block and no cert-manager annotation here on purpose. TLS is a
+  # server-level property and the Ingress above already binds it to this host;
+  # repeating them would point a second candidate owner at the one Certificate
+  # ingress-shim names after the secret, and show external-dns the host twice.
+  # This object exists only to attach the per-location access-log annotation.
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /mcps/[^/]+/operator-grant
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "atlas.fullname" . }}
+                port:
+                  name: http

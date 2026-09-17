@@ -62,7 +62,7 @@ spec:
               service:
                 name: {{ include "kura.fullname" $ }}
                 port:
-                  name: http
+                  name: {{ ternary "grpc" "http" (gt (int $.Values.service.gatewayGrpcPort) 0) }}
           {{- end }}
     {{- end }}
   {{- with .Values.grpcIngress.tls }}

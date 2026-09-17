@@ -701,6 +701,92 @@ struct TuistCacheEEAcceptanceTests {
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
     }
 
+    /// The project is bound to a server that refuses connections, so every upload fails at connect while
+    /// the build and the local cache work as usual.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func cache_warm_fails_when_uploads_fail_and_keeps_the_local_cache() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let unreachableServer = "http://127.0.0.1:1"
+        mockedEnvironment.variables["TUIST_TOKEN"] = "acceptance-test-token"
+        mockedEnvironment.variables["TUIST_CACHE_ENDPOINT"] = unreachableServer
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(fullHandle: "tuist/acceptance", url: "\(unreachableServer)")
+            """,
+            at: fixtureDirectory.appending(component: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let targets = [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureFramework",
+            "FeatureStaticLibrary",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ]
+        let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+            try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        }
+
+        guard case let .uploadsFailed(failures, storedCount) = error else {
+            Issue.record("Expected the warm to fail its uploads, got \(String(describing: error))")
+            return
+        }
+        #expect(failures.map(\.item.name).sorted() == targets)
+        #expect(storedCount == 0)
+        for target in targets {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should still be stored in the local cache")
+        }
+        TuistTest.doesntExpectLogs("All cacheable targets have been cached successfully")
+    }
+
+    /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
+    /// source and Feature, from another project, builds it as a dependency. Built that way, its Swift dependency
+    /// scan receives the module map of the package's clang target only when the warm scheme lists it.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        for targetName in ["Services", "Feature"] {
+            let artifact = try #require(
+                try await fileSystem.glob(
+                    directory: mockedEnvironment.cacheDirectory,
+                    include: ["**/\(targetName).xcframework"]
+                ).collect().first
+            )
+            try await fileSystem.remove(artifact.parentDirectory)
+        }
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature, Services")
+        TuistTest.expectLogs("2 targets stored: Feature, Services")
+    }
+
     /// Foundation's #bundle macro expands to Bundle.module only when
     /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
     /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422

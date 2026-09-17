@@ -2084,6 +2084,25 @@ defmodule Tuist.CommandEventsTest do
 
       assert result == %{}
     end
+
+    test "looks up more projects than fit in one ClickHouse HTTP request" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -1, :day)
+        )
+
+      project_ids = Enum.to_list(-20_000..-1//1) ++ [project.id]
+
+      # When
+      result = CommandEvents.get_project_last_interaction_data(project_ids)
+
+      # Then
+      assert result == %{project.id => event.ran_at}
+    end
   end
 
   describe "selective_testing_hit_rate_percentiles/6" do

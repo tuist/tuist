@@ -969,6 +969,96 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
   end
 
+  describe "standing prepaid runner minutes" do
+    test "opens on the minutes the subscription carries", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#standing-prepaid-minutes-input[value=\"6000\"]")
+    end
+
+    test "sets the standing minutes without touching what the account holds now", %{conn: conn, user: user} do
+      # The two fields do different jobs. What every future cycle opens at
+      # must not silently replace minutes the customer is part-way through
+      # spending.
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      reject(&Prepaid.set_minutes/2)
+      reject(&Prepaid.set_minutes/3)
+
+      expect(Prepaid, :set_standing_minutes, fn account, minutes ->
+        assert account.id == user.account.id
+        assert minutes == 6_000
+        {:ok, 6_000}
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-info") |> render()
+
+      assert flash =~ "each renewal"
+      assert flash =~ "360.00"
+      assert flash =~ "cycle now running is unchanged"
+    end
+
+    test "quotes the cycle's money as minutes are typed", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+        |> render_change()
+
+      assert html =~ "360.00"
+      assert html =~ "450.00"
+    end
+
+    test "stops the arrangement when set to zero", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
+      expect(Prepaid, :set_standing_minutes, fn _account, 0 -> {:ok, 0} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "0"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-info") |> render()
+      assert flash =~ "no longer be billed or granted minutes at each renewal"
+    end
+
+    test "explains why a subscription that does not renew monthly cannot carry standing minutes",
+         %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:error, :not_monthly} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#standing-prepaid-unavailable-alert")
+      assert render(lv) =~ "renews monthly"
+      refute has_element?(lv, "#standing-prepaid-minutes-form")
+    end
+
+    test "says why the standing minutes could not be set", %{conn: conn, user: user} do
+      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+      stub(Prepaid, :set_standing_minutes, fn _account, _minutes -> {:error, :on_runner_trial} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> render_submit()
+
+      flash = lv |> element("#ops-account-flash-error") |> render()
+      assert flash =~ "runner trial"
+    end
+  end
+
   describe "runner trial" do
     test "says why the trial could not start instead of appearing to do nothing", %{conn: conn, user: user} do
       # The page renders no flash of its own and nothing renders one for
@@ -1132,7 +1222,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       # look up.
       assert html =~ "discarding work a median of 12.0 hours after it was written"
       assert html =~ "should keep everything for at least 1.0 days"
-      assert html =~ "Seen on 14 consecutive days of measurements"
+      assert html =~ "Seen on 14 days of measurements"
       assert html =~ "Apply proposal"
     end
 

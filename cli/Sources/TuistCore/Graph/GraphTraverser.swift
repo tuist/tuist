@@ -1783,7 +1783,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>] {
-        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        externalTargetSupportedDestinations(including: [])
+    }
+
+    public func externalTargetSupportedDestinations(including additionalRoots: Set<GraphTarget>)
+        -> [GraphTarget: Set<Destination>]
+    {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies().union(additionalRoots)
         var destinations: [GraphTarget: Set<Destination>] = [:]
 
         func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {

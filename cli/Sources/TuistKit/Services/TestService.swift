@@ -133,6 +133,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
+    private let coverageBuildSourcesService: CoverageBuildSourcesService
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -175,8 +176,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardService: ShardServicing = ShardService(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
+        self.coverageBuildSourcesService = coverageBuildSourcesService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -287,6 +290,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
         let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+        await RunMetadataStorage.current.update(
+            skippedQuarantinedTestIdentifiers: Set(skippedQuarantinedTests.map(\.description))
+        )
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -599,6 +605,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 writtenGraphDirectories.insert(testProductsPath)
 
                 await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
+                await coverageBuildSourcesService.write(to: testProductsPath, config: config)
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -1295,6 +1302,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
             : try await cacheStorageFactory.cacheStorage(config: config)
     }
 
+    /// A hash that didn't reach the remote cache only costs another run the tests it could have skipped,
+    /// so a failed upload doesn't fail the test run.
+    private func storeTestHashes(
+        _ items: [CacheStorableItem: [AbsolutePath]],
+        cacheStorage: CacheStoring
+    ) async throws {
+        do {
+            _ = try await cacheStorage.store(items, cacheCategory: .selectiveTests)
+        } catch let error as CacheUploadError {
+            for failure in error.failures {
+                AlertController.current.warning(
+                    .alert("Failed to upload \(failure.item.name) with hash \(failure.item.hash): \(failure.reason)")
+                )
+            }
+        }
+    }
+
     private func storeSuccessfulTestHashesFromGraph(
         selectiveTestingGraph: SelectiveTestingGraph,
         passingTargetNames: Set<String>,
@@ -1308,7 +1332,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
         guard !cacheableItems.isEmpty else { return }
-        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+        try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
     }
 
     /// The modules that passed, minus any the gate is failing the run over.
@@ -1873,7 +1897,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         ]()
                     }
 
-            try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+            try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
         }
     }
 
@@ -2342,6 +2366,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,

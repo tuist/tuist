@@ -171,8 +171,9 @@ pub struct TransientMemoryReservation {
 
 /// Whether a reservation may draw on ceiling headroom above the floor-derived
 /// pool. Opt-in per reservation rather than per admission class: the callers
-/// that shed on the floor today differ in what a refusal costs them, and only
-/// the remote-execution write path has no wait to fall back on.
+/// that shed on the floor differ in what a refusal costs them. Write decoding
+/// and upload staging borrow; response materialization, whose permit outlives
+/// any server-side deadline, does not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TransientElasticity {
     Fixed,
@@ -232,14 +233,14 @@ pub(super) struct ForegroundWaiter {
 pub(super) struct ResponseStreamWaiter {
     inner: Arc<MemoryControllerInner>,
     protocol: &'static str,
-    _queue: OwnedSemaphorePermit,
+    _queue: (OwnedSemaphorePermit, OwnedSemaphorePermit),
 }
 
 impl ResponseStreamWaiter {
     pub(super) fn new(
         inner: Arc<MemoryControllerInner>,
         protocol: &'static str,
-        queue: OwnedSemaphorePermit,
+        queue: (OwnedSemaphorePermit, OwnedSemaphorePermit),
     ) -> Self {
         inner.response_stream_waiters.fetch_add(1, Ordering::SeqCst);
         inner.metrics.add_response_stream_waiter(protocol);

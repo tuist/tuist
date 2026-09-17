@@ -25,15 +25,15 @@ libc = "0.2.177"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 memmap2 = "0.9.10"
 moka = { version = "0.12.16", features = ["future", "sync"] }
-opentelemetry = "0.31.0"
-opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
-opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
+opentelemetry = "0.32.0"
+opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
+opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
 prost = "0.14.1"
 prost-types = "0.14.3"
 prometheus-client = "0.24.1"
 rand = "0.9.4"
 rcgen = "0.14.5"
-reqwest = { version = "0.12.24", default-features = false, features = ["http2", "json", "rustls-tls", "stream"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "http2", "json", "query", "rustls", "stream"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["bindgen-runtime", "lz4"] }
 rustls = "0.23.35"
 rustls-pemfile = "2.2.0"
@@ -50,7 +50,7 @@ tonic = { version = "0.14.2", features = ["tls-aws-lc"] }
 tonic-prost = "0.14.2"
 tower = { version = "0.5.2", features = ["util"] }
 tracing = "0.1.41"
-tracing-opentelemetry = "0.32.1"
+tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
 zstd = "0.13"
@@ -67,6 +67,12 @@ zstd = "0.13"
 tikv-jemallocator = { version = "0.6.0", features = ["stats", "unprefixed_malloc_on_supported_platforms"] }
 tikv-jemalloc-sys = "0.6.0"
 tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
+
+# sha2 0.10 hashes SHA-256 in software on aarch64 unless `asm` is enabled, which switches it to the
+# ARMv8 SHA-256 instructions behind a runtime CPU check. x86_64 already detects SHA-NI at runtime
+# without the feature, so it stays off there.
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+sha2 = { version = "0.10.9", features = ["asm"] }
 
 [dev-dependencies]
 tempfile = "3.23.0"

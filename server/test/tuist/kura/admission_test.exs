@@ -163,7 +163,7 @@ defmodule Tuist.Kura.AdmissionTest do
     stub(Capacity, :reserved_gib, fn "us-east" -> 16 end)
     stub(Capacity, :placeable?, fn _region, _server -> false end)
 
-    assert {:error, :capacity_unplaceable} = Kura.apply_claim_proposal(proposal, "automatic")
+    assert {:error, {"us-east", :capacity_unplaceable}} = Kura.apply_claim_proposal(proposal, "automatic")
     assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     assert Repo.get!(ClaimProposal, proposal.id).status == :open
   end

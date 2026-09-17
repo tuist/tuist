@@ -744,13 +744,94 @@ defmodule Tuist.Kura.CapacityTest do
 
       assert Capacity.room_for?(@region, :enterprise) == nil
     end
+
+    test "has no room where admission would refuse the instance, however much the nodes have free" do
+      # us-west on 2026-09-17: one box, 789 GiB allocatable, 664 GiB reserved.
+      # The box has 125 GiB free, but admission stops at 85% of allocatable,
+      # 670 GiB, which leaves 6 GiB against the 16 GiB two Air claims reserve.
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "664Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == false
+
+      # 16 GiB of headroom admits two Air claims and not two Enterprise ones.
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "654Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "counts rows admission counts that no pod holds yet" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
+
+      # 85 GiB of headroom less a provisioning Enterprise instance's 32.
+      account = account(:enterprise)
+      instance(account, :provisioning)
+
+      assert Capacity.room_for?(@region, :enterprise) == true
+
+      instance(account(:enterprise), :provisioning)
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
+
+    test "reads the nodes alone where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "789Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "664Gi"})]
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :air) == true
+    end
+
+    test "is unknown, not full, when admission cannot read the region the nodes have room in" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub_pool([pool_box("box-1")])
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == nil
+    end
+
+    test "is full when the nodes are, whether or not admission can read the region" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+
+      stub_pool([
+        pool_box("box-1",
+          allocatable: %{"ephemeral-storage" => "100Gi"},
+          pods: [pool_pod(%{"ephemeral-storage" => "90Gi"})]
+        )
+      ])
+
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      assert Capacity.room_for?(@region, :enterprise) == false
+    end
   end
 
   # `room_for?/2` reads each node of the pool and everything scheduled on it,
-  # so shaping a region here means answering both lists.
+  # and admission reads the same region's Ready nodes and pods as a whole, so
+  # shaping a region here means answering all four lists.
   defp stub_pool(boxes) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+    stub(Client, :list_nodes, fn _selector -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
+    stub(Client, :list_pods, fn _namespace, _selector -> {:ok, Enum.flat_map(boxes, & &1.pods)} end)
 
     stub(Client, :list_pods_on_node, fn name, _opts ->
       case Enum.find(boxes, &(&1.name == name)) do

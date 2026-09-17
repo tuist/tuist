@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -25,6 +26,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
   alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -33,6 +35,9 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunError
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
@@ -62,6 +67,12 @@ defmodule Tuist.Application do
     application
   end
 
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
+  end
+
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
   end
@@ -71,6 +82,7 @@ defmodule Tuist.Application do
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
+    Tuist.Repo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -285,12 +297,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -314,6 +322,10 @@ defmodule Tuist.Application do
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
         Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
         Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
+        Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
+        Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
+        Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+        Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
@@ -326,9 +338,6 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Cachex, [:tuist, []]},
         Cache,
