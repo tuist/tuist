@@ -587,27 +587,48 @@ if sentry_dsn = System.get_env("SENTRY_DSN") do
 end
 
 # Single language model provider used by all AI features. LLM_MODEL takes a
-# ReqLLM "provider:model_id" string. Hive exposes an OpenAI-compatible endpoint:
-#   LLM_API_KEY=<Hive inference token>
-#   LLM_MODEL=openai:Balanced
-#   LLM_BASE_URL=https://hive.tuist.dev/inference/v1
-# LLM_BASE_URL is optional for providers that ship a default endpoint.
-case language_model_api_key do
-  nil ->
-    :ok
+# ReqLLM "provider:model_id" string. Two modes are supported:
+#
+#   Remote — an OpenAI-compatible upstream is called over HTTPS:
+#     LLM_API_KEY=<bearer token>
+#     LLM_MODEL=openai:gpt-4o-mini
+#     LLM_BASE_URL=https://api.openai.com/v1     # optional for OpenAI itself
+#
+#   Local — atlas hosts the inference relay itself. ReqLLM's HTTP calls
+#   are routed in-process through Atlas.LLMs.LocalTransport, which
+#   dispatches to Atlas.Inference.relay_request/3. No API key needed —
+#   the atlas-role token on the profile marked atlas_inference: true is
+#   used automatically.
+#     LLM_MODE=local
+#     LLM_MODEL=openai:Balanced
+llm_mode = present_env.(["LLM_MODE"])
+llm_config = Application.get_env(:atlas, :llm, [])
 
-  api_key ->
+cond do
+  llm_mode == "local" ->
+    model =
+      present_env.(["LLM_MODEL"]) ||
+        raise "environment variable LLM_MODEL is required when LLM_MODE=local"
+
+    config :atlas, :llm,
+      mode: :local,
+      model: model,
+      receive_timeout: Keyword.get(llm_config, :receive_timeout)
+
+  language_model_api_key != nil ->
     model =
       present_env.(["LLM_MODEL"]) ||
         raise "environment variable LLM_MODEL is required when LLM_API_KEY is set"
 
-    llm_config = Application.get_env(:atlas, :llm, [])
-
     config :atlas, :llm,
-      api_key: api_key,
+      mode: :remote,
+      api_key: language_model_api_key,
       model: model,
       base_url: present_env.(["LLM_BASE_URL"]),
       receive_timeout: Keyword.get(llm_config, :receive_timeout)
+
+  true ->
+    :ok
 end
 
 if config_env() == :prod do
