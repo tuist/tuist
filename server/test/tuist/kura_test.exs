@@ -7,6 +7,7 @@ defmodule Tuist.KuraTest do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegions
@@ -586,6 +587,7 @@ defmodule Tuist.KuraTest do
 
     test "pins nothing where the region sizes every instance alike", %{account: account} do
       stub(Tuist.Environment, :dev?, fn -> true end)
+      pinned_server!(account, "us-east", "50Gi")
 
       assert {:ok, server} =
                Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
@@ -615,7 +617,7 @@ defmodule Tuist.KuraTest do
       assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     end
 
-    test "builds a warm-handoff target at the account's current footprint", %{account: account} do
+    test "builds a warm-handoff target at the claim the account is measured at", %{account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
       {:ok, source} =
@@ -639,7 +641,9 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, target} = Kura.move_server(source, "box-2")
 
-      assert target.storage_claim_size == "16Gi"
+      # Moving an instance between boxes is rebalancing, not a sizing decision:
+      # the plan's 16Gi would drop two thirds of a ring sizing measures at 24Gi.
+      assert target.storage_claim_size == "24Gi"
     end
 
     test "takes the sized claim ahead of the claim its plan buys", %{account: account} do
@@ -661,6 +665,83 @@ defmodule Tuist.KuraTest do
       assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
 
       assert returned.storage_claim_size == "24Gi"
+    end
+
+    test "builds a new region at the claim the account's instances are pinned at", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west"] end)
+      # Pinned with no sized claim behind it, which is how every instance built
+      # before sizing looks. Kura replicates the account's content into the new
+      # region too, so a ring built at the plan's 16Gi would evict it in a third
+      # of the time the pinned rings keep it.
+      pinned_server!(account, "us-east", "50Gi")
+
+      assert {:ok, server} =
+               Kura.create_server(%{account_id: account.id, region: "us-west", image_tag: "0.5.2"})
+
+      assert server.storage_claim_size == "50Gi"
+    end
+
+    test "builds a new region at the largest claim when the account's pins disagree", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west", "us-west"] end)
+      pinned_server!(account, "us-east", "50Gi")
+      pinned_server!(account, "eu-west", "16Gi")
+
+      assert {:ok, server} =
+               Kura.create_server(%{account_id: account.id, region: "us-west", image_tag: "0.5.2"})
+
+      assert server.storage_claim_size == "50Gi"
+    end
+
+    test "builds a runner cache at the claim the account's instances are pinned at", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      pinned_server!(account, "us-east", "50Gi")
+
+      assert {:ok, server} =
+               Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+
+      assert server.storage_claim_size == "50Gi"
+    end
+
+    test "refuses a new region that has room for the plan's claim but not the pinned one", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west"] end)
+      stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+      stub(Capacity, :placeable?, fn _region, _server -> true end)
+      # Two replicas of the plan's 16Gi fit under the line; two of 50Gi do not.
+      stub(Capacity, :pressure_line_gib, fn _region_id -> 64 end)
+      pinned_server!(account, "us-east", "50Gi")
+
+      assert {:error, :capacity_exhausted} =
+               Kura.create_server(%{account_id: account.id, region: "us-west", image_tag: "0.5.2"})
+
+      refute Repo.get_by(Server, account_id: account.id, region: "us-west")
+    end
+
+    test "returns an archived region at the claim the account's other instances hold", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west"] end)
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-west", image_tag: "0.5.2"})
+      assert server.storage_claim_size == "16Gi"
+      pinned_server!(account, "us-east", "50Gi")
+
+      assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
+
+      assert returned.storage_claim_size == "50Gi"
+    end
+
+    defp pinned_server!(account, region, claim_size) do
+      %{
+        account_id: account.id,
+        region: region,
+        provisioner_node_ref: "kura-#{account.name}-#{region}",
+        storage_claim_size: claim_size
+      }
+      |> Server.create_changeset()
+      |> Repo.insert!()
     end
 
     # Walks a live instance down to `:archived`, which is where teardown has
@@ -689,7 +770,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       # The us-east boxes advertise ~3 Gbit/s. A floor is a scheduler request, so
       # the form refuses one it cannot check against a budget.
-      stub(Tuist.Kura.Capacity, :egress_budget_mbps, fn _region_id -> 3000 end)
+      stub(Capacity, :egress_budget_mbps, fn _region_id -> 3000 end)
 
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
