@@ -542,8 +542,8 @@ defmodule Tuist.Kura.Capacity do
   under that pressure may Air instances be drained at 60 complete inactive days
   instead of 90.
 
-  False whenever the headroom cannot be read, so pressure archival never runs
-  uninformed.
+  False where admission is not enforced, and whenever the headroom cannot be
+  read, so pressure archival never runs uninformed.
   """
   def under_pressure?(region_id) do
     case pressure_deficit_gib(region_id) do
@@ -554,7 +554,8 @@ defmodule Tuist.Kura.Capacity do
 
   @doc """
   Gibibytes the region has to free before it is out of pressure, zero or less
-  when it is not under pressure, or `nil` when its headroom cannot be read.
+  when it is not under pressure, or `nil` where admission is not enforced or
+  its headroom cannot be read.
   """
   def pressure_deficit_gib(region_id) do
     with {:ok, region} <- Regions.fetch(region_id),

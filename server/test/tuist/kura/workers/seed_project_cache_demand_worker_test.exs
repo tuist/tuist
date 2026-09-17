@@ -166,6 +166,11 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
   end
 
   describe "capacity" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
     test "declines to seed into a region under capacity pressure, and records the refusal" do
       stub_region_nodes([{@region, [@node_allocatable_bytes]}])
       stub_region_pods(List.duplicate(reserved_pod(50), 100))

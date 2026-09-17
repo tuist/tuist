@@ -141,6 +141,11 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "under_pressure?/1" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
     test "is false while the region has room for a new instance of any plan" do
       installed(1)
       stub_region_pods([reserved_pod(50)])
@@ -149,7 +154,6 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "engages while admission still admits, once a new enterprise instance no longer fits" do
-      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       installed(1)
       stub_region_pods([reserved_pod(@pressure_line_gib - @air_instance_gib)])
 
@@ -159,7 +163,6 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "stays off while admission can still take a new enterprise instance" do
-      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       installed(1)
       stub_region_pods([reserved_pod(@pressure_line_gib - @enterprise_instance_gib)])
 
@@ -183,6 +186,14 @@ defmodule Tuist.Kura.CapacityTest do
       stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
 
       assert Capacity.under_pressure?(@region)
+    end
+
+    test "is false where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+      installed(1)
+      stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
+
+      refute Capacity.under_pressure?(@region)
     end
 
     test "is false when capacity is unknown, so pressure archival never runs uninformed" do

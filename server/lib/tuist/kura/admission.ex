@@ -48,17 +48,14 @@ defmodule Tuist.Kura.Admission do
   end
 
   @doc """
-  Gibibytes the region can still admit: its pressure line less the larger of
-  its observed and desired reservations, or `nil` when either cannot be read.
-  Measured whether or not admission is enforced.
+  Gibibytes the region can still admit: `:unbounded` when admission is not
+  enforced, `nil` when the region cannot be read, which `admit?/2` refuses.
   """
-  def headroom_gib(%Regions{id: region_id} = region) do
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region) do
-      target - max(observed, desired)
+  def headroom_gib(%Regions{} = region) do
+    if Environment.kura_capacity_admission_required?() do
+      measured_headroom_gib(region)
     else
-      _ -> nil
+      :unbounded
     end
   end
 
@@ -78,7 +75,7 @@ defmodule Tuist.Kura.Admission do
   end
 
   defp admit_with_capacity(%Regions{} = region, candidate) do
-    with headroom when is_integer(headroom) <- headroom_gib(region),
+    with headroom when is_integer(headroom) <- measured_headroom_gib(region),
          candidate_reservation when is_integer(candidate_reservation) <- Capacity.resident_gib(region, candidate) do
       if candidate_reservation <= headroom do
         :ok
@@ -87,6 +84,16 @@ defmodule Tuist.Kura.Admission do
       end
     else
       _ -> {:error, :capacity_unknown}
+    end
+  end
+
+  defp measured_headroom_gib(%Regions{id: region_id} = region) do
+    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
+         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
+         desired when is_integer(desired) <- desired_reservation_gib(region) do
+      target - max(observed, desired)
+    else
+      _ -> nil
     end
   end
 

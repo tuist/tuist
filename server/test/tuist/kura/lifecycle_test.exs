@@ -330,6 +330,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "Air capacity pressure" do
     setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
       :ok
     end
@@ -345,7 +346,6 @@ defmodule Tuist.Kura.LifecycleTest do
 
       under_pressure()
 
-      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       {:ok, region} = Regions.fetch(@region)
       assert :ok = Admission.admit?(region, %Server{region: @region, status: :provisioning, storage_claim_size: "8Gi"})
 
