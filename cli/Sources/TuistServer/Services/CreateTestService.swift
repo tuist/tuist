@@ -260,14 +260,7 @@ import TuistHTTP
                         nil
                     }
 
-            let changedFiles: [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload]? =
-                gitHistory.map { history in history.changedFiles.map(changedFilePayload) }
-            let objectFormat: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? =
-                gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
-            let historySource: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? =
-                gitHistory.map { $0.source == "client" ? .client : .none }
-            let trackedFiles: [Operations.createTest.Input.Body.jsonPayload.tracked_filesPayloadPayload]? =
-                gitHistory.map { history in history.trackedFiles.map { .init(git_blob_id: $0.blobId, path: $0.path) } }
+            let history = GitHistoryPayloads(gitHistory)
 
             let response = try await client.createTest(
                 .init(
@@ -279,9 +272,9 @@ import TuistHTTP
                         .init(
                             git_branch: gitBranch,
                             xcode_coverage_storage_key: coverageUpload?.storageKey,
-                            tracked_files: trackedFiles,
+                            tracked_files: history.trackedFiles,
                             execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
-                            git_object_format: objectFormat,
+                            git_object_format: history.objectFormat,
                             scheme: testSummary.testPlanName,
                             merge_base_sha: gitHistory?.mergeBaseSHA,
                             ci_host: ciHost,
@@ -292,7 +285,7 @@ import TuistHTTP
                             tracked_files_truncated: gitHistory?.trackedFilesTruncated,
                             shard_index: shardIndex,
                             only_test_identifiers: onlyTestIdentifiers,
-                            history_source: historySource,
+                            history_source: history.source,
                             build_run_id: buildRunId,
                             skip_test_identifiers: skipTestIdentifiers,
                             git_ref: gitRef,
@@ -306,7 +299,7 @@ import TuistHTTP
                             xcode_coverage_partial: coverageUpload?.partial,
                             macos_version: macOSVersion,
                             id: id,
-                            changed_files: changedFiles,
+                            changed_files: history.changedFiles,
                             xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
                             shard_plan_id: shardPlanId,
                             duration: testSummary.duration ?? 0,
@@ -496,30 +489,6 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    private func statusPayload(for status: TestStatus) -> Operations.createTest.Input.Body.jsonPayload.statusPayload {
-        switch status {
-        case .passed: .success
-        case .failed: .failure
-        case .skipped: .skipped
-        case .processing: .processing
-        }
-    }
-
-    private func changedFilePayload(
-        _ file: TestRunGitHistory.ChangedFile
-    ) -> Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload {
-        let hunks: [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayloadPayload] =
-            file.hunks.map { .init(end: $0.end, start: $0.start) }
-        return .init(
-            git_blob_id: file.blobId,
-            hunks: hunks,
-            path: file.path,
-            previous_path: file.previousPath,
-            status: .init(rawValue: file.status) ?? .modified,
-            truncated: file.truncated
-        )
-    }
-
     private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
         report.map { report in
             Components.Schemas.XcodeCoverage(
@@ -545,6 +514,43 @@ import TuistHTTP
                     )
                 },
                 partial: report.partial
+            )
+        }
+    }
+
+    private func statusPayload(for status: TestStatus) -> Operations.createTest.Input.Body.jsonPayload.statusPayload {
+        switch status {
+        case .passed: .success
+        case .failed: .failure
+        case .skipped: .skipped
+        case .processing: .processing
+        }
+    }
+
+    /// The run's Git history in the shapes of the create-test body.
+    private struct GitHistoryPayloads {
+        typealias Body = Operations.createTest.Input.Body.jsonPayload
+
+        let changedFiles: [Body.changed_filesPayloadPayload]?
+        let objectFormat: Body.git_object_formatPayload?
+        let source: Body.history_sourcePayload?
+        let trackedFiles: [Body.tracked_filesPayloadPayload]?
+
+        init(_ gitHistory: TestRunGitHistory?) {
+            changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
+            objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
+            source = gitHistory.map { $0.source == "client" ? .client : .none }
+            trackedFiles = gitHistory.map { history in history.trackedFiles.map { .init(git_blob_id: $0.blobId, path: $0.path) } }
+        }
+
+        private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {
+            .init(
+                git_blob_id: file.blobId,
+                hunks: file.hunks.map { Body.changed_filesPayloadPayload.hunksPayloadPayload(end: $0.end, start: $0.start) },
+                path: file.path,
+                previous_path: file.previousPath,
+                status: .init(rawValue: file.status) ?? .modified,
+                truncated: file.truncated
             )
         }
     }

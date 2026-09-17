@@ -14,7 +14,9 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:git_commits, [:project_id, :sha])
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:git_commits, [:project_id, :committed_at])
 
     create table(:git_commit_parents, primary_key: false) do
@@ -24,7 +26,9 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
       add :position, :integer, null: false
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:git_commit_parents, [:project_id, :child_sha, :position])
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:git_commit_parents, [:project_id, :parent_sha])
 
     create table(:git_branch_heads, primary_key: false) do
@@ -34,6 +38,7 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
       add :seen_at, :timestamptz, null: false
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:git_branch_heads, [:project_id, :branch])
 
     alter table(:projects) do
