@@ -18,7 +18,15 @@ name: CLI Release Candidate
 #
 # RCs are GitHub prereleases: never "Latest", never pushed to Homebrew. After a
 # clean soak, promote the line to stable with cli-promote.yml.
+#
+# Every Monday a new line is cut from main right after the scheduled
+# cli-promote.yml run completes, whatever its outcome, so the promotion always
+# picks the line cut the week before rather than this one.
 on:
+  workflow_run:
+    workflows: [CLI Promote to Stable]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       branch:
@@ -50,6 +58,8 @@ env:
 jobs:
   prepare:
     name: Resolve RC version
+    # Manual promotions don't cut a new line; only the weekly scheduled one does.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule'
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:
