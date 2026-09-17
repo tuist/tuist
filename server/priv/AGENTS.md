@@ -24,6 +24,12 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- Declare table engines in new ClickHouse migrations through
+  `Tuist.IngestRepo.Migration.engine/1`, as in
+  `engine: Migration.engine("ReplacingMergeTree(inserted_at)")`, never as a
+  literal. The in-cluster ClickHouse accepts only replicated engines, and
+  `test/tuist/ingest_repo/migration_test.exs` fails on a literal `MergeTree`
+  engine in any migration after `20260914120000`.
 - Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
   block-size, and query-memory settings, including catch-up passes. Copying
   one partition at a time alone does not bound their peak memory usage.
