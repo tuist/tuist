@@ -98,6 +98,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetDataCenter
   alias Atlas.MCP.Tools.GetDocument
   alias Atlas.MCP.Tools.GetEmailAudience
+  alias Atlas.MCP.Tools.GetEngineeringDomain
+  alias Atlas.MCP.Tools.GetEngineeringProject
+  alias Atlas.MCP.Tools.GetErrorIssue
   alias Atlas.MCP.Tools.GetEvent
   alias Atlas.MCP.Tools.GetFeatureInterest
   alias Atlas.MCP.Tools.GetFinanceExpenseHistory
@@ -112,6 +115,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
   alias Atlas.MCP.Tools.GetSupportThread
+  alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
   alias Atlas.MCP.Tools.InstallAssetInDataCenter
   alias Atlas.MCP.Tools.LinkAssetToInsuranceClaim
@@ -139,6 +143,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListDocuments
   alias Atlas.MCP.Tools.ListEmailAudiences
   alias Atlas.MCP.Tools.ListEmailSubscribers
+  alias Atlas.MCP.Tools.ListEngineeringDomains
+  alias Atlas.MCP.Tools.ListEngineeringProjects
+  alias Atlas.MCP.Tools.ListErrorIssues
   alias Atlas.MCP.Tools.ListFeatureInterests
   alias Atlas.MCP.Tools.ListFinanceAccounts
   alias Atlas.MCP.Tools.ListFinanceCategories
@@ -186,6 +193,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RemoveAssetFromInsurance
   alias Atlas.MCP.Tools.ReplyToSupportThread
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
+  alias Atlas.MCP.Tools.ResolveErrorIssue
   alias Atlas.MCP.Tools.RetireAsset
   alias Atlas.MCP.Tools.ReturnAsset
   alias Atlas.MCP.Tools.ReturnFinancing
@@ -390,6 +398,14 @@ defmodule Atlas.MCP.Server do
     DescribeTuistClickhouseTable
   ]
   @static_tools [
+    ListEngineeringProjects,
+    GetEngineeringProject,
+    ListEngineeringDomains,
+    GetEngineeringDomain,
+    ListErrorIssues,
+    GetErrorIssue,
+    ResolveErrorIssue,
+    IgnoreErrorIssue,
     ListLicenses,
     CreateLicense,
     ExtendLicense,
