@@ -36,11 +36,36 @@ use crate::{
 // moment after this node's is discovered, and bootstrapped from, rather than
 // missed. Discovery resolves the peer DNS name afresh on every pass (cluster
 // records are not cached), so the lag it covers is endpoint publication plus
-// one pass; while the view is unsettled a joining node passes every half
-// second, and two seconds is four unchanged passes.
+// one pass; while the view is unsettled a joining node passes every quarter
+// second, so two seconds is eight unchanged passes. Published roles can end it
+// sooner (`published_siblings_linked`).
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(2);
 const MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_secs(2);
-const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+/// Whether every other pod the control plane publishes in this node's region
+/// already has a replica link. The settle window exists to wait for a sibling
+/// that may still appear; published roles name them outright, so once each has
+/// a link there is nothing left to wait for, and readiness moves on to the
+/// links' own bootstrap. Roles that do not name this node describe no instance
+/// it belongs to (a self-hosted node, or an instance whose roles the control
+/// plane has not observed yet), so they cannot vouch for its siblings.
+fn published_siblings_linked(
+    roles: &[crate::sync::roles::PublishedRole],
+    own_url: &str,
+    own_region: &str,
+    linked: impl Fn(&str) -> bool,
+) -> bool {
+    let mut named = false;
+    for role in roles.iter().filter(|role| role.region == own_region) {
+        if role.url == own_url {
+            named = true;
+        } else if !linked(&role.url) {
+            return false;
+        }
+    }
+    named
+}
 
 pub struct AppState {
     pub config: Config,
@@ -373,7 +398,7 @@ impl ReadinessState {
     }
 
     /// The membership loop's pause before its next pass. A joining node whose
-    /// view has not settled passes every half second, so a sibling starting
+    /// view has not settled passes every quarter second, so a sibling starting
     /// alongside it is seen promptly and its readiness is not held back by the
     /// loop's cadence; everything else keeps the steady two seconds.
     fn poll_interval(&self, serving: bool, now: Instant) -> Duration {
@@ -492,6 +517,16 @@ impl AppState {
         (inputs.segment_count as u64).saturating_mul(100) / inputs.ring_total_segments as u64
     }
 
+    fn discovery_settled(&self, snapshot: &ReadinessSnapshot) -> bool {
+        snapshot.readiness_settled
+            || published_siblings_linked(
+                &self.published_roles.load(),
+                &self.config.node_url,
+                &self.config.region,
+                |peer| self.sync.has_replica_link(peer),
+            )
+    }
+
     pub async fn maybe_mark_serving(&self) {
         if self.runtime.is_draining() || self.runtime.is_serving() {
             return;
@@ -500,7 +535,7 @@ impl AppState {
             return;
         }
         let snapshot = self.readiness_snapshot().await;
-        if !snapshot.initial_discovery_completed || !snapshot.readiness_settled {
+        if !snapshot.initial_discovery_completed || !self.discovery_settled(&snapshot) {
             return;
         }
 
@@ -542,7 +577,7 @@ impl AppState {
         }
         if !self.runtime.is_serving()
             && snapshot.initial_discovery_completed
-            && !snapshot.readiness_settled
+            && !self.discovery_settled(&snapshot)
         {
             reasons.push("discovery settling".to_string());
         }
@@ -745,21 +780,21 @@ mod tests {
     }
 
     #[test]
-    fn membership_polls_every_half_second_while_a_joining_view_is_unsettled() {
+    fn membership_polls_every_quarter_second_while_a_joining_view_is_unsettled() {
         let now = Instant::now();
         let mut readiness = ReadinessState::new(now);
 
         // Nothing observed yet: a sibling starting alongside this node is found
-        // on the next half-second pass rather than two seconds later.
+        // on the next quarter-second pass rather than two seconds later.
         assert_eq!(
             readiness.poll_interval(false, now),
-            Duration::from_millis(500)
+            Duration::from_millis(250)
         );
 
         readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), true, now);
         assert_eq!(
             readiness.poll_interval(false, now),
-            Duration::from_millis(500)
+            Duration::from_millis(250)
         );
 
         let settled = now + Duration::from_secs(2);
@@ -838,6 +873,111 @@ mod tests {
             TrafficState::Serving,
             "the newly discovered peer reconciles in the background"
         );
+    }
+
+    fn published_role(url: &str, region: &str) -> crate::sync::roles::PublishedRole {
+        crate::sync::roles::PublishedRole {
+            url: url.to_string(),
+            region: region.to_string(),
+            gateway: false,
+        }
+    }
+
+    #[test]
+    fn published_siblings_are_linked_only_when_every_same_region_pod_has_a_link() {
+        let own = "https://kura-acme-0.kura.svc:7443";
+        let sibling = "https://kura-acme-1.kura.svc:7443";
+        let remote = "https://kura-acme-us-0.kura.svc:7443";
+        let roles = vec![
+            published_role(own, "eu-west"),
+            published_role(sibling, "eu-west"),
+            published_role(remote, "us-east"),
+        ];
+
+        assert!(published_siblings_linked(
+            &roles,
+            own,
+            "eu-west",
+            |peer| peer == sibling
+        ));
+        assert!(
+            !published_siblings_linked(&roles, own, "eu-west", |_| false),
+            "a sibling the roles name but no link reaches yet keeps the window"
+        );
+        assert!(
+            !published_siblings_linked(
+                &[published_role(sibling, "eu-west")],
+                own,
+                "eu-west",
+                |_| true
+            ),
+            "roles that do not name this node say nothing about its instance"
+        );
+        assert!(
+            published_siblings_linked(
+                &[
+                    published_role(own, "eu-west"),
+                    published_role(remote, "us-east")
+                ],
+                own,
+                "eu-west",
+                |_| false
+            ),
+            "another region's pods never gate readiness"
+        );
+        assert!(!published_siblings_linked(&[], own, "eu-west", |_| true));
+    }
+
+    #[tokio::test]
+    async fn a_joining_node_does_not_wait_out_the_settle_window_once_its_published_siblings_are_linked()
+     {
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context.state.runtime.mark_peer_view_ready();
+        context
+            .state
+            .published_roles
+            .store(Arc::new(vec![published_role(
+                &context.state.config.node_url,
+                &context.state.config.region,
+            )]));
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+
+        context.state.maybe_mark_serving().await;
+
+        assert!(
+            context.state.runtime.is_serving(),
+            "an instance whose roles name no other pod in its region has no sibling to wait for"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_joining_node_waits_out_the_settle_window_when_its_published_siblings_are_not_linked()
+    {
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context.state.runtime.mark_peer_view_ready();
+        context.state.published_roles.store(Arc::new(vec![
+            published_role(&context.state.config.node_url, &context.state.config.region),
+            published_role(
+                "https://sibling.kura.internal:7443",
+                &context.state.config.region,
+            ),
+        ]));
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+
+        context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(context.state.runtime.is_serving());
     }
 
     #[tokio::test]
