@@ -1,5 +1,20 @@
 # shellcheck shell=bash
 
+Describe 'Xcode analytics output filtering'
+  Include spec/e2e/xcode_analytics_support.sh
+
+  filter_multiple_empty_outputs() {
+    printf '%s\n' '0~empty-first' '0~transferred' '0~empty-second' |
+      filter_xcode_empty_outputs "$(printf '%s\n' '0~empty-first' '0~empty-second')"
+  }
+
+  It 'excludes every empty node when SQLite returns multiple rows'
+    When call filter_multiple_empty_outputs
+    The status should be success
+    The output should equal '0~transferred'
+  End
+End
+
 Describe 'Xcode compilation-cache transfer analytics'
   Include spec/e2e/xcode_chunking_support.sh
   Include spec/e2e/xcode_analytics_support.sh

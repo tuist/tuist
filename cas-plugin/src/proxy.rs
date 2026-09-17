@@ -1206,34 +1206,11 @@ impl PathState {
     fn printed_node_id(&self, digest: &[u8]) -> Option<String> {
         let cas_guard = self.cas.read().unwrap();
         let cas = (*cas_guard)?;
-        let mut printed = std::ptr::null_mut();
-        let mut error = std::ptr::null_mut();
         unsafe {
-            let failed = (self.up.llcas_digest_print)(
-                cas,
-                llcas_digest_t {
-                    data: digest.as_ptr(),
-                    size: digest.len(),
-                },
-                &mut printed,
-                &mut error,
-            );
-            let node_id = if !failed && !printed.is_null() {
-                Some(
-                    std::ffi::CStr::from_ptr(printed)
-                        .to_string_lossy()
-                        .into_owned(),
-                )
-            } else {
-                None
-            };
-            if !printed.is_null() {
-                (self.up.llcas_string_dispose)(printed);
-            }
-            if !error.is_null() {
-                (self.up.llcas_string_dispose)(error);
-            }
-            node_id
+            self.up.print_digest(cas, llcas_digest_t {
+                data: digest.as_ptr(),
+                size: digest.len(),
+            })
         }
     }
 

@@ -21,7 +21,8 @@ struct CASMetadataReader: Sendable {
     init(databasePath: AbsolutePath, legacyCASMetadataPath: AbsolutePath?) {
         self.fileSystem = FileSystem()
         // Build archives contain a checkpointed snapshot without WAL sidecars.
-        // Immutable mode lets SQLite read its WAL-mode header without creating them.
+        // On macOS, read-only WAL snapshots failed queries without those sidecars.
+        // Immutable mode handles that case; the production Linux reader already works.
         let location = Connection.Location.uri(
             URL(fileURLWithPath: databasePath.pathString).absoluteString,
             parameters: [.immutable(true)]

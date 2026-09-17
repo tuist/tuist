@@ -16,6 +16,13 @@ xcode_output_ids() {
     "$XCODE_TEST_ROOT/$phase.build.log" | sort -u
 }
 
+filter_xcode_empty_outputs() {
+  awk '
+    NR == FNR { excluded[$0] = 1; next }
+    !($0 in excluded)
+  ' <(printf '%s\n' "$1") -
+}
+
 check_xcode_analytics() {
   local phase="$1" operation="$2" ids expected matched sizes size compressed
   ids="$XCODE_TEST_ROOT/$phase.output-ids"
@@ -27,7 +34,7 @@ check_xcode_analytics() {
     empty_node="$(sqlite3 "$XCODE_TEST_ROOT/base-compiled.analytics.db" \
       'SELECT n.key FROM nodes n JOIN cas_outputs c ON c.key = n.checksum WHERE c.size = 8;')" || return 1
     if [ -n "$empty_node" ]; then
-      awk -v empty="$empty_node" '$0 != empty' "$ids" >"$ids.filtered" || return 1
+      filter_xcode_empty_outputs "$empty_node" <"$ids" >"$ids.filtered" || return 1
       mv "$ids.filtered" "$ids" || return 1
     fi
   fi
@@ -67,7 +74,7 @@ check_xcode_analytics() {
     # The activity log retains Swift replay notes that stdout can omit.
     # Require the parsed report to contain every nonempty restored output.
     ids="$XCODE_TEST_ROOT/$phase.expected-output-ids"
-    xcode_output_ids base-compiled uploaded | awk -v empty="$empty_node" '$0 != empty' >"$ids" || return 1
+    xcode_output_ids base-compiled uploaded | filter_xcode_empty_outputs "$empty_node" >"$ids" || return 1
   fi
 
   local activitylog report report_operation snapshot
