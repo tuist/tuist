@@ -63,7 +63,7 @@ public struct ResourceLocator: ResourceLocating {
     /// the release bundle ships it (see mise/tasks/cli/bundle.sh). Pure path math,
     /// so synchronous callers can hand these to code that checks them later.
     public static func casPluginCandidates() -> [AbsolutePath] {
-        if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
+        if let override = casPluginOverride() {
             return (try? AbsolutePath(validating: override)).map { [$0] } ?? []
         }
         guard let bundlePath = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
@@ -73,6 +73,22 @@ public struct ResourceLocator: ResourceLocating {
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
         ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
+    }
+
+    /// Where a generated project's `COMPILATION_CACHE_PLUGIN_PATH` can point, in order
+    /// of preference. Without the `TUIST_CAS_PLUGIN_PATH` override, the copy that
+    /// `tuist setup cache` installs comes before the shipped plugin: its path is the
+    /// same across Tuist versions, and it comes from the same Tuist as the proxy that
+    /// setup started. `casPlugin()` leaves it out, since setup copies from there.
+    public static func generatedProjectCASPluginCandidates() -> [AbsolutePath] {
+        guard casPluginOverride() == nil else { return casPluginCandidates() }
+        return [Environment.current.casPluginInstallPath()] + casPluginCandidates()
+    }
+
+    private static func casPluginOverride() -> String? {
+        guard let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty
+        else { return nil }
+        return override
     }
 
     public func casProxy() async throws -> AbsolutePath? {

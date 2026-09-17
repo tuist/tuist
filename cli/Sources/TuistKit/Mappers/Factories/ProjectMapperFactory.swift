@@ -109,7 +109,7 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(XcodeCacheSettingsProjectMapper(
             tuist: tuist,
             kuraEnabled: ClientFeatureFlags.contains("kura"),
-            casPluginCandidates: ResourceLocator.casPluginCandidates()
+            casPluginCandidates: ResourceLocator.generatedProjectCASPluginCandidates()
         ))
 
         return mappers
