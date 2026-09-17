@@ -6,6 +6,11 @@ defmodule Atlas.Application do
   use Application
 
   alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Engineering.Errors.DropAlerter
+  alias Atlas.Engineering.Errors.Event.Buffer
+  alias Atlas.Engineering.Errors.IssueCoalescer
+  alias Atlas.Engineering.Errors.KeyTouches
+  alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
   alias Atlas.Licenses.RateLimiter
@@ -18,6 +23,9 @@ defmodule Atlas.Application do
     TelemetryHandler.attach()
     ETS.init()
     HTTP.configure_req_defaults()
+
+    :ok = Application.ensure_started(:logger)
+    _ = Task.start(fn -> SelfMonitor.install() end)
 
     children =
       [
@@ -54,11 +62,12 @@ defmodule Atlas.Application do
       [
         Atlas.ClickHouseRepo,
         Atlas.IngestRepo,
-        Supervisor.child_spec(Atlas.Engineering.Errors.Event.Buffer,
-          id: Atlas.Engineering.Errors.Event.Buffer
+        Supervisor.child_spec(Buffer,
+          id: Buffer
         ),
-        Atlas.Engineering.Errors.DropAlerter,
-        Atlas.Engineering.Errors.IssueCoalescer
+        DropAlerter,
+        IssueCoalescer,
+        KeyTouches
       ]
     else
       []
