@@ -466,8 +466,14 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
+
+Beta entries follow the `<major>.<minor>-beta` shape (matching the
+mirror + base image tags `xcode-xips:27.2-beta`,
+`macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
+resolves to a runner pool sized by
+`runnersFleet.xcodeOverrides["27.2-beta"]`.
 
 `check-releases` reads this into the `runner-image-matrix` output and
 `runner-image-build`'s `matrix` expands it via `fromJSON`. Because the
