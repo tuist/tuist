@@ -37,6 +37,12 @@ defmodule Tuist.Tests.Coverage do
   wins, whatever order the reports land in. The totals carry the run's scheme
   and the tool and version that measured them, and the repository's Git
   object format, so figures are only ever compared like with like.
+
+  Paths the project excludes (generated code, see
+  `Tuist.Tests.Coverage.ExcludedPaths`) are stored like any other but left out
+  of every figure: the published totals, and the files, targets and totals read
+  from the reports. `recompute_totals/2` republishes the totals of the runs
+  whose reports are still retained when the exclusions change.
   """
 
   import Ecto.Query
@@ -46,6 +52,7 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
@@ -121,8 +128,10 @@ defmodule Tuist.Tests.Coverage do
 
     {:ok, complete} =
       :telemetry.span(Tuist.Telemetry.event_name_coverage_publish(), %{project_id: test.project_id}, fn ->
-        others = other_shards(test.project_id, test.id, shard_index)
-        folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
+        excluded = ExcludedPaths.pattern_for_project(test.project_id)
+        others = other_shards(test.project_id, test.id, shard_index, excluded)
+        excluded_regex = ExcludedPaths.compile(excluded)
+        folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others, excluded_regex)
         :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
 
         {{:ok, others.shards_count + 1 >= expected_shards},
@@ -194,8 +203,16 @@ defmodule Tuist.Tests.Coverage do
   # inserted moments ago are not reliably read back within the same request;
   # the other shards' latest reports come from ClickHouse. A file's lines are
   # only kept when another shard reported the same path, for the union; every
-  # other file adds its counts and is let go.
-  defp insert_files_and_fold(%Test{id: test_run_id, project_id: project_id}, coverage, shard_index, reported_at, others) do
+  # other file adds its counts and is let go. Excluded paths are stored and
+  # counted as files, but add nothing to the totals.
+  defp insert_files_and_fold(
+         %Test{id: test_run_id, project_id: project_id},
+         coverage,
+         shard_index,
+         reported_at,
+         others,
+         excluded
+       ) do
     others_by_path = Map.new(others.files)
 
     {{covered, executable}, overlap, object_format, files} =
@@ -222,7 +239,7 @@ defmodule Tuist.Tests.Coverage do
           object_format = if object_format == "", do: git_object_format(file), else: object_format
 
           cond do
-            file.is_test ->
+            file.is_test or ExcludedPaths.excluded?(excluded, file.path) ->
               {totals, overlap, object_format, files + 1}
 
             Map.has_key?(others_by_path, file.path) ->
@@ -288,11 +305,11 @@ defmodule Tuist.Tests.Coverage do
   defp git_object_format(%{git_blob_id: <<_::binary-size(40)>>}), do: "sha1"
   defp git_object_format(_file), do: ""
 
-  defp other_shards(project_id, test_run_id, shard_index) do
+  defp other_shards(project_id, test_run_id, shard_index, excluded) do
     reports = from(f in report_files(project_id, test_run_id), where: f.shard_index != ^shard_index)
 
     files =
-      from(f in reports,
+      from(f in without_excluded(reports, excluded),
         where: not f.is_test,
         group_by: f.path,
         select: {
@@ -361,11 +378,15 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   The run's totals merged across its shards, and whether any shard left tests
   out on purpose. Nil when the run has no coverage of product code.
+
+  This and the other readers of a run's reports leave out the project's
+  excluded paths; `excluded:` passes a pattern from
+  `Tuist.Tests.Coverage.ExcludedPaths.pattern/1` a caller already has.
   """
-  def run_summary(project_id, test_run_id) do
+  def run_summary(project_id, test_run_id, opts \\ []) do
     totals =
       ClickHouseRepo.one(
-        from(f in subquery(merged_files_query(project_id, test_run_id)),
+        from(f in subquery(merged_files_query(project_id, test_run_id, excluded(project_id, opts))),
           select: %{covered_lines: sum(f.covered_lines), executable_lines: sum(f.executable_lines)}
         )
       )
@@ -443,14 +464,136 @@ defmodule Tuist.Tests.Coverage do
     end
   end
 
+  @doc "The ids of the projects that have published coverage totals."
+  def project_ids_with_coverage do
+    ClickHouseRepo.all(from(c in CoverageRun, distinct: true, select: c.project_id))
+  end
+
+  @doc """
+  Republishes the totals of the project's runs from their retained reports,
+  with the paths excluded now (see `Tuist.Tests.Coverage.ExcludedPaths`), for
+  up to `batch_size` runs after the run id `after` (nil to start). Returns the
+  id to continue after, or nil once every run was visited.
+
+  A run whose reports are past their retention keeps the totals it has. A
+  republished row keeps the run's publication time, so its retention does not
+  move, and ranks right above the totals it replaces: a report published later
+  still outranks it (see `Tuist.Tests.CoverageRun`).
+  """
+  def recompute_totals(project_id, opts) do
+    batch_size = Keyword.fetch!(opts, :batch_size)
+    excluded = excluded(project_id, opts)
+
+    runs =
+      from(c in CoverageRun,
+        where: c.project_id == ^project_id,
+        group_by: c.test_run_id,
+        order_by: c.test_run_id,
+        limit: ^batch_size,
+        select: %{
+          test_run_id: c.test_run_id,
+          build_system: fragment("argMax(?, ?)", c.build_system, c.version),
+          coverage_tool: fragment("argMax(?, ?)", c.coverage_tool, c.version),
+          coverage_tool_version: fragment("argMax(?, ?)", c.coverage_tool_version, c.version),
+          git_object_format: fragment("argMax(?, ?)", c.git_object_format, c.version),
+          scheme: fragment("argMax(?, ?)", c.scheme, c.version),
+          covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+          executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
+          partial: fragment("argMax(?, ?)", c.partial, c.version),
+          inserted_at: fragment("argMax(?, ?)", c.inserted_at, c.version),
+          version: max(c.version)
+        }
+      )
+      |> then(fn query ->
+        case Keyword.get(opts, :after) do
+          nil -> query
+          after_id -> where(query, [c], c.test_run_id > type(^after_id, Ecto.UUID))
+        end
+      end)
+      |> ClickHouseRepo.all()
+
+    totals = retained_totals(project_id, Enum.map(runs, & &1.test_run_id), excluded)
+
+    rows =
+      for run <- runs,
+          {covered, executable} = Map.get(totals, run.test_run_id, {run.covered_lines, run.executable_lines}),
+          {covered, executable} != {run.covered_lines, run.executable_lines} do
+        run
+        |> Map.merge(%{project_id: project_id, covered_lines: covered, executable_lines: executable})
+        |> Map.put(:version, run.version + 1)
+      end
+
+    if rows != [], do: IngestRepo.insert_all(CoverageRun, rows)
+
+    if length(runs) == batch_size, do: runs |> List.last() |> Map.fetch!(:test_run_id)
+  end
+
+  # The merged totals of each run that still has reports, as
+  # `merged_files_query/3` computes them for one run.
+  defp retained_totals(_project_id, [], _excluded), do: %{}
+
+  defp retained_totals(project_id, test_run_ids, excluded) do
+    latest_reports =
+      from(f in CoverageFile,
+        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
+        group_by: [f.test_run_id, f.shard_index],
+        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+      )
+
+    merged =
+      from(f in CoverageFile,
+        join: r in subquery(latest_reports),
+        on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
+        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
+        group_by: [f.test_run_id, f.path],
+        select: %{
+          test_run_id: f.test_run_id,
+          path: f.path,
+          counted: fragment("not max(?)", f.is_test),
+          executable_lines:
+            fragment(
+              "toUInt64(if(max(length(?)) = 0, max(?), length(groupUniqArrayArray(?))))",
+              f.line_numbers,
+              f.executable_lines,
+              f.line_numbers
+            ),
+          covered_lines:
+            fragment(
+              "toUInt64(if(max(length(?)) = 0, max(?), length(groupUniqArrayArray(arrayFilter((l, c) -> c > 0, ?, ?)))))",
+              f.line_numbers,
+              f.covered_lines,
+              f.line_numbers,
+              f.execution_counts
+            )
+        }
+      )
+
+    # Every run with reports keeps a row, even when all its files are excluded.
+    merged =
+      if excluded,
+        do: select_merge(merged, [f], %{excluded: fragment("match(?, ?)", f.path, ^excluded)}),
+        else: select_merge(merged, [f], %{excluded: false})
+
+    from(m in subquery(merged),
+      group_by: m.test_run_id,
+      select: {
+        m.test_run_id,
+        fragment("toUInt64(sumIf(?, ? and not ?))", m.covered_lines, m.counted, m.excluded),
+        fragment("toUInt64(sumIf(?, ? and not ?))", m.executable_lines, m.counted, m.excluded)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {test_run_id, covered, executable} -> {test_run_id, {covered, executable}} end)
+  end
+
   @doc """
   The run's targets with their file count and line totals, least covered
   first. A file compiled into several targets counts towards each, as `xccov`
   reports it.
   """
-  def targets_for_run(project_id, test_run_id) do
+  def targets_for_run(project_id, test_run_id, opts \\ []) do
     ClickHouseRepo.all(
-      from(f in subquery(merged_files_query(project_id, test_run_id)),
+      from(f in subquery(merged_files_query(project_id, test_run_id, excluded(project_id, opts))),
         group_by: fragment("arrayJoin(?)", f.targets),
         select: %{
           name: fragment("arrayJoin(?)", f.targets),
@@ -471,8 +614,10 @@ defmodule Tuist.Tests.Coverage do
   targets and line counts, without the line data. What a comparison of two
   runs reads.
   """
-  def merged_files(project_id, test_run_id) do
-    ClickHouseRepo.all(from(f in subquery(merged_files_query(project_id, test_run_id)), order_by: f.path))
+  def merged_files(project_id, test_run_id, opts \\ []) do
+    ClickHouseRepo.all(
+      from(f in subquery(merged_files_query(project_id, test_run_id, excluded(project_id, opts))), order_by: f.path)
+    )
   end
 
   @doc """
@@ -480,10 +625,12 @@ defmodule Tuist.Tests.Coverage do
   by path, as `{line, count}` pairs in line order. A path with no line data
   (its archive entry was missing) maps to an empty list.
   """
-  def line_counts(_project_id, _test_run_id, []), do: %{}
+  def line_counts(project_id, test_run_id, paths, opts \\ [])
 
-  def line_counts(project_id, test_run_id, paths) do
-    from(f in report_files(project_id, test_run_id),
+  def line_counts(_project_id, _test_run_id, [], _opts), do: %{}
+
+  def line_counts(project_id, test_run_id, paths, opts) do
+    from(f in without_excluded(report_files(project_id, test_run_id), excluded(project_id, opts)),
       where: f.path in ^paths and not f.is_test,
       select: {f.path, f.line_numbers, f.execution_counts}
     )
@@ -501,8 +648,8 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   One page of the run's files, least covered first, and the number of files.
   """
-  def list_files(project_id, test_run_id, page, page_size) do
-    files_query = merged_files_query(project_id, test_run_id)
+  def list_files(project_id, test_run_id, page, page_size, opts \\ []) do
+    files_query = merged_files_query(project_id, test_run_id, excluded(project_id, opts))
 
     [files, count] =
       Tuist.Tasks.parallel_tasks([
@@ -653,8 +800,8 @@ defmodule Tuist.Tests.Coverage do
   # One row per path, its shards' reports merged: the lines are the union
   # across shards. A file whose archive entry was missing keeps the counts the
   # report gave it, since there are no lines to merge.
-  defp merged_files_query(project_id, test_run_id) do
-    from(f in report_files(project_id, test_run_id),
+  defp merged_files_query(project_id, test_run_id, excluded) do
+    from(f in without_excluded(report_files(project_id, test_run_id), excluded),
       where: not f.is_test,
       group_by: f.path,
       select: %{
@@ -679,6 +826,13 @@ defmodule Tuist.Tests.Coverage do
       }
     )
   end
+
+  defp excluded(project_id, opts) do
+    Keyword.get_lazy(opts, :excluded, fn -> ExcludedPaths.pattern_for_project(project_id) end)
+  end
+
+  defp without_excluded(query, nil), do: query
+  defp without_excluded(query, pattern), do: from(f in query, where: not fragment("match(?, ?)", f.path, ^pattern))
 
   defp file_row(file) do
     functions = value(file, :functions, [])

@@ -1248,7 +1248,7 @@ components:
               x-struct:
               x-validate:
             skipped:
-              description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+              description: "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths)."
               items:
                 properties:
                   path:
@@ -4052,7 +4052,7 @@ components:
           x-struct:
           x-validate:
         skipped:
-          description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+          description: "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths)."
           items:
             properties:
               path:
@@ -6778,7 +6778,7 @@ components:
                   x-struct:
                   x-validate:
                 skipped:
-                  description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                  description: "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths)."
                   items:
                     properties:
                       path:
@@ -29262,7 +29262,7 @@ paths:
                         x-struct:
                         x-validate:
                       skipped:
-                        description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                        description: "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths)."
                         items:
                           properties:
                             path:
@@ -31748,7 +31748,7 @@ paths:
                             x-struct:
                             x-validate:
                           skipped:
-                            description: 'Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.'
+                            description: "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths)."
                             items:
                               properties:
                                 path:

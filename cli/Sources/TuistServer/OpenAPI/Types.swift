@@ -5203,11 +5203,11 @@ public enum Components {
                         case reason
                     }
                 }
-                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                 ///
                 /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skipped`.
                 public typealias skippedPayload = [Components.Schemas.CoverageComparison.patchPayload.skippedPayloadPayload]
-                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                 ///
                 /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/skipped`.
                 public var skipped: Components.Schemas.CoverageComparison.patchPayload.skippedPayload?
@@ -5226,7 +5226,7 @@ public enum Components {
                 ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
                 ///   - files:
                 ///   - reason: Present when unavailable.
-                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                 ///   - status:
                 public init(
                     coverage: Swift.Double? = nil,
@@ -9095,11 +9095,11 @@ public enum Components {
                     case reason
                 }
             }
-            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
             ///
             /// - Remark: Generated from `#/components/schemas/PatchCoverage/skipped`.
             public typealias skippedPayload = [Components.Schemas.PatchCoverage.skippedPayloadPayload]
-            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
             ///
             /// - Remark: Generated from `#/components/schemas/PatchCoverage/skipped`.
             public var skipped: Components.Schemas.PatchCoverage.skippedPayload?
@@ -9118,7 +9118,7 @@ public enum Components {
             ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
             ///   - files:
             ///   - reason: Present when unavailable.
-            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
             ///   - status:
             public init(
                 coverage: Swift.Double? = nil,
@@ -13016,11 +13016,11 @@ public enum Components {
                             case reason
                         }
                     }
-                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                     ///
                     /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skipped`.
                     public typealias skippedPayload = [Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.skippedPayloadPayload]
-                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                     ///
                     /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/skipped`.
                     public var skipped: Components.Schemas.PullRequestCoverage.comparisonPayload.patchPayload.skippedPayload?
@@ -13039,7 +13039,7 @@ public enum Components {
                     ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
                     ///   - files:
                     ///   - reason: Present when unavailable.
-                    ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                    ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                     ///   - status:
                     public init(
                         coverage: Swift.Double? = nil,
@@ -75705,11 +75705,11 @@ public enum Operations {
                                     case reason
                                 }
                             }
-                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skipped`.
                             public typealias skippedPayload = [Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.skippedPayloadPayload]
-                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/skipped`.
                             public var skipped: Operations.getTestRunCoverageComparison.Output.Ok.Body.jsonPayload.patchPayload.skippedPayload?
@@ -75728,7 +75728,7 @@ public enum Operations {
                             ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
                             ///   - files:
                             ///   - reason: Present when unavailable.
-                            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                            ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                             ///   - status:
                             public init(
                                 coverage: Swift.Double? = nil,
@@ -81951,11 +81951,11 @@ public enum Operations {
                                         case reason
                                     }
                                 }
-                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skipped`.
                                 public typealias skippedPayload = [Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.skippedPayloadPayload]
-                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                /// Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/skipped`.
                                 public var skipped: Operations.getPullRequestCoverage.Output.Ok.Body.jsonPayload.comparisonPayload.patchPayload.skippedPayload?
@@ -81974,7 +81974,7 @@ public enum Operations {
                                 ///   - executable_lines: Changed lines the compiler instrumented; 0 when the change touched no executable line.
                                 ///   - files:
                                 ///   - reason: Present when unavailable.
-                                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.
+                                ///   - skipped: Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).
                                 ///   - status:
                                 public init(
                                     coverage: Swift.Double? = nil,

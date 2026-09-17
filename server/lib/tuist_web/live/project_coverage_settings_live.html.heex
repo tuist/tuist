@@ -1,0 +1,287 @@
+<div id="project-coverage-settings">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      :if={
+        Tuist.Projects.Project.xcode_project?(@selected_project) or
+          Tuist.Projects.Project.bazel_project?(@selected_project)
+      }
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Code coverage")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/coverage"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
+      label={dgettext("dashboard_projects", "Bundles")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_projects", "Code coverage")}
+  </h2>
+
+  <.form
+    id="coverage-settings-form"
+    for={%{}}
+    phx-submit="save_settings"
+    data-part="form"
+  >
+    <.card_section data-part="gates-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Gates")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Gates report a tuist/coverage check on pull requests. A gate that cannot be evaluated, because there is no baseline or the run skipped tests, is neutral. Gates are never required on their own; make the check required in the repository to block merges."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <.toggle
+          id="coverage-gates-enabled"
+          phx-click="toggle_setting"
+          phx-value-setting="coverage_gates_enabled"
+          label={dgettext("dashboard_projects", "Post the tuist/coverage check on pull requests")}
+          checked={@gates.enabled}
+        />
+        <div data-part="field">
+          <label data-part="label" for="coverage-min-patch">
+            {dgettext("dashboard_projects", "Minimum patch coverage (%)")}
+          </label>
+          <.text_input
+            type="basic"
+            id="coverage-min-patch"
+            name="min_patch_coverage"
+            value={@gates.min_patch_coverage}
+            placeholder={dgettext("dashboard_projects", "Off")}
+          />
+        </div>
+        <div data-part="field">
+          <label data-part="label" for="coverage-max-drop">
+            {dgettext("dashboard_projects", "Maximum total drop (percentage points)")}
+          </label>
+          <.text_input
+            type="basic"
+            id="coverage-max-drop"
+            name="max_total_drop"
+            value={@gates.max_total_drop}
+            placeholder={dgettext("dashboard_projects", "Off")}
+          />
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section data-part="patch-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Patch coverage")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "The share of a pull request's changed executable lines its tests ran."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <.toggle
+          id="coverage-patch-partial-runs"
+          phx-click="toggle_setting"
+          phx-value-setting="coverage_patch_partial_runs"
+          label={dgettext("dashboard_projects", "Compute patch coverage on partial runs")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "A run that skipped tests cannot prove every changed file's tests ran, so its patch coverage may read lower than it is."
+            )
+          }
+          checked={@gates.patch_partial_runs}
+        />
+      </div>
+    </.card_section>
+
+    <.card_section data-part="excluded-paths-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Excluded paths")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Files left out of every coverage figure: totals, targets, files, patch coverage and gaps. Use it for generated code, whose lines no test is expected to cover. Changes apply to past runs whose per-file coverage is still retained."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <div data-part="field">
+          <label data-part="label" for="coverage-excluded-path-globs">
+            {dgettext("dashboard_projects", "One glob per line")}
+          </label>
+          <span data-part="help">
+            {dgettext(
+              "dashboard_projects",
+              "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Empty means the server defaults, shown as the placeholder."
+            )}
+          </span>
+          <textarea
+            id="coverage-excluded-path-globs"
+            name="excluded_path_globs"
+            rows="6"
+            data-part="textarea"
+            placeholder={Enum.join(@excluded_path_defaults, "\n")}
+          >{Enum.join(@selected_project.coverage_excluded_path_globs || [], "\n")}</textarea>
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section data-part="git-history-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Git history")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "How far back the repository's history is collected and walked when a pull request's baseline is resolved. Empty fields use the server defaults."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <div data-part="field">
+          <label data-part="label" for="coverage-git-history-window-days">
+            {dgettext("dashboard_projects", "History window (days)")}
+          </label>
+          <.text_input
+            type="basic"
+            id="coverage-git-history-window-days"
+            name="git_history_window_days"
+            value={@selected_project.git_history_window_days}
+            placeholder={"#{@git_history_defaults.window_days}"}
+          />
+        </div>
+        <div data-part="field">
+          <label data-part="label" for="coverage-git-history-window-commits">
+            {dgettext("dashboard_projects", "History window (commits)")}
+          </label>
+          <.text_input
+            type="basic"
+            id="coverage-git-history-window-commits"
+            name="git_history_window_commits"
+            value={@selected_project.git_history_window_commits}
+            placeholder={"#{@git_history_defaults.window_commits}"}
+          />
+        </div>
+        <.toggle
+          id="coverage-git-history-provider-fallback"
+          phx-click="toggle_setting"
+          phx-value-setting="git_history_provider_fallback"
+          label={
+            dgettext(
+              "dashboard_projects",
+              "Complete missing history from the connected repository"
+            )
+          }
+          description={
+            dgettext(
+              "dashboard_projects",
+              "When a run arrives without its merge base, changed files or commit graph, fetch them from GitHub."
+            )
+          }
+          checked={@git_history.provider_fallback}
+        />
+      </div>
+    </.card_section>
+
+    <.card_section data-part="tracked-files-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Tracked files")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Files whose identity a run's evidence depends on beyond its sources: dependency manifests, generator configuration, fixtures, snapshots. Each run records the matched files with their blobs."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <div data-part="field">
+          <label data-part="label" for="coverage-tracked-file-globs">
+            {dgettext("dashboard_projects", "One Git pathspec glob per line")}
+          </label>
+          <span data-part="help">
+            {dgettext(
+              "dashboard_projects",
+              "Empty means the server defaults, shown as the placeholder."
+            )}
+          </span>
+          <textarea
+            id="coverage-tracked-file-globs"
+            name="tracked_file_globs"
+            rows="8"
+            data-part="textarea"
+            placeholder={Enum.join(@git_history_defaults.tracked_file_globs, "\n")}
+          >{Enum.join(@selected_project.tracked_file_globs || [], "\n")}</textarea>
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section data-part="retention-card-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_projects", "Retention")}</span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_projects", "How long coverage data is kept. Set by the server.")}
+        </span>
+      </div>
+      <div data-part="content">
+        <dl data-part="retention">
+          <div>
+            <dt>{dgettext("dashboard_projects", "Per-file coverage")}</dt>
+            <dd>
+              {dngettext("dashboard_projects", "%{count} day", "%{count} days", @retention.files,
+                count: @retention.files
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_projects", "Run totals")}</dt>
+            <dd>
+              {dngettext("dashboard_projects", "%{count} day", "%{count} days", @retention.runs,
+                count: @retention.runs
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_projects", "Commit graph")}</dt>
+            <dd>
+              {dngettext(
+                "dashboard_projects",
+                "%{count} day",
+                "%{count} days",
+                @git_history.window_days,
+                count: @git_history.window_days
+              )}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </.card_section>
+
+    <div data-part="actions">
+      <.button type="submit" label={dgettext("dashboard_projects", "Save")} variant="primary" />
+    </div>
+  </.form>
+</div>

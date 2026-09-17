@@ -36,8 +36,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:341
-#: lib/tuist_web/live/coverage_live.html.heex:349
+#: lib/tuist_web/live/coverage_live.html.heex:340
+#: lib/tuist_web/live/coverage_live.html.heex:348
 #: lib/tuist_web/live/flaky_tests_live.ex:286
 #: lib/tuist_web/live/flaky_tests_live.html.heex:10
 #: lib/tuist_web/live/test_cases_live.ex:390
@@ -52,7 +52,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:397
+#: lib/tuist_web/live/coverage_live.html.heex:396
 #: lib/tuist_web/live/flaky_tests_live.html.heex:75
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:45
 #: lib/tuist_web/live/shards_live.html.heex:43
@@ -128,8 +128,8 @@ msgstr ""
 msgid "Avg. test run duration"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:551
-#: lib/tuist_web/live/coverage_live.html.heex:788
+#: lib/tuist_web/live/coverage_live.html.heex:550
+#: lib/tuist_web/live/coverage_live.html.heex:787
 #: lib/tuist_web/live/test_case_live.ex:308
 #: lib/tuist_web/live/test_case_live.html.heex:1060
 #: lib/tuist_web/live/test_case_run_live.html.heex:169
@@ -171,7 +171,7 @@ msgstr ""
 msgid "CI Run"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:390
+#: lib/tuist_web/live/coverage_live.html.heex:389
 #: lib/tuist_web/live/flaky_tests_live.html.heex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:36
 #: lib/tuist_web/live/shards_live.html.heex:36
@@ -218,10 +218,10 @@ msgstr ""
 msgid "Command duration"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:507
-#: lib/tuist_web/live/coverage_live.html.heex:574
-#: lib/tuist_web/live/coverage_live.html.heex:642
-#: lib/tuist_web/live/coverage_live.html.heex:798
+#: lib/tuist_web/live/coverage_live.html.heex:506
+#: lib/tuist_web/live/coverage_live.html.heex:573
+#: lib/tuist_web/live/coverage_live.html.heex:641
+#: lib/tuist_web/live/coverage_live.html.heex:797
 #: lib/tuist_web/live/test_case_run_live.html.heex:179
 #: lib/tuist_web/live/test_run_live.html.heex:347
 #, elixir-autogen, elixir-format
@@ -236,7 +236,7 @@ msgstr ""
 msgid "Crash Report"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:381
+#: lib/tuist_web/live/coverage_live.html.heex:380
 #: lib/tuist_web/live/flaky_tests_live.html.heex:57
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:27
 #: lib/tuist_web/live/shards_live.html.heex:27
@@ -422,7 +422,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_live.html.heex:200
 #: lib/tuist_web/live/coverage_live.html.heex:226
 #: lib/tuist_web/live/coverage_live.html.heex:243
-#: lib/tuist_web/live/coverage_live.html.heex:716
+#: lib/tuist_web/live/coverage_live.html.heex:715
 #: lib/tuist_web/live/test_run_live.html.heex:2395
 #, elixir-autogen, elixir-format
 msgid "File"
@@ -543,7 +543,7 @@ msgstr ""
 msgid "Issue recorded: %{message}"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:378
+#: lib/tuist_web/live/coverage_live.html.heex:377
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:24
 #: lib/tuist_web/live/shards_live.html.heex:24
@@ -566,7 +566,7 @@ msgstr ""
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:373
+#: lib/tuist_web/live/coverage_live.html.heex:372
 #: lib/tuist_web/live/flaky_tests_live.html.heex:49
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:19
 #: lib/tuist_web/live/shards_live.html.heex:19
@@ -578,7 +578,7 @@ msgstr ""
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:368
+#: lib/tuist_web/live/coverage_live.html.heex:367
 #: lib/tuist_web/live/flaky_tests_live.html.heex:44
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:14
 #: lib/tuist_web/live/shards_live.html.heex:14
@@ -883,8 +883,8 @@ msgstr ""
 msgid "Quarantined tests"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:645
-#: lib/tuist_web/live/coverage_live.html.heex:801
+#: lib/tuist_web/live/coverage_live.html.heex:644
+#: lib/tuist_web/live/coverage_live.html.heex:800
 #: lib/tuist_web/live/shards_live.html.heex:614
 #: lib/tuist_web/live/test_case_live.html.heex:984
 #: lib/tuist_web/live/test_case_live.html.heex:991
@@ -926,8 +926,8 @@ msgid "Run Details"
 msgstr ""
 
 #: lib/tuist_web/helpers/test_labels.ex:34
-#: lib/tuist_web/live/coverage_live.html.heex:626
-#: lib/tuist_web/live/coverage_live.html.heex:780
+#: lib/tuist_web/live/coverage_live.html.heex:625
+#: lib/tuist_web/live/coverage_live.html.heex:779
 #: lib/tuist_web/live/shards_live.html.heex:555
 #: lib/tuist_web/live/tests_live.ex:481
 #, elixir-autogen, elixir-format
@@ -935,7 +935,7 @@ msgid "Scheme"
 msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:100
-#: lib/tuist_web/live/coverage_live.html.heex:304
+#: lib/tuist_web/live/coverage_live.html.heex:303
 #: lib/tuist_web/live/flaky_tests_live.html.heex:341
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:266
 #: lib/tuist_web/live/shards_live.html.heex:527
@@ -1310,9 +1310,9 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:161
 #: lib/tuist_web/helpers/test_labels.ex:40
-#: lib/tuist_web/live/coverage_live.ex:523
-#: lib/tuist_web/live/coverage_live.html.heex:782
-#: lib/tuist_web/live/coverage_live.html.heex:793
+#: lib/tuist_web/live/coverage_live.ex:438
+#: lib/tuist_web/live/coverage_live.html.heex:781
+#: lib/tuist_web/live/coverage_live.html.heex:792
 #: lib/tuist_web/live/shards_live.html.heex:559
 #: lib/tuist_web/live/shards_live.html.heex:566
 #: lib/tuist_web/live/test_case_live.html.heex:1031
@@ -2008,7 +2008,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:38
+#: lib/tuist_web/live/coverage_live.ex:34
 #: lib/tuist_web/live/coverage_live.html.heex:275
 #: lib/tuist_web/live/test_run_live.html.heex:2230
 #, elixir-autogen, elixir-format
@@ -2017,12 +2017,12 @@ msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:178
 #: lib/tuist_web/live/coverage_live.html.heex:246
-#: lib/tuist_web/live/coverage_live.html.heex:510
-#: lib/tuist_web/live/coverage_live.html.heex:561
-#: lib/tuist_web/live/coverage_live.html.heex:629
-#: lib/tuist_web/live/coverage_live.html.heex:702
-#: lib/tuist_web/live/coverage_live.html.heex:731
-#: lib/tuist_web/live/coverage_live.html.heex:785
+#: lib/tuist_web/live/coverage_live.html.heex:509
+#: lib/tuist_web/live/coverage_live.html.heex:560
+#: lib/tuist_web/live/coverage_live.html.heex:628
+#: lib/tuist_web/live/coverage_live.html.heex:701
+#: lib/tuist_web/live/coverage_live.html.heex:730
+#: lib/tuist_web/live/coverage_live.html.heex:784
 #: lib/tuist_web/live/test_run_live.html.heex:232
 #: lib/tuist_web/live/test_run_live.html.heex:2289
 #: lib/tuist_web/live/test_run_live.html.heex:2373
@@ -2033,20 +2033,20 @@ msgstr ""
 msgid "Coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:433
+#: lib/tuist_web/live/coverage_live.html.heex:432
 #: lib/tuist_web/live/test_run_live.html.heex:2261
 #: lib/tuist_web/live/test_run_live.html.heex:2325
 #, elixir-autogen, elixir-format
 msgid "Covered lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:441
+#: lib/tuist_web/live/coverage_live.html.heex:440
 #: lib/tuist_web/live/test_run_live.html.heex:2269
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:435
+#: lib/tuist_web/live/coverage_live.html.heex:434
 #: lib/tuist_web/live/test_run_live.html.heex:2263
 #: lib/tuist_web/live/test_run_live.html.heex:2327
 #, elixir-autogen, elixir-format
@@ -2058,7 +2058,7 @@ msgstr ""
 msgid "Executions"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:696
+#: lib/tuist_web/live/coverage_live.html.heex:695
 #: lib/tuist_web/live/test_run_live.html.heex:2283
 #: lib/tuist_web/live/test_run_live.html.heex:2389
 #, elixir-autogen, elixir-format
@@ -2091,30 +2091,30 @@ msgid "Line"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:99
-#: lib/tuist_web/live/coverage_live.html.heex:417
-#: lib/tuist_web/live/coverage_live.html.heex:493
+#: lib/tuist_web/live/coverage_live.html.heex:416
+#: lib/tuist_web/live/coverage_live.html.heex:492
 #: lib/tuist_web/live/test_run_live.html.heex:2250
 #: lib/tuist_web/live/test_run_live.html.heex:2314
 #, elixir-autogen, elixir-format
 msgid "Line coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:513
-#: lib/tuist_web/live/coverage_live.html.heex:699
-#: lib/tuist_web/live/coverage_live.html.heex:728
+#: lib/tuist_web/live/coverage_live.html.heex:512
+#: lib/tuist_web/live/coverage_live.html.heex:698
+#: lib/tuist_web/live/coverage_live.html.heex:727
 #: lib/tuist_web/live/test_run_live.html.heex:2286
 #: lib/tuist_web/live/test_run_live.html.heex:2405
 #, elixir-autogen, elixir-format
 msgid "Lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:443
+#: lib/tuist_web/live/coverage_live.html.heex:442
 #: lib/tuist_web/live/test_run_live.html.heex:2271
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:524
+#: lib/tuist_web/live/coverage_live.ex:439
 #: lib/tuist_web/live/test_run_live.html.heex:2355
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -2131,14 +2131,14 @@ msgid "Share of the file's executable lines the tests ran at least once."
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:175
-#: lib/tuist_web/live/coverage_live.html.heex:693
+#: lib/tuist_web/live/coverage_live.html.heex:692
 #: lib/tuist_web/live/test_run_live.html.heex:2280
 #, elixir-autogen, elixir-format
 msgid "Target"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:173
-#: lib/tuist_web/live/coverage_live.html.heex:687
+#: lib/tuist_web/live/coverage_live.html.heex:686
 #: lib/tuist_web/live/test_run_live.html.heex:2347
 #, elixir-autogen, elixir-format
 msgid "Targets"
@@ -2162,14 +2162,14 @@ msgstr ""
 msgid "Uncovered lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:536
+#: lib/tuist_web/live/coverage_live.ex:451
 #: lib/tuist_web/live/test_runs_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "F"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:339
-#: lib/tuist_web/live/coverage_live.html.heex:350
+#: lib/tuist_web/live/coverage_live.html.heex:338
+#: lib/tuist_web/live/coverage_live.html.heex:349
 #: lib/tuist_web/live/test_runs_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Full"
@@ -2185,14 +2185,14 @@ msgstr ""
 msgid "No coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:535
+#: lib/tuist_web/live/coverage_live.ex:450
 #: lib/tuist_web/live/test_runs_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "P"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:340
-#: lib/tuist_web/live/coverage_live.html.heex:351
+#: lib/tuist_web/live/coverage_live.html.heex:339
+#: lib/tuist_web/live/coverage_live.html.heex:350
 #: lib/tuist_web/live/test_runs_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Partial"
@@ -2239,26 +2239,12 @@ msgstr ""
 msgid "Unskippable"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:987
-#: lib/tuist_web/live/coverage_live.html.heex:995
-#: lib/tuist_web/live/coverage_live.html.heex:1003
-#, elixir-autogen, elixir-format
-msgid "%{count} day"
-msgid_plural "%{count} days"
-msgstr[0] ""
-msgstr[1] ""
-
 #: lib/tuist_web/live/coverage_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "%{covered} of %{executable} changed executable lines ran."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:886
-#, elixir-autogen, elixir-format
-msgid "A run that skipped tests cannot prove every changed file's tests ran, so its patch coverage may read lower than it is."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:567
+#: lib/tuist_web/live/coverage_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "Against %{branch}"
 msgstr ""
@@ -2274,13 +2260,13 @@ msgstr ""
 msgid "Baseline"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:299
+#: lib/tuist_web/live/coverage_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Branch:"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:281
-#: lib/tuist_web/live/coverage_live.html.heex:545
+#: lib/tuist_web/live/coverage_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Branches"
 msgstr ""
@@ -2288,7 +2274,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_live.html.heex:110
 #: lib/tuist_web/live/coverage_live.html.heex:186
 #: lib/tuist_web/live/coverage_live.html.heex:260
-#: lib/tuist_web/live/coverage_live.html.heex:632
+#: lib/tuist_web/live/coverage_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Change"
 msgstr ""
@@ -2308,34 +2294,14 @@ msgstr ""
 msgid "Changed lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:33
+#: lib/tuist_web/live/coverage_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this account."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:451
+#: lib/tuist_web/live/coverage_live.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "Commit %{sha}, %{when}. Pull requests are compared with this branch's runs."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:1001
-#, elixir-autogen, elixir-format
-msgid "Commit graph"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:960
-#, elixir-autogen, elixir-format
-msgid "Complete missing history from the connected repository"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:884
-#, elixir-autogen, elixir-format
-msgid "Compute patch coverage on partial runs"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.ex:132
-#, elixir-autogen, elixir-format
-msgid "Could not save the coverage settings: %{errors}"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:66
@@ -2343,22 +2309,17 @@ msgstr ""
 msgid "Coverage against the baseline"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:409
+#: lib/tuist_web/live/coverage_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Coverage of %{branch}"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:125
-#, elixir-autogen, elixir-format
-msgid "Coverage settings saved."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:344
+#: lib/tuist_web/live/coverage_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Coverage:"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:519
+#: lib/tuist_web/live/coverage_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "Diff too large to record its lines"
 msgstr ""
@@ -2369,7 +2330,7 @@ msgid "Difference of the total against the baseline run."
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:283
-#: lib/tuist_web/live/coverage_live.html.heex:745
+#: lib/tuist_web/live/coverage_live.html.heex:744
 #, elixir-autogen, elixir-format
 msgid "Files and targets"
 msgstr ""
@@ -2379,7 +2340,7 @@ msgstr ""
 msgid "Files whose coverage changed"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:675
+#: lib/tuist_web/live/coverage_live.html.heex:674
 #, elixir-autogen, elixir-format
 msgid "From the newest full run of %{scheme} on %{branch}, at %{sha} (%{when})."
 msgstr ""
@@ -2389,58 +2350,18 @@ msgstr ""
 msgid "Gaps"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:830
-#, elixir-autogen, elixir-format
-msgid "Gates"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:836
-#, elixir-autogen, elixir-format
-msgid "Gates report a tuist/coverage check on pull requests. A gate that cannot be evaluated, because there is no baseline or the run skipped tests, is neutral. Gates are never required on their own; make the check required in the repository to block merges."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:898
-#, elixir-autogen, elixir-format
-msgid "Git history"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:924
-#, elixir-autogen, elixir-format
-msgid "History window (commits)"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:911
-#, elixir-autogen, elixir-format
-msgid "History window (days)"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:904
-#, elixir-autogen, elixir-format
-msgid "How far back the repository's history is collected and walked when a pull request's baseline is resolved. Empty fields use the server defaults."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:710
+#: lib/tuist_web/live/coverage_live.html.heex:709
 #, elixir-autogen, elixir-format
 msgid "Least covered files"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:868
-#, elixir-autogen, elixir-format
-msgid "Maximum total drop (percentage points)"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.ex:517
+#: lib/tuist_web/live/coverage_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "Measured on another version of the file"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:855
-#, elixir-autogen, elixir-format
-msgid "Minimum patch coverage (%)"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:449
-#: lib/tuist_web/live/coverage_live.html.heex:577
+#: lib/tuist_web/live/coverage_live.html.heex:448
+#: lib/tuist_web/live/coverage_live.html.heex:576
 #, elixir-autogen, elixir-format
 msgid "Newest full run"
 msgstr ""
@@ -2450,7 +2371,7 @@ msgstr ""
 msgid "No baseline"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:471
+#: lib/tuist_web/live/coverage_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "No baseline: %{reason}"
 msgstr ""
@@ -2460,7 +2381,7 @@ msgstr ""
 msgid "No baseline: %{reason}."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:594
+#: lib/tuist_web/live/coverage_live.html.heex:593
 #, elixir-autogen, elixir-format
 msgid "No branch has a full run with coverage in this period"
 msgstr ""
@@ -2470,28 +2391,28 @@ msgstr ""
 msgid "No changed lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:533
-#: lib/tuist_web/live/coverage_live.html.heex:751
+#: lib/tuist_web/live/coverage_live.html.heex:532
+#: lib/tuist_web/live/coverage_live.html.heex:750
 #, elixir-autogen, elixir-format
 msgid "No full run with coverage on %{branch} in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:518
+#: lib/tuist_web/live/coverage_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "No per-line data in the run"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:659
+#: lib/tuist_web/live/coverage_live.html.heex:658
 #, elixir-autogen, elixir-format
 msgid "No pull request run gathered coverage in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:815
+#: lib/tuist_web/live/coverage_live.html.heex:814
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:299
+#: lib/tuist_web/live/coverage_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "No test run of pull request #%{number} gathered coverage."
 msgstr ""
@@ -2501,12 +2422,12 @@ msgstr ""
 msgid "Not compared"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:468
+#: lib/tuist_web/live/coverage_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "Not compared (partial run)"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:520
+#: lib/tuist_web/live/coverage_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "Not compiled into any tested target"
 msgstr ""
@@ -2514,12 +2435,6 @@ msgstr ""
 #: lib/tuist_web/live/coverage_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Not counted"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:862
-#: lib/tuist_web/live/coverage_live.html.heex:875
-#, elixir-autogen, elixir-format
-msgid "Off"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:57
@@ -2533,17 +2448,7 @@ msgstr ""
 msgid "Patch coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:985
-#, elixir-autogen, elixir-format
-msgid "Per-file coverage"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:847
-#, elixir-autogen, elixir-format
-msgid "Post the tuist/coverage check on pull requests"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:620
+#: lib/tuist_web/live/coverage_live.html.heex:619
 #, elixir-autogen, elixir-format
 msgid "Pull request"
 msgstr ""
@@ -2553,14 +2458,14 @@ msgstr ""
 msgid "Pull request #%{number}"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:292
+#: lib/tuist_web/live/coverage_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Pull request not found."
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:5
 #: lib/tuist_web/live/coverage_live.html.heex:282
-#: lib/tuist_web/live/coverage_live.html.heex:604
+#: lib/tuist_web/live/coverage_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "Pull requests"
 msgstr ""
@@ -2570,19 +2475,9 @@ msgstr ""
 msgid "Removed"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:978
-#, elixir-autogen, elixir-format
-msgid "Retention"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:516
+#: lib/tuist_web/live/coverage_live.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:993
-#, elixir-autogen, elixir-format
-msgid "Run totals"
 msgstr ""
 
 #: lib/tuist_web/live/coverage_live.html.heex:42
@@ -2595,27 +2490,17 @@ msgstr ""
 msgid "Runs"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:764
+#: lib/tuist_web/live/coverage_live.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "Runs with coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:1016
-#, elixir-autogen, elixir-format
-msgid "Save"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:322
+#: lib/tuist_web/live/coverage_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Scheme:"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:285
-#, elixir-autogen, elixir-format
-msgid "Settings"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:419
+#: lib/tuist_web/live/coverage_live.html.heex:418
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered by the newest full run of %{scheme} on %{branch}."
 msgstr ""
@@ -2635,63 +2520,58 @@ msgstr ""
 msgid "Unavailable: %{reason}."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:966
-#, elixir-autogen, elixir-format
-msgid "When a run arrives without its merge base, changed files or commit graph, fetch them from GitHub."
-msgstr ""
-
 #: lib/tuist_web/live/coverage_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Why"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:485
+#: lib/tuist_web/live/coverage_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "commit %{sha} is not in the project's Git history"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:491
+#: lib/tuist_web/live/coverage_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "no full coverage run of %{scheme} on %{branch} in the last %{days} days"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:499
+#: lib/tuist_web/live/coverage_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "no full run on %{branch} within %{commits} commits before %{sha}"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:429
+#: lib/tuist_web/live/coverage_live.html.heex:428
 #, elixir-autogen, elixir-format
 msgid "over the period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:480
+#: lib/tuist_web/live/coverage_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "the merge base with %{branch} is unknown"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:505
-#: lib/tuist_web/live/coverage_live.ex:506
+#: lib/tuist_web/live/coverage_live.ex:419
+#: lib/tuist_web/live/coverage_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "the run skipped tests"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:509
+#: lib/tuist_web/live/coverage_live.ex:423
 #, elixir-autogen, elixir-format
 msgid "the run's Git history was not collected"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:511
+#: lib/tuist_web/live/coverage_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "unknown"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:940
+#: lib/tuist_web/live/coverage_live.ex:435
 #, elixir-autogen, elixir-format
-msgid "Files whose identity a run's evidence depends on beyond its sources: dependency manifests, generator configuration, fixtures, snapshots. Each run records the matched files with their blobs. Empty means the server defaults."
+msgid "Excluded in the project's coverage settings"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:937
+#: lib/tuist_web/live/coverage_live.ex:394
 #, elixir-autogen, elixir-format
-msgid "Tracked files (one Git pathspec glob per line)"
+msgid "the run's commit is unknown"
 msgstr ""

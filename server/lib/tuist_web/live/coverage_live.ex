@@ -3,29 +3,25 @@ defmodule TuistWeb.CoverageLive do
   The project's Code Coverage page: the default branch's coverage over time
   from its full runs, every branch's coverage, the pull requests' coverage
   against their baselines, the least covered files and targets, the runs that
-  gathered coverage, and the settings (gates, Git history, retention).
+  gathered coverage. Its settings live under the project's settings
+  (`TuistWeb.ProjectCoverageSettingsLive`).
   """
   use TuistWeb, :live_view
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
 
-  alias Tuist.Authorization
-  alias Tuist.Environment
   alias Tuist.FeatureFlags
-  alias Tuist.GitHistory
-  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Comparison
-  alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(overview branches pull-requests files runs settings)
+  @tabs ~w(overview branches pull-requests files runs)
   @page_size 20
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -37,16 +33,20 @@ defmodule TuistWeb.CoverageLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
-      |> assign(
-        :can_update_settings,
-        Authorization.authorize(:project_update, socket.assigns.current_user, project) == :ok
-      )
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
     end
 
     {:ok, socket}
+  end
+
+  def handle_params(
+        %{"tab" => "settings"},
+        _uri,
+        %{assigns: %{selected_project: project, selected_account: account}} = socket
+      ) do
+    {:noreply, push_navigate(socket, to: ~p"/#{account.name}/#{project.name}/settings/coverage")}
   end
 
   def handle_params(params, uri, %{assigns: %{selected_project: project}} = socket) do
@@ -92,48 +92,6 @@ defmodule TuistWeb.CoverageLive do
     {:noreply, push_patch(socket, to: "?" <> Query.drop(query, "page"))}
   end
 
-  def handle_event("save_settings", params, %{assigns: %{can_update_settings: true}} = socket) do
-    update_settings(socket, %{
-      coverage_gate_min_patch_coverage: number_or_nil(params["min_patch_coverage"]),
-      coverage_gate_max_total_drop: number_or_nil(params["max_total_drop"]),
-      git_history_window_days: integer_or_nil(params["git_history_window_days"]),
-      git_history_window_commits: integer_or_nil(params["git_history_window_commits"]),
-      tracked_file_globs: globs_or_nil(params["tracked_file_globs"])
-    })
-  end
-
-  def handle_event("save_settings", _params, socket), do: {:noreply, socket}
-
-  @toggles ~w(coverage_gates_enabled coverage_patch_partial_runs git_history_provider_fallback)
-
-  def handle_event("toggle_setting", %{"setting" => setting}, %{assigns: %{can_update_settings: true}} = socket)
-      when setting in @toggles do
-    key = String.to_existing_atom(setting)
-    current = Map.get(socket.assigns.selected_project, key) || false
-    update_settings(socket, %{key => not current})
-  end
-
-  def handle_event("toggle_setting", _params, socket), do: {:noreply, socket}
-
-  defp update_settings(%{assigns: %{selected_project: project}} = socket, attrs) do
-    case Projects.update_project(project, attrs) do
-      {:ok, project} ->
-        {:noreply,
-         socket
-         |> assign(:selected_project, project)
-         |> assign_settings()
-         |> put_flash(:info, dgettext("dashboard_tests", "Coverage settings saved."))}
-
-      {:error, changeset} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_tests", "Could not save the coverage settings: %{errors}", errors: errors(changeset))
-         )}
-    end
-  end
-
   def handle_info({:test_created, _test_run}, %{assigns: %{live_action: :pull_request}} = socket) do
     {:noreply,
      assign_pull_request(socket, Integer.to_string(socket.assigns.pull_request_number), socket.assigns.current_params)}
@@ -154,7 +112,6 @@ defmodule TuistWeb.CoverageLive do
       "pull-requests" -> assign_pull_requests(socket, query)
       "files" -> assign_files(socket, query)
       "runs" -> assign_runs(socket, query)
-      "settings" -> assign_settings(socket)
     end
   end
 
@@ -275,16 +232,6 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:totals_by_run, Coverage.totals_for_runs(project.id, Enum.map(runs, & &1.id)))
   end
 
-  defp assign_settings(%{assigns: %{selected_project: project}} = socket) do
-    retention = Environment.coverage_retention_days()
-
-    socket
-    |> assign(:gates, Gates.settings(project))
-    |> assign(:git_history, GitHistory.settings(project))
-    |> assign(:git_history_defaults, GitHistory.settings(nil))
-    |> assign(:retention, retention)
-  end
-
   defp assign_pull_request(%{assigns: %{selected_project: project}} = socket, number, query) do
     number =
       case Integer.parse(number || "") do
@@ -340,42 +287,6 @@ defmodule TuistWeb.CoverageLive do
 
   defp period_opts(%{assigns: %{coverage_period: {start_datetime, end_datetime}}}) do
     [since: DateTime.to_naive(start_datetime), until: DateTime.to_naive(end_datetime)]
-  end
-
-  defp number_or_nil(value) when is_binary(value) do
-    case Float.parse(String.trim(value)) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp number_or_nil(_value), do: nil
-
-  defp integer_or_nil(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp integer_or_nil(_value), do: nil
-
-  # One glob per line; an empty field means the server defaults.
-  defp globs_or_nil(value) when is_binary(value) do
-    case value |> String.split(~r/\R/) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")) do
-      [] -> nil
-      globs -> globs
-    end
-  end
-
-  defp globs_or_nil(_value), do: nil
-
-  defp errors(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc -> String.replace(acc, "%{#{key}}", to_string(value)) end)
-    end)
-    |> Enum.map_join(", ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
   end
 
   attr :title, :string, required: true
@@ -521,6 +432,7 @@ defmodule TuistWeb.CoverageLive do
   def skipped_reason_label(:no_line_data), do: dgettext("dashboard_tests", "No per-line data in the run")
   def skipped_reason_label(:truncated), do: dgettext("dashboard_tests", "Diff too large to record its lines")
   def skipped_reason_label(:not_instrumented), do: dgettext("dashboard_tests", "Not compiled into any tested target")
+  def skipped_reason_label(:excluded), do: dgettext("dashboard_tests", "Excluded in the project's coverage settings")
 
   @doc false
   def line_ranges(nil), do: dgettext("dashboard_tests", "Unknown")
