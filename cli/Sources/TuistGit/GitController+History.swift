@@ -49,7 +49,9 @@ extension GitController {
 
         var changedFiles: [GitChangedFile] = []
         if let mergeBase {
-            let raw = try await capture(arguments: git + ["diff", "--raw", "-z", "-M", mergeBase, head])
+            // `--no-abbrev`: the raw format abbreviates blob ids by default, and patch coverage
+            // matches them against the full ids the coverage rows carry.
+            let raw = try await capture(arguments: git + ["diff", "--raw", "--no-abbrev", "-z", "-M", mergeBase, head])
             let unified = try await capture(
                 arguments: git + ["diff", "-U0", "-M", "--no-color", "--no-ext-diff", mergeBase, head]
             )
