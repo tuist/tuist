@@ -316,30 +316,6 @@ func TestDarwinGrowImageNeverShrinks(t *testing.T) {
 	}
 }
 
-// guestShellFunction returns a function's definition from the runner's
-// dispatch-poll.sh, so a test drives the script the guest actually runs rather
-// than a copy of it.
-func guestShellFunction(t *testing.T, name string) string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
-	if err != nil {
-		t.Fatalf("read dispatch-poll.sh: %v", err)
-	}
-	lines := strings.Split(string(b), "\n")
-	for i, line := range lines {
-		if line != name+"() {" {
-			continue
-		}
-		for j := i + 1; j < len(lines); j++ {
-			if lines[j] == "}" {
-				return strings.Join(lines[i:j+1], "\n")
-			}
-		}
-	}
-	t.Fatalf("dispatch-poll.sh defines no %s function", name)
-	return ""
-}
-
 func TestGuestReadsTheHostsGrownMarker(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
 	if err != nil {
