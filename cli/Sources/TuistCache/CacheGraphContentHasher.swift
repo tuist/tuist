@@ -108,9 +108,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
 
         if !Environment.current.isLegacyModuleCacheEnabled {
             let fingerprints = try await BinaryCacheFingerprintHasher(contentHasher: contentHasher).fingerprints(
-                graph: hashingGraph,
-                targets: Set(hashes.keys),
-                additionalStrings: additionalStrings
+                graph: hashingGraph, targets: Set(hashes.keys),
+                additionalStrings: additionalStrings, targetHashes: hashes
             )
             for (target, values) in fingerprints {
                 hashes[target]?.binaryCacheFingerprints = values

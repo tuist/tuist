@@ -16,5 +16,5 @@ This module provides hashing utilities used across CLI modules.
 ## Invariants
 - Cached hashes are stored in-memory and keyed by absolute file path.
 - Binary-cache fingerprints normalize destinations and deployment targets per compilation variant, hash applicable dependencies recursively, and keep macros on their host platform. Never remove platform identity without checking artifact coverage at lookup.
-
+- SDK fingerprints reuse platform-independent subhashes from the exact-target pass (or the first SDK pass when used standalone). Only destinations, deployment targets, additional SDK strings, and dependency fingerprints are recomputed. Reuse is scoped to one graph and hashing invocation; preserve the existing hash composition.
 - Record effective destinations and individual hash inputs at hashing time; diagnostics must not change hash composition.
