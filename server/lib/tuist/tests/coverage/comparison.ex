@@ -147,7 +147,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
         coverage_row = Map.fetch!(files_by_path, file.path)
 
         cond do
-          coverage_row.git_blob_id != "" and file.git_blob_id != "" and coverage_row.git_blob_id != file.git_blob_id ->
+          not same_blob?(coverage_row.git_blob_id, file.git_blob_id) ->
             {files, [%{path: file.path, reason: :stale} | skipped]}
 
           Map.get(lines_by_path, file.path, []) == [] ->
@@ -180,6 +180,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
       gaps: for(file <- files, file.covered_lines == 0, do: Map.take(file, [:path, :executable_lines]))
     }
   end
+
+  # An unknown blob on either side cannot contradict the other; an abbreviated
+  # id (what `git diff --raw` prints without `--no-abbrev`) names the same
+  # object as the full id it prefixes.
+  defp same_blob?(a, b) when a == "" or b == "", do: true
+  defp same_blob?(a, b), do: String.starts_with?(a, b) or String.starts_with?(b, a)
 
   # The executable lines inside the file's hunks, with how many of them ran.
   defp patch_file(file, lines) do

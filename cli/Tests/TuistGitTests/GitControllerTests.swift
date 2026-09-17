@@ -472,7 +472,7 @@ struct GitControllerTests {
             output: "head base 1700000100\nbase 1700000000\n"
         )
         commandRunner.succeedCommand(
-            git + ["diff", "--raw", "-z", "-M", "base", "head"],
+            git + ["diff", "--raw", "--no-abbrev", "-z", "-M", "base", "head"],
             output: ":100644 100644 aaa bbb M\0Sources/A.swift\0"
         )
         commandRunner.succeedCommand(
