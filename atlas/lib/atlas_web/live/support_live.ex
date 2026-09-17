@@ -7,6 +7,7 @@ defmodule AtlasWeb.SupportLive do
   import Noora.Filter
 
   alias Atlas.Support
+  alias Atlas.Support.Markdown
   alias Atlas.Support.ReplyContent
   alias Atlas.Users
   alias Atlas.Users.User
@@ -1006,6 +1007,7 @@ defmodule AtlasWeb.SupportLive do
   defp message_role(%{kind: "outbound"}), do: gettext("Tuist")
   defp message_role(_message), do: gettext("Customer")
   defp message_body(%{kind: "inbound", body: body}), do: ReplyContent.visible(body)
+  defp message_body(%{body: body}) when is_binary(body), do: Phoenix.HTML.raw(Markdown.to_html(body))
   defp message_body(%{body: body}), do: body
   defp inline_attachment_ids(%{kind: "inbound", body: body}), do: ReplyContent.inline_attachment_ids(body)
   defp inline_attachment_ids(_message), do: []
