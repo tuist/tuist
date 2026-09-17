@@ -14,7 +14,7 @@ public protocol XcodeProjWriting {
 /// Format used to serialize each `.xcodeproj` bundle to disk.
 ///
 /// Mirrors `XcodeProj.ProjectFormat` at the `TuistGenerator` boundary so callers don't need to
-/// `import XcodeProj` just to opt into the JSON5 project format that Xcode 27 introduced.
+/// `import XcodeProj` just to opt into the JSON5 project format that Xcode 27.2 introduced.
 public enum XcodeProjectFormat: String, Sendable, Equatable {
     case pbxproj
     case xcproj
@@ -131,7 +131,7 @@ public struct XcodeProjWriter: XcodeProjWriting {
 
     /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → project body → shared data → user
     /// data). The body is serialized as either `project.pbxproj` (OpenStep plist) or `project.xcproj`
-    /// (Xcode 27 JSON5) depending on `xcodeProj.projectFormat`.
+    /// (Xcode 27.2 JSON5) depending on `xcodeProj.projectFormat`.
     ///
     /// The body is only written when its freshly serialized bytes differ from what's already on disk.
     /// Tuist's generation is byte-deterministic for an unchanged input (PBX references are stable

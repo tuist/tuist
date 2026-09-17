@@ -43,8 +43,8 @@ extension Tuist {
         public enum ProjectFormat: String, Codable, Equatable, Sendable {
             /// The classic OpenStep property list format stored in `project.pbxproj`.
             case pbxproj
-            /// The experimental JSON5 format introduced in Xcode 27, stored in `project.xcproj`.
-            /// Requires Xcode 27 or later to open the generated projects.
+            /// The experimental JSON5 format introduced in Xcode 27.2, stored in `project.xcproj`.
+            /// Requires Xcode 27.2 or later to open the generated projects.
             case xcproj
         }
 
@@ -148,7 +148,7 @@ extension Tuist {
         public var onOutdatedDependencies: OutdatedDependenciesAction
 
         /// The on-disk format used to serialize each generated `.xcodeproj`. Defaults to `.pbxproj`.
-        /// Set to `.xcproj` to opt into Xcode 27's experimental JSON5 project format.
+        /// Set to `.xcproj` to opt into Xcode 27.2's experimental JSON5 project format.
         public var projectFormat: ProjectFormat
 
         public static func options(
