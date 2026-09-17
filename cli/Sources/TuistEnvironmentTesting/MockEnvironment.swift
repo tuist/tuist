@@ -95,6 +95,10 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         homeRelativePathString(casProxySocketPath())
     }
 
+    public func casPluginInstallPath() -> AbsolutePath {
+        homeDirectory.appending(components: [".local", "state", "tuist", "libtuist_cas_plugin.dylib"])
+    }
+
     public func casLogPath() -> AbsolutePath {
         stateDirectory.appending(component: "cas.log")
     }

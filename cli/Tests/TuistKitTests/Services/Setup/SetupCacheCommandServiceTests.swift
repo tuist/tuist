@@ -162,12 +162,7 @@ struct SetupCacheCommandServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
-        let plugin = environment.homeDirectory
-            .appending(components: ".local", "share", "mise", "installs", "tuist", "libtuist_cas_plugin.dylib")
-        let fileSystem = FileSystem()
-        try await fileSystem.makeDirectory(at: plugin.parentDirectory)
-        try await fileSystem.writeText("plugin", at: plugin)
-        environment.variables["TUIST_CAS_PLUGIN_PATH"] = plugin.pathString
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "plugin").pathString
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -183,13 +178,9 @@ struct SetupCacheCommandServiceTests {
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .called(1)
 
+        #expect(try await FileSystem().readTextFile(at: environment.casPluginInstallPath()) == "plugin")
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
-        TuistTest.expectLogs(
-            "COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/share/mise/installs/tuist/libtuist_cas_plugin.dylib\n"
-        )
-        TuistTest.expectLogs(
-            "`COMPILATION_CACHE_PLUGIN_PATH` points into this Tuist installation, so it can change when you update Tuist."
-        )
+        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib\n")
         TuistTest.doesntExpectLogs("<path to libtuist_cas_plugin.dylib>")
     }
 
@@ -216,9 +207,58 @@ struct SetupCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
+        #expect(try await !FileSystem().exists(environment.casPluginInstallPath()))
         TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>")
         TuistTest.expectLogs(
             "The CAS plugin (libtuist_cas_plugin.dylib) was not found next to `tuist`, so the path above is a placeholder."
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_replacesAnInstalledPluginFromAnotherTuist() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let fileSystem = FileSystem()
+        let installPath = environment.casPluginInstallPath()
+        try await fileSystem.makeDirectory(at: installPath.parentDirectory)
+        try await fileSystem.writeText("old plugin", at: installPath)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: installPath) == "new plugin")
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: installPath.parentDirectory.pathString)
+            .filter { $0.hasPrefix("\(installPath.basename).") }
+        #expect(leftovers.isEmpty)
+    }
+
+    /// Replacing the plugin on every setup would swap the file compilers load for an
+    /// identical one on every CI job.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_leavesAnUpToDateInstalledPluginInPlace() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "plugin").pathString
+        let fileSystem = FileSystem()
+        let installPath = environment.casPluginInstallPath()
+        try await fileSystem.makeDirectory(at: installPath.parentDirectory)
+        try await fileSystem.writeText("plugin", at: installPath)
+        let fileNumber = try FileManager.default.attributesOfItem(atPath: installPath.pathString)[.systemFileNumber]
+            as? Int
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(
+            try FileManager.default.attributesOfItem(atPath: installPath.pathString)[.systemFileNumber] as? Int
+                == fileNumber
         )
     }
 
@@ -1281,6 +1321,16 @@ struct SetupCacheCommandServiceTests {
             )
             .called(1)
     }
+}
+
+/// A plugin shipped with Tuist, somewhere other than where setup installs it.
+private func shipCASPlugin(containing contents: String) async throws -> AbsolutePath {
+    let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+    let plugin = temporaryDirectory.appending(components: "tuist", "libtuist_cas_plugin.dylib")
+    let fileSystem = FileSystem()
+    try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+    try await fileSystem.writeText(contents, at: plugin)
+    return plugin
 }
 
 private struct TestError: Error {
