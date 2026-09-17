@@ -221,7 +221,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   gate. (It works because the store is on the block-device image, not the
   virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
   the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable; `dispatch-poll_test.sh` pins that order and `.github/workflows/runner-image-scripts.yml` runs it on PRs), creates
+  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable; `dispatch-poll_test.sh` pins that order), creates
   the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
