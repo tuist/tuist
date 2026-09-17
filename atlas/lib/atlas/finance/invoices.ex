@@ -114,7 +114,7 @@ defmodule Atlas.Finance.Invoices do
       status: "failed",
       last_error: inspect(reason),
       extracted_at: DateTime.utc_now() |> DateTime.truncate(:second),
-      metadata: %{"document_path" => "/documents/#{document.id}"}
+      metadata: %{"document_path" => "/library/documents/#{document.id}"}
     }
 
     Repo.transaction(fn ->
@@ -553,9 +553,9 @@ defmodule Atlas.Finance.Invoices do
         target_id: invoice.id,
         target_label: invoice.vendor_name,
         metadata: %{
-          "path" => "/finance",
+          "path" => "/commercial/finance",
           "document_id" => invoice.document_id,
-          "document_path" => invoice.document_id && "/documents/#{invoice.document_id}",
+          "document_path" => invoice.document_id && "/library/documents/#{invoice.document_id}",
           "finance_transaction_id" => invoice.finance_transaction_id,
           "line_item_count" => length(line_items),
           "total_amount_value" => decimal_to_string(invoice.total_amount_value),

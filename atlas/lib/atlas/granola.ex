@@ -370,7 +370,7 @@ defmodule Atlas.Granola do
         target_id: event.id,
         target_label: event.title,
         metadata: %{
-          "path" => "/sales/accounts/#{event.account_id}",
+          "path" => "/commercial/sales/accounts/#{event.account_id}",
           "account_id" => event.account_id,
           "source" => event.source,
           "external_id" => event.external_id

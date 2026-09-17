@@ -46,7 +46,7 @@ defmodule AtlasWeb.Admin.UsersLiveTest do
   test "redirects employees away from the admin directory", %{conn: conn} do
     {conn, _employee} = log_in_user(conn, %{role: :employee})
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/admin/users")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/admin/users")
   end
 
   defp insert_user!(role) do

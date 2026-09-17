@@ -74,7 +74,7 @@ defmodule Atlas.MCP.Tools.AssetsToolsTest do
 
     assert payload.id == asset.id
     assert payload.name == "MBP"
-    assert payload.hardware_url =~ "/hardware/#{asset.id}"
+    assert payload.hardware_url =~ "/operations/hardware/#{asset.id}"
   end
 
   test "create_asset accepts a minimal payload and returns the created asset" do

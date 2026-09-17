@@ -8,6 +8,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PromExPlugin
@@ -23,6 +24,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   @region "us-east"
   # Roughly what one of the region's real boxes reports allocatable.
   @node_allocatable_bytes 847_551_469_804
+  @gib 1024 * 1024 * 1024
 
   setup do
     stub(Environment, :env, fn -> :prod end)
@@ -55,7 +57,9 @@ defmodule Tuist.Kura.PromExPluginTest do
             Telemetry.event_name_resolution_refused(),
             Telemetry.event_name_seed_declined(),
             Telemetry.event_name_placement_preference_unmet(),
-            Telemetry.event_name_placement_capacity_spill()
+            Telemetry.event_name_placement_capacity_spill(),
+            Telemetry.event_name_claim_apply_refused(),
+            Telemetry.event_name_provision_refused()
           ] do
         assert MapSet.member?(scraped, event), "#{inspect(event)} is emitted but never scraped"
       end
@@ -138,6 +142,69 @@ defmodule Tuist.Kura.PromExPluginTest do
       PromExPlugin.execute_occupancy_telemetry_event()
 
       assert_received {[:tuist, :kura, :capacity, :occupancy], ^ref, %{allocatable_gib: 0, reserved_gib: 0}, _metadata}
+    end
+  end
+
+  describe "execute_admission_headroom_telemetry_event/0" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
+    test "is scraped as a per-region gauge" do
+      scraped =
+        []
+        |> PromExPlugin.polling_metrics()
+        |> Enum.flat_map(& &1.metrics)
+        |> Map.new(&{&1.name, &1.tags})
+
+      assert Map.fetch!(scraped, [:tuist, :kura, :capacity, :admission_headroom, :gibibytes]) == [:region]
+    end
+
+    test "reports what admission can still place: the pressure line less the larger reservation" do
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}],
+        pods: [reserved_pod(50), reserved_pod(50)]
+      )
+
+      instance(account())
+      pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.85)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: headroom}, %{region: @region}}
+      assert headroom == pressure_line - 100
+    end
+
+    test "reports the cached reading placement acts on rather than measuring again" do
+      expect(Capacity, :admission_headroom_gib, fn %Regions{id: @region} -> 42 end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
+    end
+
+    test "reports zero when the region cannot be read, because admission then refuses every instance" do
+      instance(account())
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 0}, %{region: @region}}
+    end
+
+    test "reports nothing where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      refute_received {[:tuist, :kura, :capacity, :admission], ^ref, _measurements, _metadata}
     end
   end
 

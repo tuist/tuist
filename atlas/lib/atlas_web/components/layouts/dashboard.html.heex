@@ -2,7 +2,7 @@
   <header class="headerbar">
     <div data-part="left-section">
       <.link navigate={~p"/"} class="headerbar__brand">
-        <img src={~p"/images/logo.svg"} alt="Atlas" data-part="logo" />
+        <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
         <span class="headerbar__title">Atlas</span>
       </.link>
     </div>
@@ -54,163 +54,172 @@
   <section class="layout__main">
     <.sidebar>
       <.sidebar_group
-        id="sidebar-sales"
-        label={gettext("Sales")}
-        icon="trending_up"
-        navigate={~p"/sales"}
-        selected={@current_path in [~p"/", ~p"/sales"]}
-        default_open={@current_path == ~p"/" or String.starts_with?(@current_path, ~p"/sales")}
+        id="sidebar-commercial"
+        label={gettext("Commercial")}
+        icon="briefcase"
+        collapsible={false}
+      >
+        <.sidebar_group
+          id="sidebar-sales"
+          label={gettext("Sales")}
+          icon="trending_up"
+          navigate={~p"/commercial/sales"}
+          selected={@current_path in [~p"/", ~p"/commercial/sales"]}
+          default_open={
+            @current_path == ~p"/" or String.starts_with?(@current_path, "/commercial/sales")
+          }
+        >
+          <.sidebar_item
+            label={gettext("Accounts")}
+            icon="building"
+            navigate={
+              ~p"/commercial/sales/accounts?#{%{"filter_lifecycle_op" => "==", "filter_lifecycle_val" => "prospect"}}"
+            }
+            selected={String.starts_with?(@current_path, "/commercial/sales/accounts")}
+          />
+          <.sidebar_item
+            label={gettext("Feature interest")}
+            icon="message_circle"
+            navigate={~p"/commercial/sales/feature-interests"}
+            selected={String.starts_with?(@current_path, "/commercial/sales/feature-interests")}
+          />
+          <.sidebar_item
+            :if={Atlas.Users.executive?(@current_user)}
+            label={gettext("Licenses")}
+            icon="lock"
+            navigate={~p"/commercial/sales/licenses"}
+            selected={@current_path == ~p"/commercial/sales/licenses"}
+          />
+        </.sidebar_group>
+        <.sidebar_group
+          :if={Atlas.Users.executive?(@current_user)}
+          id="sidebar-finance"
+          label={gettext("Finance")}
+          icon="chart_donut_4"
+          navigate={~p"/commercial/finance"}
+          selected={@current_path == ~p"/commercial/finance"}
+          default_open={String.starts_with?(@current_path, "/commercial/finance")}
+        >
+          <.sidebar_item
+            label={gettext("Vendor costs")}
+            icon="building"
+            navigate={~p"/commercial/finance/vendors"}
+            selected={@current_path == ~p"/commercial/finance/vendors"}
+          />
+        </.sidebar_group>
+        <.sidebar_group
+          id="sidebar-gtm"
+          label={gettext("GTM")}
+          icon="bulb"
+          default_open={String.starts_with?(@current_path, "/commercial/gtm")}
+        >
+          <.sidebar_item
+            label={gettext("Content")}
+            icon="file_text"
+            navigate={~p"/commercial/gtm/content"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/content")}
+          />
+          <.sidebar_item
+            label={gettext("Outreach")}
+            icon="trending_up"
+            navigate={~p"/commercial/gtm/outreach"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/outreach")}
+          />
+          <.sidebar_item
+            label={gettext("Social")}
+            icon="message_circle"
+            navigate={~p"/commercial/gtm/social"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/social")}
+          />
+        </.sidebar_group>
+        <.sidebar_item
+          label={gettext("Support")}
+          icon="message_circle"
+          navigate={~p"/commercial/support"}
+          selected={String.starts_with?(@current_path, "/commercial/support")}
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        id="sidebar-outbound"
+        label={gettext("Outbound")}
+        icon="send"
+        collapsible={false}
       >
         <.sidebar_item
-          label={gettext("Accounts")}
-          icon="building"
-          navigate={
-            ~p"/sales/accounts?#{%{"filter_lifecycle_op" => "==", "filter_lifecycle_val" => "prospect"}}"
-          }
-          selected={String.starts_with?(@current_path, ~p"/sales/accounts")}
-        />
-        <.sidebar_item
-          label={gettext("Feature interest")}
-          icon="message_circle"
-          navigate={~p"/sales/feature-interests"}
-          selected={String.starts_with?(@current_path, ~p"/sales/feature-interests")}
+          label={gettext("Email")}
+          icon="mail"
+          navigate={~p"/outbound/email"}
+          selected={String.starts_with?(@current_path, "/outbound/email")}
         />
         <.sidebar_item
           :if={Atlas.Users.executive?(@current_user)}
-          label={gettext("Licenses")}
-          icon="lock"
-          navigate={~p"/sales/licenses"}
-          selected={@current_path == ~p"/sales/licenses"}
+          label={gettext("Postal")}
+          icon="mail"
+          navigate={~p"/outbound/postal"}
+          selected={@current_path == ~p"/outbound/postal"}
         />
       </.sidebar_group>
       <.sidebar_group
         :if={Atlas.Users.executive?(@current_user)}
-        id="sidebar-finance"
-        label={gettext("Finance")}
-        icon="chart_donut_4"
-        navigate={~p"/finance"}
-        selected={@current_path == ~p"/finance"}
-        default_open={String.starts_with?(@current_path, ~p"/finance")}
-      >
-        <.sidebar_item
-          label={gettext("Vendor costs")}
-          icon="building"
-          navigate={~p"/finance/vendors"}
-          selected={@current_path == ~p"/finance/vendors"}
-        />
-      </.sidebar_group>
-      <.sidebar_item
-        :if={Atlas.Users.executive?(@current_user)}
-        label={gettext("Documents")}
-        icon="file"
-        navigate={~p"/documents"}
-        selected={String.starts_with?(@current_path, ~p"/documents")}
-      />
-      <.sidebar_item
-        :if={Atlas.Users.executive?(@current_user)}
-        label={gettext("Postal")}
-        icon="mail"
-        navigate={~p"/postal"}
-        selected={@current_path == ~p"/postal"}
-      />
-      <.sidebar_group
-        :if={Atlas.Users.executive?(@current_user)}
-        id="sidebar-hardware"
-        label={gettext("Hardware")}
+        id="sidebar-operations"
+        label={gettext("Operations")}
         icon="server"
-        navigate={~p"/hardware"}
-        selected={@current_path == ~p"/hardware"}
-        default_open={String.starts_with?(@current_path, ~p"/hardware")}
+        collapsible={false}
       >
-        <.sidebar_item
-          label={gettext("Data centers")}
-          icon="building"
-          navigate={~p"/hardware/data-centers"}
-          selected={String.starts_with?(@current_path, ~p"/hardware/data-centers")}
-        />
-        <.sidebar_item
-          label={gettext("Insurance")}
-          icon="lock"
-          navigate={~p"/hardware/insurance"}
-          selected={String.starts_with?(@current_path, ~p"/hardware/insurance")}
-        />
-        <.sidebar_item
-          label={gettext("Financings")}
-          icon="credit_card"
-          navigate={~p"/hardware/financings"}
-          selected={String.starts_with?(@current_path, ~p"/hardware/financings")}
-        />
+        <.sidebar_group
+          id="sidebar-hardware"
+          label={gettext("Hardware")}
+          icon="server"
+          navigate={~p"/operations/hardware"}
+          selected={@current_path == ~p"/operations/hardware"}
+          default_open={String.starts_with?(@current_path, "/operations/hardware")}
+        >
+          <.sidebar_item
+            label={gettext("Data centers")}
+            icon="building"
+            navigate={~p"/operations/hardware/data-centers"}
+            selected={String.starts_with?(@current_path, "/operations/hardware/data-centers")}
+          />
+          <.sidebar_item
+            label={gettext("Insurance")}
+            icon="lock"
+            navigate={~p"/operations/hardware/insurance"}
+            selected={String.starts_with?(@current_path, "/operations/hardware/insurance")}
+          />
+          <.sidebar_item
+            label={gettext("Financings")}
+            icon="credit_card"
+            navigate={~p"/operations/hardware/financings"}
+            selected={String.starts_with?(@current_path, "/operations/hardware/financings")}
+          />
+        </.sidebar_group>
       </.sidebar_group>
       <.sidebar_group
-        id="sidebar-gtm"
-        label={gettext("GTM")}
-        icon="bulb"
-        default_open={String.starts_with?(@current_path, "/gtm")}
+        id="sidebar-library"
+        label={gettext("Library")}
+        icon="book"
+        collapsible={false}
       >
         <.sidebar_item
-          label={gettext("Content")}
+          :if={Atlas.Users.executive?(@current_user)}
+          label={gettext("Documents")}
+          icon="file"
+          navigate={~p"/library/documents"}
+          selected={String.starts_with?(@current_path, "/library/documents")}
+        />
+        <.sidebar_item
+          label={gettext("Notes")}
           icon="file_text"
-          navigate={~p"/gtm/content"}
-          selected={String.starts_with?(@current_path, ~p"/gtm/content")}
-        />
-        <.sidebar_item
-          label={gettext("Outreach")}
-          icon="trending_up"
-          navigate={~p"/gtm/outreach"}
-          selected={String.starts_with?(@current_path, ~p"/gtm/outreach")}
-        />
-        <.sidebar_item
-          label={gettext("Social")}
-          icon="message_circle"
-          navigate={~p"/gtm/social"}
-          selected={String.starts_with?(@current_path, ~p"/gtm/social")}
+          navigate={~p"/library/notes"}
+          selected={String.starts_with?(@current_path, "/library/notes")}
         />
       </.sidebar_group>
-      <.sidebar_item
-        label={gettext("Notes")}
-        icon="file_text"
-        navigate={~p"/notes"}
-        selected={String.starts_with?(@current_path, "/notes")}
-      />
-      <.sidebar_item
-        label={gettext("Support")}
-        icon="message_circle"
-        navigate={~p"/support"}
-        selected={String.starts_with?(@current_path, ~p"/support")}
-      />
-      <.sidebar_item
-        label={gettext("Email")}
-        icon="mail"
-        navigate={~p"/email"}
-        selected={String.starts_with?(@current_path, ~p"/email")}
-      />
-      <.sidebar_item
-        label={gettext("MCPs")}
-        icon="server"
-        navigate={~p"/mcps"}
-        selected={String.starts_with?(@current_path, ~p"/mcps")}
-      />
-      <.sidebar_item
-        label={gettext("Sessions")}
-        icon="message_circle"
-        navigate={~p"/sessions"}
-        selected={String.starts_with?(@current_path, ~p"/sessions")}
-      />
-      <.sidebar_item
-        label={gettext("Memory")}
-        icon="search"
-        navigate={~p"/memory"}
-        selected={
-          String.starts_with?(@current_path, ~p"/memory") or
-            String.starts_with?(@current_path, ~p"/admin/memory")
-        }
-      />
       <.sidebar_group
         :if={Atlas.Users.executive?(@current_user)}
         id="sidebar-admin"
         label={gettext("Admin")}
         icon="settings"
-        default_open={String.starts_with?(@current_path, "/admin")}
+        collapsible={false}
       >
         <.sidebar_item
           label={gettext("Audit")}
@@ -229,6 +238,24 @@
           icon="users"
           navigate={~p"/admin/users"}
           selected={@current_path == ~p"/admin/users"}
+        />
+        <.sidebar_item
+          label={gettext("MCPs")}
+          icon="server"
+          navigate={~p"/admin/mcps"}
+          selected={String.starts_with?(@current_path, "/admin/mcps")}
+        />
+        <.sidebar_item
+          label={gettext("Sessions")}
+          icon="message_circle"
+          navigate={~p"/admin/sessions"}
+          selected={String.starts_with?(@current_path, "/admin/sessions")}
+        />
+        <.sidebar_item
+          label={gettext("Memory")}
+          icon="search"
+          navigate={~p"/admin/memory"}
+          selected={String.starts_with?(@current_path, "/admin/memory")}
         />
       </.sidebar_group>
     </.sidebar>

@@ -134,7 +134,7 @@ defmodule Atlas.Briefs.Notifier do
           %{
             "type" => "button",
             "text" => %{"type" => "plain_text", "text" => "Open finance dashboard", "emoji" => true},
-            "url" => "#{AtlasWeb.Endpoint.url()}/finance",
+            "url" => "#{AtlasWeb.Endpoint.url()}/commercial/finance",
             "style" => "primary"
           }
         ]
@@ -426,7 +426,7 @@ defmodule Atlas.Briefs.Notifier do
     )
   end
 
-  defp report_dashboard_path(%{"kind" => "monthly_finance_recap"}), do: "/finance"
+  defp report_dashboard_path(%{"kind" => "monthly_finance_recap"}), do: "/commercial/finance"
   defp report_dashboard_path(_report), do: nil
 
   defp slack_app("community"), do: :community

@@ -31,7 +31,7 @@ defmodule Atlas.MCP.Tools.AuditToolsTest do
     assert %{activities: [result], pagination: %{total_count: 1}} = payload
     assert result.id == activity.id
     assert result.actor.email == "admin@example.com"
-    assert result.target.path == "/sales/accounts/account-id"
+    assert result.target.path == "/commercial/sales/accounts/account-id"
   end
 
   test "gets a single audit activity for executives" do
@@ -47,7 +47,7 @@ defmodule Atlas.MCP.Tools.AuditToolsTest do
              execute_tool(GetAuditActivity, executive_mcp_conn(), %{"activity_id" => activity.id})
 
     assert result.id == activity.id
-    assert result.target.path == "/documents/document-id"
+    assert result.target.path == "/library/documents/document-id"
   end
 
   test "rejects non-executive users" do

@@ -18,7 +18,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
   test "renders empty outreach states inside their tables", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "outreach-empty@tuist.dev"})
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach")
 
     assert has_element?(
              view,
@@ -41,7 +41,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
         occurred_at: ~U[2026-07-18 09:00:00Z]
       })
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach")
 
     assert has_element?(view, "#gtm-outreach")
     assert has_element?(view, "#gtm-outreach h1", "Outreach")
@@ -57,10 +57,10 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
 
     assert has_element?(
              view,
-             ~s(#outreach-contacts-table a[href="/gtm/outreach/#{contact.id}"])
+             ~s(#outreach-contacts-table a[href="/commercial/gtm/outreach/#{contact.id}"])
            )
 
-    {:ok, detail, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, detail, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(detail, "#outreach-contact")
     assert has_element?(detail, "#outreach-contact-events", "Connection request sent")
@@ -105,7 +105,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     })
     |> Repo.insert!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(view, "[data-part='event-body'] h2", "Profiles")
     assert has_element?(view, "[data-part='event-body'] ul li strong", "GitHub:")
@@ -125,7 +125,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     {conn, _user} = log_in_user(conn, %{email: "outreach-refresh@tuist.dev"})
     contact = insert_contact!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     view
     |> element("#generate-outreach-recommendation")
@@ -134,7 +134,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     assert has_element?(view, "#outreach-recommendation-processing")
     assert Outreach.recommendation_generation_pending?(contact)
 
-    {:ok, refreshed, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, refreshed, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(refreshed, "#outreach-recommendation-processing")
     refute has_element?(refreshed, "#outreach-recommendation-empty")
@@ -151,7 +151,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     {conn, _user} = log_in_user(conn, %{email: "outreach-failed-generation@tuist.dev"})
     contact = insert_contact!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     view
     |> element("#generate-outreach-recommendation")
@@ -179,7 +179,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
 
     insert_pending_recommendation!(contact, event)
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     view
     |> element("#complete-outreach-recommendation")
@@ -199,7 +199,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     {conn, _user} = log_in_user(conn, %{email: "outreach-deleted-contact@tuist.dev"})
     contact = insert_contact!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     view
     |> element("#generate-outreach-recommendation")
@@ -209,14 +209,14 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     Repo.delete!(contact)
     send(view.pid, :poll_recommendation)
 
-    assert_redirect(view, ~p"/gtm/outreach")
+    assert_redirect(view, ~p"/commercial/gtm/outreach")
   end
 
   test "records connection progress and messages from the contact page", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "outreach-events@tuist.dev"})
     contact = insert_contact!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     render_click(view, "record_quick_event", %{"kind" => "connection_requested"})
 
@@ -255,7 +255,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
       end
     )
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     render_hook(view, "screenshots_pasted", %{
       "screenshots" => [
@@ -310,7 +310,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
       })
       |> Repo.insert!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(view, "#outreach-recommendation", recommendation.title)
     assert has_element?(view, "#outreach-recommendation", recommendation.draft_message)
@@ -366,7 +366,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     })
     |> Repo.insert!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(
              view,
@@ -426,7 +426,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
       })
       |> Repo.insert!()
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach/#{contact.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
 
     assert has_element?(
              view,
@@ -458,11 +458,11 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     {conn, _user} = log_in_user(conn, %{email: "outreach-account-link@tuist.dev"})
     contact = insert_contact!()
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{contact.account_id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{contact.account_id}")
 
     assert has_element?(
              view,
-             ~s(#contact-history-button-#{contact.id}[href="/gtm/outreach/#{contact.id}"])
+             ~s(#contact-history-button-#{contact.id}[href="/commercial/gtm/outreach/#{contact.id}"])
            )
   end
 
@@ -471,7 +471,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     enroll_candidate = insert_candidate!("enroll")
     reject_candidate = insert_candidate!("reject")
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach")
 
     assert has_element?(view, "#outreach-candidates-table")
     assert has_element?(view, "[data-part='outreach-candidates-card']", "Candidates")
@@ -507,7 +507,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
 
     last_candidate = List.last(candidates)
 
-    {:ok, view, _html} = live(conn, ~p"/gtm/outreach")
+    {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach")
 
     assert has_element?(view, "#outreach-candidates-pagination")
     assert has_element?(view, "#outreach-candidate-actions-#{List.first(candidates).id}-button")
@@ -517,7 +517,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     |> element(~s(#outreach-candidates-pagination a[data-part="page-button"][href*="candidates-page=2"]))
     |> render_click()
 
-    assert_patched(view, ~p"/gtm/outreach?candidates-page=2")
+    assert_patched(view, ~p"/commercial/gtm/outreach?candidates-page=2")
     assert has_element?(view, "#outreach-candidate-actions-#{last_candidate.id}-button")
     refute has_element?(view, "#outreach-candidate-actions-#{List.first(candidates).id}-button")
   end

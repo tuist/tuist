@@ -255,7 +255,7 @@ defmodule Atlas.Letters do
          {:ok, document} <- store_uploaded_letter_document(letter, upload, actor),
          {:ok, letter} <- insert_letter(letter, document),
          {:ok, _job} <- enqueue_delivery_preparation(letter),
-         :ok <- audit("letter.uploaded", letter, actor, %{"document_id" => document.id, "path" => "/postal"}) do
+         :ok <- audit("letter.uploaded", letter, actor, %{"document_id" => document.id, "path" => "/outbound/postal"}) do
       {:ok, preload_letter(letter)}
     else
       {:error, _reason} = error -> error
@@ -271,7 +271,7 @@ defmodule Atlas.Letters do
          {:ok, document} <- store_uploaded_letter_document(letter, upload, actor),
          {:ok, letter} <- insert_letter(letter, document),
          {:ok, _job} <- enqueue_delivery_preparation(letter),
-         :ok <- audit("letter.uploaded", letter, actor, %{"document_id" => document.id, "path" => "/postal"}) do
+         :ok <- audit("letter.uploaded", letter, actor, %{"document_id" => document.id, "path" => "/outbound/postal"}) do
       {:ok, preload_letter(letter)}
     else
       {:error, _reason} = error -> error
@@ -658,7 +658,7 @@ defmodule Atlas.Letters do
                  letter.created_by,
                  %{
                    "account_id" => account.id,
-                   "path" => "/sales/accounts/#{account.id}"
+                   "path" => "/commercial/sales/accounts/#{account.id}"
                  },
                  interface: "worker"
                ) do
@@ -893,7 +893,7 @@ defmodule Atlas.Letters do
               "signed_document_id" => letter.signed_document_id,
               "kind" => letter.kind,
               "status" => letter.status,
-              "path" => "/sales/accounts/#{letter.account_id}"
+              "path" => "/commercial/sales/accounts/#{letter.account_id}"
             },
             metadata
           )

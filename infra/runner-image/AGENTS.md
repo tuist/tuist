@@ -19,7 +19,7 @@ runtime — no service, sudo entry, or auto-login targets it.
 
 Because the base images provision as `admin` and jobs run as
 `runner`, anything the base installs under `admin` has to be
-handed over explicitly. Two things are:
+handed over explicitly. Three things are:
 
 - `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
   install` from a workflow step failed its writability audit
@@ -33,6 +33,12 @@ handed over explicitly. Two things are:
   copied over. Without it the login shell the LaunchAgent (and
   every step shell under it) runs resolves no brew shellenv, no
   rbenv, no node.
+- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
+  `admin` is not usable by `runner`, so the image downloads it again
+  as `runner`, with the same explicit `-buildVersion` the base uses
+  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
+  the toolchain was added to them have none, and this download is
+  what installs it.
 
 When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
@@ -263,7 +269,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it.
+  on the VM's boot volume and died with it. It exports
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
+  put wait for its upload, because off a runner the store goes away with the job,
+  and `drain_cas_publications` does that wait at teardown for spools under this
+  directory, after the job has reported its result. The plugin uploads in the
+  background only when its own store is inside that path, so a job whose xcconfig
+  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
+  so does every job whose store is VM-local.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown (the prune is second, and in that order deliberately: a prune deletes
   objects, and deleting one the spool still owed would strand the association
@@ -279,10 +292,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   can be found — a record is deleted only by a publication that SUCCEEDED, so an
   empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
   because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it is skipped on a failed job
-  (which never promotes) and is a no-op for a job that never published, which
-  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
-  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  detach because the spool is inside the image; it runs on a failed job too,
+  whose uploads the next job still needs even though its verdict gates nothing
+  (a failed job never promotes), and is a no-op for a job that never published,
+  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
+  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
   `mark_cache_not_promotable`: the account keeps its previous master and loses
   this job's warm set, which is the same trade every other teardown that cannot
   reach a safe state already makes. It cannot be complete — a host that panics or

@@ -196,7 +196,7 @@ defmodule Atlas.Accounts.InvoicePaidNotifier do
   defp account_link(account), do: escape_mrkdwn(account_name(account))
 
   defp safe_account_url(id) do
-    url(~p"/sales/accounts/#{id}")
+    url(~p"/commercial/sales/accounts/#{id}")
   rescue
     _ -> nil
   end

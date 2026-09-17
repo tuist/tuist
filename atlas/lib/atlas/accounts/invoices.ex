@@ -482,7 +482,7 @@ defmodule Atlas.Accounts.Invoices do
             target_id: account.id,
             target_label: account.name,
             metadata: %{
-              "path" => "/sales/accounts/#{account.id}",
+              "path" => "/commercial/sales/accounts/#{account.id}",
               "invoice_count" => count
             }
           })
@@ -580,7 +580,7 @@ defmodule Atlas.Accounts.Invoices do
       target_id: invoice.id,
       target_label: invoice.number || invoice.external_id,
       metadata: %{
-        "path" => "/sales/accounts/#{account.id}",
+        "path" => "/commercial/sales/accounts/#{account.id}",
         "account_id" => account.id,
         "stripe_invoice_id" => invoice.external_id,
         "source_document_id" => result.source_document && result.source_document.id,

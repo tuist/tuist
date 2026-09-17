@@ -19,7 +19,7 @@ defmodule AtlasWeb.PostalLiveTest do
 
     assert {:ok, letter} = Letters.prepare_tax_certificate(account, request_attrs(), executive)
 
-    {:ok, view, _html} = live(conn, ~p"/postal")
+    {:ok, view, _html} = live(conn, ~p"/outbound/postal")
 
     assert has_element?(view, "#postal")
     assert has_element?(view, "#postal-search-form")
@@ -31,7 +31,7 @@ defmodule AtlasWeb.PostalLiveTest do
 
     assert has_element?(
              view,
-             "#postal-letter-account-#{letter.id}[href='/sales/accounts/#{account.id}']",
+             "#postal-letter-account-#{letter.id}[href='/commercial/sales/accounts/#{account.id}']",
              account.name
            )
 
@@ -60,11 +60,11 @@ defmodule AtlasWeb.PostalLiveTest do
 
     assert {:ok, ready_to_deliver} = Letters.prepare_delivery_details(signed)
 
-    {:ok, view, _html} = live(conn, ~p"/postal")
+    {:ok, view, _html} = live(conn, ~p"/outbound/postal")
 
     assert has_element?(
              view,
-             "#postal-letter-account-#{ready_to_deliver.id}[href='/sales/accounts/#{account.id}']",
+             "#postal-letter-account-#{ready_to_deliver.id}[href='/commercial/sales/accounts/#{account.id}']",
              account.name
            )
 
@@ -84,7 +84,7 @@ defmodule AtlasWeb.PostalLiveTest do
 
     assert {:ok, _letter} = Letters.prepare_tax_certificate(account, request_attrs(), executive)
 
-    {:ok, view, _html} = live(conn, ~p"/postal")
+    {:ok, view, _html} = live(conn, ~p"/outbound/postal")
 
     assert has_element?(view, "#postal-letter-action-modal")
   end
@@ -96,7 +96,7 @@ defmodule AtlasWeb.PostalLiveTest do
         role: :employee
       })
 
-    assert {:error, {:redirect, %{to: "/sales"}}} = live(conn, ~p"/postal")
+    assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/outbound/postal")
   end
 
   defp request_attrs do

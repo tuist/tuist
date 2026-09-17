@@ -422,7 +422,7 @@ defmodule Atlas.Slack.Events do
           target_label: event.title,
           metadata: %{
             "account_id" => event.account_id,
-            "path" => "/sales/accounts/#{event.account_id}",
+            "path" => "/commercial/sales/accounts/#{event.account_id}",
             "slack_ts" => get_in(event.metadata || %{}, ["slack_ts"]),
             "channel_name" => get_in(event.metadata || %{}, ["channel_name"])
           }

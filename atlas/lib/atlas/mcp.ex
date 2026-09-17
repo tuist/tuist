@@ -130,7 +130,7 @@ defmodule Atlas.MCP do
             target_id: session.id,
             target_label: server.name,
             metadata: %{
-              "path" => "/mcps",
+              "path" => "/admin/mcps",
               "server_name" => server.name,
               "status" => session.status,
               "expires_at" => session.expires_at,
@@ -417,7 +417,7 @@ defmodule Atlas.MCP do
             target_id: updated.id,
             target_label: updated.server_name,
             metadata: %{
-              "path" => "/mcps",
+              "path" => "/admin/mcps",
               "server_name" => updated.server_name,
               "status" => updated.status
             }
@@ -567,7 +567,7 @@ defmodule Atlas.MCP do
         target_id: session.id,
         target_label: session.server_name,
         metadata: %{
-          "path" => "/mcps",
+          "path" => "/admin/mcps",
           "server_name" => session.server_name,
           "status" => session.status,
           "expires_at" => session.expires_at

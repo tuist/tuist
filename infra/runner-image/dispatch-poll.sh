@@ -595,6 +595,13 @@ setup_cas_store() {
   # ride. An older CLI ignores it and keeps its VM-local store, which is exactly
   # today's behaviour.
   export TUIST_COMPILATION_CACHE_CAS_PATH="${store}"
+  # On CI the CAS plugin makes every cache put wait for its upload, because the
+  # store usually goes away with the job. drain_cas_publications waits for the
+  # spools under this store at teardown, after the job has reported its result,
+  # so puts into a store inside it upload in the background. The plugin checks
+  # its own store against the path, so a job that points its compilation cache
+  # elsewhere, whose spool nothing drains, still waits.
+  export TUIST_CAS_DRAINED_STORE="${store}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
@@ -707,16 +714,16 @@ cas_proxy_client() {
 # detach, since the spool lives inside the image and the publisher needs to read
 # it.
 #
-# Skipped when the job failed: a non-zero rc never promotes (report_cache_dirty
-# and report_volume_head both gate on it), so there is no master to keep honest
-# and no reason to hold the slot.
+# It runs for a failed job too. A non-zero rc never promotes (report_cache_dirty
+# and report_volume_head both gate on it), so its verdict gates nothing there,
+# but setup_cas_store told the job's compiles not to wait for their uploads
+# because this wait would, and the next job's warm cache is made of those
+# uploads whether this one passed or not.
 #
 # Best-effort by nature, which is why it does not replace the plugin's read-side
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
 # reaching this.
 drain_cas_publications() {
-  local rc="${1:-1}"
-  [ "${rc}" = "0" ] || return 0
   [ -n "${CACHE_MOUNT}" ] || return 0
   local spools
   spools=$(cas_spool_dirs)
@@ -1716,18 +1723,18 @@ HOOK
       reclaim_cas_if_disabled
       # After the reclaim: a store that was just dropped has no spool left to
       # wait on, so a disabled-CAS teardown never pays for this gate.
-      if ! drain_cas_publications "${rc}"; then
+      if ! drain_cas_publications && [ "${rc}" = "0" ]; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
       #
-      # Gated on rc, like the drain and for the matching reason. A non-zero rc
-      # never promotes, so there is no image for this to shrink — and the drain
-      # was skipped too, so the spool may still owe the remote objects this
-      # would delete. Nothing inherits those associations (the branch is
-      # discarded), but "prune only what has been drained" is the invariant
+      # Gated on rc. A non-zero rc never promotes, so there is no image for this
+      # to shrink, and the drain's verdict gates nothing for a failed job, so
+      # the spool may still owe the remote objects this would delete. Nothing
+      # inherits those associations (the branch is discarded), but "prune only
+      # what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
       if [ "${rc}" = "0" ]; then

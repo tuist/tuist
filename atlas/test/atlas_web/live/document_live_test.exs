@@ -18,12 +18,12 @@ defmodule AtlasWeb.DocumentLiveTest do
       %{title: "MSA", account_id: account.id, document_type_id: document_type.id, correspondent_id: correspondent.id}
       |> insert_document!()
 
-    {:ok, view, _html} = live(conn, ~p"/documents/#{document.id}")
+    {:ok, view, _html} = live(conn, ~p"/library/documents/#{document.id}")
 
     assert has_element?(view, "#document")
     # The download link carries a descriptive trailing filename (title slug + ext).
     assert has_element?(view, ~s(a[href="/documents/#{document.id}/download/msa.txt"]), "Open document")
-    assert has_element?(view, ~s(a[href="/sales/accounts/#{account.id}"]), "View account")
+    assert has_element?(view, ~s(a[href="/commercial/sales/accounts/#{account.id}"]), "View account")
     assert has_element?(view, "#document-account-link", account.name)
     assert render(view) =~ "Acme Inc."
   end
@@ -31,8 +31,8 @@ defmodule AtlasWeb.DocumentLiveTest do
   test "redirects when the document is missing", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "doc-missing@example.com", role: :executive})
 
-    assert {:error, {:live_redirect, %{to: "/documents"}}} =
-             live(conn, ~p"/documents/#{Ecto.UUID.generate()}")
+    assert {:error, {:live_redirect, %{to: "/library/documents"}}} =
+             live(conn, ~p"/library/documents/#{Ecto.UUID.generate()}")
   end
 
   defp insert_document!(attrs) do

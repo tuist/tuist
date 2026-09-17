@@ -748,7 +748,7 @@ defmodule Atlas.Accounts do
           {:ok, updated} ->
             audit_account("account.commercial_summary.synced", updated, %{
               "changed" => Audit.changeset_changes(changeset),
-              "path" => "/sales/accounts/#{updated.id}",
+              "path" => "/commercial/sales/accounts/#{updated.id}",
               "term_id" => term.id
             })
 
@@ -928,7 +928,7 @@ defmodule Atlas.Accounts do
   defp put_metadata(metadata, key, value), do: Map.put(metadata, key, value)
 
   defp put_account_path(metadata, account_id) when is_binary(account_id) and account_id != "" do
-    Map.put_new(metadata, "path", "/sales/accounts/#{account_id}")
+    Map.put_new(metadata, "path", "/commercial/sales/accounts/#{account_id}")
   end
 
   defp put_account_path(metadata, _account_id), do: metadata

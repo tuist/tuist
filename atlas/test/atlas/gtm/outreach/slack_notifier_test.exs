@@ -41,7 +41,7 @@ defmodule Atlas.GTM.Outreach.SlackNotifierTest do
     assert Enum.any?(actions, &(&1["action_id"] == SlackNotifier.action_id("qualify")))
     assert Enum.any?(actions, &(&1["action_id"] == SlackNotifier.action_id("convert")))
     assert Enum.any?(actions, &(&1["action_id"] == SlackNotifier.action_id("reject")))
-    assert Enum.any?(actions, &(&1["url"] =~ "/gtm/outreach"))
+    assert Enum.any?(actions, &(&1["url"] =~ "/commercial/gtm/outreach"))
   end
 
   test "posts the notification to the configured Slack channel" do

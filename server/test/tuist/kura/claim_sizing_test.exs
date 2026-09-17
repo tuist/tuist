@@ -600,7 +600,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 after a capped resize" do
     # A 16Gi claim grown to 32Gi runs a 26Gi ring. 21 hours of shedding sits
     # under a third of the 3-day floor, and 20Gi a day is under one ring, so
-    # only the five-day rung accepts it on its own.
+    # only the five-day rung accepts it on its own and the fast track not at
+    # all.
     defp resized_churn(count, end_day, attrs \\ []) do
       churn_days(
         count,
@@ -632,10 +633,73 @@ defmodule Tuist.Kura.ClaimSizingTest do
       )
     end
 
-    test "grows on one qualifying day of the resized ring" do
-      assert {:grow, "64Gi", evidence} = ClaimSizing.evaluate(resized_context(rollups: resized_churn(1, @today)))
+    test "grows on one qualifying day of the resized ring that shed a whole ring" do
+      assert ClaimSizing.evaluate(resized_context(rollups: resized_churn(1, @today))) == :none
+
+      rollups = resized_churn(1, @today, evicted_bytes: 30 * @gibibyte)
+
+      assert {:grow, "64Gi", evidence} = ClaimSizing.evaluate(resized_context(rollups: rollups))
       assert evidence["window_days"] == 1
+      assert evidence["ring_turnover"] == 1.2
       assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
+      assert evidence["after_capped_resize"] == true
+    end
+
+    test "a rebuilt ring shedding its first segments does not grow" do
+      # A 16Gi claim capped at 64Gi rebuilds a 51 GiB ring that refills and
+      # sheds two segments 118,552 seconds after the resize: as old as the
+      # ring itself, which is still younger than the retention floor.
+      ring_bytes = 51 * @gibibyte
+
+      rollups = [
+        rollup(@today,
+          eviction_count: 2,
+          evicted_bytes: 1_069_409_935,
+          median_shed_age_seconds: 118_552,
+          median_ring_span_seconds: 118_552,
+          last_ring_budget_bytes: ring_bytes,
+          min_ring_budget_bytes: ring_bytes
+        )
+      ]
+
+      context =
+        context(
+          plan: :enterprise,
+          current_claim_size: "64Gi",
+          capped_resize_from: "16Gi",
+          last_resized_at: DateTime.new!(Date.add(@today, -1), ~T[00:30:00], "Etc/UTC"),
+          rollups: rollups
+        )
+
+      assert ClaimSizing.evaluate(context) == :none
+    end
+
+    test "a rebuilt ring that cycles within hours still grows on its first day" do
+      ring_bytes = 51 * @gibibyte
+
+      rollups = [
+        rollup(@today,
+          eviction_count: 120,
+          evicted_bytes: 60 * @gibibyte,
+          median_shed_age_seconds: 5 * 3_600,
+          median_ring_span_seconds: 6 * 3_600,
+          last_ring_budget_bytes: ring_bytes,
+          min_ring_budget_bytes: ring_bytes
+        )
+      ]
+
+      context =
+        context(
+          plan: :enterprise,
+          current_claim_size: "64Gi",
+          capped_resize_from: "16Gi",
+          last_resized_at: DateTime.new!(Date.add(@today, -1), ~T[00:30:00], "Etc/UTC"),
+          rollups: rollups
+        )
+
+      assert {:grow, "128Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 1
+      assert evidence["ring_turnover"] == 1.2
       assert evidence["after_capped_resize"] == true
     end
 
@@ -689,7 +753,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
         end
 
       context = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -3), ~T[14:00:00], "Etc/UTC"))
-      rollups = resized_churn(1, Date.add(@today, -2)) ++ idle
+      rollups = resized_churn(1, Date.add(@today, -2), evicted_bytes: 30 * @gibibyte) ++ idle
 
       assert {:grow, "64Gi", %{"window_days" => 1, "after_capped_resize" => true}} =
                ClaimSizing.evaluate(context(context, rollups: rollups))
@@ -720,7 +784,12 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "a rung fast-tracks only until its own window could have run since the resize" do
       # 60 hours clears every rung but the fourteen-day one.
-      rollups = resized_churn(1, @today, median_shed_age_seconds: 60 * 3_600, median_ring_span_seconds: 60 * 3_600)
+      rollups =
+        resized_churn(1, @today,
+          median_shed_age_seconds: 60 * 3_600,
+          median_ring_span_seconds: 60 * 3_600,
+          evicted_bytes: 30 * @gibibyte
+        )
 
       within = resized_context(last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[14:00:00], "Etc/UTC"))
 
@@ -734,12 +803,17 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "the fast-tracked step keeps the one-day bound and the plan ceiling" do
       # The projection is far past 4x, so only the bound decides where it lands.
-      rollups = resized_churn(1, @today, median_shed_age_seconds: 1_800, median_ring_span_seconds: 3_600)
+      rollups =
+        resized_churn(1, @today,
+          median_shed_age_seconds: 2 * 3_600,
+          median_ring_span_seconds: 3 * 3_600,
+          evicted_bytes: 30 * @gibibyte
+        )
 
-      assert {:grow, "64Gi", %{"window_days" => 1}} =
+      assert {:grow, "64Gi", %{"window_days" => 1, "after_capped_resize" => true}} =
                ClaimSizing.evaluate(resized_context(plan: :enterprise, rollups: rollups))
 
-      assert {:grow, "256Gi", %{"window_days" => 1}} =
+      assert {:grow, "256Gi", %{"window_days" => 1, "after_capped_resize" => true}} =
                ClaimSizing.evaluate(
                  resized_context(
                    plan: :enterprise,
@@ -748,7 +822,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
                    rollups:
                      Enum.map(
                        rollups,
-                       &Map.merge(&1, %{last_ring_budget_bytes: 190 * @gibibyte, min_ring_budget_bytes: 190 * @gibibyte})
+                       &Map.merge(&1, %{
+                         evicted_bytes: 200 * @gibibyte,
+                         last_ring_budget_bytes: 190 * @gibibyte,
+                         min_ring_budget_bytes: 190 * @gibibyte
+                       })
                      )
                  )
                )

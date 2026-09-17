@@ -77,35 +77,46 @@ defmodule Tuist.Kura.AdmissionTest do
   end
 
   describe "headroom_gib/1" do
-    test "is what is left under the pressure line after the larger of the observed and desired reservations" do
-      account = account()
+    test "is the pressure line less the observed reservation when the cluster has seen every row" do
       {:ok, region} = Regions.fetch("us-east")
       region_id = region.id
-      pending_server(account, region_id)
+      pending_server(account(), region_id)
 
       stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
-      stub(Capacity, :reserved_gib, fn ^region_id -> 10 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 40 end)
       stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
 
-      assert Admission.headroom_gib(region) == 84
+      assert Admission.headroom_gib(region) == 60
     end
 
-    test "admits exactly what fits in it" do
-      account = account()
+    test "counts rows the cluster has not observed yet, the way admission does" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      pending_server(account(), region_id)
+      pending_server(account(), region_id)
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 68
+    end
+
+    test "is negative when reservations already sit above the pressure line" do
       {:ok, region} = Regions.fetch("us-east")
       region_id = region.id
 
-      stub(Capacity, :pressure_line_gib, fn ^region_id -> 32 end)
-      stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
-      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 110 end)
 
-      assert Admission.headroom_gib(region) == 16
-      assert :ok = Admission.admit?(region, candidate(account, region_id))
+      assert Admission.headroom_gib(region) == -10
     end
 
-    test "is nil when the region cannot be read" do
+    test "is nil when the region cannot be read, which admission refuses" do
       {:ok, region} = Regions.fetch("us-east")
-      stub(Capacity, :pressure_line_gib, fn _region_id -> nil end)
+      region_id = region.id
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> nil end)
 
       assert Admission.headroom_gib(region) == nil
     end

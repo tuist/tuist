@@ -261,7 +261,7 @@ defmodule Atlas.MCP.OAuthTest do
                server,
                user,
                "http://localhost:3030/mcps/grafana/callback",
-               "/mcps"
+               "/admin/mcps"
              )
 
     params = url |> URI.parse() |> then(&URI.decode_query(&1.query))

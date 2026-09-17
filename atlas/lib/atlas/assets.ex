@@ -22,7 +22,7 @@ defmodule Atlas.Assets do
   alias Atlas.Repo
   alias Atlas.Users.User
 
-  @asset_dashboard_prefix "/hardware"
+  @asset_dashboard_prefix "/operations/hardware"
 
   ## ------------------------------------------------------------------
   ## Reads

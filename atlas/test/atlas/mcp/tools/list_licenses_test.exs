@@ -13,7 +13,7 @@ defmodule Atlas.MCP.Tools.ListLicensesTest do
     assert {:ok, result} = execute_tool(ListLicenses, executive_mcp_conn(), %{})
 
     assert result.count == 1
-    assert result.licenses_url =~ "/sales/licenses"
+    assert result.licenses_url =~ "/commercial/sales/licenses"
     assert [serialized] = result.licenses
     assert serialized.id == license.id
     assert serialized.customer_name == "Acme Labs"

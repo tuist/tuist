@@ -44,6 +44,9 @@ alias Ueberauth.Strategy.Google
 
 llm_receive_timeout = :timer.minutes(5)
 
+# Configure esbuild (the version is required)
+noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.Mailer, adapter: Local
 
@@ -181,9 +184,6 @@ config :boruta, Boruta.Oauth,
     access_tokens: AccessTokens
   ],
   token_generator: TokenGenerator
-
-# Configure esbuild (the version is required)
-noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 
 config :esbuild,
   version: "0.25.4",
