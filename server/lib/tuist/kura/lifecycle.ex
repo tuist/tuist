@@ -85,11 +85,13 @@ defmodule Tuist.Kura.Lifecycle do
   ## Air pressure
 
   Air may enter drain-pending at 60 complete inactive days instead of 90, but
-  only while the region's forecast enforced warm quota does not fit what is
-  installed (`Tuist.Kura.Capacity`). With room, the 90-day target holds for
-  every plan. Under pressure, the least-recently-demanded Air instances go
-  first, and only as many as it takes to fit. No account on any plan is ever
-  archived before 60 complete inactive days.
+  only while the region's admission headroom can no longer take a new
+  enterprise instance (`Tuist.Kura.Capacity.under_pressure?/1`). With room, the
+  90-day target holds for every plan. Under pressure, the least-recently-demanded
+  Air instances go first, and only as many as it takes to fit. Once archived,
+  the account-region is provisioned again only by demand recorded after the
+  archival. No account on any plan is ever archived before 60 complete inactive
+  days.
   """
 
   import Ecto.Query
@@ -403,10 +405,11 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
         where: not exists(destroyed_since_demand_exists),
-        # An instance reclaimed for never storing anything comes back only for
-        # demand recorded after its archival, not for the demand it already had.
+        # An instance reclaimed for never storing anything or under pressure
+        # comes back only for demand recorded after its archival, not for the
+        # demand it already had.
         where:
-          is_nil(l.drain_reason) or l.drain_reason != :unused or is_nil(l.archived_at) or
+          is_nil(l.drain_reason) or l.drain_reason not in [:unused, :capacity_pressure] or is_nil(l.archived_at) or
             l.last_cache_demand_at > l.archived_at,
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
         limit: ^limit,
@@ -679,7 +682,7 @@ defmodule Tuist.Kura.Lifecycle do
         [{server, lifecycle, plan, :inactive}]
 
       # Between 60 and 90 complete inactive days. Only Air is eligible, and
-      # only while the region is over its installed capacity.
+      # only while the region is under pressure.
       plan == :air and pressure? ->
         [{server, lifecycle, plan, :capacity_pressure}]
 
@@ -691,7 +694,7 @@ defmodule Tuist.Kura.Lifecycle do
   # Pressure archival reclaims only as much as it takes to fit. Instances past
   # the full 90-day window are unconditional and are not counted against that
   # budget; the 60-day ones are taken in least-recent-demand order until the
-  # region is back under its pressure line.
+  # region is out of pressure.
   #
   # Each candidate frees its own reservation, not an average: instances in a
   # region are sized from their accounts' plans, so archiving the same number of
@@ -699,18 +702,17 @@ defmodule Tuist.Kura.Lifecycle do
   defp take_pressure_candidates(candidates, region_id) do
     {pressured, unconditional} = Enum.split_with(candidates, fn {_s, _l, _p, reason} -> reason == :capacity_pressure end)
 
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         reserved when is_integer(reserved) <- Capacity.reserved_gib(region_id) do
-      {:ok, region} = Regions.fetch(region_id)
+    with deficit when is_integer(deficit) <- Capacity.pressure_deficit_gib(region_id),
+         {:ok, region} <- Regions.fetch(region_id) do
       freed = fn {server, _lifecycle, _plan, _reason} -> Capacity.resident_gib(region, server) end
 
       # The unconditional archivals happen regardless, so the room they free
       # counts before deciding how many more the pressure rule has to take.
-      after_unconditional = reserved - Enum.sum(Enum.map(unconditional, freed))
+      after_unconditional = deficit - Enum.sum(Enum.map(unconditional, freed))
 
       {_final, needed} =
         Enum.reduce(pressured, {after_unconditional, []}, fn candidate, {gib, taken} ->
-          if gib > target do
+          if gib > 0 do
             {gib - freed.(candidate), [candidate | taken]}
           else
             {gib, taken}

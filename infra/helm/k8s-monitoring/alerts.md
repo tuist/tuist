@@ -1398,10 +1398,12 @@ claim growth once the region's reservations reach 85% of its allocatable disk
 than per node, and it counts rows the cluster has not scheduled yet. A region
 therefore stops admitting while this row still reads one or more. That case is
 **Kura region admission cannot take an enterprise instance**, which reads the
-server's own number. This document gave the row a `0.85 *` factor on
-2026-09-14 that was never applied to the live rule, and it would not have made
-the row an admission check anyway: see that rule for what each version read
-while us-west, us-central and eu-west filled.
+server's own number. Air's archival window shortens once what is left under
+that line can no longer take a new enterprise instance
+(`Tuist.Kura.Capacity.under_pressure?/1`). This document gave the row a
+`0.85 *` factor on 2026-09-14 that was never applied to the live rule, and it
+would not have made the row an admission check anyway: see that rule for what
+each version read while us-west, us-central and eu-west filled.
 
 The fourth constraint is egress. On a governed region every replica requests
 the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the
