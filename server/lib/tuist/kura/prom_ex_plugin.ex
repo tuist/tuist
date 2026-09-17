@@ -7,11 +7,14 @@ defmodule Tuist.Kura.PromExPlugin do
   reclaimed bytes, archive cancellations, refused provisions, and the accounts
   refused a service region before they reach any transition at all.
 
-  Four polled gauges cover what a transition cannot see:
+  Five polled gauges cover what a transition cannot see:
 
     * per-region occupancy — the forecast enforced warm quota against what is
       installed. This is the number that decides whether another machine is
       needed, and whether the Air pressure rule is active at all.
+    * per-region admission headroom: the gibibytes `Tuist.Kura.Admission` can
+      still place, computed the way it decides. Occupancy alone cannot give it,
+      because admission also counts rows the cluster has not observed yet.
     * hit-rate recovery — the cache hit ratio of account-regions that returned
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
@@ -44,6 +47,7 @@ defmodule Tuist.Kura.PromExPlugin do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Telemetry
@@ -101,6 +105,14 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_claim_apply_refused(),
             description: "Storage-claim applies capacity admission refused, leaving the proposal open to be retried.",
             tags: [:region, :reason]
+          ),
+          counter(
+            @metric_prefix ++ [:provision_refused, :count],
+            event_name: Telemetry.event_name_provision_refused(),
+            description:
+              "Provisions and cold returns capacity admission refused. The account keeps asking, " <>
+                "so a full region reads as a steady rate.",
+            tags: [:plan, :region, :reason, :cold_return]
           ),
           counter(
             @metric_prefix ++ [:archive_cancelled, :count],
@@ -209,6 +221,22 @@ defmodule Tuist.Kura.PromExPlugin do
         ]
       ),
       Polling.build(
+        :tuist_kura_admission_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_admission_headroom_telemetry_event, []},
+        [
+          last_value(
+            [:tuist, :kura, :capacity, :admission_headroom, :gibibytes],
+            event_name: [:tuist, :kura, :capacity, :admission],
+            measurement: :headroom_gib,
+            description:
+              "Disk capacity admission can still place in the region: the pressure line less the larger " <>
+                "of the observed and desired reservations. An instance whose reservation exceeds it is refused.",
+            tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
         :tuist_kura_recovery_polling_metrics,
         @poll_rate,
         {__MODULE__, :execute_hit_rate_recovery_telemetry_event, []},
@@ -277,6 +305,25 @@ defmodule Tuist.Kura.PromExPlugin do
         },
         %{region: region_id}
       )
+    end)
+  end
+
+  @doc false
+  def execute_admission_headroom_telemetry_event do
+    Enum.each(lifecycle_regions(), fn %Regions{id: region_id} = region ->
+      case Admission.headroom_gib(region) do
+        :unbounded ->
+          :ok
+
+        # Admission refuses every instance in a region it cannot read, so an
+        # unreadable region has no headroom.
+        headroom ->
+          :telemetry.execute(
+            [:tuist, :kura, :capacity, :admission],
+            %{headroom_gib: headroom || 0},
+            %{region: region_id}
+          )
+      end
     end)
   end
 
