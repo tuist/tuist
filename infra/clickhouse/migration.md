@@ -36,8 +36,7 @@ For an environment, in order:
 
 Before step 7:
 
-- Run `parity` and `check-reads` again, and deploy the switch only if both pass.
-- Check that `schema_migrations` holds the same versions on both servers. The first deploy after the switch migrates the in-cluster server, and any version missing there runs again, including data migrations.
+- Run `parity` and `check-reads` again, and deploy the switch only if both pass. `parity` also fails when `schema_migrations` holds different versions on the two servers: the first deploy after the switch migrates the in-cluster server, and any version missing there runs again, including data migrations.
 - Keep the switch in a deploy of its own, so the deploy it rolls back to still writes to both servers.
 
 Going back to `external` after step 7 does not copy anything back: rows written since the switch exist only on the in-cluster server.
