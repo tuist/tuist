@@ -41,10 +41,11 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   it moves the account once its own runs say otherwise. A seed without an
   origin, or one declined for capacity, records nothing.
 
-  **Capacity.** A seed is speculative, so a region over its pressure line
-  declines and the refusal is counted rather than retried. The account is
-  still provisioned the ordinary way once it asks for the cache, where the
-  scheduler decides admission from each pod's ephemeral-storage request.
+  **Capacity.** A seed is speculative, so a region under capacity pressure
+  (`Tuist.Kura.Capacity.under_pressure?/1`) declines and the refusal is counted
+  rather than retried. The account is still provisioned the ordinary way once
+  it asks for the cache, where the scheduler decides admission from each pod's
+  ephemeral-storage request.
   """
   use Oban.Worker,
     queue: :default,
@@ -103,7 +104,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
         Telemetry.seed_declined(plan, service_region, :capacity_pressure)
 
         Logger.info(
-          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id} into #{service_region}: the region is over its pressure line"
+          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id} into #{service_region}: the region is under capacity pressure"
         )
 
         :ok

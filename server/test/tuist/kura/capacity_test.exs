@@ -7,6 +7,7 @@ defmodule Tuist.Kura.CapacityTest do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -22,6 +23,11 @@ defmodule Tuist.Kura.CapacityTest do
   # arithmetic under test is the arithmetic production does.
   @node_allocatable_bytes 847_551_469_804
   @allocatable_gib trunc(@node_allocatable_bytes / @gib)
+  @pressure_line_gib trunc(@allocatable_gib * 0.85)
+  # us-east co-locates an account's two replicas on one box, so a new instance
+  # reserves its plan's starting claim twice.
+  @air_instance_gib 8 * 2
+  @enterprise_instance_gib 16 * 2
 
   defp account(plan \\ nil) do
     user = AccountsFixtures.user_fixture()
@@ -40,6 +46,8 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   defp region, do: elem(Regions.fetch(@region), 1)
+
+  defp new_instance(claim_size), do: %Server{region: @region, status: :provisioning, storage_claim_size: claim_size}
 
   defp installed(machines) do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
@@ -133,11 +141,44 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "under_pressure?/1" do
-    test "is false while the region is under its pressure line" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
+    test "is false while the region has room for a new instance of any plan" do
       installed(1)
       stub_region_pods([reserved_pod(50)])
 
       refute Capacity.under_pressure?(@region)
+    end
+
+    test "engages while admission still admits, once a new enterprise instance no longer fits" do
+      installed(1)
+      stub_region_pods([reserved_pod(@pressure_line_gib - @air_instance_gib)])
+
+      assert :ok = Admission.admit?(region(), new_instance("8Gi"))
+      assert {:error, :capacity_exhausted} = Admission.admit?(region(), new_instance("16Gi"))
+      assert Capacity.under_pressure?(@region)
+    end
+
+    test "stays off while admission can still take a new enterprise instance" do
+      installed(1)
+      stub_region_pods([reserved_pod(@pressure_line_gib - @enterprise_instance_gib)])
+
+      assert :ok = Admission.admit?(region(), new_instance("16Gi"))
+      refute Capacity.under_pressure?(@region)
+    end
+
+    test "counts instances committed before the cluster observes their pods, as admission does" do
+      installed(1)
+      stub_region_pods([])
+
+      for _ <- 1..div(@pressure_line_gib, @enterprise_instance_gib) do
+        account() |> instance() |> Ecto.Changeset.change(storage_claim_size: "16Gi") |> Repo.update!()
+      end
+
+      assert Capacity.under_pressure?(@region)
     end
 
     test "is true once the region has reserved past its pressure line" do
@@ -145,6 +186,14 @@ defmodule Tuist.Kura.CapacityTest do
       stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
 
       assert Capacity.under_pressure?(@region)
+    end
+
+    test "is false where admission is not enforced" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+      installed(1)
+      stub_region_pods(List.duplicate(reserved_pod(50), div(@allocatable_gib, 50)))
+
+      refute Capacity.under_pressure?(@region)
     end
 
     test "is false when capacity is unknown, so pressure archival never runs uninformed" do
@@ -163,7 +212,7 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "pressure_line_gib/1" do
-    test "leaves headroom below allocatable, so archival makes room before placement fails" do
+    test "leaves kubelet's eviction margin below allocatable" do
       installed(1)
 
       assert Capacity.pressure_line_gib(@region) == trunc(@allocatable_gib * 0.85)
