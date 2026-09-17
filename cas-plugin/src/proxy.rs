@@ -7753,8 +7753,45 @@ mod tests {
 
     struct TempCasDir(std::path::PathBuf);
 
+    // `Drop` never runs when a test run is killed, and each store can hold
+    // gigabytes, so the first store of every run reclaims the stores of runs
+    // whose process is gone.
+    static SWEEP_DEAD_RUN_STORES: std::sync::Once = std::sync::Once::new();
+
+    fn sweep_dead_run_stores(root: &std::path::Path) {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if !name.starts_with("cas-") {
+                continue;
+            }
+            let Some(pid) = name
+                .rsplit('-')
+                .next()
+                .and_then(|pid| pid.parse::<libc::pid_t>().ok())
+            else {
+                continue;
+            };
+            if pid <= 0 || pid as u32 == std::process::id() {
+                continue;
+            }
+            if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let dead = unsafe { libc::kill(pid, 0) } == -1
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+            if dead {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+
     impl TempCasDir {
         fn new(tag: &str) -> Self {
+            SWEEP_DEAD_RUN_STORES.call_once(|| sweep_dead_run_stores(&std::env::temp_dir()));
             let dir = std::env::temp_dir().join(format!("cas-{tag}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
@@ -7774,6 +7811,32 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn sweep_reclaims_only_stores_of_dead_runs() {
+        let root = TempCasDir::new("sweep-root");
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let dead_pid = child.id();
+        child.wait().unwrap();
+        let live_pid = unsafe { libc::getppid() };
+        let dead = root.0.join(format!("cas-x-{dead_pid}"));
+        let live = root.0.join(format!("cas-x-{live_pid}"));
+        let own = root.0.join(format!("cas-x-{}", std::process::id()));
+        let unrelated = root.0.join(format!("other-x-{dead_pid}"));
+        for dir in [&dead, &live, &own, &unrelated] {
+            std::fs::create_dir_all(dir.join("v1")).unwrap();
+        }
+
+        sweep_dead_run_stores(&root.0);
+
+        assert!(!dead.exists(), "a store of a dead run must be reclaimed");
+        assert!(live.exists(), "a store of a live run must be kept");
+        assert!(own.exists(), "this run's stores must be kept");
+        assert!(
+            unrelated.exists(),
+            "directories that are not stores must be kept"
+        );
     }
 
     // The regression this whole guard exists for. An llcas handle pins the store
