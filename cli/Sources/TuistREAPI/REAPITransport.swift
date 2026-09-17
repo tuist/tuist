@@ -1,22 +1,28 @@
+import FileSystem
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import NIOCore
 import NIOSSL
+import Path
 import TuistEnvironment
 import TuistHTTP
 
 /// Applies the CLI's network settings to both probing and cache traffic.
 enum REAPITransport {
-    static func make(endpoint: GRPCEndpoint) throws -> HTTP2ClientTransport.Posix {
+    static func make(
+        endpoint: GRPCEndpoint,
+        fileSystem: FileSysteming = FileSystem()
+    ) async throws -> HTTP2ClientTransport.Posix {
         let variables = Environment.current.variables
         let ca = variables["TUIST_CA_CERTIFICATE"].flatMap { $0.isEmpty ? nil : $0 } ?? HTTPSettings.current.caCertificatePath
         var tls = TLSConfiguration.makeClientConfiguration()
         tls.applicationProtocols = ["h2"]
         if let ca {
-            let certificates = (try? NIOSSLCertificate.fromPEMFile(ca)) ?? []
+            let bytes = Array(try await fileSystem.readFile(at: AbsolutePath(validating: URL(fileURLWithPath: ca).path)))
+            let certificates = (try? NIOSSLCertificate.fromPEMBytes(bytes)) ?? []
             tls.additionalTrustRoots = [.certificates(try certificates.isEmpty
-                    ? [NIOSSLCertificate(bytes: Array(Data(contentsOf: URL(fileURLWithPath: ca))), format: .der)]
+                    ? [NIOSSLCertificate(bytes: bytes, format: .der)]
                     : certificates)]
         }
         let context = endpoint.isTLS ? try NIOSSLContext(configuration: tls) : nil

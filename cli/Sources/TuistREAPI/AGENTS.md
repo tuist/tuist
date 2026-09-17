@@ -11,6 +11,11 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 - Output snapshots publish one `Tree` blob and the file-content blobs it references. Child `Directory` messages are embedded in the tree, not published as separate CAS blobs; their digests still identify directory edges.
 - Provide `RemoteCacheProbeService` (`RemoteCacheProbing`), which issues the REAPI `GetCapabilities` handshake Bazel performs on start-up to verify a remote cache endpoint is reachable, terminates TLS, and authorizes the request before it is handed to Bazel.
 
+## Filesystem access
+- Inject `FileSysteming` into directory snapshot/materialization and transport construction; propagate its async APIs through callers.
+- Use `FileSysteming` for listing, directory creation, file copies, and CA certificate reads. Parse PEM/DER from the same loaded bytes.
+- The current FileSystem API lacks raw symlink targets, permission bits, atomic binary writes, and streaming reads. Keep the narrow Foundation operations needed for those features. Do not normalize raw symlink targets through `RelativePath`: doing so can change chained-link semantics and tree digests.
+
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistBazelCommand` (the probe's consumer).
 - Remote cache endpoint resolution/selection lives in `cli/Sources/TuistCAS` (`CacheURLStore`); this module consumes an already-resolved URL and a token provider.

@@ -1,4 +1,6 @@
+import FileSystem
 import Foundation
+import Path
 import SwiftProtobuf
 
 public enum REAPIDirectory {
@@ -7,7 +9,11 @@ public enum REAPIDirectory {
         public let blobs: [REAPI.Digest: URL]
     }
 
-    public static func snapshot(at root: URL, scratch: URL) throws -> Snapshot {
+    public static func snapshot(
+        at root: URL,
+        scratch: URL,
+        fileSystem: FileSysteming = FileSystem()
+    ) async throws -> Snapshot {
         let manager = FileManager.default
         var blobs: [REAPI.Digest: URL] = [:]
         var children: [REAPI.Digest: REAPI.Directory] = [:]
@@ -18,10 +24,11 @@ public enum REAPIDirectory {
             blobs[digest] = path
             return digest
         }
-        func visit(_ path: URL, depth: Int) throws -> REAPI.Directory {
+        func visit(_ path: URL, depth: Int) async throws -> REAPI.Directory {
             guard depth < 128 else { throw REAPICacheError.invalidTree }
             var directory = REAPI.Directory()
-            for file in try manager.contentsOfDirectory(at: path, includingPropertiesForKeys: nil)
+            for file in try await fileSystem.contentsOfDirectory(AbsolutePath(validating: path.path))
+                .map(\.url)
                 .sorted(by: { $0.lastPathComponent.utf8.lexicographicallyPrecedes($1.lastPathComponent.utf8) })
             {
                 let attributes = try manager.attributesOfItem(atPath: file.path)
@@ -32,7 +39,7 @@ public enum REAPIDirectory {
                     try validateResolvedLink(file, root: root)
                     directory.symlinks.append(.with { $0.name = file.lastPathComponent; $0.target = target })
                 case .typeDirectory:
-                    let child = try visit(file, depth: depth + 1)
+                    let child = try await visit(file, depth: depth + 1)
                     let digest = REAPI.digest(try child.serializedData())
                     children[digest] = child
                     directory.directories.append(.with { $0.name = file.lastPathComponent; $0.digest = digest })
@@ -49,7 +56,7 @@ public enum REAPIDirectory {
             }
             return directory
         }
-        let directory = try visit(root, depth: 0)
+        let directory = try await visit(root, depth: 0)
         let tree = REAPI.Tree.with {
             $0.root = directory
             $0.children = children.sorted { $0.key.hash < $1.key.hash }.map(\.value)
@@ -71,8 +78,9 @@ public enum REAPIDirectory {
     public static func materialize(
         _ tree: REAPI.Tree,
         at root: URL,
+        fileSystem: FileSysteming = FileSystem(),
         blob: (REAPI.Digest) throws -> URL
-    ) throws {
+    ) async throws {
         let manager = FileManager.default
         var directories: [REAPI.Digest: REAPI.Directory] = [:]
         for child in tree.children {
@@ -80,31 +88,35 @@ public enum REAPIDirectory {
         }
         var count = 0
         var links: [URL] = []
-        func visit(_ directory: REAPI.Directory, path: URL, depth: Int) throws {
+        func visit(_ directory: REAPI.Directory, path: URL, depth: Int) async throws {
             guard depth < 128 else { throw REAPICacheError.invalidTree }
             let names = directory.files.map(\.name) + directory.directories.map(\.name) + directory.symlinks.map(\.name)
             count += names.count
             guard count <= 100_000, Set(names).count == names.count,
                   names.allSatisfy(validName)
             else { throw REAPICacheError.invalidTree }
-            try manager.createDirectory(at: path, withIntermediateDirectories: true)
+            try await fileSystem.makeDirectory(at: AbsolutePath(validating: path.path))
             for file in directory.files {
                 let destination = path.appendingPathComponent(file.name)
-                try manager.copyItem(at: blob(file.digest), to: destination)
+                try await fileSystem.copy(
+                    AbsolutePath(validating: blob(file.digest).path),
+                    to: AbsolutePath(validating: destination.path)
+                )
                 try manager.setAttributes([.posixPermissions: file.isExecutable ? 0o755 : 0o644], ofItemAtPath: destination.path)
             }
             for child in directory.directories {
                 guard let contents = directories[child.digest] else { throw REAPICacheError.invalidTree }
-                try visit(contents, path: path.appendingPathComponent(child.name), depth: depth + 1)
+                try await visit(contents, path: path.appendingPathComponent(child.name), depth: depth + 1)
             }
             for link in directory.symlinks {
                 let destination = path.appendingPathComponent(link.name)
                 try validateLink(link.target, at: destination, root: root)
+                // FileSystem's RelativePath normalizes the target, changing chained-link semantics.
                 try manager.createSymbolicLink(atPath: destination.path, withDestinationPath: link.target)
                 links.append(destination)
             }
         }
-        try visit(tree.root, path: root, depth: 0)
+        try await visit(tree.root, path: root, depth: 0)
         for link in links {
             try validateResolvedLink(link, root: root)
         }

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
@@ -17,9 +18,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         endpoint: GRPCEndpoint,
         accountHandle: String,
         instanceName: String,
+        fileSystem: FileSysteming = FileSystem(),
         token: @escaping @Sendable () async throws -> String
-    ) throws {
-        let transport = try REAPITransport.make(endpoint: endpoint)
+    ) async throws {
+        let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
         let client = GRPCClient(transport: transport)
         self.client = client
         connection = Task { try await client.runConnections() }

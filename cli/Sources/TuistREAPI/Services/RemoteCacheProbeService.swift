@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
@@ -18,12 +19,16 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
     /// cache endpoint is unreachable. It bounds the whole RPC, including connection set-up.
     private static let probeTimeout: Duration = .seconds(10)
 
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String) async throws {
         Logger.current.debug("Probing remote cache availability at \(endpoint.authority) (GetCapabilities)")
 
-        let transport = try REAPITransport.make(endpoint: endpoint)
+        let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
 
         var options = CallOptions.defaults
         options.timeout = Self.probeTimeout

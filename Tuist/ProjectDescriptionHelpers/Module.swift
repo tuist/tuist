@@ -1177,6 +1177,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .reapi:
                 [
+                    .external(name: "FileSystem"),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "NIOCore"),

@@ -8,11 +8,45 @@ import SwiftProtobuf
 import Testing
 import TuistCache
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistServer
 @testable import TuistCacheEE
 @testable import TuistREAPI
 
 struct REAPICacheClientTests {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: ["pem", "der", "bundle"])
+    func loadsCustomCertificateThroughFileSystem(format: String) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let path = directory.appending(component: "ca")
+        let data: Data
+        if format == "der" {
+            let base64 = Self.caPEM.components(separatedBy: .newlines).filter { !$0.hasPrefix("-----") }.joined()
+            data = try #require(Data(base64Encoded: base64))
+        } else {
+            data = Data((format == "bundle" ? Self.caPEM + "\n" + Self.caPEM : Self.caPEM).utf8)
+        }
+        try data.write(to: path.url)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CA_CERTIFICATE"] = path.pathString
+        _ = try await REAPITransport.make(
+            endpoint: .init(host: "cache.example.com", explicitPort: 443, isTLS: true),
+            fileSystem: FileSystem()
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func rejectsMissingOrInvalidCertificate(invalid: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let path = directory.appending(component: "ca")
+        if invalid { try await FileSystem().writeText("not a certificate", at: path) }
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CA_CERTIFICATE"] = path.pathString
+        await #expect(throws: (any Error).self) {
+            _ = try await REAPITransport.make(endpoint: .init(host: "cache.example.com", explicitPort: 443, isTLS: true))
+        }
+    }
+
     @Test func proxySelectionHonorsBypassAndExplicitDisable() throws {
         let endpoint = GRPCEndpoint(host: "cache.example.com", explicitPort: 443, isTLS: true)
         #expect(try REAPITransport.proxyURL(
@@ -49,7 +83,7 @@ struct REAPICacheClientTests {
             defer { server.beginGracefulShutdown() }
             let address = try await transport.listeningAddress
             let port = try #require(address.ipv4?.port)
-            let client = try REAPICacheClient(
+            let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: port, isTLS: false),
                 accountHandle: "account",
                 instanceName: "project"
@@ -125,6 +159,27 @@ struct REAPICacheClientTests {
             #expect(!FileManager.default.fileExists(atPath: directory.appending(component: "bad").pathString))
         }
     }
+
+    private static let caPEM = """
+    -----BEGIN CERTIFICATE-----
+    MIIC1jCCAb6gAwIBAgIJAJlwwm+UwR8bMA0GCSqGSIb3DQEBCwUAMBgxFjAUBgNV
+    BAMMDVR1aXN0IFRlc3QgQ0EwHhcNMjYwNzMwMTAyNzQzWhcNMzYwNzI3MTAyNzQz
+    WjAYMRYwFAYDVQQDDA1UdWlzdCBUZXN0IENBMIIBIjANBgkqhkiG9w0BAQEFAAOC
+    AQ8AMIIBCgKCAQEAqFVEuF4ifFLLwqHbmAq8n85/T48H9EZ+JgeNG/hqPohrEdYV
+    xyqVUE3P486kMWiSBvj6DsiE52SYjpQ90UmvmZltgepdy5nas3O+l0PbP4t8RTnT
+    UY8jKBd8XmW3/CXnf4UxRMN54SuY8ehsrxHFLjeW3IErDqwhFIT2okPKNRCZTY2t
+    aUF5brOCenAA4fkrltFgTY6klIggRr4UtUgQXRqLAgNWH6wxiaqNpP+ObtZjNp5e
+    YlgQxcJVkDso3fV+huvdjmh+mIrCmHRtHc6ctNqnH7E4NY6f5e0gURusJV+UX6xS
+    T7UlKn0sGL9xUtKNJXnCH/UOOd5nzuENnSFbdwIDAQABoyMwITAPBgNVHRMBAf8E
+    BTADAQH/MA4GA1UdDwEB/wQEAwIBBjANBgkqhkiG9w0BAQsFAAOCAQEAfmPzhf94
+    F+CnPseiC6giYtrefx23r9G1P1e1wCSph5atFmdLW6Q2sDeab7LPSQUqnEx1/Q7I
+    mYwgPNZExQoxBYla9zvqyC/TWYSR2768oLSwSAqGKa7iN+QiO+fFZJeelXW1Fz2z
+    QQEd/RMZPotQMWTtoJ36gSwFrk8SraRT4l8E+iWhOTH+nNmPJWmcq3MPgL0j3aaS
+    xuSsMl2S/1JBAVkwnsQt2Ldwxs8si7ACeeneESn1L22jtRiQJAvadurOOvmXYItY
+    JJDM29xzYSuzuf7j46+zSYushfZ0faO9E9lp7PrYcUHNI4PPs1a3I/v5rtl1YtA8
+    NQOawDBP+hdGwA==
+    -----END CERTIFICATE-----
+    """
 }
 
 private actor WireCache {

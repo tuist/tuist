@@ -164,6 +164,8 @@ var tuistCASDependencies: [Target.Dependency] = [
     pathDependency,
 ]
 var tuistREAPIDependencies: [Target.Dependency] = [
+    fileSystemDependency,
+    pathDependency,
     "TuistEnvironment",
     "TuistHTTP",
     .product(name: "NIOCore", package: "apple.swift-nio"),
