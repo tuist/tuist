@@ -53,8 +53,8 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_provision_refused, do: @prefix ++ [:provision_refused]
 
   # Every capacity refusal carries an atom reason (`:capacity_exhausted`,
-  # `:capacity_unknown`). Anything else is bucketed rather than tagged, so a
-  # surprise cannot unbound the label.
+  # `:capacity_unplaceable`, `:capacity_unknown`). Anything else is bucketed
+  # rather than tagged, so a surprise cannot unbound the label.
   def claim_apply_refused(region, reason) do
     :telemetry.execute(event_name_claim_apply_refused(), %{count: 1}, %{
       region: region,
