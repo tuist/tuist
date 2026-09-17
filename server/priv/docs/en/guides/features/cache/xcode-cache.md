@@ -56,13 +56,18 @@ The settings include:
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
-COMPILATION_CACHE_PLUGIN_PATH = <path to libtuist_cas_plugin.dylib>
+COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
 Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+
+> [!NOTE]
+> **Plugin Path**
+>
+> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Each run of `tuist setup cache` updates the copy to the plugin of the Tuist that ran it.
 
 > [!NOTE]
 > **One socket for every project**
@@ -81,7 +86,7 @@ You can also specify these settings when running `xcodebuild` by adding the foll
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-    COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib> \
+    COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
