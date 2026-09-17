@@ -570,6 +570,32 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end)
   end
 
+  # A region here is one box whose pods reserve the given GiB of its disk,
+  # answering both the per-node reading and admission's region-wide one, with
+  # admission enforced.
+  defp reserved(reservations) do
+    stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    nodes = fn selector ->
+      case Enum.find(Regions.all(), &(Regions.node_label_selector(&1) == selector)) do
+        %Regions{id: region_id} when is_map_key(reservations, region_id) -> {:ok, %{"items" => [box(region_id)]}}
+        _region -> {:error, :unavailable}
+      end
+    end
+
+    pods = fn region_id -> [pod_holding_disk("#{Map.fetch!(reservations, region_id)}Gi")] end
+
+    stub(Client, :list_nodes, fn selector, _opts -> nodes.(selector) end)
+    stub(Client, :list_nodes, fn selector -> nodes.(selector) end)
+    stub(Client, :list_pods_on_node, fn name, _opts -> {:ok, pods.(name)} end)
+
+    stub(Client, :list_pods, fn "kura", selector ->
+      [_selector, region_id] = Regex.run(~r/tuist\.dev\/region=([^,]+)/, selector)
+      {:ok, pods.(region_id)}
+    end)
+  end
+
   defp unreadable_cluster do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
@@ -986,6 +1012,26 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
       refute_receive {_event_name, ^event_ref, _measurements, _metadata}
       assert PlacerRegions.all_for(account) == []
+    end
+
+    test "spills off a region whose nodes have room and admission would refuse" do
+      # us-west's box has 110 GiB free, but its pods already reserve more than
+      # the 85% of allocatable admission stops at, so an instance placed there
+      # would be refused on every attempt to create it.
+      account = update_region!(organization_account(), :usa)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      serving(["us-east", "us-west"])
+      seed_origin(account, "US-CA")
+      reserved(%{"us-west" => 690, "us-east" => 0})
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-east"}}
+
+      assert_receive {[:tuist, :kura, :lifecycle, :placement_capacity_spill], ^event_ref, %{count: 1},
+                      %{plan: "pro", wanted: "us-west", served: "us-east"}}
+
+      refute "us-west" in AccountPolicies.placeable_regions_with_room(account, :pro, [])
+      assert "us-west" in AccountPolicies.placeable_regions_with_room(account, :pro, ["us-west"])
     end
 
     test "skips only a region known to be full, never one that cannot be read" do
