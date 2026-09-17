@@ -225,7 +225,11 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "brand_apple"},
-              %Item{label: "Generated Xcode project", slug: "/en/guides/features/build-insights/generated-xcode-project", icon: "brand_apple"},
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/build-insights/generated-xcode-project",
+                icon: "brand_apple"
+              },
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
               %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"}
             ]
