@@ -30,4 +30,4 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 - cli/Sources/TuistBazelCommand
 
 ## Transfer benchmark
-- `cli/Tests/TuistCacheEETests/Storage/ModuleCacheTransferBenchmark.swift` is opt-in via `TUIST_MODULE_CACHE_BENCHMARK_CONFIG`. It compares the real archive/REAPI storage clients against a dedicated local Kura node, including local publication/materialization, and verifies restored file bytes outside timing. Keep it disabled in ordinary test runs.
+- `cli/Tests/TuistCacheEETests/Storage/ModuleCacheTransferBenchmark.swift` is opt-in via `TUIST_MODULE_CACHE_BENCHMARK_CONFIG`. It compares the real archive/REAPI storage clients against local Kura or an isolated hosted benchmark project, including local publication/materialization, and verifies restored file bytes outside timing. Use HTTPS for hosted endpoints, the same pre-exchanged cache token for both clients, optional metrics, and distinct repetition payloads when measuring cold uploads. Keep it disabled in ordinary test runs.

@@ -2,11 +2,12 @@
 
 `ModuleCacheTransferBenchmark.compareTransfers` compares the previous modern module-cache path (`CacheStorage` + `CacheLocalStorage` + `ModuleCacheRemoteStorage`, AppleArchive/LZFSE over HTTP) with `BinaryCacheStorage` + `REAPICacheClient`. Both clients use the same dedicated Kura node and the same prebuilt XCFrameworks. This is a storage-path benchmark, not a compilation or complete `tuist cache`/`tuist generate` benchmark.
 
-The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JSON configuration. Use disposable local Kura storage and a token restricted to the benchmark projects. The benchmark creates remote records and does not delete them; discard the dedicated node's storage afterward.
+The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JSON configuration. Use disposable local Kura storage or an isolated hosted benchmark project, with a pre-exchanged cache token restricted to those projects. The benchmark creates remote records and does not delete them. It does not require server changes or a privileged metrics endpoint.
 
 ```json
 {
   "endpoint": "http://127.0.0.1:8099",
+  "metricsURL": "http://127.0.0.1:8099/metrics",
   "token": "LOCAL_BENCHMARK_TOKEN",
   "account": "transfer-bench",
   "inputs": "/absolute/path/to/corpora",
@@ -15,7 +16,19 @@ The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JS
 }
 ```
 
-Each immediate subdirectory of `inputs` is a corpus of XCFrameworks. Each framework must contain iOS device, iOS simulator, and macOS slices using standard architectures. Artifact basenames become target names. Authorize projects named `<corpus>-<zero-based repetition>-archive` and `<corpus>-<zero-based repetition>-reapi` under the configured account. Start with empty remote storage for every complete benchmark invocation; project and action identifiers are deterministic within an invocation.
+Each immediate subdirectory of `inputs` is a corpus of XCFrameworks. Each framework must contain iOS device, iOS simulator, and macOS slices using standard architectures. Artifact basenames become target names. Authorize projects named `<corpus>-<zero-based repetition>-archive` and `<corpus>-<zero-based repetition>-reapi` under the configured account, or set `project` to use one existing benchmark project. Action keys include a fresh invocation UUID (overridable with `runID`), corpus, and repetition. The two protocols have separate remote record formats.
+
+For a deployed Kura node, set `endpoint` to its resolved HTTPS cache URL, `authenticationURL` to the Tuist server URL, and `project` to the isolated project handle. TLS follows the endpoint scheme. Both clients receive the same pre-exchanged token outside the timed phases. Omit `metricsURL`: production timings do not require scraping server metrics, and absent counters mean unavailable, not zero bytes transferred. Confirm deployed capabilities before treating the node as supporting the optimized compression paths.
+
+Fresh action keys alone do not make CAS content cold. Set `independentRepetitionInputs` to `true` and arrange artifacts as `inputs/<corpus>/<zero-based repetition>/*.xcframework` to use distinct content per sample. The generator below prepares 100-module and large-artifact workloads with distinct payload bytes for every invocation, repetition, module, and SDK:
+
+```sh
+python3 cli/Tests/TuistCacheEETests/Storage/generate-module-cache-benchmark.py \
+  --fixtures /absolute/path/to/compiled-three-sdk-fixtures \
+  --output /absolute/path/to/new-benchmark-directory
+```
+
+The output includes `inputs` and a provenance manifest. Three corpora exercise 100 modules with 1 MiB per SDK, four modules with 32 MiB per SDK and 50% random payloads, and four modules with 32 MiB per SDK and 100% random payloads. Existing compiled fixture bytes remain shared; the dominant synthetic payload is unique. These are transfer scaling and compression sensitivity workloads, not 100 independently compiled production libraries. Report them as such. Archive pulls and REAPI pulls use the same artifacts and endpoint; the first remote upload populates each sample, so subsequent pulls measure a warm remote service with an empty local cache, not cold backing-object-store latency.
 
 Generate the narrow workspace:
 
