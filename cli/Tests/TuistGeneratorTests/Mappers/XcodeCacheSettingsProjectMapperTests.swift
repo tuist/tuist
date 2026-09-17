@@ -617,6 +617,98 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
     }
 
+    /// The copy `tuist setup cache` installs keeps the same path across Tuist versions,
+    /// so it wins over the plugin shipped inside a versioned install.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenSetupInstalledThePlugin_writesTheInstalledPluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let installedPluginPath = Environment.current.casPluginInstallPath()
+        let shippedPluginPath = Environment.current.homeDirectory
+            .appending(components: [
+                ".local",
+                "share",
+                "mise",
+                "installs",
+                "tuist",
+                "4.206.0",
+                "bin",
+                "libtuist_cas_plugin.dylib",
+            ])
+        for pluginPath in [installedPluginPath, shippedPluginPath] {
+            try await FileSystem().makeDirectory(at: pluginPath.parentDirectory)
+            try await FileSystem().touch(pluginPath)
+        }
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginCandidates: [installedPluginPath, shippedPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string("$HOME/.local/state/tuist/libtuist_cas_plugin.dylib")
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenSetupDidNotInstallThePlugin_writesTheShippedPluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let installedPluginPath = Environment.current.casPluginInstallPath()
+        let shippedPluginPath = Environment.current.homeDirectory
+            .appending(components: [
+                ".local",
+                "share",
+                "mise",
+                "installs",
+                "tuist",
+                "4.206.0",
+                "bin",
+                "libtuist_cas_plugin.dylib",
+            ])
+        try await FileSystem().makeDirectory(at: shippedPluginPath.parentDirectory)
+        try await FileSystem().touch(shippedPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginCandidates: [installedPluginPath, shippedPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string("$HOME/.local/share/mise/installs/tuist/4.206.0/bin/libtuist_cas_plugin.dylib")
+        )
+    }
+
     /// A sibling directory whose name merely starts with the home directory's is not
     /// under `$HOME`. Comparing the paths as strings would treat `/Users/me-tools` as
     /// living inside `/Users/me` and emit `$HOME-tools/...`, which resolves nowhere.

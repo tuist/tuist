@@ -105,7 +105,7 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         // Xcode cache settings
         mappers.append(XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            casPluginCandidates: ResourceLocator.casPluginCandidates()
+            casPluginCandidates: ResourceLocator.generatedProjectCASPluginCandidates()
         ))
 
         return mappers
