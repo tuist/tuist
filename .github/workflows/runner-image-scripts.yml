@@ -1,0 +1,35 @@
+name: Runner Image Scripts
+
+# PR checks for the macOS runner image's guest scripts. The image itself only
+# builds on dispatch (runner-image.yml) and on release, which is too late to
+# catch a script regression.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "infra/runner-image/*.sh"
+      - ".github/workflows/runner-image-scripts.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-image-scripts-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: tuist-macos
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax-check guest scripts
+        run: |
+          for script in infra/runner-image/*.sh; do
+            /bin/bash -n "${script}"
+          done
+      - name: Test dispatch-poll.sh
+        run: /bin/bash infra/runner-image/dispatch-poll_test.sh
