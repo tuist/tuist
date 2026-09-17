@@ -573,6 +573,7 @@ var targets: [Target] = [
     .testTarget(
         name: "RosalindTests",
         dependencies: [
+            "TuistTestSupport",
             "Rosalind",
             mockableDependency,
             .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
@@ -995,8 +996,29 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistTestSupport",
+        dependencies: [
+            pathDependency,
+            .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
+        ],
+        path: "cli/Sources/TuistTestSupport",
+        exclude: ["AGENTS.md"],
+        linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
+    ),
+    .testTarget(
+        name: "TuistTestSupportTests",
+        dependencies: [
+            "TuistTestSupport",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistTestSupportTests"
+    ),
+    .target(
         name: "TuistTesting",
         dependencies: [
+            "TuistTestSupport",
             commandDependency,
             "TuistSupport",
             "TuistMacOSSDK",

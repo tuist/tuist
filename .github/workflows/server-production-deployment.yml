@@ -2125,7 +2125,7 @@ jobs:
     name: Acceptance Tests
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     # A degraded remote cache can force a correct cold build, which must still
     # have enough time to complete before production promotion.
     timeout-minutes: 45

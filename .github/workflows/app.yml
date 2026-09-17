@@ -96,7 +96,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -153,7 +153,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -202,7 +202,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
