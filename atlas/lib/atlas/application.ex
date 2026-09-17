@@ -34,6 +34,7 @@ defmodule Atlas.Application do
         {Atlas.RateLimit, clean_period: :timer.minutes(10)},
         Sweeper
       ] ++
+        clickhouse_children() ++
         BrowseChrome.children() ++
         [
           # Start to serve requests, typically the last entry
@@ -44,6 +45,24 @@ defmodule Atlas.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Atlas.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # ClickHouse-backed Engineering.Errors pipeline. Gated on
+  # `:clickhouse_enabled` so Atlas boots without ClickHouse in dev/test.
+  defp clickhouse_children do
+    if Application.get_env(:atlas, :clickhouse_enabled) do
+      [
+        Atlas.ClickHouseRepo,
+        Atlas.IngestRepo,
+        Supervisor.child_spec(Atlas.Engineering.Errors.Event.Buffer,
+          id: Atlas.Engineering.Errors.Event.Buffer
+        ),
+        Atlas.Engineering.Errors.DropAlerter,
+        Atlas.Engineering.Errors.IssueCoalescer
+      ]
+    else
+      []
+    end
   end
 
   # Forwards Logger error/warning events to Sentry. Only attached when a

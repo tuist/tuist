@@ -176,6 +176,8 @@ config :atlas,
   ecto_repos: [Atlas.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id_type: :binary_id]
 
+config :atlas, Atlas.ClickHouseRepo, read_only: true
+
 config :boruta, Boruta.Oauth,
   repo: Atlas.Repo,
   contexts: [
