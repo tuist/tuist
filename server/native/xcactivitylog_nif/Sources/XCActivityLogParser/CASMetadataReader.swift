@@ -20,7 +20,13 @@ struct CASMetadataReader: Sendable {
 
     init(databasePath: AbsolutePath, legacyCASMetadataPath: AbsolutePath?) {
         self.fileSystem = FileSystem()
-        if let db = try? Connection(databasePath.pathString, readonly: true) {
+        // Build archives contain a checkpointed snapshot without WAL sidecars.
+        // Immutable mode lets SQLite read its WAL-mode header without creating them.
+        let location = Connection.Location.uri(
+            URL(fileURLWithPath: databasePath.pathString).absoluteString,
+            parameters: [.immutable(true)]
+        )
+        if let db = try? Connection(location, readonly: true) {
             self.db = db
             self.legacyCASMetadataPath = nil
         } else {
