@@ -15,13 +15,18 @@
 //! `CASAnalyticsDatabase` established and the units the server renders.
 //!
 //! Writes go through a background thread so the resolve/publish hot path never
-//! blocks on SQLite.
+//! blocks on SQLite. The writer prunes metadata older than one hour at startup
+//! and every five minutes, including while idle, and compacts mostly-free files.
 
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use rusqlite::Connection;
+
+const RETENTION: Duration = Duration::from_secs(60 * 60);
+const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(5 * 60);
+const MIN_COMPACTION_BYTES: i64 = 1024 * 1024;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS cas_outputs (
@@ -151,9 +156,11 @@ const CREATED_AT_FORMAT: &[time::format_description::FormatItem<'_>] = time::mac
 );
 
 fn now_iso8601() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+    system_time_iso8601(SystemTime::now())
+}
+
+fn system_time_iso8601(time: SystemTime) -> String {
+    let now = time.duration_since(UNIX_EPOCH).unwrap_or_default();
     iso8601_from_unix(now.as_secs(), now.subsec_millis())
 }
 
@@ -166,9 +173,32 @@ fn iso8601_from_unix(secs: u64, millis: u32) -> String {
 }
 
 fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
+    writer_loop_with_interval(&mut conn, receiver, MAINTENANCE_INTERVAL);
+}
+
+fn writer_loop_with_interval(
+    conn: &mut Connection,
+    receiver: Receiver<Record>,
+    interval: Duration,
+) {
+    let mut next_maintenance = Instant::now();
     // Block for the first record, then drain the burst and commit it in one
     // transaction to keep per-op SQLite cost off the build's critical path.
-    while let Ok(first) = receiver.recv() {
+    loop {
+        if Instant::now() >= next_maintenance {
+            let cutoff = system_time_iso8601(SystemTime::now() - RETENTION);
+            if let Err(error) = prune_old_entries(conn, &cutoff) {
+                crate::log_line(&format!("analytics maintenance failed: {error}"));
+            }
+            next_maintenance = Instant::now() + interval;
+        }
+        let first = match receiver
+            .recv_timeout(next_maintenance.saturating_duration_since(Instant::now()))
+        {
+            Ok(record) => record,
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => break,
+        };
         let mut batch = vec![first];
         while let Ok(record) = receiver.try_recv() {
             batch.push(record);
@@ -183,6 +213,30 @@ fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
         }
         let _ = tx.commit();
     }
+}
+
+fn prune_old_entries(conn: &mut Connection, cutoff: &str) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+        tx.execute(
+            &format!("DELETE FROM {table} WHERE created_at < ?1"),
+            [cutoff],
+        )?;
+    }
+    tx.commit()?;
+
+    // Deletes make pages reusable, but the CLI copies the whole main file.
+    // Reclaim a substantial mostly-empty file without vacuuming every batch.
+    let free_pages: i64 = conn.query_row("PRAGMA freelist_count", [], |row| row.get(0))?;
+    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |row| row.get(0))?;
+    if free_pages * page_size >= MIN_COMPACTION_BYTES {
+        let pages: i64 = conn.query_row("PRAGMA page_count", [], |row| row.get(0))?;
+        if free_pages * 2 >= pages {
+            conn.execute_batch("VACUUM")?;
+        }
+    }
+    conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE)")?;
+    Ok(())
 }
 
 fn write_record(
@@ -226,6 +280,203 @@ fn write_record(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn insert_output(conn: &mut Connection, key: &str, created_at: &str) {
+        let tx = conn.transaction().unwrap();
+        write_record(
+            &tx,
+            &Record::CasOutput {
+                node_id: format!("0~{key}"),
+                checksum: key.into(),
+                size: 100,
+                compressed_size: 40,
+                duration: 3.5,
+                transfer: 3.0,
+                codec: 0.5,
+            },
+            created_at,
+        )
+        .unwrap();
+        write_record(
+            &tx,
+            &Record::KeyValue {
+                key: key.into(),
+                operation_type: "read".into(),
+                duration: 2.5,
+            },
+            created_at,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+    }
+
+    fn retention_database(label: &str) -> (std::path::PathBuf, Connection) {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "cas-retention-{label}-{}-{suffix}.db",
+            std::process::id()
+        ));
+        let conn = Connection::open(&path).unwrap();
+        conn.busy_timeout(Duration::from_secs(5)).unwrap();
+        conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        (path, conn)
+    }
+
+    #[test]
+    fn retention_preserves_the_cutoff_and_refreshed_outputs_in_all_tables() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        insert_output(&mut conn, "expired", "2026-09-17T11:59:59.999");
+        insert_output(&mut conn, "boundary", "2026-09-17T12:00:00.000");
+        insert_output(&mut conn, "recent", "2026-09-17T12:59:59.999");
+        insert_output(&mut conn, "refreshed", "2026-09-17T11:00:00.000");
+        insert_output(&mut conn, "refreshed", "2026-09-17T12:59:59.999");
+
+        prune_old_entries(&mut conn, "2026-09-17T12:00:00.000").unwrap();
+
+        for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+            let count: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 3, "{table}");
+        }
+        let checksums: Vec<String> = conn.prepare(
+            "SELECT n.checksum FROM nodes n JOIN cas_outputs c ON c.key = n.checksum ORDER BY n.checksum"
+        ).unwrap().query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(checksums, ["boundary", "recent", "refreshed"]);
+    }
+
+    #[test]
+    fn writer_prunes_on_startup_and_while_idle_and_drains_on_shutdown() {
+        let (path, mut conn) = retention_database("idle");
+        insert_output(&mut conn, "startup", "2000-01-01T00:00:00.000");
+        let observer = Connection::open(&path).unwrap();
+        observer.busy_timeout(Duration::from_secs(5)).unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            writer_loop_with_interval(&mut conn, receiver, Duration::from_millis(20));
+        });
+        let wait_until_empty = || {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let count: i64 = observer
+                    .query_row("SELECT count(*) FROM nodes", [], |row| row.get(0))
+                    .unwrap();
+                if count == 0 {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "idle writer did not prune old metadata"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait_until_empty();
+        observer
+            .execute(
+                "INSERT INTO nodes VALUES ('idle', 'idle', '2000-01-01T00:00:00.000')",
+                [],
+            )
+            .unwrap();
+        wait_until_empty();
+        let analytics = Analytics { sender };
+        analytics.record_cas_output("0~new".into(), "new", 100, 40, 3.0, 0.5);
+        analytics.record_keyvalue(&[0, 1], "read", 2.5);
+        drop(analytics);
+        writer.join().unwrap();
+        let size: i64 = observer.query_row(
+            "SELECT c.size FROM nodes n JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = '0~new'",
+            [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(size, 100);
+        let count: i64 = observer
+            .query_row("SELECT count(*) FROM keyvalue_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 1);
+        drop(observer);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn maintenance_is_not_starved_by_queued_writes() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        conn.execute_batch(
+            "CREATE TRIGGER seed_expired AFTER INSERT ON keyvalue_metadata
+            WHEN NEW.key = '0' BEGIN
+                INSERT INTO nodes VALUES ('expired', 'expired', '2000-01-01T00:00:00.000');
+            END;
+            CREATE TRIGGER require_maintenance BEFORE INSERT ON keyvalue_metadata
+            WHEN NEW.key = '1000' AND EXISTS (SELECT 1 FROM nodes WHERE key = 'expired') BEGIN
+                SELECT RAISE(ABORT, 'maintenance was starved by a nonempty queue');
+            END;",
+        )
+        .unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        for index in 0..1001 {
+            sender
+                .send(Record::KeyValue {
+                    key: index.to_string(),
+                    operation_type: "read".into(),
+                    duration: 1.0,
+                })
+                .unwrap();
+        }
+        drop(sender);
+        writer_loop_with_interval(&mut conn, receiver, Duration::ZERO);
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM keyvalue_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(
+            count, 1001,
+            "the second batch must observe completed maintenance"
+        );
+    }
+
+    #[test]
+    fn retention_reclaims_a_large_expired_database_without_losing_recent_rows() {
+        let (path, mut conn) = retention_database("compaction");
+        let tx = conn.transaction().unwrap();
+        for index in 0..1000 {
+            tx.execute(
+                "INSERT INTO nodes VALUES (?1, ?2, '2000-01-01T00:00:00.000')",
+                rusqlite::params![format!("old-{index}"), "x".repeat(4096)],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+        insert_output(&mut conn, "recent", "2026-09-17T12:00:00.000");
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+            .unwrap();
+        let before = std::fs::metadata(&path).unwrap().len();
+        assert!(before > MIN_COMPACTION_BYTES as u64);
+
+        prune_old_entries(&mut conn, "2026-09-17T11:00:00.000").unwrap();
+
+        let after = std::fs::metadata(&path).unwrap().len();
+        assert!(
+            after < before / 2,
+            "archived main file did not shrink: {before} -> {after}"
+        );
+        let size: i64 = conn.query_row(
+            "SELECT c.size FROM nodes n JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = '0~recent'",
+            [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(size, 100);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn keyvalue_id_uses_url_safe_base64_without_the_version_byte() {
