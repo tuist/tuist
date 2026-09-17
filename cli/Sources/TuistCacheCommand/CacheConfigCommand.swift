@@ -18,9 +18,6 @@ public struct CacheConfigCommand: AsyncParsableCommand, NooraReadyCommand {
 
             The output includes the endpoint URL and authentication credentials that can
             be used to configure build caches for supported build systems like Gradle.
-
-            While the remote cache is being prepared and has no endpoint yet, the command
-            exits with status 75. Run it again a few seconds later.
             """
         )
     }

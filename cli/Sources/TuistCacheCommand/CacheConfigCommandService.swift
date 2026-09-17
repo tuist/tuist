@@ -86,10 +86,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
         } catch CacheURLStoreError.endpointBeingPrepared {
             if !json {
-                Noora.current.error(.alert(
-                    "The remote cache is being prepared and has no endpoint yet.",
-                    takeaways: ["Run the command again in a few seconds"]
-                ))
+                Noora.current.error(.alert("The remote cache is being prepared and has no endpoint yet."))
             }
             throw ExitCode(Self.endpointBeingPreparedExitCode)
         }
