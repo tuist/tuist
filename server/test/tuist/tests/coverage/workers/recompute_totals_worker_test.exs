@@ -36,16 +36,6 @@ defmodule Tuist.Tests.Coverage.Workers.RecomputeTotalsWorkerTest do
     assert project.id |> Coverage.totals_for_runs(run_ids) |> Map.values() |> Enum.map(& &1.executable_lines) == [2, 2, 2]
   end
 
-  test "has a job for every project with coverage", %{project: project, account: account} do
-    other = ProjectsFixtures.project_fixture(account_id: account.id)
-    CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])])
-    CoverageFixtures.run_with_coverage(other, account, [CoverageFixtures.file("Sources/A.swift", [1])])
-    _without_coverage = ProjectsFixtures.project_fixture(account_id: account.id)
-
-    assert RecomputeTotalsWorker.jobs_for_all_projects() |> Enum.map(& &1.changes.args.project_id) |> Enum.sort() ==
-             Enum.sort([project.id, other.id])
-  end
-
   test "does nothing for a project that no longer exists" do
     assert :ok = perform_job(RecomputeTotalsWorker, %{project_id: -1})
   end

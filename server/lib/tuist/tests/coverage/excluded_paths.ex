@@ -1,13 +1,12 @@
 defmodule Tuist.Tests.Coverage.ExcludedPaths do
   @moduledoc """
-  The paths coverage leaves out of every figure: generated code, above all,
-  whose lines no test is expected to cover and which would otherwise dominate
-  a pull request that regenerates it.
+  The paths a project leaves out of every coverage figure: generated code, above
+  all, whose lines no test is expected to cover and which would otherwise
+  dominate a pull request that regenerates it. Only the project decides what is
+  generated in its repository, so nothing is excluded unless it sets globs.
 
-  A project's globs override the server's (`TUIST_COVERAGE_EXCLUDED_PATH_GLOBS`),
-  which override the defaults below; an empty list excludes nothing. Globs
-  match the whole repository-relative path, with Git's pathspec glob rules:
-  `*` and `?` stay within a directory, `**/` matches any number of
+  Globs match the whole repository-relative path, with Git's pathspec glob
+  rules: `*` and `?` stay within a directory, `**/` matches any number of
   directories, and `/**` everything inside a directory.
 
   Excluded files are still stored with their line data. They are left out of
@@ -16,23 +15,12 @@ defmodule Tuist.Tests.Coverage.ExcludedPaths do
   retained (`Tuist.Tests.Coverage.recompute_totals/2` republishes their totals).
   """
 
-  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
-  @defaults [
-    "**/Derived/**",
-    "**/Generated/**",
-    "**/*.generated.swift",
-    "**/*.pb.swift",
-    "**/*.grpc.swift"
-  ]
-
-  def defaults, do: @defaults
-
-  @doc "The globs in effect for a project, or the server's when there is no project."
+  @doc "The project's globs; none for a project that set none."
   def globs(%Project{coverage_excluded_path_globs: globs}) when is_list(globs), do: globs
-  def globs(_project), do: Environment.coverage_excluded_path_globs() || @defaults
+  def globs(_project), do: []
 
   @doc """
   One anchored regular expression matching any of the globs, valid for both

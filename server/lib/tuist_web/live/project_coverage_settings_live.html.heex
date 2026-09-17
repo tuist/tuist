@@ -137,7 +137,7 @@
           <span data-part="help">
             {dgettext(
               "dashboard_projects",
-              "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Empty means the server defaults, shown as the placeholder."
+              "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Nothing is excluded when empty."
             )}
           </span>
           <textarea
@@ -145,7 +145,7 @@
             name="excluded_path_globs"
             rows="6"
             data-part="textarea"
-            placeholder={Enum.join(@excluded_path_defaults, "\n")}
+            placeholder="Sources/API/Generated/**\n**/*.pb.swift"
           >{Enum.join(@selected_project.coverage_excluded_path_globs || [], "\n")}</textarea>
         </div>
       </div>

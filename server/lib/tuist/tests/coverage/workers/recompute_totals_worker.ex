@@ -19,16 +19,6 @@ defmodule Tuist.Tests.Coverage.Workers.RecomputeTotalsWorker do
 
   def enqueue(project_id), do: %{project_id: project_id} |> new() |> Oban.insert()
 
-  @doc """
-  The jobs that republish the totals of every project with coverage, for when
-  the server's excluded paths changed (`TUIST_COVERAGE_EXCLUDED_PATH_GLOBS`,
-  or a release that changes the defaults): a project only recomputes by
-  itself when its own globs change.
-  """
-  def jobs_for_all_projects do
-    Enum.map(Coverage.project_ids_with_coverage(), &new(%{project_id: &1}))
-  end
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"project_id" => project_id} = args}) do
     if Projects.get_project_by_id(project_id) do

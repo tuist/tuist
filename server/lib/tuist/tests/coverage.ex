@@ -464,11 +464,6 @@ defmodule Tuist.Tests.Coverage do
     end
   end
 
-  @doc "The ids of the projects that have published coverage totals."
-  def project_ids_with_coverage do
-    ClickHouseRepo.all(from(c in CoverageRun, distinct: true, select: c.project_id))
-  end
-
   @doc """
   Republishes the totals of the project's runs from their retained reports,
   with the paths excluded now (see `Tuist.Tests.Coverage.ExcludedPaths`), for
