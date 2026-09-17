@@ -797,6 +797,68 @@ cas_store_dirs() {
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
+# CAS_STORE_BUDGET_FLOOR_BYTES is the least a small store is budgeted, so a store
+# a job starts writing to can grow before its next prune gives it more.
+CAS_STORE_BUDGET_FLOOR_BYTES=$((256 * 1024 * 1024))
+
+# cas_store_budgets splits the compilation cache's budget ($1) across the stores
+# in $2 (one path per line) by what each uses, printing one "<bytes><TAB><store>"
+# line per store. A store whose need, twice its allocated size and at least
+# CAS_STORE_BUDGET_FLOOR_BYTES, is under an even share gets that need; the stores
+# that need more split the rest evenly. The lines never add up to more than the
+# budget, which is the invariant a split exists for, and a budget of 0 stays 0.
+#
+# An even split handed Xcode's `generic` store, a few KB on every volume, half the
+# budget, capping the `plugin` store the builds use at half of what the host
+# staged. A strictly proportional split is not the answer either: it would pin a
+# small store near zero, so it would rotate on every prune and never grow once a
+# job starts using it.
+cas_store_budgets() {
+  local budget="$1" stores="$2"
+  local tab store used need sized="" count=0
+  tab=$(printf '\t')
+  while IFS= read -r store; do
+    [ -n "${store}" ] || continue
+    used=$(du -sk "${store}" 2>/dev/null | awk '{print $1}')
+    case "${used}" in ''|*[!0-9]*) used=0 ;; esac
+    sized="${sized}$((used * 1024))${tab}${store}
+"
+    count=$((count + 1))
+  done <<EOF
+${stores}
+EOF
+  [ "${count}" -gt 0 ] || return 0
+
+  local even=$((budget / count)) small_total=0 large_count=0
+  while IFS="${tab}" read -r used store; do
+    [ -n "${store}" ] || continue
+    need=$((used * 2))
+    [ "${need}" -ge "${CAS_STORE_BUDGET_FLOOR_BYTES}" ] || need="${CAS_STORE_BUDGET_FLOOR_BYTES}"
+    if [ "${need}" -lt "${even}" ]; then
+      small_total=$((small_total + need))
+    else
+      large_count=$((large_count + 1))
+    fi
+  done <<EOF
+${sized}
+EOF
+
+  local large_share="${even}"
+  [ "${large_count}" -eq 0 ] || large_share=$(((budget - small_total) / large_count))
+  while IFS="${tab}" read -r used store; do
+    [ -n "${store}" ] || continue
+    need=$((used * 2))
+    [ "${need}" -ge "${CAS_STORE_BUDGET_FLOOR_BYTES}" ] || need="${CAS_STORE_BUDGET_FLOOR_BYTES}"
+    if [ "${large_count}" -gt 0 ] && [ "${need}" -lt "${even}" ]; then
+      printf '%s%s%s\n' "${need}" "${tab}" "${store}"
+    else
+      printf '%s%s%s\n' "${large_share}" "${tab}" "${store}"
+    fi
+  done <<EOF
+${sized}
+EOF
+}
+
 # prune_cas_stores is what actually bounds the compilation cache on this image.
 #
 # COMPILATION_CACHE_LIMIT_SIZE does NOT cap the store directory, which is the
@@ -870,26 +932,17 @@ prune_cas_stores() {
 
   # SPLIT across the stores actually present, because the marker is the CAS's
   # allowance as a whole and llcas only takes a per-generation bound per STORE.
-  # A job that used both lanes would otherwise get the full allowance twice --
-  # 2 x 5.5 GiB per generation under production's settings, so ~22 GiB of CAS
-  # inside a 20 GiB image before the binary cache gets a byte, which is the
-  # over-commit this budget exists to prevent.
+  # A job that used both lanes would otherwise get the full allowance twice,
+  # which is the over-commit this budget exists to prevent. See cas_store_budgets
+  # for how it is divided.
   #
   # This is the enforcement point rather than the build-time setting because it
   # is the only one that can count: COMPILATION_CACHE_LIMIT_SIZE is written
   # before a single lane exists, so it cannot know how many there will be, while
   # what the promoted image carries is settled here.
-  #
-  # An even split is deliberately crude. A tiny second lane (a `generic` store of
-  # a few KB beside a multi-GB `plugin` one is the usual shape) costs the primary
-  # half its budget, which spends warmth to keep the image's arithmetic true --
-  # the conservative direction, and the fill ceiling is not a bound to lean on.
-  local stores_count
-  stores_count=$(printf '%s\n' "${stores}" | grep -c . || true)
-  case "${stores_count}" in ''|*[!0-9]*|0) stores_count=1 ;; esac
-  budget=$((budget / stores_count))
-
-  while IFS= read -r store; do
+  local tab store_budget
+  tab=$(printf '\t')
+  while IFS="${tab}" read -r store_budget store; do
     [ -n "${store}" ] || continue
     # `env -u TUIST_CAS_REMOTE_GRPC_URL` is the version-skew guard the drain uses
     # for the same reason: a proxy binary older than this op does not recognise
@@ -902,7 +955,7 @@ prune_cas_stores() {
     # neither the store nor the pass that produced them.
     local output reclaimed via
     if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
-      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
+      --limit-bytes "${store_budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
       # 0 is the ordinary healthy answer — a store inside its budget has no
       # generation to collect — so it must stay distinguishable from "no figure
       # reported", which would mean the client changed under us.
@@ -916,12 +969,12 @@ prune_cas_stores() {
         *"could not ask the proxy"*) via="local, no proxy" ;;
         *) via="local" ;;
       esac
-      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${store_budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
     else
       echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store (${when}) ${store}: ${output}"
     fi
   done <<EOF
-${stores}
+$(cas_store_budgets "${budget}" "${stores}")
 EOF
 }
 

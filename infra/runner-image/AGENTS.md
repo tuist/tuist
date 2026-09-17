@@ -258,7 +258,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   discovered by their `v1.N` generation dirs, and the staged allowance is SPLIT
   between them: the marker budgets the CAS as a whole while llcas only takes a
   per-generation bound per store, so handing each the full figure would let a
-  multi-lane job occupy a multiple of the CAS the image was sized for. Teardown is the only place that can count the
+  multi-lane job occupy a multiple of the CAS the image was sized for. The split
+  is by use (`cas_store_budgets`): a store whose need, twice its allocated size
+  and at least 256 MiB, is under an even share gets that need, and the stores
+  that need more split the rest. An even split gave the few-KB `generic` store,
+  present on every volume, half the budget and capped `plugin` at half of what
+  the host staged. Teardown is the only place that can count the
   lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
   The teardown pass (second, after the drain) bounds what the FLEET inherits: the
   image is measured and promoted right after it. The attach pass bounds what THIS
