@@ -1385,10 +1385,11 @@ allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
 `Tuist.Kura.ClaimSizing`), 50 GiB per replica on nearly every live instance,
 so the disk row counts in units of two replicas at 50 GiB, measured against 85%
-of allocatable: the pressure line at which `Tuist.Kura.Capacity` admission
-refuses a new instance or a claim growth and Air's archival window shortens,
-which sits below where the scheduler would refuse. Shrinking claims is a lever
-here as well as a node.
+of allocatable: the pressure line at which `Tuist.Kura.Admission` refuses a new
+instance or a claim growth, which sits below where the scheduler would refuse.
+Air's archival window shortens once what is left under it can no longer take a
+new enterprise instance (`Tuist.Kura.Capacity.under_pressure?/1`). Shrinking
+claims is a lever here as well as a node.
 
 The fourth constraint is egress. On a governed region every replica requests
 the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the

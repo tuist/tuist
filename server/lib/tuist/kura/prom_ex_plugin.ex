@@ -141,7 +141,7 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_seed_declined(),
             description:
               "Accounts not seeded an instance ahead of their first cache request, because the " <>
-                "region they resolve to is over its pressure line or their last instance was " <>
+                "region they resolve to is under capacity pressure or their last instance was " <>
                 "reclaimed for never storing anything. They are still provisioned on first use.",
             tags: [:plan, :region, :reason]
           ),

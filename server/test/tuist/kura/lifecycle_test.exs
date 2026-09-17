@@ -8,6 +8,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
@@ -29,13 +30,16 @@ defmodule Tuist.Kura.LifecycleTest do
   # reserves its plan's claim twice.
   @replicas 2
   @air_resident_gib 8 * @replicas
+  @enterprise_resident_gib 16 * @replicas
   # What a Pro instance holds once sizing has grown it. Plans no longer start
   # apart, so a footprint that differs from Air's is one sizing produced.
   @grown_pro_gib 32
   @pro_resident_gib @grown_pro_gib * @replicas
-  # One more instance than fits under the region's pressure line, derived
-  # rather than counted out so the fixtures track the real sizing.
-  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
+  @pressure_line_gib trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024))
+  # The fewest Air instances that leave the region too little headroom for a new
+  # enterprise instance, though still enough for another Air one. Derived rather
+  # than counted out so the fixtures track the real sizing.
+  @instances_to_pressure div(@pressure_line_gib - @enterprise_resident_gib, @air_resident_gib) + 1
   @image_tag "0.5.2"
   @gib 1024 * 1024 * 1024
 
@@ -329,7 +333,7 @@ defmodule Tuist.Kura.LifecycleTest do
       :ok
     end
 
-    test "drains Air at 60 days only while the region is over its pressure line" do
+    test "drains Air at 60 days once a new enterprise instance no longer fits, while admission still admits" do
       pressured =
         for _ <- 1..@instances_to_pressure do
           account = account()
@@ -338,14 +342,18 @@ defmodule Tuist.Kura.LifecycleTest do
           {account, server}
         end
 
-      over_pressure_line()
+      under_pressure()
+
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      {:ok, region} = Regions.fetch(@region)
+      assert :ok = Admission.admit?(region, %Server{region: @region, status: :provisioning, storage_claim_size: "8Gi"})
 
       assert :ok = Lifecycle.sweep()
 
       drained = Enum.count(pressured, fn {_a, server} -> reload(server).status == :drain_pending end)
 
-      # Only as many as it takes to fit: the region is one instance past its
-      # line, so reclaiming one brings it back under.
+      # Only as many as it takes to fit: the region is a few gibibytes short of
+      # a new enterprise instance, so reclaiming one Air instance makes the room.
       assert drained == 1
     end
 
@@ -375,7 +383,7 @@ defmodule Tuist.Kura.LifecycleTest do
         with_demand(filler, 10)
       end
 
-      over_pressure_line()
+      under_pressure()
 
       assert :ok = Lifecycle.sweep()
 
@@ -386,9 +394,10 @@ defmodule Tuist.Kura.LifecycleTest do
     test "counts what each unconditional archival actually frees" do
       # A Pro instance past the full window is archived regardless, and it frees
       # what it actually holds — 64Gi for one sizing has grown — rather than an
-      # Air instance's 16Gi. The region lands exactly on its line once that room
-      # is counted, so no Air instance is pressured. Counted at a uniform
-      # per-instance figure it would land 48Gi over and take three.
+      # Air instance's 16Gi. The region has room for exactly one new enterprise
+      # instance once that room is counted, so no Air instance is pressured.
+      # Counted at a uniform per-instance figure it would land 48Gi short and
+      # take three.
       pro = account(plan: :pro, region: :usa)
       pro_server = active_instance(pro, claim_size: "#{@grown_pro_gib}Gi")
       with_demand(pro, 200)
@@ -401,9 +410,10 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 734Gi reserved against a 670Gi line: 64Gi over, exactly what the grown
-      # Pro instance holds across its two replicas.
-      stub_region_pods([reserved_pod(4) | List.duplicate(reserved_pod(10), 73)])
+      # 702Gi reserved against a 670Gi line: 64Gi short of room for a new
+      # 32Gi enterprise instance, exactly what the grown Pro instance holds
+      # across its two replicas.
+      stub_region_pods([reserved_pod(2) | List.duplicate(reserved_pod(10), 70)])
 
       assert :ok = Lifecycle.sweep()
 
@@ -422,7 +432,7 @@ defmodule Tuist.Kura.LifecycleTest do
       server = active_instance(pro)
       with_demand(pro, 61)
 
-      over_pressure_line()
+      under_pressure()
 
       assert :ok = Lifecycle.sweep()
 
@@ -992,8 +1002,8 @@ defmodule Tuist.Kura.LifecycleTest do
   # `installed_gib/1` sums the allocatable ephemeral storage of a region's
   # Ready nodes, so sizing a region in a test means answering the node list.
   # Answers the pod list with exactly the reservation the fixtures imply, so
-  # the region reads as one instance past its pressure line.
-  defp over_pressure_line do
+  # the region reads as just short of room for a new enterprise instance.
+  defp under_pressure do
     stub_region_pods(List.duplicate(reserved_pod(div(@air_resident_gib, @replicas)), @instances_to_pressure * @replicas))
   end
 

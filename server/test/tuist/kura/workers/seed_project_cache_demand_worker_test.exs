@@ -166,7 +166,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
   end
 
   describe "capacity" do
-    test "declines to seed into a region over its pressure line, and records the refusal" do
+    test "declines to seed into a region under capacity pressure, and records the refusal" do
       stub_region_nodes([{@region, [@node_allocatable_bytes]}])
       stub_region_pods(List.duplicate(reserved_pod(50), 100))
 
@@ -192,7 +192,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert Demand.get(account.id, @region) == nil
     end
 
-    test "seeds while the region is under its pressure line" do
+    test "seeds while the region has room for a new instance of any plan" do
       stub_region_nodes([{@region, [@node_allocatable_bytes]}])
       stub_region_pods([reserved_pod(50)])
 

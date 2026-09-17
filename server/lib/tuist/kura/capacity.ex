@@ -14,10 +14,10 @@ defmodule Tuist.Kura.Capacity do
 
     * whether the region as a whole is tight enough that Air's inactivity
       window should shorten from 90 complete days to 60, so archival starts
-      making room before provisioning starts being declined
-      (`under_pressure?/1`). A region-level reading: the ephemeral-storage the
-      region's pods have reserved, against what its Ready nodes make
-      allocatable.
+      making room while admission still admits (`under_pressure?/1`). A
+      region-level reading of the headroom admission refuses against, which
+      stops fitting a new enterprise instance before it stops fitting a
+      smaller one.
     * whether the region has room for one more instance of a plan at all
       (`room_for?/2`), so first placement can choose a sibling region that has
       instead of leaving the instance Pending in one that does not. A per-node
@@ -41,18 +41,18 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
   @gib 1024 * 1024 * 1024
 
-  # Share of a region's allocatable disk that may be reserved before Air's
-  # window shortens. Below 1 on purpose: pressure has to arrive while there is
-  # still room to place instances, so archival creates space ahead of the
-  # scheduler starting to decline. It also leaves the margin kubelet needs --
-  # it evicts at `imagefs.available<15%`, on the same disk the cache ring
-  # lives on, and an eviction takes the node's whole region with it.
+  # Share of a region's allocatable disk its instances may reserve. Admission
+  # refuses past it, and pressure engages once what is left under it can no
+  # longer take a new enterprise instance. Below 1 for the margin kubelet needs:
+  # it evicts at `imagefs.available<15%`, on the same disk the cache ring lives
+  # on, and an eviction takes the node's whole region with it.
   @pressure_fraction 0.85
 
   # Replicas an instance runs when its region declares none, matching the
@@ -525,8 +525,8 @@ defmodule Tuist.Kura.Capacity do
   defp container_requested_bytes(_container), do: 0
 
   @doc """
-  Gibibytes a region may reserve before Air's window shortens, or `nil` when
-  its nodes cannot be read.
+  Gibibytes a region's instances may reserve before admission refuses more, or
+  `nil` when its nodes cannot be read.
   """
   def pressure_line_gib(region_id) do
     case allocatable_gib(region_id) do
@@ -536,19 +536,32 @@ defmodule Tuist.Kura.Capacity do
   end
 
   @doc """
-  Whether the region has reserved more of its disk than it may before Air's
-  window shortens. Only under that pressure may Air instances be drained at 60
-  complete inactive days instead of 90.
+  Whether the region's admission headroom (`Tuist.Kura.Admission.headroom_gib/1`)
+  can no longer take a new enterprise instance, the largest claim a plan starts
+  at, so pressure engages while admission still admits the smaller plans. Only
+  under that pressure may Air instances be drained at 60 complete inactive days
+  instead of 90.
 
-  False whenever either side cannot be read, so pressure archival never runs
+  False whenever the headroom cannot be read, so pressure archival never runs
   uninformed.
   """
   def under_pressure?(region_id) do
-    with target when is_integer(target) <- pressure_line_gib(region_id),
-         reserved when is_integer(reserved) <- reserved_gib(region_id) do
-      reserved > target
+    case pressure_deficit_gib(region_id) do
+      deficit when is_integer(deficit) -> deficit > 0
+      nil -> false
+    end
+  end
+
+  @doc """
+  Gibibytes the region has to free before it is out of pressure, zero or less
+  when it is not under pressure, or `nil` when its headroom cannot be read.
+  """
+  def pressure_deficit_gib(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         headroom when is_integer(headroom) <- Admission.headroom_gib(region) do
+      div(claim_bytes(region, :enterprise), @gib) * replicas(region) - headroom
     else
-      _ -> false
+      _ -> nil
     end
   end
 

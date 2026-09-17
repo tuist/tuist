@@ -47,6 +47,21 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
+  @doc """
+  Gibibytes the region can still admit: its pressure line less the larger of
+  its observed and desired reservations, or `nil` when either cannot be read.
+  Measured whether or not admission is enforced.
+  """
+  def headroom_gib(%Regions{id: region_id} = region) do
+    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
+         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
+         desired when is_integer(desired) <- desired_reservation_gib(region) do
+      target - max(observed, desired)
+    else
+      _ -> nil
+    end
+  end
+
   def admit_replacements?(%Regions{} = region, replacements) when is_list(replacements) do
     if Environment.kura_capacity_admission_required?() do
       admit_replacements_with_capacity(region, replacements)
@@ -62,12 +77,10 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
-  defp admit_with_capacity(%Regions{id: region_id} = region, candidate) do
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region),
+  defp admit_with_capacity(%Regions{} = region, candidate) do
+    with headroom when is_integer(headroom) <- headroom_gib(region),
          candidate_reservation when is_integer(candidate_reservation) <- Capacity.resident_gib(region, candidate) do
-      if max(observed, desired) + candidate_reservation <= target do
+      if candidate_reservation <= headroom do
         :ok
       else
         {:error, :capacity_exhausted}
