@@ -19,7 +19,7 @@ runtime — no service, sudo entry, or auto-login targets it.
 
 Because the base images provision as `admin` and jobs run as
 `runner`, anything the base installs under `admin` has to be
-handed over explicitly. Two things are:
+handed over explicitly. Three things are:
 
 - `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
   install` from a workflow step failed its writability audit
@@ -33,6 +33,12 @@ handed over explicitly. Two things are:
   copied over. Without it the login shell the LaunchAgent (and
   every step shell under it) runs resolves no brew shellenv, no
   rbenv, no node.
+- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
+  `admin` is not usable by `runner`, so the image downloads it again
+  as `runner`, with the same explicit `-buildVersion` the base uses
+  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
+  the toolchain was added to them have none, and this download is
+  what installs it.
 
 When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
