@@ -2778,6 +2778,17 @@ defmodule Tuist.Accounts do
   The cache endpoints for an account handle, plus whether a dedicated instance
   is expected to start serving shortly.
 
+  `technology` is how the client is routed:
+
+  - `:kura_only` for clients that always use Kura (CLI and Gradle plugin versions
+    that no longer send the `kura` client feature flag). They get the account's
+    Kura endpoints and never the Tuist-hosted legacy cache nodes: while no
+    instance is serving, a lifecycle-managed account gets no endpoints, and an
+    account that has never routed through Kura gets only its own custom
+    endpoints.
+  - `:kura` for earlier clients that send the `kura` client feature flag.
+  - `:default` for earlier clients that do not.
+
   `provisioning` is true when the account is under the demand-driven Kura
   lifecycle and has no Kura endpoint right now: archived and just asked for by
   this very request, still rolling out, or draining. Clients use it to decide
@@ -2790,17 +2801,24 @@ defmodule Tuist.Accounts do
   a poller.
   """
   def get_cache_resolution_for_handle(account_handle, technology \\ :default, origin \\ nil) do
-    if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
-      hosted_kura_resolution(account_handle, origin)
-    else
-      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
+    hosted? = Environment.tuist_hosted?()
+
+    cond do
+      hosted? and technology in [:kura, :kura_only] and is_binary(account_handle) ->
+        hosted_kura_resolution(account_handle, technology, origin)
+
+      hosted? and technology == :kura_only ->
+        %{endpoints: [], provisioning: false}
+
+      true ->
+        %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
     end
   end
 
   # Resolved in one pass so `provisioning` is derived from the same Kura
   # endpoint lookup that produced `endpoints`, rather than a second query that
   # could disagree with it.
-  defp hosted_kura_resolution(account_handle, origin) do
+  defp hosted_kura_resolution(account_handle, technology, origin) do
     case get_account_by_handle(account_handle) do
       %Account{} = account ->
         Demand.record(account.id, origin)
@@ -2808,7 +2826,7 @@ defmodule Tuist.Accounts do
         case kura_cache_endpoint_urls(account, Origins.value(origin)) do
           [] ->
             %{
-              endpoints: absent_kura_endpoint_urls(account),
+              endpoints: absent_kura_endpoint_urls(account, technology),
               provisioning: Demand.instance_expected?(account)
             }
 
@@ -2817,7 +2835,8 @@ defmodule Tuist.Accounts do
         end
 
       _ ->
-        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+        endpoints = if technology == :kura_only, do: [], else: CacheEndpoints.active_endpoint_urls()
+        %{endpoints: endpoints, provisioning: false}
     end
   end
 
@@ -2867,14 +2886,15 @@ defmodule Tuist.Accounts do
   #
   # This lane is a different content store from the account's Kura instance,
   # not a backing store for it, so an archived account gets cold misses here
-  # rather than its own artifacts. Once the lane is retired this returns an
-  # empty list, which every build-path caller in the CLI degrades to building
-  # locally.
-  defp absent_kura_endpoint_urls(%Account{} = account) do
-    if Demand.lifecycle_managed?(account) do
-      CacheEndpoints.active_endpoint_urls()
-    else
-      custom_cache_endpoint_urls(account)
+  # rather than its own artifacts. `:kura_only` clients never get this lane:
+  # they get an empty list, which they treat as building locally while they
+  # wait for the instance.
+  defp absent_kura_endpoint_urls(%Account{} = account, technology \\ :kura) do
+    case {Demand.lifecycle_managed?(account), technology} do
+      {true, :kura_only} -> []
+      {true, _} -> CacheEndpoints.active_endpoint_urls()
+      {false, :kura_only} -> account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      {false, _} -> custom_cache_endpoint_urls(account)
     end
   end
 
