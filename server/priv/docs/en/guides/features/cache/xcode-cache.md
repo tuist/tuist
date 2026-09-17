@@ -21,15 +21,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 >
 > By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything.
 
-
 ## Setup {#setup}
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - Xcode 26.0 or later
-
 
 If you don't already have a Tuist account and project, you can create one by running:
 
@@ -72,7 +64,6 @@ Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_
 >
 > It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
-
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
@@ -106,7 +97,6 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 >     )
 > )
 > ```
-
 
 ### Cache upload policy {#cache-upload-policy}
 

@@ -24,7 +24,7 @@ Begin with a representative build and test workflow that developers run frequent
 Connect the guide that matches the build system already used by the project:
 
 - For an existing Xcode project or workspace, follow the <.localized_link href="/guides/features/build-insights/xcode">Xcode build insights guide</.localized_link>.
-- For a generated Xcode project, follow the <.localized_link href="/guides/features/build-insights/generated-projects">generated project build insights guide</.localized_link>.
+- For a generated Xcode project, follow the <.localized_link href="/guides/features/build-insights/generated-xcode-project">generated project build insights guide</.localized_link>.
 - For a Gradle project, follow the <.localized_link href="/guides/features/build-insights/gradle">Gradle build insights guide</.localized_link>.
 - For a Bazel project, follow the <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights guide</.localized_link>.
 

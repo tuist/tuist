@@ -22,7 +22,7 @@ Tuist uses historical test timing data to intelligently balance the load across 
   <.home_card
     title="Generated projects"
     details="Shard tests in Tuist generated projects across parallel CI runners."
-    link="/guides/features/test-sharding/generated-projects"
+    link="/guides/features/test-sharding/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
@@ -30,10 +30,4 @@ Tuist uses historical test timing data to intelligently balance the load across 
     link="/guides/features/test-sharding/gradle"
 />
 </.home_cards>
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing based on historical timing data)
 

@@ -1,38 +1,120 @@
 ---
 {
-  "title": "Existing Xcode project",
+  "title": "Xcode project",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Add Tuist caching and insights to an existing Xcode project without adopting project generation."
+  "description": "Connect an existing Xcode project to Tuist for the Xcode compilation cache, build and test insights, bundle-size tracking, and preview links, without adopting project generation."
 }
 ---
-# Existing Xcode project {#existing-xcode-project}
+# Xcode project {#existing-xcode-project}
 
-Keep your existing Xcode project or workspace and add Tuist capabilities one at a time. Project generation is optional for compilation caching, build insights, and test insights.
+> [!TIP]
+> **Rather have a coding agent do this?**
+>
+> Give this to a coding agent:
+>
+> ```text
+> Follow the setup at
+> https://tuist.dev/en/docs/guides/get-started/existing-xcode-project
+> ```
 
-## What you can add {#what-you-can-add}
+Follow this path when you want to keep your `.xcodeproj` or `.xcworkspace` exactly as it is and pull in Tuist's capabilities without adopting project generation. Every section below opens with what's missing today and then walks you through the feature that fills the gap.
 
-- <.localized_link href="/guides/features/cache/xcode-cache">Xcode compilation caching</.localized_link> shares compilation outputs across developer machines and continuous integration environments. It requires Xcode 26 or later.
-- <.localized_link href="/guides/features/build-insights/xcode">Xcode build insights</.localized_link> records build duration and performance data.
-- <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> records test results, duration, and failures.
+## Prerequisites
 
-The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> is different: it replaces modules before a build and requires a generated project. You do not need it to use Xcode's compilation cache.
+- macOS with **Xcode 26 or later** (the compilation cache and modern insights depend on it).
+- The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
-## Adoption steps {#adoption-steps}
+## Connect the project (once)
 
-1. <.localized_link href="/guides/install-tuist">Install the Tuist command-line interface</.localized_link> on each developer machine and continuous integration environment that will use Tuist.
-2. Run `tuist init` in your project root. Choose the option to integrate the existing Xcode project or workspace, then authenticate and create or select the Tuist project.
-3. Start with one capability:
-   - For faster builds, follow the <.localized_link href="/guides/features/cache/xcode-cache#setup">Xcode cache setup</.localized_link> and run `tuist setup cache` on every machine that builds the project.
-   - For build performance data, add the post-action described in the <.localized_link href="/guides/features/build-insights/xcode">Xcode build insights guide</.localized_link>.
-   - For test performance and failure data, add the post-action described in the <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights guide</.localized_link>.
-4. When enabling a capability in continuous integration, follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> before running the build or test.
+Run `tuist init` at the repository root. Choose **Integrate `<YourApp>`** when Tuist detects your workspace, then authenticate in the browser and pick the account that should own the project. Tuist writes a `tuist.toml` at the root that pins the project handle so your teammates and CI share the same connection. Commit it.
 
-## Verify your setup {#verify-your-setup}
+Everything below is optional and independent.
 
-Verify the capability you selected before adding another one:
+## Xcode compilation cache
 
-- **Compilation cache:** Build the same revision in two clean environments with diagnostic remarks enabled. Confirm that the later build reports cache hits and that cache activity appears in the project's Xcode cache dashboard.
-- **Build insights:** Complete a build, open the project dashboard, and confirm that the build appears with its duration and targets.
-- **Test insights:** Complete a test run, open the project dashboard, and confirm that the run lists the executed tests and their results.
+Xcode 26 ships with a per-file compilation cache, but its store lives inside a machine's `DerivedData`. A clean build populates it locally; teammates and CI runners rebuild from scratch because they don't see that store.
 
-Once the first result appears, repeat the setup for teammates and continuous integration or continue with another capability above.
+`tuist setup cache` points Xcode's compilation cache at the shared Tuist cache network. A hit on any developer machine or CI run then benefits every other machine building the same revision.
+
+```bash
+tuist setup cache
+```
+
+Build in Xcode. Wipe Derived Data, build again on a second machine or a CI runner. The second build finishes in a fraction of the time and Xcode's build report shows the compilation cache hits.
+
+## Build insights
+
+Xcode records per-target build durations in the log and in the build report. Neither is aggregated across runs or across machines. A build-time regression that lands in one PR usually surfaces only as a slower CI overall, with no obvious signal about which target caused it or when.
+
+Build insights records every build's duration and phase timings so the trend is visible on the dashboard. It's a one-line post-action on your scheme:
+
+1. In Xcode: **Product → Scheme → Edit Scheme…**
+2. Expand **Build → Post-actions**, click **+**, choose **New Run Script Action**.
+3. Under **Provide build settings from**, pick your app target.
+4. Paste the line that matches how you installed Tuist:
+   ::: code-group
+   ```bash [Mise]
+   $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
+   ```
+   ```bash [Homebrew]
+   tuist inspect build
+   ```
+   <!-- -->
+   :::
+
+   Xcode's scheme scripts don't inherit your shell's `PATH`, so mise's shim isn't found on its own. The Mise line above calls mise by its absolute path and asks it to load config from `$SRCROOT` so it picks the version pinned in your project.
+5. Build once. The build appears on the dashboard's **Builds** tab within seconds.
+
+## Test insights
+
+Xcode's test log lists per-test results one run at a time. Cross-run signal — how often a test fails, how much slower it got last week, whether it fails only on certain simulators — is not something Xcode aggregates. A test drifting from reliable to flaky over ten CI runs looks the same as a single unlucky run.
+
+Test insights records every test's outcome and duration and correlates results across runs. Slow tests, failures, and flakes surface on the dashboard's **Tests** tab.
+
+1. **Product → Scheme → Edit Scheme…**
+2. **Test → Post-actions → +** → **New Run Script Action**.
+3. **Provide build settings from** your app target.
+4. Paste:
+   ::: code-group
+   ```bash [Mise]
+   $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
+   ```
+   ```bash [Homebrew]
+   tuist inspect test
+   ```
+   <!-- -->
+   :::
+5. Run the test action once. Results appear on the dashboard's **Tests** tab.
+
+## Bundle insights
+
+An IPA's install and download size shift with every asset added and every symbol linked in. Xcode reports the sizes on demand in **Product → Show Archive**, not as a series. A PR that adds a large asset is indistinguishable from any other PR in the merge queue.
+
+Bundle insights records install and download sizes for every analyzed build and can fail a PR check when a per-branch threshold is breached. Add this to your CI right after your build step:
+
+```bash
+tuist inspect bundle App.ipa
+```
+
+Open **Bundle insights** on the dashboard to see the trend and configure thresholds.
+
+## Previews
+
+TestFlight adds a build-and-review round trip on every share. Sending a signed `.ipa` directly requires the recipient's UDID in the provisioning profile. Neither is convenient for a designer or QA who just wants to try the current branch.
+
+Previews turns a build into a shareable link that runs on a simulator or device with one command:
+
+```bash
+tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator
+tuist share App
+```
+
+Send the link. Recipients run it with `tuist run <url>` or the Tuist macOS app.
+
+## Bring the team along
+
+The cache and insights compound with the number of people connected to the project. Invite your teammates to the organization from the account settings on the dashboard, and set up <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link> (Google, Okta, Microsoft) so onboarding is a click rather than a per-person `tuist auth login`.
+
+## Where to go next
+
+If you outgrow this path, the biggest step is Tuist-generated projects. That's a real change (targets described in Swift manifests instead of an `.xcodeproj`), but it's what unlocks the module cache and selective testing. Covered end-to-end in the <.localized_link href="/guides/get-started/generated-xcode-project">Generated Xcode project</.localized_link> guide.

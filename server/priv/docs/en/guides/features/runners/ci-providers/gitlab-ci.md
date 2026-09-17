@@ -1,7 +1,7 @@
 ---
 {
   "title": "GitLab CI",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
+  "titleTemplate": ":title · CI providers · Runners · Features · Guides · Tuist",
   "description": "Run GitLab CI jobs on Tuist Runners with machine selection through pipeline tags."
 }
 ---

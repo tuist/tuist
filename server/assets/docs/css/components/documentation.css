@@ -67,3 +67,33 @@
     font: var(--noora-font-body-medium);
   }
 }
+
+.tuist-docs [data-part="feature-card"] [data-part="supported-for"] {
+  display: flex;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+  margin-top: var(--noora-spacing-3);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-small);
+  line-height: 1;
+}
+
+.tuist-docs [data-part="feature-card"] [data-part="supported-label"] {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+}
+
+.tuist-docs [data-part="feature-card"] [data-part="supported-icon"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+
+  & svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+}

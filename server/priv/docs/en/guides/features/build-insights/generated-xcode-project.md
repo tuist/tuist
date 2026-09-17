@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Generated Projects Build Insights",
-  "titleTemplate": ":title · Build Insights · Features · Guides · Tuist",
-  "description": "Track build analytics for Tuist generated projects in the Tuist dashboard."
+  "title": "Generated Xcode project",
+  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
+  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
 }
 ---
-# Generated projects build insights {#generated-projects-build-insights}
+# Generated Xcode project {#generated-xcode-project-build-insights}
 
 > [!NOTE]
 > Auto-generated schemes automatically include the `tuist inspect build` post-action.

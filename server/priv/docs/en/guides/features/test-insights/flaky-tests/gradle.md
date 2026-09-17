@@ -7,12 +7,6 @@
 ---
 # Gradle flaky tests {#gradle-flaky-tests}
 
-> [!WARNING]
-> **Requirements**
->
-> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
-
-
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 ![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
