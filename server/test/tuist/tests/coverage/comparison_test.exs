@@ -311,6 +311,13 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.patch.status == :available
     end
 
+    test "words an unknown commit plainly", %{project: project, account: account} do
+      run = run(project, account, %{git_commit_sha: "", xcode_coverage: %{partial: false, files: base_files()}})
+
+      assert {:error, %{kind: :no_history, commit: ""} = reason} = Comparison.baseline(project, run)
+      assert Comparison.reason_text(reason) == "the run's commit is unknown"
+    end
+
     test "is nil for a run without coverage", %{project: project, account: account} do
       run = run(project, account, %{git_commit_sha: "c"})
       assert Comparison.compare(project, run) == nil

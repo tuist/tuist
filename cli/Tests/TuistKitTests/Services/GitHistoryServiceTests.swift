@@ -109,4 +109,41 @@ struct GitHistoryServiceTests {
         #expect(collected.payload.source == "client")
         #expect(collected.payload.fallbackReason?.hasPrefix("the tracked files could not be listed: ") == true)
     }
+
+    @Test(.withMockedEnvironment())
+    func reportsARunWithoutARepositoryAsHistorylessButKeepsItsPullRequest() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let noRepository = MockGitControlling()
+        given(noRepository).isInGitRepository(workingDirectory: .any).willReturn(false)
+        let subject = GitHistoryService(
+            gitController: noRepository,
+            settingsService: settingsService,
+            missingCommitsService: missingCommitsService,
+            uploadCommitsService: uploadCommitsService
+        )
+        let gitInfo = GitInfo(
+            ref: "refs/pull/7/merge",
+            branch: "feature",
+            sha: "head",
+            remoteURLOrigin: nil,
+            baseBranch: "main",
+            pullRequestNumber: 7
+        )
+
+        let collected = try #require(
+            await subject.collect(
+                gitInfo: gitInfo,
+                workingDirectory: workingDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: URL(string: "https://tuist.dev")!
+            )
+        )
+
+        #expect(collected.payload.source == "none")
+        #expect(collected.payload.fallbackReason == "the working directory is not a Git repository")
+        #expect(collected.payload.isPullRequest)
+        #expect(collected.payload.pullRequestNumber == 7)
+        #expect(collected.payload.baseBranch == "main")
+        #expect(collected.history.commits.isEmpty)
+    }
 }

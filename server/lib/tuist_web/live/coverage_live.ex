@@ -479,6 +479,9 @@ defmodule TuistWeb.CoverageLive do
   def reason_label(%{kind: :no_merge_base, base_branch: branch} = reason),
     do: with_detail(dgettext("dashboard_tests", "the merge base with %{branch} is unknown", branch: branch), reason)
 
+  def reason_label(%{kind: :no_history, commit: ""} = reason),
+    do: with_detail(dgettext("dashboard_tests", "the run's commit is unknown"), reason)
+
   def reason_label(%{kind: :no_history, commit: sha} = reason),
     do:
       with_detail(

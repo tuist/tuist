@@ -54,6 +54,18 @@ public struct GitHistoryService: GitHistoryServicing {
     /// History rides with coverage, which is in early access behind the `COVERAGE` client flag.
     static var enabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
 
+    static var defaultSettings: GitHistorySettings {
+        let defaults = GitHistoryLimits()
+        return GitHistorySettings(
+            windowDays: defaults.windowDays,
+            windowCommits: defaults.windowCommits,
+            deepenBudgetSeconds: defaults.deepenBudgetSeconds,
+            uploadBatchSize: defaults.uploadBatchSize,
+            trackedFileGlobs: defaults.trackedFileGlobs,
+            trackedFileLimit: defaults.trackedFileLimit
+        )
+    }
+
     /// A run may override the project's tracked-file globs with a comma-separated list.
     static let trackedFileGlobsVariable = "TUIST_TRACKED_FILE_GLOBS"
 
@@ -68,23 +80,44 @@ public struct GitHistoryService: GitHistoryServicing {
         fullHandle: String,
         serverURL: URL
     ) async -> CollectedGitHistory? {
-        guard Self.enabled, gitInfo.sha != nil else { return nil }
-        guard await gitController.isInGitRepository(workingDirectory: workingDirectory) else { return nil }
+        guard Self.enabled else { return nil }
+
+        // Without a repository there is nothing to collect, but the run still says so, and keeps
+        // the pull request identity CI provided, so the server can complete the history from
+        // the VCS provider instead of treating the run as a plain one.
+        guard gitInfo.sha != nil, await gitController.isInGitRepository(workingDirectory: workingDirectory) else {
+            let reason = gitInfo.sha == nil ? "the run's commit is unknown" : "the working directory is not a Git repository"
+            return CollectedGitHistory(
+                payload: TestRunGitHistory(
+                    baseBranch: gitInfo.baseBranch,
+                    mergeBaseSHA: nil,
+                    isPullRequest: gitInfo.pullRequestNumber != nil || gitInfo.ref?.hasPrefix("refs/pull/") == true,
+                    pullRequestNumber: gitInfo.pullRequestNumber,
+                    objectFormat: nil,
+                    source: "none",
+                    fallbackReason: reason,
+                    changedFiles: []
+                ),
+                history: GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: gitInfo.sha ?? "",
+                    baseBranch: gitInfo.baseBranch,
+                    mergeBaseSHA: nil,
+                    commits: [],
+                    changedFiles: [],
+                    fallbackReason: reason
+                ),
+                branch: gitInfo.branch,
+                settings: Self.defaultSettings
+            )
+        }
 
         let settings: GitHistorySettings
         do {
             settings = try await settingsService.getGitHistorySettings(fullHandle: fullHandle, serverURL: serverURL)
         } catch {
             Logger.current.debug("Using the default Git history settings: \(error.localizedDescription)")
-            let defaults = GitHistoryLimits()
-            settings = GitHistorySettings(
-                windowDays: defaults.windowDays,
-                windowCommits: defaults.windowCommits,
-                deepenBudgetSeconds: defaults.deepenBudgetSeconds,
-                uploadBatchSize: defaults.uploadBatchSize,
-                trackedFileGlobs: defaults.trackedFileGlobs,
-                trackedFileLimit: defaults.trackedFileLimit
-            )
+            settings = Self.defaultSettings
         }
 
         let (trackedFiles, trackedFilesReason) = await trackedFiles(workingDirectory: workingDirectory, settings: settings)
