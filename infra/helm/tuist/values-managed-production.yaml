@@ -1023,7 +1023,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
