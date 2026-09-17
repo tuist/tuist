@@ -459,7 +459,7 @@ defmodule Tuist.Kura.LifecycleTest do
       {:ok, _} = Demand.upsert(account.id, @region, ago(1))
       server = active_instance(account, age_days: 0)
 
-      assert :ok = Lifecycle.archive_prepared(server)
+      assert :ok = Lifecycle.archive_prepared(server, ago(1))
       assert reload(server).status == :drain_pending
       assert %{drain_reason: :prepared} = reload_lifecycle(account)
 
@@ -509,11 +509,22 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :provisioning
     end
 
+    test "is not archived when its account asked for its cache after it was seeded" do
+      account = account()
+      {:ok, _} = Demand.upsert(account.id, @region, ago(1))
+      server = active_instance(account, age_days: 0)
+      Demand.record(account.id)
+
+      assert {:error, :demand_recorded} = Lifecycle.archive_prepared(server, ago(1))
+      assert reload(server).status == :active
+      assert %{drain_reason: nil} = reload_lifecycle(account)
+    end
+
     test "stays in service when the account asks for its cache during the drain" do
       account = account()
       {:ok, _} = Demand.upsert(account.id, @region, ago(1))
       server = active_instance(account, age_days: 0)
-      assert :ok = Lifecycle.archive_prepared(server)
+      assert :ok = Lifecycle.archive_prepared(server, ago(1))
 
       Demand.record(account.id)
       assert :ok = Lifecycle.reconcile()

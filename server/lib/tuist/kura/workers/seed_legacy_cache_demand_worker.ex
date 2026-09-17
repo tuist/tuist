@@ -38,15 +38,16 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   ## Preparing
 
   With `prepare`, an instance is brought up and then archived as soon as it is
-  active (`Tuist.Kura.Lifecycle.archive_prepared/1`), so the slow part of a
+  active (`Tuist.Kura.Lifecycle.archive_prepared/2`), so the slow part of a
   first provision is done ahead of time and the instance holds no capacity
   until its account asks for it through Kura. The job runs in passes a minute
   apart: each pass archives what the previous ones brought up and seeds the
   next accounts into the room that frees, until nothing is on its way.
 
-  Only instances the backfill brought up are archived, at most once each: an
-  instance that entered service before the backfill started, or whose account
-  has recorded demand of its own since, is left in service. Legacy traffic
+  Only instances the backfill brought up are archived, at most once each. The
+  job records the demand it seeded each account-region with, and an instance
+  whose account has recorded demand after that, through Kura, is left in
+  service, however recent the account's legacy traffic is. Legacy traffic
   never returns a prepared instance; only a request through Kura does.
 
   ## Running it
@@ -109,7 +110,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     log_report(report)
 
     if next_pass?(report) do
-      {:ok, _job} = Oban.update_job(job, %{args: Map.put(args, "prepared", report.prepared)})
+      args = Map.merge(args, %{"prepared" => report.prepared, "seeded" => report.seeded})
+      {:ok, _job} = Oban.update_job(job, %{args: args})
       {:snooze, @pass_seconds}
     else
       :ok
@@ -133,7 +135,8 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     options = %{
       prepare?: Map.get(args, "prepare", false),
       started_at: started_at(args, now),
-      prepared: MapSet.new(Map.get(args, "prepared", []))
+      prepared: MapSet.new(Map.get(args, "prepared", [])),
+      seeded: Map.get(args, "seeded", %{})
     }
 
     traffic = legacy_traffic(since, now)
@@ -243,13 +246,15 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
   ## Planning
 
-  defp plan([], _traffic, options), do: %{entries: [], regions: %{}, prepared: MapSet.to_list(options.prepared)}
+  defp plan([], _traffic, options),
+    do: %{entries: [], regions: %{}, prepared: MapSet.to_list(options.prepared), seeded: options.seeded}
 
   defp plan(accounts, traffic, options) do
     context = %{
       prepare?: options.prepare?,
       started_at: options.started_at,
       prepared: options.prepared,
+      seeded: options.seeded,
       traffic: traffic,
       inactive_cutoff: DateTime.add(DateTime.utc_now(), -Environment.kura_inactive_days() * 86_400, :second),
       resolutions: AccountPolicies.serving_regions_all(accounts),
@@ -261,7 +266,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
     {entries, regions} = Enum.flat_map_reduce(accounts, %{}, &plan_account(&1, context, &2))
 
-    %{entries: entries, regions: regions, prepared: MapSet.to_list(options.prepared)}
+    %{entries: entries, regions: regions, prepared: MapSet.to_list(options.prepared), seeded: options.seeded}
   end
 
   defp plan_account(account, context, ledger) do
@@ -310,7 +315,10 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   end
 
   defp plan_live(entry, live, lifecycle, context) do
-    in_flight = context.prepare? and live.status in @transitional_statuses and brought_up?(live, lifecycle, context)
+    in_flight =
+      context.prepare? and live.status in @transitional_statuses and Map.has_key?(context.seeded, prepared_key(entry)) and
+        brought_up?(live, lifecycle, context)
+
     %{entry | outcome: :waiting, kura_status: live.status, in_flight: in_flight}
   end
 
@@ -331,11 +339,20 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     context.lifecycles |> Map.get(account.id, []) |> Enum.find(&(&1.service_region == region_id))
   end
 
-  # An instance the backfill brought up, that nothing has asked for through
-  # Kura since, and that the backfill has not archived before.
+  # An instance the backfill seeded and brought up, whose account has recorded
+  # no demand since the seed, and that the backfill has not archived before.
+  # Compared with the seed rather than the latest legacy request: legacy
+  # traffic keeps arriving, and a Kura request older than the last legacy one
+  # still means the account uses the instance.
   defp prepare?(entry, server, lifecycle, %{prepare?: true} = context) do
-    not MapSet.member?(context.prepared, prepared_key(entry)) and brought_up?(server, lifecycle, context) and
-      not is_nil(lifecycle) and DateTime.compare(lifecycle.last_cache_demand_at, entry.legacy.last_at) != :gt
+    case seeded_at(context.seeded, entry) do
+      %DateTime{} = seeded_at ->
+        not MapSet.member?(context.prepared, prepared_key(entry)) and brought_up?(server, lifecycle, context) and
+          not is_nil(lifecycle) and not DateTime.after?(lifecycle.last_cache_demand_at, seeded_at)
+
+      nil ->
+        false
+    end
   end
 
   defp prepare?(_entry, _server, _lifecycle, _context), do: false
@@ -354,6 +371,17 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   defp prepared_archive?(_lifecycle), do: false
 
   defp prepared_key(entry), do: "#{entry.account_id}:#{entry.region}"
+
+  defp seeded_at(seeded, entry) do
+    case Map.fetch(seeded, prepared_key(entry)) do
+      {:ok, at} ->
+        {:ok, seeded_at, _offset} = DateTime.from_iso8601(at)
+        seeded_at
+
+      :error ->
+        nil
+    end
+  end
 
   # The reasons `Tuist.Kura.Lifecycle` would not provision the account-region
   # from demand stamped at the account's last legacy request.
@@ -546,24 +574,34 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   defp apply_plan(%{entries: entries} = plan, options) do
     Enum.each(entries, &record_spill/1)
 
-    # Preparing refreshes nothing it did not seed: a clock moved by legacy
-    # traffic would read as the account asking for an instance it never used.
-    refreshed = if options.prepare?, do: [:provision], else: [:provision, :serving, :waiting]
+    # Preparing seeds each account-region once and refreshes nothing: a clock
+    # moved by legacy traffic would read as the account asking for an instance
+    # it never used.
+    seeding = Enum.filter(entries, &seed?(&1, plan.seeded, options))
 
     rows =
-      for %{outcome: outcome} = entry <- entries, outcome in refreshed do
+      Enum.map(seeding, fn entry ->
         %{account_id: entry.account_id, service_region: entry.region, last_cache_demand_at: entry.legacy.last_at}
-      end
+      end)
 
     {:ok, _count} = Demand.upsert_many(rows)
 
+    seeded =
+      if options.prepare?,
+        do: Map.merge(plan.seeded, Map.new(seeding, &{prepared_key(&1), DateTime.to_iso8601(&1.legacy.last_at)})),
+        else: plan.seeded
+
     archived =
       for %{outcome: :prepare} = entry <- entries,
-          :ok == Lifecycle.archive_prepared(Repo.get!(Server, entry.server_id)),
+          :ok == Lifecycle.archive_prepared(Repo.get!(Server, entry.server_id), seeded_at(seeded, entry)),
           do: prepared_key(entry)
 
-    %{plan | prepared: Enum.uniq(plan.prepared ++ archived)}
+    %{plan | prepared: Enum.uniq(plan.prepared ++ archived), seeded: seeded}
   end
+
+  defp seed?(%{outcome: :provision} = entry, seeded, %{prepare?: true}), do: not Map.has_key?(seeded, prepared_key(entry))
+  defp seed?(_entry, _seeded, %{prepare?: true}), do: false
+  defp seed?(%{outcome: outcome}, _seeded, _options), do: outcome in [:provision, :serving, :waiting]
 
   defp record_spill(%{outcome: :provision, preferred_region: preferred} = entry) when is_binary(preferred) do
     evidence = %{

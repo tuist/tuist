@@ -438,6 +438,9 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
 
     defp started_at, do: DateTime.truncate(DateTime.add(DateTime.utc_now(), -1, :second), :second)
 
+    # What the job carries from one pass to the next.
+    defp state(report), do: %{"seeded" => Map.get(report, :seeded, %{}), "prepared" => Map.get(report, :prepared, [])}
+
     test "seeds an instance, archives it once it is active, and leaves it archived" do
       account = account()
       module_cache_run(account, at: ago(1))
@@ -450,7 +453,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       assert :ok = Lifecycle.reconcile()
       server = activate(account)
 
-      second = prepare_pass(started_at)
+      second = prepare_pass(started_at, state(first))
       assert [%{outcome: :prepare, region: "us-east"}] = entries_for(second, account)
       assert %Server{status: :drain_pending} = Repo.get!(Server, server.id)
       assert second.prepared == ["#{account.id}:us-east"]
@@ -461,7 +464,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       assert %Server{status: :archived} = Repo.get!(Server, server.id)
 
       module_cache_run(account, at: ago(0.001))
-      third = prepare_pass(started_at, %{"prepared" => second.prepared})
+      third = prepare_pass(started_at, state(second))
 
       assert [%{outcome: :prepared, region: "us-east"}] = entries_for(third, account)
       refute third.in_flight
@@ -485,14 +488,14 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       assert :ok = Lifecycle.reconcile()
       activate(first_account)
 
-      second = prepare_pass(started_at)
+      second = prepare_pass(started_at, state(first))
       assert [%{outcome: :prepare}] = entries_for(second, first_account)
       assert [%{outcome: :skipped, reason: :capacity_exhausted}] = entries_for(second, second_account)
 
       elapse_drain(first_account)
       assert :ok = Lifecycle.reconcile()
 
-      third = prepare_pass(started_at, %{"prepared" => second.prepared})
+      third = prepare_pass(started_at, state(second))
       assert [%{outcome: :prepared}] = entries_for(third, first_account)
       assert [%{outcome: :provision}] = entries_for(third, second_account)
       assert third.in_flight
@@ -503,12 +506,30 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       module_cache_run(account, at: ago(1))
       started_at = started_at()
 
-      prepare_pass(started_at)
+      first = prepare_pass(started_at)
       assert :ok = Lifecycle.reconcile()
       server = activate(account)
       Demand.record(account.id)
 
-      report = prepare_pass(started_at)
+      report = prepare_pass(started_at, state(first))
+
+      assert [%{outcome: :serving}] = entries_for(report, account)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+    end
+
+    test "leaves an instance in service when its account used Kura before a later legacy request" do
+      account = account()
+      module_cache_run(account, at: ago(1))
+      started_at = started_at()
+
+      first = prepare_pass(started_at)
+      assert :ok = Lifecycle.reconcile()
+      server = activate(account)
+
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.add(DateTime.utc_now(), -120, :second))
+      module_cache_run(account, at: DateTime.add(DateTime.utc_now(), -60, :second))
+
+      report = prepare_pass(started_at, state(first))
 
       assert [%{outcome: :serving}] = entries_for(report, account)
       assert %Server{status: :active} = Repo.get!(Server, server.id)
@@ -533,11 +554,11 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       module_cache_run(account, at: ago(1))
       started_at = started_at()
 
-      prepare_pass(started_at)
+      first = prepare_pass(started_at)
       assert :ok = Lifecycle.reconcile()
       activate(account)
 
-      report = prepare_pass(started_at, %{"prepared" => ["#{account.id}:us-east"]})
+      report = prepare_pass(started_at, Map.put(state(first), "prepared", ["#{account.id}:us-east"]))
 
       assert [%{outcome: :serving}] = entries_for(report, account)
     end

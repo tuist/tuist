@@ -229,13 +229,44 @@ defmodule Tuist.Kura.Lifecycle do
   drains and is archived like any other instance, on every plan because it
   holds no cache, and is provisioned again only for demand recorded after its
   archival.
+
+  `seeded_at` is the demand the instance was provisioned from. Demand recorded
+  after it means the account has asked for the instance itself, so it is left
+  in service (`{:error, :demand_recorded}`). The check reads this node's
+  buffered demand too, and holds the lifecycle row until the drain has started,
+  so a flush cannot land between the check and the drain.
   """
-  def archive_prepared(%Server{status: :active} = server) do
+  def archive_prepared(%Server{status: :active} = server, %DateTime{} = seeded_at) do
+    Demand.flush()
     server = Repo.preload(server, [account: :subscriptions], force: true)
 
-    case Demand.get(server.account_id, server.region) do
-      nil -> {:error, :no_demand}
-      lifecycle -> enter_drain(server, lifecycle, Billing.effective_plan(server.account), :prepared)
+    fn ->
+      lifecycle =
+        Repo.one(
+          from(l in AccountRegionLifecycle,
+            where: l.account_id == ^server.account_id and l.service_region == ^server.region,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      cond do
+        is_nil(lifecycle) ->
+          Repo.rollback(:no_demand)
+
+        DateTime.after?(lifecycle.last_cache_demand_at, seeded_at) ->
+          Repo.rollback(:demand_recorded)
+
+        true ->
+          case enter_drain(server, lifecycle, Billing.effective_plan(server.account), :prepared) do
+            :ok -> :ok
+            {:error, reason} -> Repo.rollback(reason)
+          end
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 

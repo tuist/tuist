@@ -290,7 +290,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
 
       [server] = servers_for(account)
       server = server |> Ecto.Changeset.change(%{status: :active}) |> Repo.update!()
-      assert :ok = Lifecycle.archive_prepared(server)
+      assert :ok = Lifecycle.archive_prepared(server, ago(1))
       archive_drained(account)
       assert [%Server{status: :archived}] = servers_for(account)
 
