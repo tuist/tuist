@@ -119,6 +119,7 @@ struct REAPICacheClientTests {
             }
             await state.failNextBatches()
             #expect(try await client.uploadAvailableBlobs(inputs).count == 300)
+            #expect(await state.missingQueries == 1)
             #expect(await state.updateCalls > 1)
             #expect(await state.updateCalls < 20)
             #expect(await state.largestBatch <= 32 * 1024)
@@ -133,21 +134,21 @@ struct REAPICacheClientTests {
             #expect(downloaded == Set(inputs.keys).subtracting([corrupt]))
             #expect(await state.readCalls > 1)
             #expect(await state.readCalls < 20)
-            #expect(!FileManager.default.fileExists(atPath: destinations[corrupt]!.path))
-            #expect(!FileManager.default.fileExists(atPath: destinations[missing]!.path))
+            #expect(try await !FileSystem().exists(AbsolutePath(validating: destinations[corrupt]!.path)))
+            #expect(try await !FileSystem().exists(AbsolutePath(validating: destinations[missing]!.path)))
             let path = directory.appending(component: "blob").url
             let data = Data(repeating: 42, count: 2 * 1024 * 1024 + 17)
             try data.write(to: path)
             let digest = REAPI.digest(data)
             let empty = directory.appending(component: "empty").url
-            try Data().write(to: empty)
+            try await FileSystem().touch(AbsolutePath(validating: empty.path))
             let emptyDigest = REAPI.digest(Data())
             try await client.uploadBlobs([digest: path, emptyDigest: empty])
             try await client.uploadBlobs([digest: path, emptyDigest: empty])
             #expect(await state.writes == 302)
             let output = directory.appending(component: "download").url
             try await client.downloadBlob(digest, to: output)
-            #expect(try Data(contentsOf: output) == data)
+            #expect(try await FileSystem().readFile(at: AbsolutePath(validating: output.path)) == data)
             #expect(try await client.actionResult(for: digest) == nil)
             let result = REAPI.ActionResult.with { $0.outputFiles = [.with { $0.path = "output"; $0.digest = digest }] }
             try await client.storeActionResult(result, for: digest)
@@ -156,8 +157,77 @@ struct REAPICacheClientTests {
             await #expect(throws: REAPICacheError.self) {
                 try await client.downloadBlob(digest, to: directory.appending(component: "bad").url)
             }
-            #expect(!FileManager.default.fileExists(atPath: directory.appending(component: "bad").pathString))
+            #expect(try await !FileSystem().exists(directory.appending(component: "bad")))
         }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func negotiatesCompressedTransfers(batchCompression: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state),
+            WireCapabilities(streamCompression: true, batchCompression: batchCompression),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            var inputs: [REAPI.Digest: URL] = [:]
+            for size in [0, 64, 4096, 2 * 1024 * 1024 + 17] {
+                let body = Data(repeating: 42, count: size)
+                let path = directory.appending(component: "input-\(size)")
+                try body.write(to: path.url)
+                inputs[REAPI.digest(body)] = path.url
+            }
+            try await client.uploadBlobs(inputs)
+            #expect(await state.compressedUpdates == (batchCompression ? 1 : 0))
+            #expect(await state.compressedWrites == 1)
+            #expect(await state.streamWriteBytes < 1024)
+            let destinations = Dictionary(uniqueKeysWithValues: inputs.keys.map {
+                ($0, directory.appending(component: "output-\($0.hash)").url)
+            })
+            #expect(try await client.downloadAvailableBlobs(destinations) == Set(inputs.keys))
+            for (digest, path) in destinations {
+                #expect(try REAPI.digest(file: path) == digest)
+            }
+            #expect(await state.compressedReads == 1)
+            // The second push must find every blob despite the different wire encoding.
+            try await client.uploadBlobs(inputs)
+            #expect(await state.writes == inputs.count)
+            let large = try #require(inputs.keys.first { $0.sizeBytes > 32768 })
+            await state.corrupt(large)
+            let bad = directory.appending(component: "bad-compressed")
+            await #expect(throws: REAPICacheError.self) { try await client.downloadBlob(large, to: bad.url) }
+            #expect(try await !FileSystem().exists(bad))
+        }
+    }
+
+    @Test func rejectsMalformedCompressedBlobs() throws {
+        let input = Data(repeating: 123, count: 100_000)
+        let compressed = try REAPICompression.compress(input)
+        #expect(throws: REAPICacheError.self) { try REAPICompression.decompress(compressed, size: 1) }
+        #expect(throws: REAPICacheError.self) { try REAPICompression.decompress(compressed.dropLast(), size: 100_000) }
+        #expect(throws: REAPICacheError.self) { try REAPICompression.decompress(compressed, size: 100_001) }
+        #expect(throws: REAPICacheError.self) { try REAPICompression.decompress(Data([1, 2, 3]), size: 10) }
+        let encoder = try REAPICompression.Encoder()
+        let streamed = try encoder.encode(input, finish: true)
+        let decoder = try REAPICompression.Decoder(size: Int64(input.count))
+        var restored = Data()
+        for byte in streamed {
+            try decoder.decode(Data([byte])) { restored.append($0) }
+        }
+        try decoder.finish()
+        #expect(restored == input)
+        #expect(try REAPICompression.decompress(compressed + compressed, size: 200_000) == input + input)
     }
 
     private static let caPEM = """
@@ -197,6 +267,19 @@ private actor WireCache {
         return actions[digest]
     }
 
+    var missingQueries = 0
+    func recordMissingQuery() { missingQueries += 1 }
+    var compressedUpdates = 0
+    var compressedWrites = 0
+    var compressedReads = 0
+    var streamWriteBytes = 0
+    func recordCompressedUpdate() { compressedUpdates += 1 }
+    func recordStreamWrite(bytes: Int, compressed: Bool) {
+        streamWriteBytes += bytes
+        if compressed { compressedWrites += 1 }
+    }
+
+    func recordCompressedRead() { compressedReads += 1 }
     var writes = 0
     var updateCalls = 0
     var readCalls = 0
@@ -256,7 +339,16 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
         try await state.beginUpdate(bytes: request.requests.reduce(0) { $0 + $1.data.count })
         for entry in request.requests {
-            await state.put(entry.data, digest: entry.digest)
+            let data: Data
+            if entry.compressor == .zstd {
+                data = try REAPICompression.decompress(entry.data, size: entry.digest.sizeBytes)
+                await state.recordCompressedUpdate()
+            } else {
+                #expect(entry.compressor == .identity)
+                data = entry.data
+            }
+            #expect(REAPI.digest(data) == entry.digest)
+            await state.put(data, digest: entry.digest)
         }
         return .with { $0.responses = request.requests.map { entry in .with { $0.digest = entry.digest } } }
     }
@@ -267,9 +359,19 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse {
         try await state.beginRead()
         let blobs = await state.blobs
-        return .with { $0.responses = request.digests.map { digest in
-            .with { $0.digest = digest; if let data = blobs[digest] { $0.data = data } else { $0.status.code = 5 } }
-        } }
+        return try .with { result in
+            result.responses = try request.digests.map { digest in
+                try .with {
+                    $0.digest = digest
+                    if let data = blobs[digest] {
+                        if request.acceptableCompressors.contains(.zstd), data.count >= 1024 {
+                            $0.data = try REAPICompression.compress(data)
+                            $0.compressor = .zstd
+                        } else { $0.data = data }
+                    } else { $0.status.code = 5 }
+                }
+            }
+        }
     }
 
     func findMissingBlobs(
@@ -278,6 +380,7 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     ) async throws -> Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse {
         #expect(request.instanceName == "project")
         #expect(request.digestFunction == .sha256)
+        await state.recordMissingQuery()
         let present = await state.blobs
         return .with { $0.missingBlobDigests = request.blobDigests.filter { present[$0] == nil } }
     }
@@ -291,7 +394,11 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         context _: ServerContext
     ) async throws {
         let digest = try parse(request.resourceName)
-        guard let data = await state.blobs[digest] else { throw RPCError(code: .notFound, message: "Missing blob") }
+        guard var data = await state.blobs[digest] else { throw RPCError(code: .notFound, message: "Missing blob") }
+        if request.resourceName.contains("/compressed-blobs/zstd/") {
+            data = try REAPICompression.compress(data)
+            await state.recordCompressedRead()
+        }
         for offset in stride(from: 0, to: data.count, by: 16384) {
             try await response.write(.with { $0.data = data.subdata(in: offset ..< min(offset + 16384, data.count)) })
         }
@@ -304,31 +411,39 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         var data = Data()
         var digest: REAPI.Digest?
         var finished = false
+        var compressed = false
         for try await message in request {
             #expect(message.writeOffset == data.count)
-            #expect(message.data.count <= 1024 * 1024)
+            #expect(message.data.count <= 2 * 1024 * 1024)
             #expect(!finished)
             digest = try parse(message.resourceName)
+            compressed = message.resourceName.contains("/compressed-blobs/zstd/")
             data.append(message.data)
             finished = message.finishWrite
         }
         let expected = try #require(digest)
         #expect(finished)
+        let wireSize = data.count
+        if compressed { data = try REAPICompression.decompress(data, size: expected.sizeBytes) }
         #expect(REAPI.digest(data) == expected)
         await state.put(data, digest: expected)
-        return .with { $0.committedSize = Int64(data.count) }
+        await state.recordStreamWrite(bytes: wireSize, compressed: compressed)
+        return .with { $0.committedSize = Int64(wireSize) }
     }
 
     private func parse(_ name: String) throws -> REAPI.Digest {
         let parts = name.split(separator: "/")
         #expect(parts.first == "project")
-        #expect(parts[parts.count - 3] == "blobs")
+        #expect(parts[parts.count - 3] == "blobs" ||
+            (parts[parts.count - 3] == "zstd" && parts[parts.count - 4] == "compressed-blobs"))
         let size = try #require(Int64(parts.last!))
         return .with { $0.hash = String(parts[parts.count - 2]); $0.sizeBytes = size }
     }
 }
 
 private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.SimpleServiceProtocol {
+    var streamCompression = false
+    var batchCompression = false
     func getCapabilities(
         request _: Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest,
         context _: ServerContext
@@ -336,6 +451,8 @@ private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.Si
         .with {
             $0.cacheCapabilities.digestFunctions = [.sha256]
             $0.cacheCapabilities.maxBatchTotalSizeBytes = 32 * 1024
+            $0.cacheCapabilities.supportedCompressors = streamCompression ? [.zstd] : []
+            $0.cacheCapabilities.supportedBatchUpdateCompressors = batchCompression ? [.zstd] : []
         }
     }
 }

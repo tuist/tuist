@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import SwiftProtobuf
 import Testing
 import TuistREAPI
@@ -11,10 +12,14 @@ struct REAPIDirectoryTests {
         let source = directory.appending(component: "source").url
         let version = source.appendingPathComponent("Shared.framework/Versions/A")
         let manager = FileManager.default
-        try manager.createDirectory(at: version, withIntermediateDirectories: true)
-        try manager.createDirectory(at: version.appendingPathComponent("Resources/Empty"), withIntermediateDirectories: true)
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: AbsolutePath(validating: version.path))
+        try await fileSystem.makeDirectory(at: AbsolutePath(validating: version.path).appending(components: [
+            "Resources",
+            "Empty",
+        ]))
         let binary = version.appendingPathComponent("Shared")
-        try Data("executable".utf8).write(to: binary)
+        try await fileSystem.writeText("executable", at: AbsolutePath(validating: binary.path))
         try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
         try manager.createSymbolicLink(
             atPath: source.appendingPathComponent("Shared.framework/Versions/Current").path,
@@ -30,19 +35,30 @@ struct REAPIDirectoryTests {
             withDestinationPath: rawLink
         )
         let scratch = directory.appending(component: "scratch").url
-        try manager.createDirectory(at: scratch, withIntermediateDirectories: true)
+        try await fileSystem.makeDirectory(at: AbsolutePath(validating: scratch.path))
         let snapshot = try await REAPIDirectory.snapshot(at: source, scratch: scratch)
-        let tree = try REAPI.Tree(serializedBytes: Data(contentsOf: #require(snapshot.blobs[snapshot.tree])))
+        let treePath = try #require(snapshot.blobs[snapshot.tree])
+        let tree = try REAPI.Tree(serializedBytes: await fileSystem.readFile(at: AbsolutePath(validating: treePath.path)))
         #expect(!tree.children.isEmpty)
         #expect(Set(snapshot.blobs.keys) == [snapshot.tree, REAPI.digest(Data("executable".utf8))])
-        #expect(try manager.contentsOfDirectory(atPath: scratch.path) == [snapshot.tree.hash])
+        #expect(try await fileSystem.contentsOfDirectory(AbsolutePath(validating: scratch.path))
+            .map(\.basename) == [snapshot.tree.hash])
         let output = directory.appending(component: "output").url
         try await REAPIDirectory.materialize(tree, at: output) { try #require(snapshot.blobs[$0]) }
-        #expect(try Data(contentsOf: output.appendingPathComponent("Shared.framework/Shared")) == Data("executable".utf8))
+        #expect(try await fileSystem.readFile(at: AbsolutePath(validating: output.path).appending(components: [
+            "Shared.framework",
+            "Shared",
+        ])) == Data("executable".utf8))
         #expect(try manager
             .destinationOfSymbolicLink(atPath: output.appendingPathComponent("Shared.framework/Versions/Current").path) == "A")
         #expect(manager.isExecutableFile(atPath: output.appendingPathComponent("Shared.framework/Shared").path))
-        #expect(manager.fileExists(atPath: output.appendingPathComponent("Shared.framework/Versions/A/Resources/Empty").path))
+        #expect(try await fileSystem.exists(AbsolutePath(validating: output.path).appending(components: [
+            "Shared.framework",
+            "Versions",
+            "A",
+            "Resources",
+            "Empty",
+        ])))
         #expect(try manager
             .destinationOfSymbolicLink(atPath: output.appendingPathComponent("Shared.framework/Alias").path) == rawLink)
         let second = try await REAPIDirectory.snapshot(at: output, scratch: scratch)

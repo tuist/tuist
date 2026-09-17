@@ -28,5 +28,7 @@ message CacheCapabilities {
   repeated DigestFunction.Value digest_functions = 1;
   ActionCacheUpdateCapabilities action_cache_update_capabilities = 2;
   int64 max_batch_total_size_bytes = 4;
+  repeated Compressor.Value supported_compressors = 6;
+  repeated Compressor.Value supported_batch_update_compressors = 7;
 }
 message ActionCacheUpdateCapabilities { bool update_enabled = 1; }

@@ -12,7 +12,7 @@ public enum REAPI {
 
     public static func digest(_ data: Data) -> Digest {
         Digest.with {
-            $0.hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            $0.hash = hashString(SHA256.hash(data: data))
             $0.sizeBytes = Int64(data.count)
         }
     }
@@ -27,14 +27,27 @@ public enum REAPI {
             size += Int64(data.count)
         }
         return Digest.with {
-            $0.hash = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            $0.hash = hashString(hasher.finalize())
             $0.sizeBytes = size
         }
     }
 
+    private static let hexadecimal = Array("0123456789abcdef".utf8)
+
+    static func hashString(_ digest: SHA256.Digest) -> String {
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(64)
+        for byte in digest {
+            bytes.append(hexadecimal[Int(byte >> 4)])
+            bytes.append(hexadecimal[Int(byte & 15)])
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
     public static func validate(_ digest: Digest) throws {
-        guard digest.sizeBytes >= 0, digest.hash.count == 64,
-              digest.hash.allSatisfy({ "0123456789abcdef".contains($0) })
+        let bytes = digest.hash.utf8
+        guard digest.sizeBytes >= 0, bytes.count == 64,
+              bytes.allSatisfy({ (48 ... 57).contains($0) || (97 ... 102).contains($0) })
         else { throw REAPICacheError.invalidDigest }
     }
 }

@@ -1,0 +1,176 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
+import Mockable
+import Path
+import Testing
+import TuistCache
+import TuistCore
+import TuistEnvironmentTesting
+import TuistREAPI
+import TuistServer
+
+@testable import TuistCacheEE
+
+/// Opt-in benchmark of the real archive and REAPI storage clients against the same Kura node.
+struct ModuleCacheTransferBenchmark {
+    private struct Configuration: Decodable {
+        let endpoint: URL
+        let token: String
+        let account: String
+        let inputs: String
+        let output: String
+        let repetitions: Int
+    }
+
+    private struct Measurement: Encodable {
+        let corpus: String
+        let model: String
+        let repetition: Int
+        let phase: String
+        let seconds: Double
+        let counters: [String: Double]
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .enabled(if: ProcessInfo.processInfo.environment["TUIST_MODULE_CACHE_BENCHMARK_CONFIG"] != nil)
+    )
+    func compareTransfers() async throws {
+        let fileSystem = FileSystem()
+        let configPath = try #require(ProcessInfo.processInfo.environment["TUIST_MODULE_CACHE_BENCHMARK_CONFIG"])
+        let config = try JSONDecoder().decode(
+            Configuration.self,
+            from: await fileSystem.readFile(at: AbsolutePath(validating: configPath))
+        )
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let output = try AbsolutePath(validating: config.output)
+        try await fileSystem.makeDirectory(at: output)
+        let authentication = MockServerAuthenticationControlling()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project(config.token))
+        given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .any).willReturn(.project(config.token))
+        var measurements: [Measurement] = []
+        let corpora = try await fileSystem.contentsOfDirectory(AbsolutePath(validating: config.inputs)).sorted()
+        for corpus in corpora {
+            let artifacts = try await fileSystem.contentsOfDirectory(corpus).filter { $0.extension == "xcframework" }.sorted()
+            let items = Dictionary(uniqueKeysWithValues: artifacts.map { artifact in
+                let name = artifact.basenameWithoutExt
+                return (CacheStorableItem(name: name, hash: REAPI.digest(Data(name.utf8)).hash, metadata: .init(
+                    binaryCacheFingerprints: Dictionary(uniqueKeysWithValues: ["ios-device", "ios-simulator", "macos-device"]
+                        .map {
+                            ($0, REAPI.digest(Data("\(name)-\($0)".utf8)).hash)
+                        })
+                )), [artifact])
+            })
+            for repetition in 0 ..< config.repetitions {
+                for model in repetition.isMultiple(of: 2) ? ["archive", "reapi"] : ["reapi", "archive"] {
+                    let project = "\(corpus.basename)-\(repetition)-\(model)"
+                    let client = try await REAPICacheClient(
+                        endpoint: .init(
+                            host: try #require(config.endpoint.host),
+                            explicitPort: config.endpoint.port,
+                            isTLS: false
+                        ),
+                        accountHandle: config.account,
+                        instanceName: project
+                    ) { config.token }
+                    if model == "reapi" { try await client.validateCapabilities() }
+                    // Exclude token-exchange setup, just as the REAPI client receives an already available token.
+                    _ = try await CacheTokenStore.shared.cacheToken(
+                        authenticationURL: config.endpoint, fullHandle: "\(config.account)/\(project)"
+                    )
+                    for phase in ["cold-push", "existing-push", "cold-pull", "ios-pull"] {
+                        let directory = root.appending(component: "\(project)-\(phase)")
+                        let provider = MockCacheDirectoriesProviding()
+                        given(provider).cacheDirectory(for: .any).willReturn(directory)
+                        let local = CacheLocalStorage(cacheDirectoriesProvider: provider)
+                        let storage: any CacheStoring
+                        if model == "archive" {
+                            storage = CacheStorage(localStorage: local, remoteStorage: ModuleCacheRemoteStorage(
+                                fullHandle: "\(config.account)/\(project)", cacheURL: config.endpoint, serverURL: config.endpoint,
+                                serverAuthenticationController: authentication, cacheDirectoriesProvider: provider,
+                                concurrencyLimit: 100, cacheActionItemConcurrencyLimit: 30
+                            ))
+                        } else {
+                            storage = BinaryCacheStorage(
+                                selectiveTestsStorage: local, local: BinaryCacheLocalStore(directory: directory), remote: client
+                            )
+                        }
+                        let requested = Set(items.keys.map { item in
+                            if phase == "ios-pull", model == "reapi" {
+                                return CacheStorableItem(name: item.name, hash: item.hash + "-ios", metadata: .init(
+                                    binaryCacheFingerprints: item.metadata.binaryCacheFingerprints
+                                        .filter { $0.key != "macos-device" }
+                                ))
+                            }
+                            return item
+                        })
+                        let before = try await metrics(config.endpoint)
+                        let clock = ContinuousClock()
+                        let start = clock.now
+                        var restored: [CacheItem: AbsolutePath] = [:]
+                        if phase.hasSuffix("push") {
+                            let stored = try await storage.store(items, cacheCategory: .binaries)
+                            try #require(stored.count == items.count)
+                        } else {
+                            restored = try await storage.fetch(requested, cacheCategory: .binaries)
+                            try #require(restored.count == items.count)
+                        }
+                        let elapsed = start.duration(to: clock.now).components
+                        let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+                        let after = try await metrics(config.endpoint)
+                        let delta = after.reduce(into: [String: Double]()) { result, pair in
+                            let value = pair.value - (before[pair.key] ?? 0)
+                            if value != 0 { result[pair.key] = value }
+                        }
+                        measurements.append(.init(
+                            corpus: corpus.basename, model: model, repetition: repetition, phase: phase,
+                            seconds: seconds, counters: delta
+                        ))
+                        print("TRANSFER_BENCHMARK \(project) \(phase): \(seconds)s \(delta)")
+                        for (item, path) in restored {
+                            let source = try #require(artifacts.first { $0.basenameWithoutExt == item.name })
+                            let coverage = try await XCFrameworkCoverageService().coverage(at: path)
+                            let iosOnly = phase == "ios-pull" && model == "reapi"
+                            try #require(Set(coverage.keys) == Set(iosOnly
+                                    ? ["ios-device", "ios-simulator"] : ["ios-device", "ios-simulator", "macos-device"]))
+                            for file in try await fileSystem.glob(directory: source, include: ["**/*"]).collect() {
+                                let relative = file.relative(to: source)
+                                if relative.pathString == "Info.plist" { continue }
+                                if iosOnly, relative.pathString.hasPrefix("macos-") { continue }
+                                let attributes = try file.url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                                if attributes.isRegularFile == true, attributes.isSymbolicLink != true {
+                                    let expected = try REAPI.digest(file: file.url)
+                                    let actual = try REAPI.digest(file: path.appending(relative).url)
+                                    try #require(actual == expected)
+                                }
+                            }
+                        }
+                        try await fileSystem.writeAsJSON(measurements, at: output.appending(component: "results.json"))
+                        try await fileSystem.remove(directory)
+                    }
+                }
+            }
+        }
+    }
+
+    private func metrics(_ endpoint: URL) async throws -> [String: Double] {
+        let (data, _) = try await URLSession.shared.data(from: endpoint.appendingPathComponent("metrics"))
+        var result: [String: Double] = [:]
+        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+            let fields = line.split(separator: " ")
+            guard fields.count == 2, let value = Double(fields[1]),
+                  [
+                      "tuist_benchmark_wire_",
+                      "kura_artifact_write_bytes_total",
+                      "kura_artifact_read_bytes_total",
+                      "kura_artifact_egress_bytes_total",
+                      "kura_public_request_latency_seconds_count"
+                  ]
+                  .contains(where: { fields[0].hasPrefix($0) }) else { continue }
+            result[String(fields[0])] = value
+        }
+        return result
+    }
+}

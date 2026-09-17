@@ -81,6 +81,49 @@ public struct Build_Bazel_Remote_Execution_V2_DigestFunction: Sendable {
     public init() {}
 }
 
+public struct Build_Bazel_Remote_Execution_V2_Compressor: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public enum Value: SwiftProtobuf.Enum, Swift.CaseIterable {
+        public typealias RawValue = Int
+        case identity // = 0
+        case zstd // = 1
+        case UNRECOGNIZED(Int)
+
+        public init() {
+            self = .identity
+        }
+
+        public init?(rawValue: Int) {
+            switch rawValue {
+            case 0: self = .identity
+            case 1: self = .zstd
+            default: self = .UNRECOGNIZED(rawValue)
+            }
+        }
+
+        public var rawValue: Int {
+            switch self {
+            case .identity: return 0
+            case .zstd: return 1
+            case let .UNRECOGNIZED(i): return i
+            }
+        }
+
+        /// The compiler won't synthesize support with the UNRECOGNIZED case.
+        public static let allCases: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = [
+            .identity,
+            .zstd,
+        ]
+    }
+
+    public init() {}
+}
+
 public struct Build_Bazel_Remote_Execution_V2_Action: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -427,6 +470,8 @@ public struct Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest: Sendable {
 
     public var digests: [Build_Bazel_Remote_Execution_V2_Digest] = []
 
+    public var acceptableCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
+
     public var digestFunction: Build_Bazel_Remote_Execution_V2_DigestFunction.Value = .unknown
 
     public var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -470,7 +515,7 @@ public struct Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse: Sendable {
         /// Clears the value of `status`. Subsequent reads from it will return its default value.
         public mutating func clearStatus() { _status = nil }
 
-        public var compressor: Int32 = 0
+        public var compressor: Build_Bazel_Remote_Execution_V2_Compressor.Value = .identity
 
         public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -512,6 +557,8 @@ public struct Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest: Sendable 
         public mutating func clearDigest() { _digest = nil }
 
         public var data: Data = .init()
+
+        public var compressor: Build_Bazel_Remote_Execution_V2_Compressor.Value = .identity
 
         public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -635,6 +682,34 @@ extension Build_Bazel_Remote_Execution_V2_DigestFunction: SwiftProtobuf.Message,
 
 extension Build_Bazel_Remote_Execution_V2_DigestFunction.Value: SwiftProtobuf._ProtoNameProviding {
     public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0UNKNOWN\0\u{1}SHA256\0")
+}
+
+extension Build_Bazel_Remote_Execution_V2_Compressor: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".Compressor"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        // Load everything into unknown fields
+        while try decoder.nextFieldNumber() != nil {}
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_Compressor,
+        rhs: Build_Bazel_Remote_Execution_V2_Compressor
+    ) -> Bool {
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_Compressor.Value: SwiftProtobuf._ProtoNameProviding {
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0IDENTITY\0\u{1}ZSTD\0")
 }
 
 extension Build_Bazel_Remote_Execution_V2_Action: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
@@ -1319,7 +1394,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest: SwiftProtobuf.M
 {
     public static let protoMessageName: String = _protobuf_package + ".BatchReadBlobsRequest"
     public static let _protobuf_nameMap = SwiftProtobuf
-        ._NameMap(bytecode: "\0\u{3}instance_name\0\u{1}digests\0\u{4}\u{2}digest_function\0")
+        ._NameMap(bytecode: "\0\u{3}instance_name\0\u{1}digests\0\u{3}acceptable_compressors\0\u{3}digest_function\0")
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
         while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1329,6 +1404,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest: SwiftProtobuf.M
             switch fieldNumber {
             case 1: try decoder.decodeSingularStringField(value: &instanceName)
             case 2: try decoder.decodeRepeatedMessageField(value: &digests)
+            case 3: try decoder.decodeRepeatedEnumField(value: &acceptableCompressors)
             case 4: try decoder.decodeSingularEnumField(value: &digestFunction)
             default: break
             }
@@ -1342,6 +1418,9 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest: SwiftProtobuf.M
         if !digests.isEmpty {
             try visitor.visitRepeatedMessageField(value: digests, fieldNumber: 2)
         }
+        if !acceptableCompressors.isEmpty {
+            try visitor.visitPackedEnumField(value: acceptableCompressors, fieldNumber: 3)
+        }
         if digestFunction != .unknown {
             try visitor.visitSingularEnumField(value: digestFunction, fieldNumber: 4)
         }
@@ -1354,6 +1433,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest: SwiftProtobuf.M
     ) -> Bool {
         if lhs.instanceName != rhs.instanceName { return false }
         if lhs.digests != rhs.digests { return false }
+        if lhs.acceptableCompressors != rhs.acceptableCompressors { return false }
         if lhs.digestFunction != rhs.digestFunction { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
@@ -1411,7 +1491,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse.Response: Swift
             case 1: try decoder.decodeSingularMessageField(value: &_digest)
             case 2: try decoder.decodeSingularBytesField(value: &data)
             case 3: try decoder.decodeSingularMessageField(value: &_status)
-            case 4: try decoder.decodeSingularInt32Field(value: &compressor)
+            case 4: try decoder.decodeSingularEnumField(value: &compressor)
             default: break
             }
         }
@@ -1431,8 +1511,8 @@ extension Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse.Response: Swift
         try { if let v = self._status {
             try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
         } }()
-        if compressor != 0 {
-            try visitor.visitSingularInt32Field(value: compressor, fieldNumber: 4)
+        if compressor != .identity {
+            try visitor.visitSingularEnumField(value: compressor, fieldNumber: 4)
         }
         try unknownFields.traverse(visitor: &visitor)
     }
@@ -1501,7 +1581,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request: Swift
     SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding
 {
     public static let protoMessageName: String = Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.protoMessageName + ".Request"
-    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0")
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0\u{1}compressor\0")
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
         while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1511,6 +1591,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request: Swift
             switch fieldNumber {
             case 1: try decoder.decodeSingularMessageField(value: &_digest)
             case 2: try decoder.decodeSingularBytesField(value: &data)
+            case 3: try decoder.decodeSingularEnumField(value: &compressor)
             default: break
             }
         }
@@ -1527,6 +1608,9 @@ extension Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request: Swift
         if !data.isEmpty {
             try visitor.visitSingularBytesField(value: data, fieldNumber: 2)
         }
+        if compressor != .identity {
+            try visitor.visitSingularEnumField(value: compressor, fieldNumber: 3)
+        }
         try unknownFields.traverse(visitor: &visitor)
     }
 
@@ -1536,6 +1620,7 @@ extension Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request: Swift
     ) -> Bool {
         if lhs._digest != rhs._digest { return false }
         if lhs.data != rhs.data { return false }
+        if lhs.compressor != rhs.compressor { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }

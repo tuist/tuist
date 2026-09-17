@@ -1178,6 +1178,7 @@ public enum Module: String, CaseIterable {
             case .reapi:
                 [
                     .external(name: "FileSystem"),
+                    .external(name: "libzstd"),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "NIOCore"),
@@ -2034,6 +2035,7 @@ public enum Module: String, CaseIterable {
             case .hasher:
                 [
                     .target(name: Module.core.targetName),
+                    .target(name: Module.threadSafe.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.environment.targetName),

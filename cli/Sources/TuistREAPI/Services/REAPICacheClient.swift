@@ -1,7 +1,9 @@
+import CryptoKit
 import FileSystem
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
+import Path
 import Synchronization
 import TuistEnvironment
 
@@ -12,6 +14,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
     private let accountHandle: String
     private let negotiatedBatchBytes = Mutex<Int64>(2 * 1024 * 1024)
     private var batchBytes: Int64 { negotiatedBatchBytes.withLock { $0 } }
+    private let compression = Mutex((stream: false, batchUpload: false))
+    private let fileSystem: FileSysteming
     private let token: @Sendable () async throws -> String
 
     public init(
@@ -28,6 +32,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         self.instanceName = instanceName
         self.accountHandle = accountHandle
         self.token = token
+        self.fileSystem = fileSystem
     }
 
     deinit {
@@ -89,6 +94,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
             throw REAPICacheError.unsupportedEndpoint
         }
+        compression.withLock {
+            $0 = (
+                response.cacheCapabilities.supportedCompressors.contains(.zstd),
+                response.cacheCapabilities.supportedBatchUpdateCompressors.contains(.zstd)
+            )
+        }
         let advertised = response.cacheCapabilities.maxBatchTotalSizeBytes
         if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, 2 * 1024 * 1024) } }
     }
@@ -125,7 +136,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
-        return try await transfer(batches(Array(blobs.keys))) { batch in
+        // Missing-blob requests contain only digests, so batch by metadata count, not file size.
+        let digests = Array(blobs.keys)
+        let queries = stride(from: 0, to: digests.count, by: 1024).map {
+            Array(digests[$0 ..< min($0 + 1024, digests.count)])
+        }
+        let missingBlobs = Mutex<Set<REAPI.Digest>>([])
+        let existing = try await transfer(queries) { batch in
             let response = try await self.retry {
                 try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: self.client)
                     .findMissingBlobs(.with {
@@ -134,22 +151,35 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
             }
             let missing = Set(response.missingBlobDigests)
             guard missing.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
-            var successful = Set(batch).subtracting(missing)
-            if missing.isEmpty { return successful }
+            missingBlobs.withLock { $0.formUnion(missing) }
+            return Set(batch).subtracting(missing)
+        }
+        let uploaded = try await transfer(batches(missingBlobs.withLock { Array($0) })) { batch in
+            var successful = Set<REAPI.Digest>()
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
                 successful.insert(digest)
             } else {
                 do {
                     try await self.retry {
-                        let pending = missing.subtracting(successful)
+                        let pending = Set(batch).subtracting(successful)
+                        var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
+                        for digest in pending {
+                            let data = try await self.fileSystem.readFile(at: AbsolutePath(validating: blobs[digest]!.path))
+                            let compressed = self.compression.withLock { $0.batchUpload } && data.count >= REAPICompression
+                                .threshold
+                                ? try REAPICompression.compress(data) : data
+                            requests.append(.with {
+                                $0.digest = digest
+                                $0.data = compressed.count < data.count ? compressed : data
+                                $0.compressor = compressed.count < data.count ? .zstd : .identity
+                            })
+                        }
                         let result = try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
                             .Client(wrapping: self.client)
                             .batchUpdateBlobs(.with {
                                 $0.instanceName = self.instanceName; $0.digestFunction = .sha256
-                                $0.requests = try pending.map { digest in
-                                    try .with { $0.digest = digest; $0.data = try Data(contentsOf: blobs[digest]!) }
-                                }
+                                $0.requests = requests
                             }, metadata: try await self.metadata(), options: self.options)
                         successful
                             .formUnion(result.responses.filter { $0.status.code == 0 && pending.contains($0.digest) }
@@ -164,6 +194,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
             }
             return successful
         }
+        return existing.union(uploaded)
     }
 
     public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
@@ -183,13 +214,24 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
                         .batchReadBlobs(.with {
                             $0.instanceName = self.instanceName
                             $0.digests = batch.filter { !successful.contains($0) }
+                            $0.acceptableCompressors = [.zstd]
                             $0.digestFunction = .sha256
                         }, metadata: try await self.metadata(), options: self.options)
                     for output in response.responses where output.status.code == 0 {
-                        guard batch.contains(output.digest), let path = blobs[output.digest], output.compressor == 0,
-                              REAPI.digest(output.data) == output.digest else { continue }
-                        try output.data.write(to: path, options: .atomic)
-                        successful.insert(output.digest)
+                        guard batch.contains(output.digest), let path = blobs[output.digest] else { continue }
+                        do {
+                            let data: Data
+                            switch output.compressor {
+                            case .identity: data = output.data
+                            case .zstd: data = try REAPICompression.decompress(output.data, size: output.digest.sizeBytes)
+                            default: continue
+                            }
+                            guard REAPI.digest(data) == output.digest else { continue }
+                            try data.write(to: path, options: .atomic)
+                            successful.insert(output.digest)
+                        } catch {
+                            if error is CancellationError || Task.isCancelled { throw error }
+                        }
                     }
                     if response.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
                         throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
@@ -207,19 +249,22 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         operation: @escaping @Sendable ([REAPI.Digest]) async throws -> Set<REAPI.Digest>
     ) async throws -> Set<REAPI.Digest> {
         var successful = Set<REAPI.Digest>()
-        for start in stride(from: 0, to: batches.count, by: 8) {
-            try await withThrowingTaskGroup(of: Set<REAPI.Digest>.self) { group in
-                for batch in batches[start ..< min(start + 8, batches.count)] {
-                    group.addTask {
-                        do { return try await operation(batch) } catch {
-                            if error is CancellationError || Task.isCancelled { throw error }
-                            return []
-                        }
+        try await withThrowingTaskGroup(of: Set<REAPI.Digest>.self) { group in
+            var pending = batches.makeIterator()
+            func enqueue(_ batch: [REAPI.Digest]) {
+                group.addTask {
+                    do { return try await operation(batch) } catch {
+                        if error is CancellationError || Task.isCancelled { throw error }
+                        return []
                     }
                 }
-                for try await completed in group {
-                    successful.formUnion(completed)
-                }
+            }
+            for _ in 0 ..< 8 {
+                if let batch = pending.next() { enqueue(batch) }
+            }
+            while let completed = try await group.next() {
+                successful.formUnion(completed)
+                if let batch = pending.next() { enqueue(batch) }
             }
         }
         return successful
@@ -232,50 +277,76 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
     }
 
     private func uploadBlob(_ digest: REAPI.Digest, from path: URL) async throws {
-        let resource = "\(instanceName)/uploads/\(UUID().uuidString)/blobs/\(digest.hash)/\(digest.sizeBytes)"
+        let compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
+        let encoding = compressed ? "compressed-blobs/zstd" : "blobs"
+        let resource = "\(instanceName)/uploads/\(UUID().uuidString)/\(encoding)/\(digest.hash)/\(digest.sizeBytes)"
+        let sentBytes = Mutex<Int64>(0)
         let request = StreamingClientRequest<Google_Bytestream_WriteRequest>(metadata: try await metadata()) { writer in
             let handle = try FileHandle(forReadingFrom: path)
             defer { try? handle.close() }
+            let encoder = compressed ? try REAPICompression.Encoder() : nil
             var offset: Int64 = 0
+            var consumed: Int64 = 0
             repeat {
-                let data = try handle.read(upToCount: 1024 * 1024) ?? Data()
-                guard !data.isEmpty || offset == digest.sizeBytes else { throw REAPICacheError.corruptBlob }
-                let message = Google_Bytestream_WriteRequest.with {
-                    $0.resourceName = resource
-                    $0.writeOffset = offset
-                    $0.data = data
-                    $0.finishWrite = offset + Int64(data.count) == digest.sizeBytes
+                let input = try handle.read(upToCount: 1024 * 1024) ?? Data()
+                consumed += Int64(input.count)
+                guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
+                    throw REAPICacheError.corruptBlob
                 }
-                try await writer.write(message)
-                offset += Int64(data.count)
-            } while offset < digest.sizeBytes
+                let finished = consumed == digest.sizeBytes
+                let data = try encoder?.encode(input, finish: finished) ?? input
+                // A zstd frame can buffer an input chunk without emitting any bytes yet.
+                if !data.isEmpty || finished {
+                    try await writer.write(.with {
+                        $0.resourceName = resource
+                        $0.writeOffset = offset
+                        $0.data = data
+                        $0.finishWrite = finished
+                    })
+                    offset += Int64(data.count)
+                    sentBytes.withLock { $0 = offset }
+                }
+            } while consumed < digest.sizeBytes
         }
         let response = try await Google_Bytestream_ByteStream.Client(wrapping: client)
             .write(request: request, options: streamOptions(digest))
-        guard response.committedSize == digest.sizeBytes else { throw REAPICacheError.corruptBlob }
+        // REAPI permits -1 when a concurrent compressed upload has already completed.
+        guard response.committedSize == (compressed ? sentBytes.withLock { $0 } : digest.sizeBytes)
+            || (compressed && response.committedSize == -1) else { throw REAPICacheError.corruptBlob }
     }
 
     public func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws {
         try REAPI.validate(digest)
-        FileManager.default.createFile(atPath: path.path, contents: nil)
+        // Streaming owns this temporary file; syncing an empty file before filling it adds no durability.
+        try Data().write(to: path)
         do {
             let handle = try FileHandle(forWritingTo: path)
             defer { try? handle.close() }
+            let compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
+            let encoding = compressed ? "compressed-blobs/zstd" : "blobs"
             try await Google_Bytestream_ByteStream.Client(wrapping: client).read(
-                .with { $0.resourceName = "\(instanceName)/blobs/\(digest.hash)/\(digest.sizeBytes)" },
+                .with { $0.resourceName = "\(instanceName)/\(encoding)/\(digest.hash)/\(digest.sizeBytes)" },
                 metadata: try await metadata(), options: streamOptions(digest)
             ) { response in
                 var received: Int64 = 0
-                for try await message in response.messages {
-                    received += Int64(message.data.count)
-                    guard received <= digest.sizeBytes else { throw REAPICacheError.corruptBlob }
-                    try handle.write(contentsOf: message.data)
+                var hasher = SHA256()
+                let decoder = compressed ? try REAPICompression.Decoder(size: digest.sizeBytes) : nil
+                func consume(_ data: Data) throws {
+                    guard Int64(data.count) <= digest.sizeBytes - received else { throw REAPICacheError.corruptBlob }
+                    received += Int64(data.count)
+                    hasher.update(data: data)
+                    try handle.write(contentsOf: data)
                 }
-                guard received == digest.sizeBytes else { throw REAPICacheError.corruptBlob }
+                for try await message in response.messages {
+                    if let decoder { try decoder.decode(message.data, consume: consume) } else { try consume(message.data) }
+                }
+                try decoder?.finish()
+                guard received == digest.sizeBytes,
+                      REAPI.hashString(hasher.finalize()) == digest.hash
+                else { throw REAPICacheError.corruptBlob }
             }
-            guard try REAPI.digest(file: path) == digest else { throw REAPICacheError.corruptBlob }
         } catch {
-            try? FileManager.default.removeItem(at: path)
+            try? await fileSystem.remove(AbsolutePath(validating: path.path))
             throw error
         }
     }

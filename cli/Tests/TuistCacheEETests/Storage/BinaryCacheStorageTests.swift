@@ -122,7 +122,10 @@ struct BinaryCacheStorageTests {
         try Data("debug-symbols".utf8).write(to: symbols.appending(component: "DWARF").url)
         let plist = artifact.appending(component: "Info.plist").url
         var info = try #require(PropertyListSerialization
-            .propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
+            .propertyList(
+                from: await FileSystem().readFile(at: AbsolutePath(validating: plist.path)),
+                format: nil
+            ) as? [String: Any])
         var libraries = try #require(info["AvailableLibraries"] as? [[String: Any]])
         libraries[0]["DebugSymbolsPath"] = "dSYMs"
         info["AvailableLibraries"] = libraries
@@ -133,7 +136,12 @@ struct BinaryCacheStorageTests {
             .store([target: [artifact]], cacheCategory: .binaries)
         let hit = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
             .fetch([target], cacheCategory: .binaries).values.first)
-        #expect(try Data(contentsOf: hit.appending(components: ["ios-device", "dSYMs", "Shared.framework.dSYM", "DWARF"]).url)
+        #expect(try await FileSystem().readFile(at: hit.appending(components: [
+            "ios-device",
+            "dSYMs",
+            "Shared.framework.dSYM",
+            "DWARF",
+        ]))
             == Data("debug-symbols".utf8))
 
         let exactRemote = MemoryREAPICache()
@@ -146,7 +154,10 @@ struct BinaryCacheStorageTests {
         let reader = subject(directory.appending(component: "exact-reader"), remote: exactRemote)
         let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
         #expect(restored.extension == "xcframework")
-        #expect(try Data(contentsOf: restored.parentDirectory.appending(components: ["Shared.bundle", "resource"]).url)
+        #expect(try await FileSystem().readFile(at: restored.parentDirectory.appending(components: [
+            "Shared.bundle",
+            "resource",
+        ]))
             == Data("companion".utf8))
         #expect(try await reader.fetch([item("changed", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
             .isEmpty)
@@ -158,14 +169,14 @@ struct BinaryCacheStorageTests {
         let remote = MemoryREAPICache()
         let artifact = directory.appending(component: "Shared." + product)
         if product == "macro" {
-            try Data("#!/bin/sh\necho macro\n".utf8).write(to: artifact.url)
+            try await FileSystem().writeText("#!/bin/sh\necho macro\n", at: artifact)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: artifact.pathString)
         } else {
             try await FileSystem().makeDirectory(at: artifact)
-            try Data("payload".utf8).write(to: artifact.appending(component: "contents").url)
-            try FileManager.default.createSymbolicLink(
-                atPath: artifact.appending(component: "link").pathString,
-                withDestinationPath: "contents"
+            try await FileSystem().writeText("payload", at: artifact.appending(component: "contents"))
+            try await FileSystem().createSymbolicLink(
+                from: artifact.appending(component: "link"),
+                to: RelativePath(validating: "contents")
             )
         }
         let target = item("exact", [:])
@@ -178,11 +189,13 @@ struct BinaryCacheStorageTests {
         #expect(restored.extension == product)
         if product == "macro" {
             #expect(FileManager.default.isExecutableFile(atPath: restored.pathString))
-            #expect(try Data(contentsOf: restored.url) == Data(contentsOf: artifact.url))
+            let expected = try await FileSystem().readFile(at: artifact)
+            #expect(try await FileSystem().readFile(at: restored) == expected)
         } else {
-            #expect(try Data(contentsOf: restored.appending(component: "link").url) == Data("payload".utf8))
+            #expect(try await FileSystem()
+                .readFile(at: restored.appending(component: "link")) == Data("payload".utf8))
         }
-        try FileManager.default.removeItem(at: restored.url)
+        try await FileSystem().remove(restored)
         #expect(try await subject(path).fetch([target], cacheCategory: .binaries).values.first == restored)
         #expect(try await reader.fetch([item("changed", [:])], cacheCategory: .binaries).isEmpty)
     }
@@ -193,7 +206,10 @@ struct BinaryCacheStorageTests {
         try await makeArtifact(at: artifact, variants: ["ios-simulator"])
         let plist = artifact.appending(component: "Info.plist").url
         var info = try #require(PropertyListSerialization
-            .propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
+            .propertyList(
+                from: await FileSystem().readFile(at: AbsolutePath(validating: plist.path)),
+                format: nil
+            ) as? [String: Any])
         var libraries = try #require(info["AvailableLibraries"] as? [[String: Any]])
         libraries[0]["SupportedArchitectures"] = ["arm64"]
         info["AvailableLibraries"] = libraries
@@ -263,11 +279,11 @@ struct BinaryCacheStorageTests {
         await #expect(throws: REAPICacheError.self) {
             try await local.storeBlob(secondDigest, from: source, preserving: [firstDigest.hash])
         }
-        #expect(try local.blob(firstDigest) != nil)
-        #expect(try local.blob(secondDigest) == nil)
+        #expect(try await local.blob(firstDigest) != nil)
+        #expect(try await local.blob(secondDigest) == nil)
         try await local.storeBlob(secondDigest, from: source, preserving: [])
-        #expect(try local.blob(firstDigest) == nil)
-        #expect(try local.blob(secondDigest) != nil)
+        #expect(try await local.blob(firstDigest) == nil)
+        #expect(try await local.blob(secondDigest) != nil)
     }
 
     @Test(.inTemporaryDirectory) func thousandTargetMissesAreBoundedAndQueriedOnlyOnce() async throws {
@@ -302,19 +318,19 @@ struct BinaryCacheStorageTests {
         try await local.storeBlob(digest, from: source, preserving: [], admission: admission)
         try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
         try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
-        #expect(try local.action(digest) == result)
-        #expect(try local.blob(digest) != nil)
-        #expect(FileManager.default.fileExists(atPath: binaries.appending(components: [
+        #expect(try await local.action(digest) == result)
+        #expect(try await local.blob(digest) != nil)
+        #expect(try await FileSystem().exists(binaries.appending(components: [
             "action-\(digest.hash)", "result.pb",
-        ]).pathString))
+        ])))
         let remaining = try #require(try await pruner.headroom())
         let resultSize = try result.serializedData().count
         #expect(remaining == 90000 - payload.count - resultSize)
         #expect(await admission.admit(remaining))
         #expect(await admission.admit(1) == false)
         try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [digest.hash])
-        #expect(try local.action(digest) == nil)
-        #expect(try local.blob(digest) != nil)
+        #expect(try await local.action(digest) == nil)
+        #expect(try await local.blob(digest) != nil)
     }
 
     @Test(.inTemporaryDirectory) func invalidTargetAndPartialUploadDoNotDiscardHealthyTargets() async throws {
@@ -337,7 +353,7 @@ struct BinaryCacheStorageTests {
         let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
             .fetch([healthy], cacheCategory: .binaries).values.first)
         #expect(restored.basename == "CustomProduct.macro")
-        #expect(try Data(contentsOf: restored.url) == Data("good".utf8))
+        #expect(try await FileSystem().readFile(at: restored) == Data("good".utf8))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -358,9 +374,9 @@ struct BinaryCacheStorageTests {
         try body.write(to: path.url)
         let target = item("budget", [:])
         #expect(try await cache.store([target: [path]], cacheCategory: .binaries) == [target])
-        #expect(try local.blob(REAPI.digest(body)) == nil)
+        #expect(try await local.blob(REAPI.digest(body)) == nil)
         let restored = try #require(try await cache.fetch([target], cacheCategory: .binaries).values.first)
-        #expect(try Data(contentsOf: restored.url) == body)
+        #expect(try await FileSystem().readFile(at: restored) == body)
         #expect(await remote.downloads.isEmpty)
         let fresh = BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: local, remote: remote)
         #expect(try await fresh.fetch([target], cacheCategory: .binaries).values.first == restored)
@@ -448,7 +464,7 @@ actor MemoryREAPICache: REAPICacheStoring {
     func uploadBlobs(_ incoming: [REAPI.Digest: URL]) async throws {
         if fail { throw REAPICacheError.corruptBlob }
         for (digest, path) in incoming where blobs[digest] == nil {
-            let data = try Data(contentsOf: path)
+            let data = try await FileSystem().readFile(at: AbsolutePath(validating: path.path))
             #expect(REAPI.digest(data) == digest)
             blobs[digest] = data
             uploads[digest, default: 0] += 1

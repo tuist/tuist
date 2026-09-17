@@ -13,6 +13,7 @@ service ContentAddressableStorage {
 }
 message Digest { string hash = 1; int64 size_bytes = 2; }
 message DigestFunction { enum Value { UNKNOWN = 0; SHA256 = 1; } }
+message Compressor { enum Value { IDENTITY = 0; ZSTD = 1; } }
 message Action { Digest command_digest = 1; Digest input_root_digest = 2; }
 message Command { repeated string arguments = 1; repeated string output_paths = 7; }
 message Directory { repeated FileNode files = 1; repeated DirectoryNode directories = 2; repeated SymlinkNode symlinks = 3; }
@@ -29,13 +30,13 @@ message FindMissingBlobsRequest { string instance_name = 1; repeated Digest blob
 message FindMissingBlobsResponse { repeated Digest missing_blob_digests = 2; }
 
 message BlobStatus { int32 code = 1; string message = 2; }
-message BatchReadBlobsRequest { string instance_name = 1; repeated Digest digests = 2; DigestFunction.Value digest_function = 4; }
+message BatchReadBlobsRequest { string instance_name = 1; repeated Digest digests = 2; repeated Compressor.Value acceptable_compressors = 3; DigestFunction.Value digest_function = 4; }
 message BatchReadBlobsResponse {
-  message Response { Digest digest = 1; bytes data = 2; BlobStatus status = 3; int32 compressor = 4; }
+  message Response { Digest digest = 1; bytes data = 2; BlobStatus status = 3; Compressor.Value compressor = 4; }
   repeated Response responses = 1;
 }
 message BatchUpdateBlobsRequest {
-  message Request { Digest digest = 1; bytes data = 2; }
+  message Request { Digest digest = 1; bytes data = 2; Compressor.Value compressor = 3; }
   string instance_name = 1; repeated Request requests = 2; DigestFunction.Value digest_function = 5;
 }
 message BatchUpdateBlobsResponse {

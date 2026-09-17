@@ -165,6 +165,7 @@ var tuistCASDependencies: [Target.Dependency] = [
 ]
 var tuistREAPIDependencies: [Target.Dependency] = [
     fileSystemDependency,
+    .product(name: "libzstd", package: "facebook.zstd"),
     pathDependency,
     "TuistEnvironment",
     "TuistHTTP",

@@ -24,7 +24,7 @@ struct BinaryCachePrunerTests {
         let pruner = BinaryCachePruner(cacheDirectoriesProvider: provider)
         let admission = try await pruner.admission(preserving: ["hash0"])
         let newEntry = binaries.appending(component: "new")
-        try Data("newly admitted output".utf8).write(to: newEntry.url)
+        try await fileSystem.writeText("newly admitted output", at: newEntry)
         for _ in 0 ..< 100 {
             #expect(await admission.admit(10000))
         }

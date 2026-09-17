@@ -79,6 +79,10 @@ public struct Build_Bazel_Remote_Execution_V2_CacheCapabilities: Sendable {
 
     public var maxBatchTotalSizeBytes: Int64 = 0
 
+    public var supportedCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
+
+    public var supportedBatchUpdateCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
+
     public var unknownFields = SwiftProtobuf.UnknownStorage()
 
     public init() {}
@@ -182,7 +186,7 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
     public static let protoMessageName: String = _protobuf_package + ".CacheCapabilities"
     public static let _protobuf_nameMap = SwiftProtobuf
         ._NameMap(
-            bytecode: "\0\u{3}digest_functions\0\u{3}action_cache_update_capabilities\0\u{4}\u{2}max_batch_total_size_bytes\0"
+            bytecode: "\0\u{3}digest_functions\0\u{3}action_cache_update_capabilities\0\u{4}\u{2}max_batch_total_size_bytes\0\u{4}\u{2}supported_compressors\0\u{3}supported_batch_update_compressors\0"
         )
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
@@ -194,6 +198,8 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
             case 1: try decoder.decodeRepeatedEnumField(value: &digestFunctions)
             case 2: try decoder.decodeSingularMessageField(value: &_actionCacheUpdateCapabilities)
             case 4: try decoder.decodeSingularInt64Field(value: &maxBatchTotalSizeBytes)
+            case 6: try decoder.decodeRepeatedEnumField(value: &supportedCompressors)
+            case 7: try decoder.decodeRepeatedEnumField(value: &supportedBatchUpdateCompressors)
             default: break
             }
         }
@@ -213,6 +219,12 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
         if maxBatchTotalSizeBytes != 0 {
             try visitor.visitSingularInt64Field(value: maxBatchTotalSizeBytes, fieldNumber: 4)
         }
+        if !supportedCompressors.isEmpty {
+            try visitor.visitPackedEnumField(value: supportedCompressors, fieldNumber: 6)
+        }
+        if !supportedBatchUpdateCompressors.isEmpty {
+            try visitor.visitPackedEnumField(value: supportedBatchUpdateCompressors, fieldNumber: 7)
+        }
         try unknownFields.traverse(visitor: &visitor)
     }
 
@@ -223,6 +235,8 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
         if lhs.digestFunctions != rhs.digestFunctions { return false }
         if lhs._actionCacheUpdateCapabilities != rhs._actionCacheUpdateCapabilities { return false }
         if lhs.maxBatchTotalSizeBytes != rhs.maxBatchTotalSizeBytes { return false }
+        if lhs.supportedCompressors != rhs.supportedCompressors { return false }
+        if lhs.supportedBatchUpdateCompressors != rhs.supportedBatchUpdateCompressors { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }
