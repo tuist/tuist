@@ -6,7 +6,6 @@ import Testing
 import TuistEnvironment
 import TuistLaunchctl
 import TuistTesting
-import TuistThreadSafe
 
 @testable import TuistKit
 
@@ -30,13 +29,11 @@ struct CacheStartCommandServiceTests {
         try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
         try await fileSystem.writeText("", at: plistPath)
         try await fileSystem.writeText("", at: socketPath)
-        let filesLeftAtBootout = ThreadSafe<[String]?>(nil)
         given(launchctlController)
             .bootout(label: .any)
             .willProduce { _ in
-                filesLeftAtBootout.mutate {
-                    $0 = [plistPath, socketPath].map(\.pathString).filter { FileManager.default.fileExists(atPath: $0) }
-                }
+                #expect(FileManager.default.fileExists(atPath: plistPath.pathString) == false)
+                #expect(FileManager.default.fileExists(atPath: socketPath.pathString) == false)
             }
 
         // When
@@ -46,7 +43,6 @@ struct CacheStartCommandServiceTests {
         verify(launchctlController)
             .bootout(label: .value("tuist.cache.organization_project"))
             .called(1)
-        #expect(filesLeftAtBootout.value == [])
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
