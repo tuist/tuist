@@ -652,8 +652,21 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  defp admissible_room?(%Regions{id: region_id} = region, plan) do
-    case cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end) do
+  @doc """
+  `Tuist.Kura.Admission.headroom_gib/1` for the region, cached for a minute per
+  region: the reading `room_for?/2` places against, and the one the admission
+  headroom metric reports, so the two cannot disagree.
+
+  Admission reads every live server row in the region to count reservations
+  the cluster has not observed yet, so this is also what keeps that query off
+  every placement and every metric poll.
+  """
+  def admission_headroom_gib(%Regions{id: region_id} = region) do
+    cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end)
+  end
+
+  defp admissible_room?(%Regions{} = region, plan) do
+    case admission_headroom_gib(region) do
       :unbounded -> true
       headroom when is_integer(headroom) -> div(claim_bytes(region, plan), @gib) * replicas(region) <= headroom
       nil -> nil

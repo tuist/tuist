@@ -13,8 +13,9 @@ defmodule Tuist.Kura.PromExPlugin do
       installed. This is the number that decides whether another machine is
       needed, and whether the Air pressure rule is active at all.
     * per-region admission headroom: the gibibytes `Tuist.Kura.Admission` can
-      still place, computed the way it decides. Occupancy alone cannot give it,
-      because admission also counts rows the cluster has not observed yet.
+      still place, as the minute-old reading placement acts on. Occupancy alone
+      cannot give it, because admission also counts rows the cluster has not
+      observed yet.
     * hit-rate recovery — the cache hit ratio of account-regions that returned
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
@@ -47,7 +48,6 @@ defmodule Tuist.Kura.PromExPlugin do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
-  alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Telemetry
@@ -311,7 +311,7 @@ defmodule Tuist.Kura.PromExPlugin do
   @doc false
   def execute_admission_headroom_telemetry_event do
     Enum.each(lifecycle_regions(), fn %Regions{id: region_id} = region ->
-      case Admission.headroom_gib(region) do
+      case Capacity.admission_headroom_gib(region) do
         :unbounded ->
           :ok
 

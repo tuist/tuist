@@ -1497,8 +1497,10 @@ only if `max(observed, desired) + candidate <= pressure_line`:
 
 `tuist_kura_capacity_admission_headroom_gibibytes` is
 `pressure_line - max(observed, desired)`, polled every minute on every web pod
-by `Tuist.Kura.PromExPlugin` from `Admission.headroom_gib/1`, the same function
-admission uses, so the rule cannot drift from the code. Every pod reports the
+by `Tuist.Kura.PromExPlugin` from `Capacity.admission_headroom_gib/1`: the
+function admission decides with (`Admission.headroom_gib/1`), cached for a
+minute per region and shared with placement's `Capacity.room_for?/2`, so the
+rule cannot drift from the code and reports the reading placement acted on. Every pod reports the
 same number, hence `max` (which the `tuist_` Adaptive Metrics rule stores) and
 not `sum`. The second operand is the same arithmetic without `desired`, from
 the occupancy gauges; it is what the rule reads until a server that emits the
