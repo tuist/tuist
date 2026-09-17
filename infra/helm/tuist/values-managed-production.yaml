@@ -901,7 +901,7 @@ vultrFleets:
   # region out of service without touching the box.
   us-central:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
