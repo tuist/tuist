@@ -22,6 +22,7 @@ defmodule Atlas.Engineering.Projects.Project do
     field :name, :string
     field :description, :string
     field :visibility, Ecto.Enum, values: @visibilities, default: :public
+    field :slack_alert_channel, :string
 
     many_to_many :domains, Domain,
       join_through: ProjectDomain,
@@ -37,12 +38,14 @@ defmodule Atlas.Engineering.Projects.Project do
 
   def changeset(project, attrs) do
     project
-    |> cast(attrs, [:name, :description, :visibility])
+    |> cast(attrs, [:name, :description, :visibility, :slack_alert_channel])
     |> normalize_string(:name)
     |> normalize_string(:description)
+    |> normalize_string(:slack_alert_channel)
     |> validate_required([:name, :visibility])
     |> validate_length(:name, max: 120)
     |> validate_length(:description, max: 500)
+    |> validate_length(:slack_alert_channel, max: 120)
     |> validate_inclusion(:visibility, @visibilities)
     |> unique_constraint(:name)
   end

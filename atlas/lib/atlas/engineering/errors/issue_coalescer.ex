@@ -43,8 +43,11 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   alias Atlas.Engineering.Errors.SentryEvent
   alias Atlas.Engineering.Projects.Project
   alias Atlas.Repo
+  alias Atlas.Slack.API, as: SlackAPI
 
   require Logger
+
+  @slack_app_key :company
 
   @flush_interval_ms :timer.seconds(5)
 
@@ -130,6 +133,8 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     %{
       id: Issue.deterministic_id(project.id, domain_id, fingerprint),
       project_id: project.id,
+      project_name: project.name,
+      project_slack_alert_channel: Map.get(project, :slack_alert_channel),
       domain_id: domain_id,
       fingerprint: fingerprint,
       title: SentryEvent.title(event) |> truncate(500),
@@ -250,13 +255,262 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     }
   end
 
-  # Fires `Hive.Alerts.evaluate_error_issue/3` once per touched
-  # fingerprint. Failures inside the alerts pipeline (e.g. Oban
-  # unavailable) must not fail the coalescer flush — the event is
-  # already recorded — so each call is wrapped in a rescue that
-  # logs and continues.
-  # TODO(atlas): wire alerting when Atlas grows an Alerts context.
-  defp evaluate_alerts_for(_after_issues, _entries, _before_by_id), do: :ok
+  # Fires one Slack alert per touched fingerprint that is either brand
+  # new or a regression (resolved → unresolved). Failures inside the
+  # alerts pipeline must not fail the coalescer flush — the event is
+  # already recorded — so each call is wrapped in a rescue that logs
+  # and continues.
+  #
+  # The flush-window coalescing itself is the rate-limiter: multiple
+  # observations of the same fingerprint inside a window collapse to
+  # one entry and, at most, one alert. Repeats within a still-
+  # unresolved issue produce no alert; only transitions do.
+  defp evaluate_alerts_for(after_issues, entries, before_by_id) do
+    entry_by_id = Map.new(entries, &{&1.id, &1})
+
+    Enum.each(after_issues, fn %Issue{id: id} = issue ->
+      entry = Map.fetch!(entry_by_id, id)
+      before = Map.get(before_by_id, id)
+
+      reason = alert_reason(before, issue)
+
+      if reason do
+        try do
+          deliver_slack_alert(issue, entry, reason)
+        rescue
+          err ->
+            Logger.warning("issue_coalescer: alert delivery failed: #{inspect(err)}")
+        end
+      end
+    end)
+  end
+
+  defp alert_reason(nil, %Issue{}), do: :new_issue
+
+  defp alert_reason(%{status: :resolved}, %Issue{status: :unresolved}), do: :regression
+
+  defp alert_reason(_before, _issue), do: nil
+
+  defp deliver_slack_alert(%Issue{} = issue, entry, reason) do
+    case resolve_channel(entry) do
+      {:ok, channel_id} ->
+        fallback = fallback_text(reason, issue, entry)
+        blocks = alert_blocks(reason, issue, entry)
+
+        case SlackAPI.post_message(@slack_app_key, channel_id, fallback, blocks) do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("issue_coalescer: slack post failed for issue=#{issue.id}: #{inspect(reason)}")
+
+            :ok
+        end
+
+      :no_channel ->
+        Logger.warning(
+          "issue_coalescer: no Slack channel configured for project=#{inspect(Map.get(entry, :project_name))} " <>
+            "(project_id=#{entry.project_id}); dropping alert for issue=#{issue.id}"
+        )
+
+        :ok
+    end
+  end
+
+  defp resolve_channel(entry) do
+    per_project = Map.get(entry, :project_slack_alert_channel)
+    default = Application.get_env(:atlas, :default_alert_slack_channel)
+
+    cond do
+      is_binary(per_project) and per_project != "" -> {:ok, per_project}
+      is_binary(default) and default != "" -> {:ok, default}
+      true -> :no_channel
+    end
+  end
+
+  defp fallback_text(reason, %Issue{} = issue, entry) do
+    env_part =
+      case entry.environment do
+        env when is_binary(env) and env != "" -> " · #{env}"
+        _ -> ""
+      end
+
+    "#{reason_emoji(reason)} #{reason_label(reason)} · #{level_label(issue.level)}#{env_part} · " <>
+      single_line(issue.title || "")
+  end
+
+  defp alert_blocks(reason, %Issue{} = issue, entry) do
+    header_text = "#{reason_emoji(reason)} #{reason_label(reason)}"
+
+    [
+      %{
+        "type" => "header",
+        "text" => %{"type" => "plain_text", "text" => truncate(header_text, 150), "emoji" => true}
+      },
+      title_block(issue),
+      severity_fields_block(issue, entry.environment),
+      %{"type" => "divider"},
+      context_block(issue, entry),
+      actions_block(issue)
+    ]
+  end
+
+  defp title_block(%Issue{} = issue) do
+    url = issue_url(issue)
+
+    subtitle =
+      case culprit_line(issue) do
+        nil -> ""
+        line -> "\n`#{escape(line)}`"
+      end
+
+    %{
+      "type" => "section",
+      "text" => %{
+        "type" => "mrkdwn",
+        "text" => "*<#{url}|#{escape(truncate(single_line(issue.title || ""), 200))}>*#{subtitle}"
+      }
+    }
+  end
+
+  defp severity_fields_block(%Issue{} = issue, environment) do
+    %{
+      "type" => "section",
+      "fields" => [
+        field("Level", level_field(issue.level)),
+        field("Environment", environment_field(environment)),
+        field("Events", format_count(issue.event_count)),
+        field("Last seen", relative_time(issue.last_seen)),
+        field("First seen", relative_time(issue.first_seen)),
+        field("Status", status_field(issue.status))
+      ]
+    }
+  end
+
+  defp field(label, value) do
+    %{"type" => "mrkdwn", "text" => "*#{label}*\n#{value}"}
+  end
+
+  defp context_block(%Issue{} = issue, entry) do
+    %{
+      "type" => "context",
+      "elements" => [
+        %{
+          "type" => "mrkdwn",
+          "text" => "Project: *#{escape(project_name(entry))}*"
+        },
+        %{
+          "type" => "mrkdwn",
+          "text" => "Fingerprint: `#{short_fingerprint(issue.fingerprint)}`"
+        }
+      ]
+    }
+  end
+
+  defp actions_block(%Issue{} = issue) do
+    %{
+      "type" => "actions",
+      "elements" => [
+        %{
+          "type" => "button",
+          "text" => %{"type" => "plain_text", "text" => "Open issue", "emoji" => true},
+          "url" => issue_url(issue),
+          "style" => "primary"
+        }
+      ]
+    }
+  end
+
+  defp reason_emoji(:new_issue), do: "🆕"
+  defp reason_emoji(:regression), do: "🔁"
+  defp reason_emoji(_), do: "⚠️"
+
+  defp reason_label(:new_issue), do: "New issue"
+  defp reason_label(:regression), do: "Regression"
+  defp reason_label(other) when is_atom(other), do: Atom.to_string(other)
+  defp reason_label(other), do: to_string(other)
+
+  defp level_field(:fatal), do: "🟣 fatal"
+  defp level_field(:error), do: "🔴 error"
+  defp level_field(:warning), do: "🟡 warning"
+  defp level_field(:info), do: "🔵 info"
+  defp level_field(:debug), do: "⚪ debug"
+  defp level_field(nil), do: "—"
+  defp level_field(other), do: to_string(other)
+
+  defp level_label(nil), do: "unknown"
+  defp level_label(atom) when is_atom(atom), do: Atom.to_string(atom)
+  defp level_label(other), do: to_string(other)
+
+  defp status_field(:resolved), do: "resolved"
+  defp status_field(:ignored), do: "ignored"
+  defp status_field(:unresolved), do: "unresolved"
+  defp status_field(nil), do: "—"
+  defp status_field(other), do: to_string(other)
+
+  defp environment_field(nil), do: "—"
+  defp environment_field(""), do: "—"
+
+  defp environment_field(env) when is_binary(env) do
+    if env in ~w(production prod live) do
+      "*`#{escape(env)}`*"
+    else
+      "`#{escape(env)}`"
+    end
+  end
+
+  defp environment_field(other), do: to_string(other)
+
+  defp format_count(nil), do: "0"
+  defp format_count(n) when is_integer(n) and n >= 1_000_000, do: "#{div(n, 1_000_000)}M"
+  defp format_count(n) when is_integer(n) and n >= 1_000, do: "#{Float.round(n / 1000, 1)}k"
+  defp format_count(n) when is_integer(n), do: Integer.to_string(n)
+  defp format_count(other), do: to_string(other)
+
+  defp relative_time(nil), do: "—"
+
+  defp relative_time(%DateTime{} = dt) do
+    diff = DateTime.diff(DateTime.utc_now(), dt, :second)
+
+    cond do
+      diff < 60 -> "just now"
+      diff < 3_600 -> "#{div(diff, 60)}m ago"
+      diff < 86_400 -> "#{div(diff, 3_600)}h ago"
+      true -> "#{div(diff, 86_400)}d ago"
+    end
+  end
+
+  defp culprit_line(%Issue{culprit: culprit}) when is_binary(culprit) and culprit != "" do
+    truncate(single_line(culprit), 200)
+  end
+
+  defp culprit_line(_), do: nil
+
+  defp single_line(text) when is_binary(text) do
+    text
+    |> String.replace(~r/\s+/u, " ")
+    |> String.trim()
+  end
+
+  defp single_line(other), do: to_string(other)
+
+  defp project_name(%{project_name: name}) when is_binary(name) and name != "", do: name
+  defp project_name(_), do: "unknown"
+
+  defp issue_url(%Issue{id: id}) do
+    AtlasWeb.Endpoint.url() <> "/engineering/errors/#{id}"
+  end
+
+  defp short_fingerprint(fp) when is_binary(fp) and byte_size(fp) >= 8, do: String.slice(fp, 0, 8)
+  defp short_fingerprint(_), do: "—"
+
+  defp escape(text) do
+    text
+    |> to_string()
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+  end
 
   # `insert_all` with ON CONFLICT DO UPDATE. The counter is added to
   # the existing value, first/last-seen are folded via LEAST/GREATEST,
