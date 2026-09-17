@@ -1,9 +1,9 @@
 defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   @moduledoc """
-  Activates a Kura instance that is coming up within about a second of its
+  Activates a Kura instance that is coming up within about half a second of its
   endpoint answering, rather than on the next minute's reconciler tick.
 
-  Each run checks `Tuist.Kura.Reconciler.activate_when_ready/1` about once a
+  Each run checks `Tuist.Kura.Reconciler.activate_when_ready/1` about twice a
   second, up to `@checks_per_run` times, then snoozes without a delay. Snoozing
   after every check would space them by Oban's stager and fetch, measured at
   2.5 to 3 seconds apart, so each run keeps its own clock and only pays that
@@ -23,8 +23,8 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
 
-  @checks_per_run 13
-  @check_interval_ms Application.compile_env(:tuist, [__MODULE__, :check_interval_ms], 1_000)
+  @checks_per_run 26
+  @check_interval_ms Application.compile_env(:tuist, [__MODULE__, :check_interval_ms], 500)
 
   def enqueue(%Server{id: server_id}) do
     %{server_id: server_id}
