@@ -13,7 +13,7 @@ defmodule Atlas.Engineering.Domains.GitHubRepository do
   @foreign_key_type :binary_id
   @visibilities [:public, :private]
 
-  schema "github_repositories" do
+  schema "engineering_github_repositories" do
     field :owner, :string
     field :name, :string
     field :visibility, Ecto.Enum, values: @visibilities, default: :public

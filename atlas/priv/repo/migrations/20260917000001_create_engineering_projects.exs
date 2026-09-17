@@ -13,7 +13,7 @@ defmodule Atlas.Repo.Migrations.CreateEngineeringProjects do
 
     create unique_index(:projects, [:name])
 
-    create table(:github_repositories, primary_key: false) do
+    create table(:engineering_github_repositories, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :owner, :string, null: false
       add :name, :string, null: false
@@ -23,8 +23,8 @@ defmodule Atlas.Repo.Migrations.CreateEngineeringProjects do
       timestamps(type: :timestamptz)
     end
 
-    create unique_index(:github_repositories, [:owner, :name])
-    create index(:github_repositories, [:project_id])
+    create unique_index(:engineering_github_repositories, [:owner, :name])
+    create index(:engineering_github_repositories, [:project_id])
 
     create table(:project_webhooks, primary_key: false) do
       add :id, :binary_id, primary_key: true
