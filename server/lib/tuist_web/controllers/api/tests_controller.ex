@@ -382,6 +382,29 @@ defmodule TuistWeb.API.TestsController do
            },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
+           tracked_files: %Schema{
+             type: :array,
+             description:
+               "The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, description: "Relative to the repository root."},
+                 git_blob_id: %Schema{type: :string, description: "The file's Git blob at the run's commit."}
+               },
+               required: [:path, :git_blob_id]
+             }
+           },
+           tracked_files_truncated: %Schema{
+             type: :boolean,
+             description: "Whether the client stopped listing tracked files at the server's limit."
+           },
+           execution_mode: %Schema{
+             type: :string,
+             enum: ["parallel", "serial"],
+             description:
+               "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
+           },
            xcode_coverage: XcodeCoverage,
            xcode_coverage_storage_key: %Schema{
              type: :string,
@@ -410,6 +433,11 @@ defmodule TuistWeb.API.TestsController do
                  duration: %Schema{
                    type: :integer,
                    description: "The duration of the test module in milliseconds."
+                 },
+                 execution_mode: %Schema{
+                   type: :string,
+                   enum: ["parallel", "serial"],
+                   description: "Whether the module's tests executed in parallel or serially; absent when unknown."
                  },
                  test_suites: %Schema{
                    type: :array,
@@ -938,6 +966,9 @@ defmodule TuistWeb.API.TestsController do
           history_source: Map.get(params, :history_source),
           history_fallback_reason: Map.get(params, :history_fallback_reason),
           changed_files: Map.get(params, :changed_files, []),
+          tracked_files: Map.get(params, :tracked_files, []),
+          tracked_files_truncated: Map.get(params, :tracked_files_truncated),
+          execution_mode: Map.get(params, :execution_mode),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           ci_run_id: Map.get(params, :ci_run_id),
           ci_project_handle: Map.get(params, :ci_project_handle),

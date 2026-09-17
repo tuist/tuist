@@ -379,6 +379,7 @@ defmodule TuistWeb.API.CoverageController do
       covered_lines: %Schema{type: :integer},
       executable_lines: %Schema{type: :integer},
       coverage: %Schema{type: :number, description: "Line coverage over the run's product files, in percent."},
+      execution_mode: %Schema{type: :string, description: "`parallel`, `serial`, or empty when unknown."},
       targets: %Schema{type: :array, items: @target},
       git_history: @git_history,
       baseline: @baseline,

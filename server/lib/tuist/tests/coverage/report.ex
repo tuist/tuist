@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Coverage.Report do
   a sentence, so an agent can act on them without reading the dashboard.
   """
 
+  alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Test
@@ -22,6 +23,7 @@ defmodule Tuist.Tests.Coverage.Report do
         covered_lines: summary.covered_lines,
         executable_lines: summary.executable_lines,
         coverage: Coverage.percentage(summary.covered_lines, summary.executable_lines),
+        execution_mode: run.execution_mode,
         targets: Enum.map(Coverage.targets_for_run(run.project_id, run.id), &target/1),
         git_history: git_history(run)
       },
@@ -38,7 +40,9 @@ defmodule Tuist.Tests.Coverage.Report do
       pull_request_number: run.pull_request_number,
       git_object_format: run.git_object_format,
       history_source: run.history_source,
-      history_fallback_reason: run.history_fallback_reason
+      history_fallback_reason: run.history_fallback_reason,
+      tracked_files_count: Tests.tracked_files_count(run.project_id, run.id),
+      tracked_files_truncated: run.tracked_files_truncated
     }
   end
 

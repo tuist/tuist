@@ -97,7 +97,8 @@ defmodule TuistWeb.CoverageLive do
       coverage_gate_min_patch_coverage: number_or_nil(params["min_patch_coverage"]),
       coverage_gate_max_total_drop: number_or_nil(params["max_total_drop"]),
       git_history_window_days: integer_or_nil(params["git_history_window_days"]),
-      git_history_window_commits: integer_or_nil(params["git_history_window_commits"])
+      git_history_window_commits: integer_or_nil(params["git_history_window_commits"]),
+      tracked_file_globs: globs_or_nil(params["tracked_file_globs"])
     })
   end
 
@@ -358,6 +359,16 @@ defmodule TuistWeb.CoverageLive do
   end
 
   defp integer_or_nil(_value), do: nil
+
+  # One glob per line; an empty field means the server defaults.
+  defp globs_or_nil(value) when is_binary(value) do
+    case value |> String.split(~r/\R/) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")) do
+      [] -> nil
+      globs -> globs
+    end
+  end
+
+  defp globs_or_nil(_value), do: nil
 
   defp errors(changeset) do
     changeset

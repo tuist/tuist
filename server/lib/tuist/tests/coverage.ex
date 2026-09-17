@@ -119,24 +119,18 @@ defmodule Tuist.Tests.Coverage do
     shard_index = shard_index || 0
     reported_at = NaiveDateTime.utc_now()
 
-    result =
+    {:ok, complete} =
       :telemetry.span(Tuist.Telemetry.event_name_coverage_publish(), %{project_id: test.project_id}, fn ->
         others = other_shards(test.project_id, test.id, shard_index)
         folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others)
         :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
 
-        {{:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)},
-          others.shards_count + 1 >= expected_shards}, %{files: folded.files}}
+        {{:ok, others.shards_count + 1 >= expected_shards},
+         %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
       end)
 
-    case result do
-      {:ok, published, true} ->
-        follow_up(test)
-        {:ok, published}
-
-      {:ok, published, false} ->
-        {:ok, published}
-    end
+    if complete, do: follow_up(test)
+    :ok
   end
 
   defp follow_up(%Test{is_pull_request: true} = test) do

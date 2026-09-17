@@ -11788,4 +11788,81 @@ defmodule Tuist.TestsTest do
       0 -> Enum.reverse(acc)
     end
   end
+
+  describe "create_test/1 with tracked files and execution mode" do
+    test "records the tracked files with their blobs and how the tests executed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          execution_mode: "parallel",
+          tracked_files_truncated: true,
+          tracked_files: [
+            %{path: "Package.resolved", git_blob_id: "blob-package"},
+            %{path: "Tuist/Config.swift", git_blob_id: "blob-config"}
+          ],
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 100, execution_mode: "serial", test_cases: []},
+            %{name: "CoreTests", status: "success", duration: 100, test_cases: []}
+          ]
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.tracked_files_truncated} == {"parallel", true}
+
+      assert Tests.tracked_files(project.id, run.id) == [
+               %{path: "Package.resolved", git_blob_id: "blob-package"},
+               %{path: "Tuist/Config.swift", git_blob_id: "blob-config"}
+             ]
+
+      assert Tests.tracked_files_count(project.id, run.id) == 2
+
+      modes =
+        ClickHouseRepo.all(
+          from(m in Tuist.Tests.TestModuleRun,
+            where: m.test_run_id == ^run.id,
+            select: {m.name, m.execution_mode},
+            order_by: m.name
+          )
+        )
+
+      assert modes == [{"AppTests", "serial"}, {"CoreTests", ""}]
+    end
+
+    test "leaves a run without them at the defaults" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: []
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.tracked_files_truncated} == {"", false}
+      assert Tests.tracked_files(project.id, run.id) == []
+      assert Tests.tracked_files_count(project.id, run.id) == 0
+    end
+  end
 end

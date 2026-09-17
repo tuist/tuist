@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAlert
+import TuistEnvironment
 import TuistGit
 import TuistLogging
 import TuistServer
@@ -53,6 +54,14 @@ public struct GitHistoryService: GitHistoryServicing {
     /// History rides with coverage, which is in early access behind the `COVERAGE` client flag.
     static var enabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
 
+    /// A run may override the project's tracked-file globs with a comma-separated list.
+    static let trackedFileGlobsVariable = "TUIST_TRACKED_FILE_GLOBS"
+
+    static func trackedFileGlobs(settings: GitHistorySettings, environment: [String: String]) -> [String] {
+        guard let override = environment[trackedFileGlobsVariable] else { return settings.trackedFileGlobs }
+        return override.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
     public func collect(
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
@@ -72,9 +81,13 @@ public struct GitHistoryService: GitHistoryServicing {
                 windowDays: defaults.windowDays,
                 windowCommits: defaults.windowCommits,
                 deepenBudgetSeconds: defaults.deepenBudgetSeconds,
-                uploadBatchSize: defaults.uploadBatchSize
+                uploadBatchSize: defaults.uploadBatchSize,
+                trackedFileGlobs: defaults.trackedFileGlobs,
+                trackedFileLimit: defaults.trackedFileLimit
             )
         }
+
+        let (trackedFiles, trackedFilesReason) = await trackedFiles(workingDirectory: workingDirectory, settings: settings)
 
         let history: GitHistory
         do {
@@ -99,8 +112,10 @@ public struct GitHistoryService: GitHistoryServicing {
                     pullRequestNumber: gitInfo.pullRequestNumber,
                     objectFormat: nil,
                     source: "none",
-                    fallbackReason: error.localizedDescription,
-                    changedFiles: []
+                    fallbackReason: [error.localizedDescription, trackedFilesReason].compactMap { $0 }.joined(separator: "; "),
+                    changedFiles: [],
+                    trackedFiles: trackedFiles.files.map { .init(path: $0.path, blobId: $0.blobId) },
+                    trackedFilesTruncated: trackedFiles.truncated
                 ),
                 history: GitHistory(
                     objectFormat: "sha1",
@@ -123,7 +138,7 @@ public struct GitHistoryService: GitHistoryServicing {
             pullRequestNumber: gitInfo.pullRequestNumber,
             objectFormat: history.objectFormat,
             source: "client",
-            fallbackReason: history.fallbackReason,
+            fallbackReason: [history.fallbackReason, trackedFilesReason].compactMap { $0 }.joined(separator: "; ").nilIfEmpty,
             changedFiles: history.changedFiles.map { file in
                 TestRunGitHistory.ChangedFile(
                     path: file.path,
@@ -133,10 +148,34 @@ public struct GitHistoryService: GitHistoryServicing {
                     hunks: file.hunks.map { (start: $0.start, end: $0.end) },
                     truncated: file.truncated
                 )
-            }
+            },
+            trackedFiles: trackedFiles.files.map { .init(path: $0.path, blobId: $0.blobId) },
+            trackedFilesTruncated: trackedFiles.truncated
         )
 
         return CollectedGitHistory(payload: payload, history: history, branch: gitInfo.branch, settings: settings)
+    }
+
+    /// The tracked files with their blobs, and a reason when they could not be listed. Best
+    /// effort like the rest of the history.
+    private func trackedFiles(
+        workingDirectory: AbsolutePath,
+        settings: GitHistorySettings
+    ) async -> (GitTrackedFiles, String?) {
+        let globs = Self.trackedFileGlobs(settings: settings, environment: Environment.current.variables)
+        do {
+            let files = try await gitController.trackedFiles(
+                workingDirectory: workingDirectory,
+                globs: globs,
+                limit: settings.trackedFileLimit
+            )
+            return (files, nil)
+        } catch {
+            return (
+                GitTrackedFiles(files: [], truncated: false),
+                "the tracked files could not be listed: \(error.localizedDescription)"
+            )
+        }
     }
 
     /// Sends the commits the server lacks, oldest first so their generation numbers are exact,
@@ -190,4 +229,8 @@ public struct GitHistoryService: GitHistoryServicing {
             AlertController.current.warning(.alert("The run's Git history could not be uploaded: \(error.localizedDescription)"))
         }
     }
+}
+
+extension String {
+    fileprivate var nilIfEmpty: String? { isEmpty ? nil : self }
 }

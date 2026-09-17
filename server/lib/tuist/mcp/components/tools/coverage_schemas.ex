@@ -57,7 +57,13 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
         "pull_request_number" => %{"type" => "integer"},
         "git_object_format" => %{"type" => "string"},
         "history_source" => %{"type" => "string", "description" => "client, provider, mixed or none."},
-        "history_fallback_reason" => %{"type" => "string"}
+        "history_fallback_reason" => %{"type" => "string"},
+        "tracked_files_count" => %{
+          "type" => "integer",
+          "description" =>
+            "Tracked files (dependency manifests, generator configuration, fixtures, snapshots) recorded with their blobs."
+        },
+        "tracked_files_truncated" => %{"type" => "boolean"}
       },
       "required" => [
         "base_branch",
@@ -66,7 +72,9 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
         "pull_request_number",
         "git_object_format",
         "history_source",
-        "history_fallback_reason"
+        "history_fallback_reason",
+        "tracked_files_count",
+        "tracked_files_truncated"
       ],
       "additionalProperties" => false
     }
@@ -321,6 +329,10 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
         "covered_lines" => %{"type" => "integer"},
         "executable_lines" => %{"type" => "integer"},
         "coverage" => %{"type" => "number", "description" => "Line coverage over the run's product files, in percent."},
+        "execution_mode" => %{
+          "type" => "string",
+          "description" => "parallel, serial, or empty when unknown."
+        },
         "targets" => %{"type" => "array", "items" => target()},
         "git_history" => git_history(),
         "baseline" => baseline(),

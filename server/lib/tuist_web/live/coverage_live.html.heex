@@ -933,6 +933,25 @@
               />
             </div>
             <div data-part="settings-row">
+              <label data-part="settings-label" for="coverage-tracked-file-globs">
+                {dgettext("dashboard_tests", "Tracked files (one Git pathspec glob per line)")}
+              </label>
+              <span data-part="settings-help">
+                {dgettext(
+                  "dashboard_tests",
+                  "Files whose identity a run's evidence depends on beyond its sources: dependency manifests, generator configuration, fixtures, snapshots. Each run records the matched files with their blobs. Empty means the server defaults."
+                )}
+              </span>
+              <textarea
+                id="coverage-tracked-file-globs"
+                name="tracked_file_globs"
+                rows="8"
+                data-part="settings-textarea"
+                placeholder={Enum.join(@git_history_defaults.tracked_file_globs, "\n")}
+                disabled={!@can_update_settings}
+              >{Enum.join(@selected_project.tracked_file_globs || [], "\n")}</textarea>
+            </div>
+            <div data-part="settings-row">
               <.toggle
                 id="coverage-git-history-provider-fallback"
                 phx-click="toggle_setting"

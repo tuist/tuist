@@ -264,7 +264,8 @@ defmodule TuistWeb.CoverageLiveTest do
         "min_patch_coverage" => "80",
         "max_total_drop" => "1.5",
         "git_history_window_days" => "120",
-        "git_history_window_commits" => ""
+        "git_history_window_commits" => "",
+        "tracked_file_globs" => "Fixtures/**\n\n  Package.resolved  \n"
       })
       |> render_submit()
 
@@ -277,6 +278,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert project.coverage_patch_partial_runs == false
       assert {project.git_history_window_days, project.git_history_window_commits} == {120, nil}
       assert project.git_history_provider_fallback == true
+      assert project.tracked_file_globs == ["Fixtures/**", "Package.resolved"]
     end
   end
 end

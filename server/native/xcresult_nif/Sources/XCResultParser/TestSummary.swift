@@ -18,10 +18,13 @@ public struct TestSummary: Encodable, Sendable {
     /// Why the coverage could not be read, for a bundle that had some. The run's tests are
     /// reported either way.
     public var coverageError: String?
+    /// `parallel` or `serial`, when the client recorded how the run executed its tests.
+    public var executionMode: String?
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
         case status, duration, errors, coverage
+        case executionMode = "execution_mode"
         case coveragePath = "coverage_path"
         case coveragePartial = "coverage_partial"
         case coverageFileCount = "coverage_file_count"

@@ -758,4 +758,23 @@ struct GitControllerTests {
         // Then
         #expect(isInGitRepository == false)
     }
+
+    @Test(.inTemporaryDirectory) func trackedFiles_lists_the_matched_files_with_their_blobs_up_to_the_limit() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "ls-files", "--stage", "-z", "--", ":(glob)Package.resolved", ":(glob)Tuist/**"],
+            output: "100644 aaa 0\tPackage.resolved\0100644 bbb 0\tTuist/Config.swift\0100644 ccc 1\tTuist/Conflict.swift\0100644 ddd 0\tTuist/Package.swift\0"
+        )
+
+        let tracked = try await subject.trackedFiles(workingDirectory: path, globs: ["Package.resolved", "Tuist/**"], limit: 2)
+
+        #expect(tracked.files == [
+            GitTrackedFile(path: "Package.resolved", blobId: "aaa"),
+            GitTrackedFile(path: "Tuist/Config.swift", blobId: "bbb"),
+        ])
+        #expect(tracked.truncated)
+
+        let none = try await subject.trackedFiles(workingDirectory: path, globs: [], limit: 2)
+        #expect(none == GitTrackedFiles(files: [], truncated: false))
+    }
 }

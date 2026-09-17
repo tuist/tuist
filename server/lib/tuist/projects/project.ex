@@ -62,6 +62,7 @@ defmodule Tuist.Projects.Project do
     field :coverage_gate_min_patch_coverage, :float
     field :coverage_gate_max_total_drop, :float
     field :coverage_patch_partial_runs, :boolean, default: false
+    field :tracked_file_globs, {:array, :string}
 
     belongs_to :account, Account
 
@@ -126,7 +127,8 @@ defmodule Tuist.Projects.Project do
       :coverage_gates_enabled,
       :coverage_gate_min_patch_coverage,
       :coverage_gate_max_total_drop,
-      :coverage_patch_partial_runs
+      :coverage_patch_partial_runs,
+      :tracked_file_globs
     ])
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)

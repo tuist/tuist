@@ -92,12 +92,13 @@ public struct XCResultParser: Sendable {
         attachmentsDirectory: AbsolutePath? = nil
     ) async throws -> TestSummary? {
         let testOutput = try await loadTestOutput(path: path)
-        return try await parseTestOutput(
+        let summary = try await parseTestOutput(
             testOutput,
             rootDirectory: rootDirectory,
             attachmentsDirectory: attachmentsDirectory,
             xcresultPath: path
         )
+        return summary.applying(executionModes: TestExecutionModes.read(fromResultBundle: URL(fileURLWithPath: path.pathString)))
     }
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote

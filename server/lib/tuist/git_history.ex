@@ -34,14 +34,46 @@ defmodule Tuist.GitHistory do
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
 
+  # The files whose identity a run's evidence depends on beyond the sources a
+  # test compiles: dependency manifests and lockfiles, Tuist's generator
+  # configuration, toolchain pins, test plans and build settings, and snapshot
+  # fixtures. Git pathspec globs, relative to the repository root.
+  @default_tracked_file_globs [
+    "Tuist.swift",
+    "Tuist/**",
+    "Project.swift",
+    "Workspace.swift",
+    "**/Project.swift",
+    "Package.swift",
+    "Package.resolved",
+    "**/Package.swift",
+    "**/Package.resolved",
+    "Podfile",
+    "Podfile.lock",
+    "Cartfile",
+    "Cartfile.resolved",
+    "mise.toml",
+    ".mise.toml",
+    ".tool-versions",
+    ".xcode-version",
+    ".swift-version",
+    "**/*.xctestplan",
+    "**/*.xcconfig",
+    "**/__Snapshots__/**"
+  ]
+
   @defaults %{
     window_days: 365,
     window_commits: 5_000,
     deepen_budget_seconds: 60,
     upload_batch_size: 500,
     provider_fallback: true,
-    provider_page_budget: 20
+    provider_page_budget: 20,
+    tracked_file_globs: @default_tracked_file_globs,
+    tracked_file_limit: 5_000
   }
+
+  def default_tracked_file_globs, do: @default_tracked_file_globs
 
   @doc """
   The history settings in effect for a project: the server defaults (from
@@ -54,7 +86,10 @@ defmodule Tuist.GitHistory do
     clone;
   - `upload_batch_size`: commits per upload request;
   - `provider_fallback`: whether the server completes history from the VCS
-    provider, and `provider_page_budget`, the API pages one run may spend.
+    provider, and `provider_page_budget`, the API pages one run may spend;
+  - `tracked_file_globs`: the files a run snapshots with their blobs
+    (`Tuist.Tests.TestRunTrackedFile`), and `tracked_file_limit`, how many a
+    client records before marking the snapshot truncated.
   """
   def settings(%Project{} = project) do
     defaults = Map.merge(@defaults, Environment.git_history_defaults())
@@ -63,7 +98,8 @@ defmodule Tuist.GitHistory do
       %{
         window_days: project.git_history_window_days,
         window_commits: project.git_history_window_commits,
-        provider_fallback: project.git_history_provider_fallback
+        provider_fallback: project.git_history_provider_fallback,
+        tracked_file_globs: project.tracked_file_globs
       }
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
       |> Map.new()

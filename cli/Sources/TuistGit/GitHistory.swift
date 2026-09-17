@@ -52,6 +52,29 @@ public struct GitChangedFile: Equatable, Sendable {
     }
 }
 
+/// A file the project tracks beyond the sources its tests compile (a dependency manifest, generator
+/// configuration, a fixture, a snapshot), with the blob it has at the run's commit.
+public struct GitTrackedFile: Equatable, Sendable {
+    public let path: String
+    public let blobId: String
+
+    public init(path: String, blobId: String) {
+        self.path = path
+        self.blobId = blobId
+    }
+}
+
+/// The tracked files a run saw, and whether the listing stopped at the limit.
+public struct GitTrackedFiles: Equatable, Sendable {
+    public let files: [GitTrackedFile]
+    public let truncated: Bool
+
+    public init(files: [GitTrackedFile], truncated: Bool) {
+        self.files = files
+        self.truncated = truncated
+    }
+}
+
 /// How much history the client collects for a run. The server tells the client its values
 /// (`GET .../tests/git-history/settings`); these are the defaults when it cannot.
 public struct GitHistoryLimits: Equatable, Sendable {
@@ -67,6 +90,10 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var maxChangedFiles: Int
     /// Hunks kept per changed file; a file with more is marked truncated.
     public var maxHunksPerFile: Int
+    /// Git pathspec globs, relative to the repository root, of the files snapshotted with each run.
+    public var trackedFileGlobs: [String]
+    /// Tracked files listed; beyond it the snapshot is marked truncated.
+    public var trackedFileLimit: Int
 
     public init(
         windowDays: Int = 365,
@@ -74,7 +101,9 @@ public struct GitHistoryLimits: Equatable, Sendable {
         deepenBudgetSeconds: Int = 60,
         uploadBatchSize: Int = 500,
         maxChangedFiles: Int = 2000,
-        maxHunksPerFile: Int = 200
+        maxHunksPerFile: Int = 200,
+        trackedFileGlobs: [String] = [],
+        trackedFileLimit: Int = 5000
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
@@ -82,6 +111,8 @@ public struct GitHistoryLimits: Equatable, Sendable {
         self.uploadBatchSize = uploadBatchSize
         self.maxChangedFiles = maxChangedFiles
         self.maxHunksPerFile = maxHunksPerFile
+        self.trackedFileGlobs = trackedFileGlobs
+        self.trackedFileLimit = trackedFileLimit
     }
 }
 

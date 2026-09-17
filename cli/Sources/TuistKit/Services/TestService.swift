@@ -124,6 +124,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let rootDirectoryLocator: RootDirectoryLocating
     private let uploadResultBundleService: UploadResultBundleServicing
     private let derivedDataLocator: DerivedDataLocating
+    private let testExecutionModeResolver: TestExecutionModeResolving
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -169,6 +170,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
+        testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -201,6 +203,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.rootDirectoryLocator = rootDirectoryLocator
         self.uploadResultBundleService = uploadResultBundleService
         self.derivedDataLocator = derivedDataLocator
+        self.testExecutionModeResolver = testExecutionModeResolver
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
@@ -861,7 +864,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: skipTestTargets.map(\.description),
             stressNewTests: stressResult,
             // The run's selective-testing hits weren't skipped by this shard.
-            selectiveTestingTargets: []
+            selectiveTestingTargets: [],
+            xcodebuildArguments: passthroughXcodeBuildArguments
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -1046,7 +1050,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodeBuildArguments
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -2264,7 +2269,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 onlyTestIdentifiers: testTargets.map(\.description),
                 skipTestIdentifiers: skipTestTargets.map(\.description),
                 stressNewTests: stressResult,
-                selectiveTestingTargets: selectiveTestingTargets
+                selectiveTestingTargets: selectiveTestingTargets,
+                xcodebuildArguments: passthroughXcodeBuildArguments,
+                schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
             )
             stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
             if let stressResult, stressResult.blocks {
@@ -2304,7 +2311,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
             stressNewTests: stressResult,
-            selectiveTestingTargets: selectiveTestingTargets
+            selectiveTestingTargets: selectiveTestingTargets,
+            xcodebuildArguments: passthroughXcodeBuildArguments,
+            schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
         )
         stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
         if let stressResult, stressResult.blocks {
@@ -2462,7 +2471,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
         stressNewTests: StressNewTestsResult? = nil,
-        selectiveTestingTargets: Set<GraphTarget>? = nil
+        selectiveTestingTargets: Set<GraphTarget>? = nil,
+        xcodebuildArguments: [String] = [],
+        schemeTargets: [String: String] = [:]
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -2471,6 +2482,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: scheme,
             resultBundlePath: resultBundlePath,
             selectiveTestingTargets: selectiveTestingTargets
+        )
+        _ = await testExecutionModeResolver.record(
+            resultBundlePath: resultBundlePath,
+            xcodebuildArguments: xcodebuildArguments,
+            derivedDataPath: projectDerivedDataDirectory,
+            schemeTargets: schemeTargets
         )
 
         do {
