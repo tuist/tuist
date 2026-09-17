@@ -130,6 +130,14 @@ defmodule Tuist.Kura.LifecycleTest do
     |> Repo.update!()
   end
 
+  # A region whose pressure line cannot fit a single Air instance, with
+  # admission enforced as it is in production.
+  defp refuse_admission do
+    stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+    stub(Capacity, :pressure_line_gib, fn @region -> @air_resident_gib - 1 end)
+    stub(Capacity, :reserved_gib, fn @region -> 0 end)
+  end
+
   defp reload(%Server{id: id}), do: Repo.get!(Server, id)
   defp reload_lifecycle(account), do: Demand.get(account.id, @region)
 
@@ -192,6 +200,24 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.reconcile()
 
       assert [%Server{status: :provisioning}] = servers_for(account)
+    end
+
+    test "counts a provisioning capacity admission refused, by region and reason" do
+      # A refused account keeps being served by whatever lane it is on and
+      # raises nothing, so this counter is the only trace a full region leaves.
+      refuse_admission()
+
+      account = account()
+      Demand.record(account.id)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :provision_refused]])
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert servers_for(account) == []
+
+      assert_received {[:tuist, :kura, :lifecycle, :provision_refused], ^ref, %{count: 1},
+                       %{plan: "air", region: @region, reason: "capacity_exhausted", cold_return: "false"}}
     end
 
     test "does not recreate an instance the account explicitly destroyed" do
@@ -765,6 +791,22 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert reload(server).status == :provisioning
+    end
+
+    test "counts a cold return capacity admission refused, leaving the instance archived" do
+      account = account()
+      server = archive(account)
+      refuse_admission()
+      Demand.record(account.id)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :provision_refused]])
+
+      Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+
+      assert_received {[:tuist, :kura, :lifecycle, :provision_refused], ^ref, %{count: 1},
+                       %{plan: "air", region: @region, reason: "capacity_exhausted", cold_return: "true"}}
     end
 
     test "reports the return as a cold provision" do

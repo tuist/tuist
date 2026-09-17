@@ -432,14 +432,15 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Nothing here decides whether the region has room. Every cache pod requests
-  # its claim's worth of ephemeral storage, so the scheduler declines to place
-  # an instance that does not fit and the KuraInstance stays Pending, which is
-  # exact per node in a way a forecast computed here never was. Room is read
-  # one step earlier, where the region is chosen: `AccountPolicies` steers a
-  # first placement away from a region the cluster says is full when the
-  # account's residency admits another. What reaches here is an account whose
-  # region is decided, and a full region is then something to buy a box for.
+  # Nothing here decides whether the region has room. `Tuist.Kura.Admission`
+  # refuses inside `Kura.create_server/1` and `Kura.return_from_archive/3`
+  # once the region's reservations reach its pressure line, and the scheduler
+  # declines to place a pod that does not fit its node. Room is also read one
+  # step earlier, where the region is chosen: `AccountPolicies` steers a first
+  # placement away from a region the cluster says is full when the account's
+  # residency admits another. What reaches here is an account whose region is
+  # decided, so a refusal is counted and retried on the next pass, and a full
+  # region is then something to buy a box for.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
     # The lifecycle row records where demand *was* served; placement decides
     # where the account belongs *now*. They diverge when an account changes
@@ -477,6 +478,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, region_id, reason, false)
+
         Logger.warning(
           "[Kura.Lifecycle] could not provision instance for account #{account.id} in #{region_id}: #{inspect(reason)}"
         )
@@ -494,6 +497,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, server.region, reason, true)
+
         Logger.warning(
           "[Kura.Lifecycle] could not return account #{account.id} from archive in #{server.region}: #{inspect(reason)}"
         )
@@ -501,6 +506,13 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
     end
   end
+
+  defp report_capacity_refusal(plan, region_id, reason, cold_return?)
+       when reason in [:capacity_exhausted, :capacity_unknown] do
+    Telemetry.provision_refused(plan, region_id, reason, cold_return?)
+  end
+
+  defp report_capacity_refusal(_plan, _region_id, _reason, _cold_return?), do: :ok
 
   defp mark_returned(%AccountRegionLifecycle{} = lifecycle) do
     lifecycle
