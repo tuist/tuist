@@ -212,6 +212,7 @@ side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
+- `:27-2-beta` (channel `:27-2-beta`)
 - `:27-0`
 - `:26-6`
 - `:26-5`

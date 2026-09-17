@@ -1,5 +1,5 @@
 {
-  "originHash" : "6783f43a1cf4777a8d0eeb429a28b29b249f1de8f8231f1f387e09500b614193",
+  "originHash" : "6e86ded08bb804c4a9707dacfbde20c0d137fc9d067ad3c236baae4a7ebac0de",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -255,14 +255,6 @@
       "location" : "",
       "state" : {
         "version" : "0.4.5"
-      }
-    },
-    {
-      "identity" : "facebook.zstd",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.5.7"
       }
     },
     {

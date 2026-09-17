@@ -158,7 +158,7 @@ import XcodeGraph
             }
             let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
-            let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+            let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,

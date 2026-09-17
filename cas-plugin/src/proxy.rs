@@ -47,6 +47,11 @@ pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 /// one is asked again. The move happens only if the second answer agrees.
 pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
 
+/// How soon a proxy with no endpoint at all asks again. The account's cache is
+/// being prepared, which takes seconds, and every build until it is found runs
+/// without a remote.
+pub const ENDPOINT_ABSENT_INTERVAL: Duration = Duration::from_secs(10);
+
 #[derive(Debug, PartialEq, Eq)]
 enum EndpointVerdict {
     Keep,
@@ -4256,7 +4261,9 @@ impl Proxy {
     }
 
     fn endpoint_resolution_interval(&self) -> Duration {
-        if self.endpoint_candidate.lock().unwrap().is_some() {
+        if self.grpc_url.read().unwrap().is_empty() {
+            ENDPOINT_ABSENT_INTERVAL
+        } else if self.endpoint_candidate.lock().unwrap().is_some() {
             ENDPOINT_CONFIRM_INTERVAL
         } else {
             ENDPOINT_REFRESH_INTERVAL
@@ -7425,6 +7432,41 @@ mod tests {
         assert!(!proxy.claim_endpoint_resolution(start + 1, interval));
         assert!(!proxy.claim_endpoint_resolution(start + 599_999, interval));
         assert!(proxy.claim_endpoint_resolution(start + 600_000, interval));
+    }
+
+    #[test]
+    fn a_proxy_without_an_endpoint_resolves_on_the_short_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+
+        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_ABSENT_INTERVAL);
+        assert_eq!(test_proxy().endpoint_resolution_interval(), ENDPOINT_REFRESH_INTERVAL);
+    }
+
+    #[test]
+    fn a_proxy_without_an_endpoint_adopts_the_first_one_resolved() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let resolved = crate::endpoint::ResolvedEndpoint {
+            url: "http://127.0.0.1:2".to_string(),
+            endpoints: None,
+        };
+
+        assert!(proxy.consider_endpoint(&resolved, || {
+            proxy.current_endpoint_reachable("acme/app")
+        }));
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_REFRESH_INTERVAL);
     }
 
     #[test]

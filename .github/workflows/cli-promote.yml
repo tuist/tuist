@@ -8,7 +8,14 @@ name: CLI Promote to Stable
 # bare semver tag X.Y.0 with make_latest=true, moving the GitHub "Latest" pointer
 # and the Homebrew formula. From here on, fixes for the line ship as patches via
 # cli-backport.yml.
+#
+# Every Monday the schedule promotes the newest cut line that is not yet stable
+# (the RC cut the previous Monday) and does nothing when there is none. Once it
+# completes, cli-rc.yml cuts the next RC line, so a freshly cut line is never
+# promoted in the same run.
 on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
   workflow_dispatch:
     inputs:
       branch:
@@ -39,13 +46,17 @@ env:
 jobs:
   prepare:
     name: Resolve stable version
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       sha: ${{ steps.resolve.outputs.sha }}
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
     steps:
+      # Scheduled runs have no branch input: this checks out the default branch
+      # and channel-version.sh resolves the line to promote from the tags.
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
@@ -66,6 +77,7 @@ jobs:
   build-publish:
     name: Build and publish stable
     needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
     uses: ./.github/workflows/cli-build-publish.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
