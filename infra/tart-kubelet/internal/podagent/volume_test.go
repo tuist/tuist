@@ -49,6 +49,16 @@ type fakeBackend struct {
 	// LOCAL failure to measure an image (the read-only attach failed), which is
 	// not evidence about the image's contents.
 	digestErr error
+	// growErr, when set, fails every grow.
+	growErr error
+	// grown records every grow: the image's content at the time and the size
+	// it was grown to.
+	grown []grownImage
+}
+
+type grownImage struct {
+	content string
+	sizeGiB int
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -75,6 +85,18 @@ func (f *fakeBackend) createImage(path string, sizeGiB int) error {
 		return errors.New("cache image size must be positive")
 	}
 	return os.WriteFile(path, []byte("empty-image"), 0o644)
+}
+
+func (f *fakeBackend) growImage(path string, sizeGiB int) error {
+	if f.growErr != nil {
+		return f.growErr
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	f.grown = append(f.grown, grownImage{content: string(b), sizeGiB: sizeGiB})
+	return nil
 }
 
 // imageInventoryDigest stands in for a read-through attach: the digest is
@@ -730,6 +752,77 @@ func TestMaterializeReportsFallbackFailure(t *testing.T) {
 	}
 	if !errors.Is(err, be.cloneErr) || !errors.Is(err, be.createErr) {
 		t.Fatalf("error should report both the clone and the fallback failure; got %v", err)
+	}
+}
+
+// A master the guest shrank to its content at teardown has no free space left,
+// so the job that clones it must get it back at the full ceiling before it can
+// write a byte.
+func TestMaterializeGrowsTheClonedMasterToTheCeiling(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	m.CapGiB = 30
+	seedMaster(t, m, "42")
+
+	att := mustAllocate(t, m, "vm-warm")
+	warm, _, err := m.Materialize(att, "42")
+	if err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	}
+
+	want := []grownImage{{content: masterImageContent("42"), sizeGiB: 30}}
+	if !reflect.DeepEqual(be.grown, want) {
+		t.Fatalf("grown = %+v; want the cloned master grown to the 30 GiB ceiling: %+v", be.grown, want)
+	}
+	if got := branchImageContent(t, m, att); got != masterImageContent("42") {
+		t.Fatalf("branch image = %q; want the master's content", got)
+	}
+}
+
+// Handing a job a shrunk master it could not grow would fail the job at its first
+// cache write, so a failed grow runs the job cold on an empty image instead.
+func TestMaterializeRunsColdWhenTheBranchCannotGrow(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 5)
+	be.growErr = errors.New("hdiutil resize boom")
+
+	att := mustAllocate(t, m, "vm-grow-fails")
+	warm, base, err := m.Materialize(att, "42")
+	if !errors.Is(err, be.growErr) {
+		t.Fatalf("Materialize err = %v; want the grow failure", err)
+	}
+	if warm || base != 0 {
+		t.Fatalf("Materialize = warm %v, base %d; want a cold branch at base 0", warm, base)
+	}
+	if got := branchImageContent(t, m, att); got != emptyImageContent {
+		t.Fatalf("branch image = %q; want the empty image the cold path creates", got)
+	}
+}
+
+// The guest only shrinks the image it promotes when the host says it grows every
+// branch it materializes, so a runner image that ships before this host code
+// never publishes a master some host would hand to a job full.
+func TestMaterializeTellsTheGuestTheImageWasGrown(t *testing.T) {
+	root := t.TempDir()
+	statusDir := t.TempDir()
+	be := &fakeBackend{totalBytes: 100 * gib, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 30, be)
+	seedMaster(t, m, "42")
+	att := mustAllocate(t, m, "vm-marker")
+
+	store := NewStore()
+	entry := &Entry{VMName: "vm-marker", Volume: att, VolumeStatusDir: statusDir}
+	store.Put("ns", "pod", entry)
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
+	}})
+
+	raw, err := os.ReadFile(filepath.Join(statusDir, cacheImageGrownFile))
+	if err != nil {
+		t.Fatalf("reading the grown marker: %v", err)
+	}
+	if strings.TrimSpace(string(raw)) != "30" {
+		t.Fatalf("grown marker = %q; want the 30 GiB ceiling", raw)
 	}
 }
 

@@ -314,6 +314,9 @@ CACHE_CONTENT_DIGEST=""
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
+# Written by a host that grows every branch to the ceiling before cache-ready,
+# which is what makes it safe for teardown to shrink the image it promotes.
+CACHE_IMAGE_GROWN_MARKER="cache-image-grown"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -1064,17 +1067,59 @@ capture_settled_inventory() {
     hdiutil detach "${CACHE_VERIFY_MOUNTPOINT}" -force -quiet 2>/dev/null || true
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 1
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache inventory digest=${CACHE_INVENTORY_AFTER}"
-  # Hash the image FILE only after the read-only attach is gone, so the digest
-  # names exactly the bytes the PUT will read. Nothing else can write between
-  # here and the upload: the job's mount is detached and the verify attach was
-  # read-only. openssl over shasum for throughput — this runs at teardown and,
-  # like the upload it protects, holds the VM slot for its duration. Best-effort:
-  # a hashing failure clears the digest and the promote proceeds unverified
-  # rather than losing the branch.
+  return 0
+}
+
+# shrink_cache_image returns the space this job's prunes freed inside the image
+# to the host, so a master costs what it holds rather than the most it ever held.
+# A prune frees blocks inside the image's filesystem and none in the image file;
+# only `hdiutil compact` gives them back. It runs on the detached image, after the
+# inventory and before the content digest, because both a shrink and a compaction
+# rewrite the bytes that digest names.
+#
+# The shrink to the image's minimum size happens only when the host grew this
+# branch before the job: a shrunk image is full, and only a host that grows every
+# branch it materializes can hand one to the next job. Compaction changes no
+# capacity, so it runs either way.
+#
+# Best-effort and deliberately not time-bounded: a failure leaves the image larger
+# than its content, never wrong, whereas killing a resize midway could.
+shrink_cache_image() {
+  [ -f "${CACHE_IMAGE}" ] || return 0
+  local before after started finished minimum shrink="skipped" compact="ok"
+  before=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
+  started=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
+  if [ -f "${STATUS_SHARE}/${CACHE_IMAGE_GROWN_MARKER}" ]; then
+    minimum=$(hdiutil resize -limits "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
+    case "${minimum}" in
+      ''|*[!0-9]*) shrink="failed" ;;
+      *)
+        if hdiutil resize -sectors "${minimum}" "${CACHE_IMAGE}" >/dev/null 2>&1; then
+          shrink="ok"
+        else
+          shrink="failed"
+        fi
+        ;;
+    esac
+  fi
+  hdiutil compact "${CACHE_IMAGE}" >/dev/null 2>&1 || compact="failed"
+  after=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
+  finished=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache image shrink=${shrink} compact=${compact}: ${before:-unknown} KiB -> ${after:-unknown} KiB in $((finished - started)) ms"
+}
+
+# capture_content_digest hashes the image FILE after the read-only attach is gone
+# and after any shrink, so the digest names exactly the bytes the PUT will read.
+# Nothing else can write between here and the upload: the job's mount is detached
+# and the verify attach was read-only. openssl over shasum for throughput — this
+# runs at teardown and, like the upload it protects, holds the VM slot for its
+# duration. Best-effort: a hashing failure clears the digest and the promote
+# proceeds unverified rather than losing the branch.
+capture_content_digest() {
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   CACHE_CONTENT_DIGEST=$(/usr/bin/openssl dgst -sha256 -r "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}' | tr -cd 'a-f0-9')
   [ "${#CACHE_CONTENT_DIGEST}" = "64" ] || CACHE_CONTENT_DIGEST=""
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache image sha256=${CACHE_CONTENT_DIGEST:-unavailable}"
-  return 0
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -1713,6 +1758,8 @@ HOOK
       #   3. measure the SETTLED image (read-only re-attach) for the digest this
       #      job publishes, so the HEAD names the bytes that get uploaded and not
       #      a state a straggler wrote past;
+      #   3b. shrink and compact an image this job changed, then hash the file,
+      #      so the content digest names the resized bytes;
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
@@ -1755,6 +1802,12 @@ HOOK
       elif ! capture_settled_inventory; then
         mark_cache_not_promotable "settled image could not be measured"
       elif [ "${cache_within_fill_ceiling}" = "1" ]; then
+        # Only a changed image from a successful job is promoted, so only that one
+        # is worth the teardown time a shrink costs.
+        if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+          shrink_cache_image
+        fi
+        capture_content_digest
         report_cache_dirty "${rc}"
         report_volume_head "${rc}"
       fi

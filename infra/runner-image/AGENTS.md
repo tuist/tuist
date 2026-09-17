@@ -170,9 +170,17 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `unverifiable_digest` with BOTH promote requests, which is what lets the server
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
   or the pre-flight would 409 the only promote that can unwedge the account.
-  Alongside the inventory digest, `capture_settled_inventory` hashes the settled
-  image FILE (SHA-256, after the read-only measuring attach detaches) into
-  `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  Between the inventory and the content hash, a successful job whose image changed
+  runs `shrink_cache_image`: a prune frees blocks inside the image's filesystem
+  and none in the image file, so without `hdiutil compact` a master costs the host
+  the most it ever held. The image is also shrunk to its minimum size, but only
+  when the host staged `cache-image-grown`: a shrunk image is full, and only a
+  host that grows every branch to the ceiling before `cache-ready` can hand it to
+  the next job. Both rewrite the file, which is why they sit before the content
+  hash and after the inventory, which they do not change.
+  Alongside the inventory digest, `capture_content_digest` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches and after any
+  shrink) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
   bit flipped INSIDE a cached file sails through it, and the content digest is the
   end-to-end byte claim. It rides both promote requests; the mint response echoes
   the base64 the server signed into the presigned PUT as `checksum_sha256`, the

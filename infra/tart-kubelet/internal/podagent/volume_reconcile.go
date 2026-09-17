@@ -311,6 +311,19 @@ func readRunnerHeartbeat(statusDir string) (string, time.Time, bool) {
 // guest never reads or writes the cache while the host is still clonefiling it.
 const cacheReadyFile = "cache-ready"
 
+// cacheImageGrownFile tells the guest this host grew the branch to the ceiling
+// before signalling cache-ready. It carries the ceiling in GiB. The guest shrinks
+// the image it promotes only when this is present, because a shrunk master is
+// full and only a host that grows every branch can hand one to a job.
+const cacheImageGrownFile = "cache-image-grown"
+
+func writeCacheImageGrown(statusDir string, capGiB int) {
+	if statusDir == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, cacheImageGrownFile), []byte(strconv.Itoa(capGiB)), 0o644)
+}
+
 // cacheBudgetFile carries the per-branch byte budget the guest exports as
 // TUIST_CACHE_MAX_BYTES for the CLI's LRU self-prune. Staged by the host
 // because the guest sees the whole shared quota volume's free space over the
@@ -375,6 +388,8 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
+	} else {
+		writeCacheImageGrown(entry.VolumeStatusDir, r.Volumes.CapGiB)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true

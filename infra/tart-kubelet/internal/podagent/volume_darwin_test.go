@@ -3,10 +3,15 @@
 package podagent
 
 import (
+	"bytes"
+	"crypto/rand"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -251,5 +256,240 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 
 	if host != guest {
 		t.Fatalf("host/guest digest divergence:\n  host  = %q\n  guest = %q", host, guest)
+	}
+}
+
+// imageCapacityBytes is a detached image's current size, from the middle column
+// of `hdiutil resize -limits` (minimum, current and maximum, in 512-byte sectors).
+func imageCapacityBytes(t *testing.T, image string) uint64 {
+	t.Helper()
+	out, err := runCmd(attachTimeout, "hdiutil", "resize", "-limits", image)
+	if err != nil {
+		t.Fatalf("hdiutil resize -limits: %v", err)
+	}
+	fields := strings.Fields(out)
+	if len(fields) != 3 {
+		t.Fatalf("hdiutil resize -limits printed %q; want minimum, current and maximum", out)
+	}
+	sectors, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		t.Fatalf("current size %q: %v", fields[1], err)
+	}
+	return sectors * 512
+}
+
+// allocatedBytes is what the image file takes on the host, which is what a
+// master costs the runner-cache volume.
+func allocatedBytes(t *testing.T, path string) uint64 {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return uint64(fi.Sys().(*syscall.Stat_t).Blocks) * 512
+}
+
+// `hdiutil resize -size` shrinks an image that is already larger than the size
+// it is given, moving data to do it, so growing a branch has to check before it
+// resizes. A master converged from a host with a larger ceiling must reach a job
+// unchanged.
+func TestDarwinGrowImageNeverShrinks(t *testing.T) {
+	be := darwinVolumeBackend{}
+	image := filepath.Join(t.TempDir(), "branch.sparseimage")
+	if err := be.createImage(image, 1); err != nil {
+		t.Fatalf("create image: %v", err)
+	}
+	const mib = uint64(1 << 20)
+
+	if err := be.growImage(image, 2); err != nil {
+		t.Fatalf("growImage(2): %v", err)
+	}
+	if got := imageCapacityBytes(t, image); got < 2*gib-mib {
+		t.Fatalf("capacity after growing to 2 GiB = %d; want at least 2 GiB", got)
+	}
+
+	if err := be.growImage(image, 1); err != nil {
+		t.Fatalf("growImage(1): %v", err)
+	}
+	if got := imageCapacityBytes(t, image); got < 2*gib-mib {
+		t.Fatalf("capacity after growing to 1 GiB = %d; a grow must never shrink a larger image", got)
+	}
+}
+
+// guestShellFunction returns a function's definition from the runner's
+// dispatch-poll.sh, so a test drives the script the guest actually runs rather
+// than a copy of it.
+func guestShellFunction(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
+	if err != nil {
+		t.Fatalf("read dispatch-poll.sh: %v", err)
+	}
+	lines := strings.Split(string(b), "\n")
+	for i, line := range lines {
+		if line != name+"() {" {
+			continue
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if lines[j] == "}" {
+				return strings.Join(lines[i:j+1], "\n")
+			}
+		}
+	}
+	t.Fatalf("dispatch-poll.sh defines no %s function", name)
+	return ""
+}
+
+func TestGuestReadsTheHostsGrownMarker(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
+	if err != nil {
+		t.Fatalf("read dispatch-poll.sh: %v", err)
+	}
+	if want := `CACHE_IMAGE_GROWN_MARKER="` + cacheImageGrownFile + `"`; !strings.Contains(string(b), want) {
+		t.Fatalf("dispatch-poll.sh does not name the host's marker; want %s", want)
+	}
+}
+
+// At teardown the guest shrinks the image it is about to promote to its content
+// and compacts it, so a master costs the host what it holds rather than the
+// most it ever held. It may only shrink when the host grows every branch it
+// materializes; compacting is safe either way.
+func TestGuestShrinkCacheImageKeepsItsContent(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		hostGrows    bool
+		wantShrunken bool
+	}{
+		{name: "host grows branches", hostGrows: true, wantShrunken: true},
+		{name: "host does not grow branches", hostGrows: false, wantShrunken: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			be := darwinVolumeBackend{}
+			image := filepath.Join(t.TempDir(), "cache.sparseimage")
+			if err := be.createImage(image, 1); err != nil {
+				t.Fatalf("create image: %v", err)
+			}
+			kept := seedPrunedCache(t, image)
+
+			statusDir := t.TempDir()
+			if tc.hostGrows {
+				if err := os.WriteFile(filepath.Join(statusDir, cacheImageGrownFile), []byte("1"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			capacityBefore := imageCapacityBytes(t, image)
+			allocatedBefore := allocatedBytes(t, image)
+
+			cmd := exec.Command("/bin/bash", "-c", "set -u\n"+guestShellFunction(t, "shrink_cache_image")+"\nshrink_cache_image")
+			cmd.Env = append(os.Environ(),
+				"STATUS_SHARE="+statusDir,
+				"CACHE_IMAGE="+image,
+				"CACHE_IMAGE_GROWN_MARKER="+cacheImageGrownFile,
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("shrink_cache_image: %v\n%s", err, out)
+			}
+
+			capacityAfter := imageCapacityBytes(t, image)
+			if tc.wantShrunken && capacityAfter >= capacityBefore/2 {
+				t.Fatalf("capacity %d -> %d; want the image shrunk to its content\n%s", capacityBefore, capacityAfter, out)
+			}
+			if !tc.wantShrunken && capacityAfter != capacityBefore {
+				t.Fatalf("capacity %d -> %d; a guest must not shrink an image no host will grow\n%s", capacityBefore, capacityAfter, out)
+			}
+			if allocatedAfter := allocatedBytes(t, image); allocatedAfter >= allocatedBefore {
+				t.Fatalf("allocated %d -> %d; want the pruned bytes returned to the host\n%s", allocatedBefore, allocatedAfter, out)
+			}
+			assertCacheContent(t, image, kept)
+
+			if tc.wantShrunken {
+				assertGrownImageTakesWrites(t, be, image)
+			}
+		})
+	}
+}
+
+// The next job clones the shrunk master, and the host's grow is what gives it
+// room to write again.
+func assertGrownImageTakesWrites(t *testing.T, be darwinVolumeBackend, image string) {
+	t.Helper()
+	if err := be.growImage(image, 1); err != nil {
+		t.Fatalf("growImage: %v", err)
+	}
+	mnt := t.TempDir()
+	if _, err := runCmd(2*attachTimeout, "hdiutil", "attach", image,
+		"-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
+		t.Fatalf("attach grown image: %v", err)
+	}
+	defer runCmd(attachTimeout, "hdiutil", "detach", mnt, "-force", "-quiet")
+	if err := os.WriteFile(filepath.Join(mnt, cacheHomeSubdir, "Binaries", "next-job"), make([]byte, 200<<20), 0o644); err != nil {
+		t.Fatalf("writing 200 MiB into the grown image: %v", err)
+	}
+}
+
+// seedPrunedCache fills a binary cache inside the image and prunes half of it,
+// the way a job's LRU prune leaves freed space behind inside the image. It
+// returns the surviving files and their contents.
+func seedPrunedCache(t *testing.T, image string) map[string][]byte {
+	t.Helper()
+	mnt := t.TempDir()
+	if _, err := runCmd(2*attachTimeout, "hdiutil", "attach", image,
+		"-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
+		t.Fatalf("attach image for seeding: %v", err)
+	}
+	binaries := filepath.Join(mnt, cacheHomeSubdir, "Binaries")
+	if err := os.MkdirAll(binaries, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	kept := map[string][]byte{}
+	for i := 0; i < 20; i++ {
+		content := make([]byte, 4<<20)
+		if _, err := rand.Read(content); err != nil {
+			t.Fatal(err)
+		}
+		name := fmt.Sprintf("artifact-%02d", i)
+		if err := os.WriteFile(filepath.Join(binaries, name), content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if i%2 == 0 {
+			kept[name] = content
+		}
+	}
+	for i := 1; i < 20; i += 2 {
+		if err := os.Remove(filepath.Join(binaries, fmt.Sprintf("artifact-%02d", i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := runCmd(attachTimeout, "hdiutil", "detach", mnt, "-quiet"); err != nil {
+		t.Fatalf("detach seeded image: %v", err)
+	}
+	return kept
+}
+
+func assertCacheContent(t *testing.T, image string, want map[string][]byte) {
+	t.Helper()
+	mnt := t.TempDir()
+	if _, err := runCmd(2*attachTimeout, "hdiutil", "attach", image,
+		"-readonly", "-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
+		t.Fatalf("attach resized image: %v", err)
+	}
+	defer runCmd(attachTimeout, "hdiutil", "detach", mnt, "-force", "-quiet")
+	binaries := filepath.Join(mnt, cacheHomeSubdir, "Binaries")
+	entries, err := os.ReadDir(binaries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != len(want) {
+		t.Fatalf("image holds %d artifacts; want %d", len(entries), len(want))
+	}
+	for name, content := range want {
+		got, err := os.ReadFile(filepath.Join(binaries, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, content) {
+			t.Fatalf("%s changed across the resize", name)
+		}
 	}
 }
