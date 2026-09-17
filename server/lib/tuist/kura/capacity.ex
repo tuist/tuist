@@ -544,60 +544,71 @@ defmodule Tuist.Kura.Capacity do
   Two questions, because an instance that is already running is not placed
   the way a new one is:
 
-    * every node the instance's replicas already sit on has to hold them at
-      the new size. A local volume pins its pod to its box, and neither side
-      of that will yield: the claim does not release while the pod references
-      it, and the pod does not schedule while the claim pins it. What the
-      replicas hold today is counted back, because the rebuild hands it in
-      before asking for the replacement. Leaving it out would refuse resizes
-      that plainly fit.
+    * every box the instance's replicas sit on has to hold them at the new
+      size. A local volume pins its pod to its box, and neither side of that
+      will yield: the claim does not release while the pod references it, and
+      the pod does not schedule while the claim pins it. What the replicas
+      reserve today is counted back, because the rebuild hands it in before
+      asking for the replacement. Leaving it out would refuse resizes that
+      plainly fit.
     * an instance with nothing placed has to fit whole somewhere. Its
       replicas split across nodes if no single node takes them all, because
       the controller's affinity only prefers co-location.
 
-  Nothing is asked of the replicas an already-placed instance is missing. One
-  Pending for its own reasons was Pending before the claim moved and stays
-  Pending after it, and refusing over it would block the account's growth on
-  a condition the growth neither caused nor worsens.
+  A box is charged for every replica the region declares that no other box
+  holds, not only for the ones it holds right now. A rollout replaces replicas
+  one at a time, and the one between deletion and recreation is in no pod list
+  while its volume is still bringing it back to the box it left. Read without
+  it, a box mid-rollout looks like it only has to hold what is left, and admits
+  a raise the returning replica cannot fit beside its sibling.
 
-  Against what a node makes allocatable, not against the pressure line the
-  region reads against. This answers what the scheduler will do, and the
-  scheduler places up to the node's allocatable; holding admission to the
-  lower line here would refuse instances the cluster would have taken, and
-  refuse them after `room_for?/2` had already told placement the region had
-  room for them. The pressure line still bounds the region as a whole.
+  One reading, per node, of everything scheduled there at its effective
+  request, whoever owns it: the one `room_for?/2` reads. The account's own
+  replicas are picked out of those same pods, so what is counted back is
+  always something that reading already charged to the node. Read against what
+  the node makes allocatable rather than against the pressure line the region
+  reads against, because this answers what the scheduler will do; holding it
+  to the lower line would refuse instances `room_for?/2` had already told
+  placement the region had room for. The pressure line still bounds the region
+  as a whole.
 
   `nil` for everything that stops the reading being trusted: a cluster that
-  cannot be read, a node with no name or no readable allocatable, a region
-  with no Ready node in it, or an instance on a box the region's node list
-  does not answer for. All of them admit, deliberately. A false refusal here
-  stops every legitimate claim growth in the region and produces nothing an
-  operator would see, while the scheduler still refuses to overfill a node.
+  cannot be read, a node whose pods cannot be listed or whose allocatable
+  cannot be parsed, a region with no Ready, schedulable node, or an instance
+  with a replica on a node the scheduler places nothing on. All of them admit,
+  deliberately. A false refusal here stops every legitimate claim growth in the
+  region and produces nothing an operator would see, while the scheduler still
+  refuses to overfill a node.
   """
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
-         per_replica when per_replica > 0 <- claim_gib(region, server),
-         free when is_map(free) <- free_gib_by_node(region.id),
-         held when is_map(held) <- held_gib_by_node(region.id, handle),
-         true <- Enum.all?(Map.keys(held), &is_map_key(free, &1)) do
-      fits?(free, held, per_replica, replicas(region))
+         claim when claim > 0 <- claim_gib(region, server) * @gib,
+         %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
+         false <- MapSet.member?(off_pool, handle) do
+      fits?(nodes, handle, claim, replicas(region))
     else
       _ -> nil
     end
   end
 
-  # Nothing placed: every replica has to come out of what the nodes have free,
-  # and the nodes take as many each as they cover.
-  defp fits?(free, held, per_replica, replicas) when map_size(held) == 0 do
-    free |> Enum.map(fn {_node, gib} -> div(gib, per_replica) end) |> Enum.sum() >= replicas
+  defp fits?(nodes, handle, claim, replicas) do
+    case for(%{kura_replicas: %{^handle => placed}} = node <- nodes, do: {node, placed}) do
+      [] ->
+        nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
+
+      boxes ->
+        placed_count = boxes |> Enum.map(fn {_node, %{count: count}} -> count end) |> Enum.sum()
+
+        Enum.all?(boxes, fn {node, %{count: count, bytes: bytes}} ->
+          returning = max(count, replicas - (placed_count - count))
+
+          disk_available(node) + bytes >= returning * claim
+        end)
+    end
   end
 
-  # Already placed: each box has to hold the replicas its volumes pin to it,
-  # out of what it has free plus what those replicas hand back.
-  defp fits?(free, held, per_replica, _replicas) do
-    Enum.all?(held, fn {node, %{replicas: count, reserved_gib: reserved}} ->
-      Map.fetch!(free, node) + reserved >= count * per_replica
-    end)
+  defp disk_available(%{allocatable: allocatable, reserved: reserved}) do
+    Map.fetch!(allocatable, @ephemeral_storage) - Map.fetch!(reserved, @ephemeral_storage)
   end
 
   # The handle the controller labels the instance's pods with. Read off the
@@ -613,87 +624,6 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp account_handle(%Server{}), do: nil
-
-  # Disk each Ready node of the region has left to hand out, in gibibytes, as
-  # `%{node => gib}`, or `nil` when the cluster cannot be read.
-  defp free_gib_by_node(region_id) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "free_gib_by_node", region_id],
-      [ttl: to_timeout(minute: 1), locking: true],
-      fn -> measure_free_gib_by_node(region_id) end
-    )
-  end
-
-  defp measure_free_gib_by_node(region_id) do
-    with {:ok, region} <- Regions.fetch(region_id),
-         selector when is_binary(selector) <- Regions.node_label_selector(region),
-         {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
-         [_ | _] = nodes <- Enum.filter(items, &ready?/1),
-         allocatable when is_map(allocatable) <- allocatable_bytes_by_node(nodes),
-         {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id), timeout: @read_timeout) do
-      reserved = reserved_bytes_by_node(pods)
-
-      Map.new(allocatable, fn {node, bytes} ->
-        {node, div(max(bytes - Map.get(reserved, node, 0), 0), @gib)}
-      end)
-    else
-      _ -> nil
-    end
-  end
-
-  # Every node or none. A box whose allocatable this cannot read would
-  # otherwise read as a box with nothing on it, which is the direction that
-  # refuses.
-  defp allocatable_bytes_by_node(nodes) do
-    readings = Enum.map(nodes, &allocatable_reading/1)
-
-    if Enum.any?(readings, &is_nil/1), do: nil, else: Map.new(readings)
-  end
-
-  defp allocatable_reading(node) do
-    case {node_name(node), allocatable_bytes(node)} do
-      {name, bytes} when is_binary(name) and name != "" and bytes > 0 -> {name, bytes}
-      _ -> nil
-    end
-  end
-
-  # Where the account's replicas sit in the region and what they hold, as
-  # `%{node => %{replicas:, reserved_gib:}}`. `%{}` when it has none placed,
-  # `nil` when the pods cannot be read.
-  defp held_gib_by_node(region_id, account_handle) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "held_gib_by_node", region_id, account_handle],
-      [ttl: to_timeout(minute: 1), locking: true],
-      fn -> measure_held_gib_by_node(region_id, account_handle) end
-    )
-  end
-
-  defp measure_held_gib_by_node(region_id, account_handle) do
-    case Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout) do
-      {:ok, pods} ->
-        Map.new(placed_by_node(pods), fn {node, on_node} ->
-          {node, %{replicas: length(on_node), reserved_gib: div(pod_bytes(on_node), @gib)}}
-        end)
-
-      {:error, _reason} ->
-        nil
-    end
-  end
-
-  defp reserved_bytes_by_node(pods) do
-    Map.new(placed_by_node(pods), fn {node, on_node} -> {node, pod_bytes(on_node)} end)
-  end
-
-  # A pod with no node holds nothing on any of them. One still waiting for a
-  # node is exactly the instance this reading exists to keep from being made.
-  defp placed_by_node(pods) do
-    pods
-    |> Enum.reject(&terminal?/1)
-    |> Enum.group_by(&pod_node_name/1)
-    |> Map.delete(nil)
-  end
-
-  defp pod_bytes(pods), do: pods |> Enum.map(&requested_bytes/1) |> Enum.sum()
 
   defp region_selector(region_id), do: "#{@managed_by_selector},tuist.dev/region=#{region_id}"
 
@@ -899,26 +829,47 @@ defmodule Tuist.Kura.Capacity do
   defp egress_floor_mbps(region, :enterprise), do: Regions.egress_guaranteed_mbps(region) || 0
   defp egress_floor_mbps(_region, _plan), do: 0
 
-  # Per Ready, schedulable node of the region's pool: what it makes allocatable
-  # and what the pods already on it request, for every resource a cache pod is
-  # scheduled against. Everything on the node counts, whoever owns it, for the
-  # same reason `egress_headroom/2` reads whole boxes: the scheduler does not
-  # hand out what another namespace's pod already holds. Alongside, whether any
-  # node the selector matches advertises the memory-ceiling budget.
+  # Per Ready, schedulable node of the region's pool: what it makes allocatable,
+  # what the pods already on it request, for every resource a cache pod is
+  # scheduled against, and the region's cache replicas among those pods by
+  # account. Everything on the node counts, whoever owns it, for the same reason
+  # `egress_headroom/2` reads whole boxes: the scheduler does not hand out what
+  # another namespace's pod already holds. Alongside, whether any node the
+  # selector matches advertises the memory-ceiling budget, and which accounts
+  # have a replica on a node the scheduler places nothing on.
   defp node_headroom(%Regions{id: region_id} = region) do
     cached([__MODULE__, "node_headroom", region_id], fn -> measure_node_headroom(region) end)
   end
 
-  defp measure_node_headroom(region) do
+  defp measure_node_headroom(%Regions{id: region_id} = region) do
     with selector when is_binary(selector) <- Regions.node_label_selector(region),
          {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
-         [_ | _] = nodes <- Enum.filter(items, &schedulable?/1),
-         headroom = Enum.map(nodes, &measure_node/1),
+         {[_ | _] = nodes, off_pool} <- Enum.split_with(items, &schedulable?/1),
+         headroom = Enum.map(nodes, &measure_node(&1, region_id)),
          false <- Enum.any?(headroom, &is_nil/1) do
-      %{nodes: headroom, ceiling_budget_advertised?: Enum.any?(items, &ceiling_budget_advertised?/1)}
+      %{
+        nodes: headroom,
+        accounts_off_pool: accounts_off_pool(off_pool, region_id),
+        ceiling_budget_advertised?: Enum.any?(items, &ceiling_budget_advertised?/1)
+      }
     else
       _ -> nil
     end
+  end
+
+  # A cordoned or NotReady node takes no new pod and its disk is not the
+  # pool's, but a replica on it is still pinned there by its volume. `nil` when
+  # one of them cannot be read, which leaves every account unknown to
+  # `placeable?/2` without costing `room_for?/2` a reading it never needed.
+  defp accounts_off_pool(nodes, region_id) do
+    Enum.reduce_while(nodes, MapSet.new(), fn node, accounts ->
+      with name when is_binary(name) and name != "" <- node_name(node),
+           {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
+        {:cont, pods |> kura_replicas(region_id) |> Map.keys() |> MapSet.new() |> MapSet.union(accounts)}
+      else
+        _ -> {:halt, nil}
+      end
+    end)
   end
 
   defp ceiling_budget_advertised?(%{"status" => %{"allocatable" => %{@memory_ceiling => quantity}}}) do
@@ -927,14 +878,48 @@ defmodule Tuist.Kura.Capacity do
 
   defp ceiling_budget_advertised?(_node), do: false
 
-  defp measure_node(node) do
+  defp measure_node(node, region_id) do
     with name when is_binary(name) and name != "" <- node_name(node),
          allocatable when is_map(allocatable) <- node_allocatable(node),
          {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
-      %{name: name, allocatable: allocatable, reserved: pods_requested(pods)}
+      %{
+        name: name,
+        allocatable: allocatable,
+        reserved: pods_requested(pods),
+        kura_replicas: kura_replicas(pods, region_id)
+      }
     else
       _ -> nil
     end
+  end
+
+  # The region's cache replicas among a node's pods, by the account they serve:
+  # how many, and what they reserve at their effective request. Picked out of
+  # the same pods the node's reservation is summed from, so what a rebuild hands
+  # back is always something that reading already charged. Another region's
+  # instance of the same account on this box is a neighbour like any other.
+  defp kura_replicas(pods, region_id) do
+    pods
+    |> Enum.reject(&terminal?/1)
+    |> Enum.flat_map(fn
+      %{
+        "metadata" => %{
+          "namespace" => @namespace,
+          "labels" => %{
+            "app.kubernetes.io/managed-by" => "kura-controller",
+            "tuist.dev/region" => ^region_id,
+            "tuist.dev/account" => account
+          }
+        }
+      } = pod
+      when is_binary(account) ->
+        [{account, pod_requested(pod, @ephemeral_storage)}]
+
+      _pod ->
+        []
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Map.new(fn {account, requests} -> {account, %{count: length(requests), bytes: Enum.sum(requests)}} end)
   end
 
   # Ready and not cordoned: the scheduler places on neither.

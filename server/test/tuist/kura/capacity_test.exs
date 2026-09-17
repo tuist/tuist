@@ -948,38 +948,36 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   # The scheduler places each replica whole on one node, so a region with room
-  # in aggregate is not a region that can take an instance. These read the same
-  # nodes `reserved_gib/1` sums, one at a time.
+  # in aggregate is not a region that can take an instance. These read the
+  # same nodes, and everything scheduled on them, that `room_for?/2` reads.
   describe "placeable?/2" do
     test "refuses an instance the region has aggregate room for and no node can take" do
       # 30 GiB left across three boxes covers two 12Gi replicas on paper, and
       # takes neither of them: the scheduler does not split a replica.
-      stub_placement([
-        placement_box("box-1", "100Gi", [{"neighbour", 90}]),
-        placement_box("box-2", "100Gi", [{"neighbour", 90}]),
-        placement_box("box-3", "100Gi", [{"neighbour", 90}])
+      stub_pool([
+        disk_box("box-1", 100, [neighbour_pod(90)]),
+        disk_box("box-2", 100, [neighbour_pod(90)]),
+        disk_box("box-3", 100, [neighbour_pod(90)])
       ])
 
-      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "12Gi"}) ==
-               false
+      assert Capacity.placeable?(region(), claim(placement_account(), "12Gi")) == false
     end
 
     test "has room when one node covers every replica" do
-      stub_placement([placement_box("box-1", "100Gi", [])])
+      stub_pool([disk_box("box-1", 100, [])])
 
-      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
-               true
+      assert Capacity.placeable?(region(), claim(placement_account(), "50Gi")) == true
     end
 
     test "counts back what the instance's own replicas release" do
       # 40 GiB left with the account's own two 30Gi replicas on the box. The
-      # rebuild hands those 60 GiB back, which is the only reason two 40Gi
+      # rebuild hands those 60 GiB back, which is the only reason two 50Gi
       # replicas fit.
       account = placement_account()
-      stub_placement([placement_box("box-1", "100Gi", [{handle(account), 30}, {handle(account), 30}])])
+      stub_pool([disk_box("box-1", 100, [kura_pod(account, 30), kura_pod(account, 30)])])
 
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == true
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "55Gi"}) == false
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
     test "refuses a raise the instance's own box cannot take, however empty its siblings are" do
@@ -988,52 +986,127 @@ defmodule Tuist.Kura.CapacityTest do
       # the one that could not hold them at the new size.
       account = placement_account()
 
-      stub_placement([
-        placement_box("roomy", "800Gi", []),
-        placement_box("pinned", "100Gi", [{handle(account), 30}, {handle(account), 30}])
+      stub_pool([
+        disk_box("roomy", 800, []),
+        disk_box("pinned", 100, [kura_pod(account, 30), kura_pod(account, 30)])
       ])
 
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "60Gi"}) == false
+      assert Capacity.placeable?(region(), claim(account, "60Gi")) == false
     end
 
-    test "counts every pod on the node against it, whoever owns it" do
-      # 35 GiB left on the box and 25 of it taken by a neighbour. The account's
-      # own 40 comes back on the rebuild; the neighbour's does not, and it is
-      # what decides a 38Gi raise the box would otherwise take.
+    test "counts every workload on the node against it, in any namespace" do
+      # Another namespace's 30Gi is not the region's, and the scheduler will
+      # not hand it out twice: two 40Gi replicas would need 110 GiB of a
+      # 100 GiB box.
       account = placement_account()
 
-      stub_placement([
-        placement_box("box-1", "100Gi", [{"neighbour", 25}, {handle(account), 20}, {handle(account), 20}])
+      stub_pool([
+        disk_box("box-1", 100, [kura_pod(account, 20), kura_pod(account, 20), neighbour_pod(30)])
       ])
 
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "37Gi"}) == true
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "38Gi"}) == false
+      assert Capacity.placeable?(region(), claim(account, "35Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == false
     end
 
-    test "judges a placed instance only where its volumes already are" do
-      # One replica of the two placed, and no room for the second. That replica
-      # was Pending before this claim moved and stays Pending after it, so
-      # refusing the raise would block the account's growth over a condition the
-      # raise neither caused nor worsens.
+    test "reads a neighbour at its effective request, initialization included" do
+      # The app container asks for 10Gi; initialization needs 50Gi at its
+      # busiest, and that is what the scheduler holds on the box.
       account = placement_account()
 
-      stub_placement([placement_box("box-1", "100Gi", [{"neighbour", 60}, {handle(account), 20}])])
+      stub_pool([
+        disk_box("box-1", 100, [
+          kura_pod(account, 20),
+          kura_pod(account, 20),
+          pool_pod(%{"ephemeral-storage" => "10Gi"}, init: [%{"ephemeral-storage" => "50Gi"}])
+        ])
+      ])
 
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == true
+      assert Capacity.placeable?(region(), claim(account, "25Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "26Gi")) == false
+    end
+
+    test "answers the same mid-rollout as before it" do
+      # A replica between deletion and recreation is in no pod list, and its
+      # local volume brings it back to the box it left. With 50 GiB of
+      # neighbours, two 40Gi replicas never fit; reading the one that is still
+      # there as the whole instance would admit the raise and strand the other.
+      account = placement_account()
+
+      stub_pool([disk_box("box-1", 100, [neighbour_pod(50), kura_pod(account, 20), kura_pod(account, 20)])])
+      assert Capacity.placeable?(region(), claim(account, "25Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == false
+
+      stub_pool([disk_box("box-1", 100, [neighbour_pod(50), kura_pod(account, 20)])])
+      assert Capacity.placeable?(region(), claim(account, "25Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == false
+    end
+
+    test "does not charge a box for a replica its sibling box holds" do
+      # The affinity only prefers co-location, so an account can straddle two
+      # boxes. Each rebuilds its own replica, and box-1 has room for one 30Gi.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("box-1", 100, [neighbour_pod(70), kura_pod(account, 20)]),
+        disk_box("box-2", 100, [kura_pod(account, 20)])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "31Gi")) == false
+    end
+
+    test "weighs the account's replicas against the same reading their node was measured in" do
+      # The reading is cached for a minute. Measured once while the box held
+      # only a neighbour, then asked about an account whose replicas have
+      # landed since: whatever it answers has to be what a fresh reading says,
+      # never free space from one moment plus reservations from another.
+      cache = start_supervised!({Agent, fn -> %{} end})
+
+      stub(KeyValueStore, :get_or_update, fn key, _opts, func ->
+        case Agent.get(cache, &Map.fetch(&1, key)) do
+          {:ok, value} -> value
+          :error -> tap(func.(), fn value -> Agent.update(cache, &Map.put(&1, key, value)) end)
+        end
+      end)
+
+      account = placement_account()
+      stub_pool_nodes([disk_box("box-1", 100, [neighbour_pod(60)])])
+      Capacity.placeable?(region(), claim(placement_account(), "8Gi"))
+
+      stub_pool_nodes([disk_box("box-1", 100, [neighbour_pod(60), kura_pod(account, 20), kura_pod(account, 20)])])
+      cached = Capacity.placeable?(region(), claim(account, "30Gi"))
+
+      Agent.update(cache, fn _entries -> %{} end)
+
+      assert cached == false
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == cached
     end
 
     test "ignores a pod that has finished, which holds nothing" do
-      stub_placement([placement_box("box-1", "100Gi", [{"neighbour", 80, [phase: "Failed"]}])])
+      stub_pool([disk_box("box-1", 100, [neighbour_pod(80, phase: "Failed")])])
 
-      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
-               true
+      assert Capacity.placeable?(region(), claim(placement_account(), "50Gi")) == true
     end
 
     test "resolves the account's pods from the row when it carries no preload" do
       account = placement_account()
-      stub_placement([placement_box("box-1", "100Gi", [{handle(account), 30}, {handle(account), 30}])])
+      stub_pool([disk_box("box-1", 100, [kura_pod(account, 30), kura_pod(account, 30)])])
 
-      assert Capacity.placeable?(region(), %Server{account_id: account.id, storage_claim_size: "40Gi"}) == true
+      assert Capacity.placeable?(region(), %Server{account_id: account.id, storage_claim_size: "50Gi"}) == true
+    end
+
+    test "only reads the region's own replicas of the account as its instance" do
+      # The same account's instance of another region on this box is a
+      # neighbour: it holds its disk, and nothing about this rebuild hands it
+      # back.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("box-1", 100, [kura_pod(account, 30), kura_pod(account, 30, region: "us-west")])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "35Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "36Gi")) == false
     end
 
     test "leaves every reading it cannot take unknown rather than full" do
@@ -1041,31 +1114,34 @@ defmodule Tuist.Kura.CapacityTest do
 
       # A box restarting is NotReady for minutes, and refusing every claim the
       # fleet grows in that window is the failure this reading exists to avoid.
-      stub_placement([placement_box("box-1", "100Gi", [], ready?: false)])
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+      stub_pool([disk_box("box-1", 100, [], ready?: false)])
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
 
-      stub_placement([placement_box("box-1", "100Gi", [])])
+      stub_pool([disk_box("box-1", 100, [])])
       stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
 
-      stub_placement([placement_box("box-1", "100Gi", [])])
-      stub(Client, :list_pods, fn _namespace, _selector, _opts -> {:error, :unavailable} end)
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+      stub_pool([disk_box("box-1", 100, [])])
+      stub(Client, :list_pods_on_node, fn _node, _opts -> {:error, :unavailable} end)
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
 
       # A node whose allocatable this cannot parse would otherwise read as a
       # node with nothing on it, which is the direction that refuses.
-      stub_placement([placement_box("box-1", "eight hundred", [])])
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "eight hundred"})])
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
 
-      # Pods on a node the region's Ready set does not contain cannot be
-      # weighed against it.
-      stub_placement([placement_box("box-1", "100Gi", []), placement_box("gone", "100Gi", [], ready?: false)])
-      stub_account_placement([{"gone", handle(account), 30}])
-      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+      # A replica on a box the scheduler places nothing on cannot be weighed,
+      # and charging it to the Ready box instead would refuse on a guess.
+      stub_pool([
+        disk_box("box-1", 100, [kura_pod(account, 20)]),
+        disk_box("cordoned", 100, [kura_pod(account, 20)], unschedulable?: true)
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
     end
 
     test "is unknown for a row whose account cannot be named" do
-      stub_placement([placement_box("box-1", "100Gi", [])])
+      stub_pool([disk_box("box-1", 100, [])])
 
       assert Capacity.placeable?(region(), %Server{storage_claim_size: "40Gi"}) == nil
     end
@@ -1075,84 +1151,49 @@ defmodule Tuist.Kura.CapacityTest do
 
       stub(Client, :list_nodes, fn _selector, opts ->
         assert opts[:timeout] == to_timeout(second: 5)
-        {:ok, %{"items" => [placement_node(placement_box("box-1", "100Gi", []))]}}
+        {:ok, %{"items" => [pool_node(disk_box("box-1", 100, []))]}}
       end)
 
-      stub(Client, :list_pods, fn "kura", _selector, opts ->
+      stub(Client, :list_pods_on_node, fn "box-1", opts ->
         assert opts[:timeout] == to_timeout(second: 5)
         {:ok, []}
       end)
 
-      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
-               true
+      assert Capacity.placeable?(region(), claim(placement_account(), "40Gi")) == true
     end
   end
 
   defp placement_account, do: account()
 
-  defp handle(%Account{name: name}), do: String.downcase(name)
+  defp claim(%Account{} = account, size), do: %Server{account: account, storage_claim_size: size}
 
-  # A box, what it makes allocatable, and the claims pinned to it as
-  # `{account_handle, gib}` or `{account_handle, gib, pod_opts}`.
-  defp placement_box(name, allocatable, claims, opts \\ []) do
-    %{name: name, allocatable: allocatable, claims: claims, ready?: Keyword.get(opts, :ready?, true)}
+  defp disk_box(name, allocatable_gib, pods, opts \\ []) do
+    pool_box(name, Keyword.merge(opts, allocatable: %{"ephemeral-storage" => "#{allocatable_gib}Gi"}, pods: pods))
   end
 
-  defp stub_placement(boxes) do
-    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+  # The node list and each node's pods, without the region-wide readings
+  # `stub_pool/1` also answers, so a test can drive the cache itself.
+  defp stub_pool_nodes(boxes) do
+    stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
 
-    stub(Client, :list_nodes, fn _selector, _opts ->
-      {:ok, %{"items" => Enum.map(boxes, &placement_node/1)}}
+    stub(Client, :list_pods_on_node, fn name, _opts ->
+      {:ok, boxes |> Enum.find(%{pods: []}, &(&1.name == name)) |> Map.fetch!(:pods)}
     end)
-
-    pods =
-      Enum.flat_map(boxes, fn box ->
-        Enum.map(box.claims, fn claim ->
-          {owner, gib, opts} =
-            case claim do
-              {owner, gib} -> {owner, gib, []}
-              {owner, gib, opts} -> {owner, gib, opts}
-            end
-
-          placement_pod(owner, gib, box.name, opts)
-        end)
-      end)
-
-    stub(Client, :list_pods, fn "kura", selector, _opts -> {:ok, matching(pods, selector)} end)
   end
 
-  # Pods of one account on a node the region's node list does not answer for.
-  defp stub_account_placement(claims) do
-    pods = Enum.map(claims, fn {node, owner, gib} -> placement_pod(owner, gib, node) end)
+  defp neighbour_pod(gib, opts \\ []), do: pool_pod(%{"ephemeral-storage" => "#{gib}Gi"}, opts)
 
-    stub(Client, :list_pods, fn "kura", selector, _opts -> {:ok, matching(pods, selector)} end)
-  end
-
-  defp matching(pods, selector) do
-    case Regex.run(~r{tuist\.dev/account=([^,]+)}, selector) do
-      [_match, handle] -> Enum.filter(pods, &(&1["metadata"]["labels"]["tuist.dev/account"] == handle))
-      nil -> pods
-    end
-  end
-
-  defp placement_node(box) do
-    %{
-      "metadata" => %{"name" => box.name},
-      "status" => %{
-        "conditions" => [%{"type" => "Ready", "status" => if(box.ready?, do: "True", else: "False")}],
-        "allocatable" => %{"ephemeral-storage" => box.allocatable}
+  # A replica as the controller labels it, on whichever box the test lists it.
+  defp kura_pod(%Account{name: name}, gib, opts \\ []) do
+    %{"ephemeral-storage" => "#{gib}Gi"}
+    |> pool_pod(opts)
+    |> Map.put("metadata", %{
+      "namespace" => "kura",
+      "labels" => %{
+        "app.kubernetes.io/managed-by" => "kura-controller",
+        "tuist.dev/region" => Keyword.get(opts, :region, @region),
+        "tuist.dev/account" => String.downcase(name)
       }
-    }
-  end
-
-  defp placement_pod(owner, gib, node, opts \\ []) do
-    %{
-      "metadata" => %{"labels" => %{"tuist.dev/account" => owner}},
-      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
-      "spec" => %{
-        "nodeName" => node,
-        "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
-      }
-    }
+    })
   end
 end
