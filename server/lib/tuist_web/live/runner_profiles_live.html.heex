@@ -121,6 +121,23 @@
               <span data-part="field-label">
                 {dgettext("dashboard_runners", "Xcode version")}
               </span>
+              <.alert
+                :if={
+                  is_binary(@form_xcode_version) and
+                    not xcode_version_available?(@xcode_catalog, @form_xcode_version)
+                }
+                id="runner-profile-xcode-version-unavailable"
+                status="warning"
+                type="secondary"
+                size="small"
+                title={
+                  dgettext(
+                    "dashboard_runners",
+                    "Xcode %{version} isn't available. Choose another version to save this profile.",
+                    version: @form_xcode_version
+                  )
+                }
+              />
               <.dropdown
                 :if={not Enum.empty?(@xcode_catalog)}
                 id="runner-profile-xcode-version-dropdown"
@@ -213,6 +230,22 @@
       </.modal>
     </div>
   </div>
+
+  <.alert
+    :for={profile <- @unavailable_xcode_profiles}
+    id={"runner-profile-unavailable-xcode-#{profile.id}"}
+    status="warning"
+    type="secondary"
+    size="small"
+    title={
+      dgettext(
+        "dashboard_runners",
+        "Jobs using %{label} won't start because Xcode %{version} isn't available. Edit the profile to choose another Xcode version.",
+        label: dispatch_snippet(profile),
+        version: profile.xcode_version
+      )
+    }
+  />
 
   <.table id="runner-profiles-table" rows={@profiles}>
     <:col :let={profile} label={dgettext("dashboard_runners", "Label")}>

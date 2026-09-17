@@ -242,7 +242,6 @@ defmodule Tuist.Docs.Loader do
     |> String.replace("{{runner_default_profiles_table}}", runner_default_profiles_table())
     |> String.replace("{{runner_linux_shapes_table}}", runner_shapes_table(:linux))
     |> String.replace("{{runner_macos_shapes_table}}", runner_shapes_table(:macos))
-    |> String.replace("{{runner_macos_xcode_versions}}", runner_xcode_versions_list())
   end
 
   defp runner_shapes_table(platform) do
@@ -258,12 +257,6 @@ defmodule Tuist.Docs.Loader do
     | --- | --- |
     #{rows}
     """
-  end
-
-  defp runner_xcode_versions_list do
-    Enum.map_join(Catalog.xcode_versions(), "\n", fn version ->
-      "- `#{version.xcode_version}`#{default_suffix(version.default?)}"
-    end)
   end
 
   defp runner_default_profiles_table do

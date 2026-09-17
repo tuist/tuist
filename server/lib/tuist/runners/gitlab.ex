@@ -184,6 +184,10 @@ defmodule Tuist.Runners.GitLab do
 
   defp routing_error({:ok, _}), do: nil
 
+  defp routing_error({:error, :xcode_version_unavailable}) do
+    "The Tuist profile in the job tags uses an Xcode version that is not available. Choose another Xcode version for the profile in the Tuist dashboard."
+  end
+
   defp routing_error({:error, _}) do
     "Set exactly one existing Tuist profile in the job tags, for example tags: [tuist-macos]. GitLab 19.3 or newer is required."
   end

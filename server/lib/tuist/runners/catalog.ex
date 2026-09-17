@@ -22,6 +22,14 @@ defmodule Tuist.Runners.Catalog do
   local dev, tests, and CI, where there's no cluster and the env vars
   are unset.
 
+  One deliberate difference: Helm leaves out of
+  `TUIST_RUNNER_MACOS_XCODE_VERSIONS` every Xcode version whose pool
+  image isn't published (`runnersFleet.unavailableXcodeVersions`, which
+  the deploy workflow sets from a GHCR probe). Those pools still render,
+  but the server's catalog is only what a pool can actually run, so a
+  version added ahead of its runner image stays unselectable until a
+  deploy finds the image.
+
   Config rather than a live K8s LIST: dispatch stays a pure, fast hot
   path (no apiserver dependency to decide where a job goes), the
   catalog is available with no cluster, and pool names resolve
@@ -186,7 +194,7 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  All Xcode versions supported on the macOS fleet, deduped and
+  Xcode versions profiles can select on the macOS fleet, deduped and
   sorted descending (newest first — the default preselect renders
   at the top of the form dropdown). Versions compare numerically
   (`26.10` above `26.9`), a stable release lists ahead of its
@@ -210,7 +218,8 @@ defmodule Tuist.Runners.Catalog do
 
   @doc """
   Look up an Xcode version in the macOS catalog. Returns `nil` if
-  absent.
+  absent, which includes a version whose runner image isn't published
+  (see the module docs).
   """
   def find_xcode_version(version) when is_binary(version) do
     Enum.find(xcode_versions(), fn x -> x.xcode_version == version end)

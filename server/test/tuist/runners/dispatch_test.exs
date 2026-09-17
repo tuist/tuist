@@ -912,6 +912,64 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
+  describe "macOS profiles on an Xcode version the catalog doesn't list" do
+    setup do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub_xcode_catalog(["26.6", "26.1.1"])
+
+      {:ok, profile} =
+        Profiles.create(account, %{
+          "name" => "xcode-26-1-1",
+          "platform" => "macos",
+          "vcpus" => 6,
+          "memory_gb" => 14,
+          "xcode_version" => "26.1.1"
+        })
+
+      %{account: account, profile: profile}
+    end
+
+    test "resolves the profile while its Xcode version is listed", %{account: account} do
+      assert {:ok, %{pool_name: pool_name, platform: :macos}} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-xcode-26-1-1"])
+
+      assert pool_name == "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-1-1"
+    end
+
+    test "returns :xcode_version_unavailable once the version leaves the catalog", %{account: account} do
+      stub_xcode_catalog(["26.6"])
+      reject(&Client.list_runner_pools/1)
+
+      assert {:error, :xcode_version_unavailable} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-xcode-26-1-1"])
+    end
+
+    test "ignores a queued job instead of enqueuing it onto a pool that can't start", %{account: account} do
+      stub_xcode_catalog(["26.6"])
+      reject(&Jobs.enqueue_if_missing/1)
+
+      payload = queued_payload(owner: account.name, labels: ["self-hosted", "tuist-xcode-26-1-1"])
+
+      assert {:ignored, :xcode_version_unavailable} = Dispatch.handle_webhook(payload, 1)
+    end
+
+    test "ignores a completed job that was never queued", %{account: account} do
+      stub_xcode_catalog(["26.6"])
+      reject(&Jobs.record_completed/2)
+
+      payload = completed_payload(owner: account.name, labels: ["self-hosted", "tuist-xcode-26-1-1"])
+
+      assert {:ignored, :xcode_version_unavailable} = Dispatch.handle_webhook(payload, 1)
+    end
+  end
+
+  defp stub_xcode_catalog(versions) do
+    stub(Tuist.Environment, :runner_macos_xcode_versions, fn ->
+      Enum.map(versions, &%{xcode_version: &1})
+    end)
+  end
+
   describe "match_pool/1" do
     test "returns the pool whose dispatchLabel matches one of the requested labels" do
       stub(Client, :list_runner_pools, fn _ns ->

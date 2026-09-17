@@ -225,6 +225,21 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:error, :invalid_job_tags} = GitLab.poll(connection)
   end
 
+  test "rejects a profile whose Xcode version has no available runner image", %{connection: connection} do
+    stub(Dispatch, :resolve_dispatch_target, fn _, _ -> {:error, :xcode_version_unavailable} end)
+    payload = payload()
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+
+    expect(Client, :reject_job, fn _, ^payload, message ->
+      assert message =~ "Xcode version that is not available"
+      {:ok, nil}
+    end)
+
+    assert {:error, :invalid_job_tags} = GitLab.poll(connection)
+    job = Repo.get_by!(Job, job_id: payload["id"])
+    assert is_nil(Repo.get(WorkflowJob, job.workflow_job_id))
+  end
+
   test "retains rejected assignments until GitLab acknowledges their failure", %{connection: connection, account: account} do
     payload = put_in(payload(), ["variables"], [])
     expect(Client, :request_job, fn _ -> {:ok, payload} end)

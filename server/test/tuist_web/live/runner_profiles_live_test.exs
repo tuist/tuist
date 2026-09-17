@@ -5,7 +5,9 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Repo
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -153,6 +155,67 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "save_profile", %{})
 
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
+    end
+  end
+
+  describe "profiles on an Xcode version the catalog doesn't list" do
+    setup %{account: account} do
+      macos_shape = %{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true}
+
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [macos_shape]
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [%{xcode_version: "26.6", tag: "26-6", default?: true}] end)
+
+      hidden =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "hidden-xcode",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.1.1"
+        })
+
+      available =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "available-xcode",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.6"
+        })
+
+      %{hidden: hidden, available: available}
+    end
+
+    test "warns about the profiles whose jobs won't start",
+         %{conn: conn, account: account, hidden: hidden, available: available} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      assert has_element?(lv, "#runner-profile-unavailable-xcode-#{hidden.id}", "tuist-hidden-xcode")
+      refute has_element?(lv, "#runner-profile-unavailable-xcode-#{available.id}")
+    end
+
+    test "editing requires choosing an available Xcode version", %{conn: conn, account: account, hidden: hidden} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      # The modal body renders through a portal, which `has_element?/2` doesn't search.
+      assert render_hook(lv, "open_edit_modal", %{"id" => to_string(hidden.id)}) =~
+               ~s(id="runner-profile-xcode-version-unavailable")
+
+      render_hook(lv, "save_profile", %{})
+      assert %{xcode_version: "26.1.1"} = Profiles.get_by_name(account, "hidden-xcode")
+
+      refute render_hook(lv, "select_xcode_version", %{"data" => "26.6"}) =~
+               ~s(id="runner-profile-xcode-version-unavailable")
+
+      render_hook(lv, "save_profile", %{})
+      assert %{xcode_version: "26.6"} = Profiles.get_by_name(account, "hidden-xcode")
+      refute has_element?(lv, "#runner-profile-unavailable-xcode-#{hidden.id}")
     end
   end
 end

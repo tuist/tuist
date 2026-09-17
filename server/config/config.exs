@@ -489,13 +489,16 @@ config :tuist, :runner_macos_shapes, [
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
 # macOS fleet; the profile's `xcode_version` field validates against
-# this list. The list must stay in sync with the
-# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
-# (the Helm value the chart renders is the source of truth in managed
-# deploys; this config is the dev/test/CI fallback). Exactly one
+# this list. Keep it in sync with `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml` and with
+# `infra/runner-image/profiles.json`. In managed deploys the Helm value
+# is the source of truth, minus any version whose runner image isn't
+# published yet; this config is the dev/test/CI fallback. Exactly one
 # entry should carry `default: true`.
 config :tuist, :runner_macos_xcode_versions, [
-  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "27.0"},
+  %{xcode_version: "26.6", default: true},
+  %{xcode_version: "26.5"},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
   %{xcode_version: "26.1.1"},

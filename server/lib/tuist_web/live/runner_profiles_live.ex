@@ -242,6 +242,11 @@ defmodule TuistWeb.RunnerProfilesLive do
 
     assign(socket,
       profiles: profiles,
+      unavailable_xcode_profiles:
+        Enum.filter(
+          profiles,
+          &(&1.platform == :macos and not xcode_version_available?(socket.assigns.xcode_catalog, &1.xcode_version))
+        ),
       last_used: Jobs.last_used_at_by_dispatch_label(account.id),
       max_profiles_reached?: length(profiles) >= Profiles.max_per_account()
     )
@@ -420,6 +425,16 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def xcode_version_label_for_value(version) when is_binary(version),
     do: dgettext("dashboard_runners", "Xcode %{version}", version: version)
+
+  @doc """
+  Whether profiles can select `version`. The catalog leaves out versions
+  whose runner image isn't published, so a profile saved on one of them
+  can't run jobs.
+  """
+  def xcode_version_available?(xcode_catalog, version) when is_binary(version),
+    do: Enum.any?(xcode_catalog, &(&1.xcode_version == version))
+
+  def xcode_version_available?(_xcode_catalog, _version), do: false
 
   defp humanize_changeset_errors(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, "; ", fn {field, {msg, opts}} ->

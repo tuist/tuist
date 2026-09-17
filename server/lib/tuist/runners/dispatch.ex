@@ -189,6 +189,20 @@ defmodule Tuist.Runners.Dispatch do
 
         {:ignored, :allowance_exhausted}
 
+      {:error, :xcode_version_unavailable} ->
+        # GitHub keeps the job queued until it times out, so this line and the
+        # warning on the account's Profiles page are what explain it.
+        Logger.warning(
+          "runners: profile uses an Xcode version with no available runner image, not dispatching; " <>
+            "job will stay queued on GitHub until it times out",
+          owner: owner,
+          repo: full_name,
+          requested_labels: requested,
+          workflow_job_id: Map.get(job, "id")
+        )
+
+        {:ignored, :xcode_version_unavailable}
+
       {:error, :runners_disabled} ->
         Logger.info("runners: runners not enabled for account; ignoring",
           owner: owner,
@@ -527,7 +541,8 @@ defmodule Tuist.Runners.Dispatch do
              :runners_disabled,
              :no_matching_pool,
              :no_pools,
-             :ambiguous_pool
+             :ambiguous_pool,
+             :xcode_version_unavailable
            ] ->
         {:ignored, reason}
 
@@ -609,7 +624,9 @@ defmodule Tuist.Runners.Dispatch do
        `linux` and `macos` default profiles mean `<prefix>linux` /
        `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
        env-prefixed elsewhere) resolve here too — no separate legacy
-       alias path needed.
+       alias path needed. A macOS profile on an Xcode version the
+       catalog doesn't list returns `{:error, :xcode_version_unavailable}`
+       without trying the legacy match.
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -623,21 +640,32 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp resolve_profile(account, requested_labels) do
-    case Profiles.match_for_dispatch(account, requested_labels) do
-      {:ok, %Profile{} = profile} ->
-        {:ok,
-         %{
-           pool_name: Catalog.pool_name(profile),
-           requested_dispatch_label: Profile.dispatch_label(profile),
-           platform: profile.platform,
-           vcpus: profile.vcpus,
-           memory_gb: profile.memory_gb
-         }}
-
-      {:error, :no_matching_profile} = err ->
-        err
+    with {:ok, %Profile{} = profile} <- Profiles.match_for_dispatch(account, requested_labels),
+         :ok <- ensure_xcode_version_available(profile) do
+      {:ok,
+       %{
+         pool_name: Catalog.pool_name(profile),
+         requested_dispatch_label: Profile.dispatch_label(profile),
+         platform: profile.platform,
+         vcpus: profile.vcpus,
+         memory_gb: profile.memory_gb
+       }}
     end
   end
+
+  # The catalog lists only the Xcode versions whose runner image the
+  # deployed pools can pull. No pool starts a runner for any other version,
+  # and a job queued for one would still count as demand for its pool,
+  # taking macOS slots from the rest of the fleet.
+  defp ensure_xcode_version_available(%Profile{platform: :macos, xcode_version: xcode_version}) do
+    if is_binary(xcode_version) and not is_nil(Catalog.find_xcode_version(xcode_version)) do
+      :ok
+    else
+      {:error, :xcode_version_unavailable}
+    end
+  end
+
+  defp ensure_xcode_version_available(%Profile{}), do: :ok
 
   defp resolve_legacy_pool(requested_labels) do
     case match_pool(requested_labels) do
