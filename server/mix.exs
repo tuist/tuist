@@ -64,6 +64,7 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.11.1", override: true},
+      {:plug, "1.19.2", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
