@@ -9,6 +9,7 @@ defmodule AtlasWeb.Router do
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
   alias AtlasWeb.Plugs.FetchCurrentUser
+  alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
   alias AtlasWeb.Plugs.RequireAuth
   alias Plug.Swoosh.MailboxPreview
@@ -49,7 +50,7 @@ defmodule AtlasWeb.Router do
 
   pipeline :inference do
     plug :accepts, ["json", "event-stream"]
-    plug AtlasWeb.Plugs.InferenceAuthentication
+    plug InferenceAuthentication
   end
 
   scope "/", AtlasWeb do

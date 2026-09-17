@@ -50,6 +50,9 @@ alias Atlas.GTM.Signal, as: GTMSignal
 alias Atlas.GTM.SocialChannelIdea
 alias Atlas.GTM.SocialPostRevision
 alias Atlas.GTM.Subscriber
+alias Atlas.Inference
+alias Atlas.Inference.ModelBinding
+alias Atlas.Inference.Provider
 alias Atlas.Insurance.Policy, as: InsurancePolicy
 alias Atlas.Insurance.PolicyMember, as: InsuranceMember
 alias Atlas.Integrations.GitHubApp
@@ -5401,10 +5404,6 @@ end
 # /admin/inference pages have something to show without needing a real API
 # key configured.
 # ---------------------------------------------------------------------------
-
-alias Atlas.Inference
-alias Atlas.Inference.ModelBinding
-alias Atlas.Inference.Provider
 
 seed_providers = [
   %{

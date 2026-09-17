@@ -4,8 +4,14 @@ defmodule AtlasWeb.Admin.InferenceLive do
   use AtlasWeb, :live_view
   use Noora
 
-  import AtlasWeb.CoreComponents, only: []
+  import AtlasWeb.Admin.InferenceHelpers,
+    only: [
+      atlas_role_badges: 1,
+      model_identifier_placeholder: 1,
+      provider_select_options: 0
+    ]
 
+  import AtlasWeb.CoreComponents, only: []
   import Noora.Filter
 
   alias Atlas.Audit
@@ -14,13 +20,6 @@ defmodule AtlasWeb.Admin.InferenceLive do
   alias Atlas.Inference.Token
   alias AtlasWeb.Utilities.Query
   alias Noora.Filter
-
-  import AtlasWeb.Admin.InferenceHelpers,
-    only: [
-      atlas_role_badges: 1,
-      model_identifier_placeholder: 1,
-      provider_select_options: 0
-    ]
 
   @page_size 10
 
@@ -135,8 +134,7 @@ defmodule AtlasWeb.Admin.InferenceLive do
   def handle_event("search", %{"search" => %{"query" => query}}, socket) do
     {:noreply,
      push_patch(socket,
-       to:
-         ~p"/admin/inference/profiles?#{profile_query_params(query, socket.assigns.active_filters)}",
+       to: ~p"/admin/inference/profiles?#{profile_query_params(query, socket.assigns.active_filters)}",
        replace: true
      )}
   end
@@ -173,145 +171,143 @@ defmodule AtlasWeb.Admin.InferenceLive do
   def render(assigns) do
     ~H"""
     <div id="admin-inference">
-              <div data-part="page-header">
-          <div data-part="title-group">
-            <h1>{gettext("Profiles")}</h1>
-            <p>
-              {gettext(
-                "Create stable model profiles for repositories and Atlas itself. Each profile points at one upstream provider and model, and tokens created under it can only use that profile."
-              )}
-            </p>
-          </div>
+      <div data-part="page-header">
+        <div data-part="title-group">
+          <h1>{gettext("Profiles")}</h1>
+          <p>
+            {gettext(
+              "Create stable model profiles for repositories and Atlas itself. Each profile points at one upstream provider and model, and tokens created under it can only use that profile."
+            )}
+          </p>
         </div>
+      </div>
 
-        <.card title={gettext("Profiles")} icon="lock" data-part="profiles-card">
-          <:actions>
-            <.new_profile_modal
-              profile_form={@profile_form}
-              provider_options={@provider_options}
+      <.card title={gettext("Profiles")} icon="lock" data-part="profiles-card">
+        <:actions>
+          <.new_profile_modal
+            profile_form={@profile_form}
+            provider_options={@provider_options}
+          />
+        </:actions>
+        <.card_section>
+          <p data-part="card-intro">
+            {gettext(
+              "Stable model names that repositories and Atlas's own workflows can request through the gateway."
+            )}
+          </p>
+
+          <div data-part="table-toolbar">
+            <.filter_dropdown
+              id="inference-profiles-filter"
+              label={gettext("Filter")}
+              available_filters={@available_filters}
+              active_filters={@active_filters}
+              on_select="add_filter"
             />
-          </:actions>
-          <.card_section>
-            <p data-part="card-intro">
-              {gettext(
-                "Stable model names that repositories and Atlas's own workflows can request through the gateway."
-              )}
-            </p>
 
-            <div data-part="table-toolbar">
-              <.filter_dropdown
-                id="inference-profiles-filter"
-                label={gettext("Filter")}
-                available_filters={@available_filters}
-                active_filters={@active_filters}
-                on_select="add_filter"
+            <div data-part="search">
+              <.form
+                id="inference-profiles-search-form"
+                for={@search_form}
+                phx-change="search"
+                phx-submit="search"
+              >
+                <.text_input
+                  id="inference-profiles-search"
+                  field={@search_form[:query]}
+                  type="search"
+                  show_suffix={false}
+                  placeholder={gettext("Search profiles...")}
+                />
+              </.form>
+            </div>
+          </div>
+
+          <div :if={@active_filters != []} data-part="active-filters">
+            <.active_filter :for={filter <- @active_filters} filter={filter} />
+          </div>
+
+          <.table
+            id="inference-profiles-table"
+            rows={@profiles}
+            row_key={fn profile -> "inference-profile-#{profile.id}" end}
+            row_navigate={fn profile -> ~p"/admin/inference/profiles/#{profile.id}" end}
+          >
+            <:col :let={profile} label={gettext("Profile")}>
+              <.text_and_description_cell
+                icon="lock"
+                label={profile.name}
+                description={profile.description || gettext("No description")}
               />
-
-              <div data-part="search">
-                <.form
-                  id="inference-profiles-search-form"
-                  for={@search_form}
-                  phx-change="search"
-                  phx-submit="search"
-                >
-                  <.text_input
-                    id="inference-profiles-search"
-                    field={@search_form[:query]}
-                    type="search"
-                    show_suffix={false}
-                    placeholder={gettext("Search profiles...")}
-                  />
-                </.form>
+            </:col>
+            <:col :let={profile} label={gettext("Status")}>
+              <% status = profile_status(profile) %>
+              <.badge_cell label={status.label} color={status.color} style="light-fill" />
+            </:col>
+            <:col :let={profile} label={gettext("Atlas use")}>
+              <div data-part="role-cell">
+                <.badge
+                  :for={role <- atlas_role_badges(profile)}
+                  label={role.label}
+                  color={role.color}
+                  style="light-fill"
+                />
+                <span :if={atlas_role_badges(profile) == []}>
+                  {gettext("Not used")}
+                </span>
               </div>
-            </div>
-
-            <div :if={@active_filters != []} data-part="active-filters">
-              <.active_filter :for={filter <- @active_filters} filter={filter} />
-            </div>
-
-              <.table
-                id="inference-profiles-table"
-                rows={@profiles}
-                row_key={fn profile -> "inference-profile-#{profile.id}" end}
-                row_navigate={fn profile -> ~p"/admin/inference/profiles/#{profile.id}" end}
-              >
-                <:col :let={profile} label={gettext("Profile")}>
-                  <.text_and_description_cell
-                    icon="lock"
-                    label={profile.name}
-                    description={profile.description || gettext("No description")}
-                  />
-                </:col>
-                <:col :let={profile} label={gettext("Status")}>
-                  <% status = profile_status(profile) %>
-                  <.badge_cell label={status.label} color={status.color} style="light-fill" />
-                </:col>
-                <:col :let={profile} label={gettext("Atlas use")}>
-                  <div data-part="role-cell">
-                    <.badge
-                      :for={role <- atlas_role_badges(profile)}
-                      label={role.label}
-                      color={role.color}
-                      style="light-fill"
-                    />
-                    <span :if={atlas_role_badges(profile) == []}>
-                      {gettext("Not used")}
-                    </span>
-                  </div>
-                </:col>
-                <:col :let={profile} label={gettext("Upstream")}>
-                  <div data-part="route-cell">
-                    <span>{profile.upstream_provider}</span>
-                    <code>{profile.upstream_model}</code>
-                  </div>
-                </:col>
-                <:col :let={profile} label={gettext("Tokens")}>
-                  <div data-part="token-count-cell">
-                    <span>{token_count_label(profile)}</span>
-                    <small>{active_token_count_label(profile)}</small>
-                  </div>
-                </:col>
-                <:col :let={profile} label={gettext("Last used")}>
-                  <.text_cell label={last_used_label(profile.last_used_at)} />
-                </:col>
-                <:empty_state>
-                  <.table_empty_state
-                    icon="lock"
-                    title={gettext("No inference profiles")}
-                    subtitle={
-                      gettext(
-                        "Create a profile to expose a stable model name to repository automation."
-                      )
-                    }
-                  />
-                </:empty_state>
-              </.table>
-
-            <div :if={@profiles_meta.total_pages > 1} data-part="pagination">
-              <.button
-                variant="secondary"
-                label={gettext("Prev")}
-                disabled={@profiles_meta.current_page <= 1}
-                patch={page_link(@uri, max(1, @profiles_meta.current_page - 1))}
-              >
-                <:icon_left><.chevron_left /></:icon_left>
-              </.button>
-              <.button
-                variant="secondary"
-                label={gettext("Next")}
-                disabled={@profiles_meta.current_page >= @profiles_meta.total_pages}
-                patch={
-                  page_link(
-                    @uri,
-                    min(@profiles_meta.total_pages, @profiles_meta.current_page + 1)
-                  )
+            </:col>
+            <:col :let={profile} label={gettext("Upstream")}>
+              <div data-part="route-cell">
+                <span>{profile.upstream_provider}</span>
+                <code>{profile.upstream_model}</code>
+              </div>
+            </:col>
+            <:col :let={profile} label={gettext("Tokens")}>
+              <div data-part="token-count-cell">
+                <span>{token_count_label(profile)}</span>
+                <small>{active_token_count_label(profile)}</small>
+              </div>
+            </:col>
+            <:col :let={profile} label={gettext("Last used")}>
+              <.text_cell label={last_used_label(profile.last_used_at)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="lock"
+                title={gettext("No inference profiles")}
+                subtitle={
+                  gettext("Create a profile to expose a stable model name to repository automation.")
                 }
-              >
-                <:icon_right><.chevron_right /></:icon_right>
-              </.button>
-            </div>
-          </.card_section>
-        </.card>
+              />
+            </:empty_state>
+          </.table>
+
+          <div :if={@profiles_meta.total_pages > 1} data-part="pagination">
+            <.button
+              variant="secondary"
+              label={gettext("Prev")}
+              disabled={@profiles_meta.current_page <= 1}
+              patch={page_link(@uri, max(1, @profiles_meta.current_page - 1))}
+            >
+              <:icon_left><.chevron_left /></:icon_left>
+            </.button>
+            <.button
+              variant="secondary"
+              label={gettext("Next")}
+              disabled={@profiles_meta.current_page >= @profiles_meta.total_pages}
+              patch={
+                page_link(
+                  @uri,
+                  min(@profiles_meta.total_pages, @profiles_meta.current_page + 1)
+                )
+              }
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </div>
+        </.card_section>
+      </.card>
     </div>
     """
   end
@@ -443,9 +439,7 @@ defmodule AtlasWeb.Admin.InferenceLive do
 
   defp assign_profiles(socket) do
     {profiles, meta} =
-      Inference.list_profiles(
-        profile_list_opts(socket.assigns.query, socket.assigns.active_filters, 1)
-      )
+      Inference.list_profiles(profile_list_opts(socket.assigns.query, socket.assigns.active_filters, 1))
 
     socket
     |> assign(:profiles_meta, meta)
@@ -493,16 +487,14 @@ defmodule AtlasWeb.Admin.InferenceLive do
 
   defp active_token_count_label(_profile), do: gettext("0 active")
 
-  defp profile_status(%ModelBinding{enabled: true}),
-    do: %{label: gettext("Enabled"), color: "success"}
+  defp profile_status(%ModelBinding{enabled: true}), do: %{label: gettext("Enabled"), color: "success"}
 
-  defp profile_status(%ModelBinding{}),
-    do: %{label: gettext("Disabled"), color: "neutral"}
+  defp profile_status(%ModelBinding{}), do: %{label: gettext("Disabled"), color: "neutral"}
 
   defp active_token?(%Token{enabled: false}), do: false
 
   defp active_token?(%Token{expires_at: %DateTime{} = expires_at}) do
-    DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+    DateTime.after?(expires_at, DateTime.utc_now())
   end
 
   defp active_token?(%Token{}), do: true

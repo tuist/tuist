@@ -81,15 +81,11 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
           <.button
             label={gettext("Cancel")}
             variant="secondary"
-            phx-click={
-              Phoenix.LiveView.JS.dispatch("phx:date-picker-cancel", detail: %{id: @id})
-            }
+            phx-click={Phoenix.LiveView.JS.dispatch("phx:date-picker-cancel", detail: %{id: @id})}
           />
           <.button
             label={gettext("Apply")}
-            phx-click={
-              Phoenix.LiveView.JS.dispatch("phx:date-picker-apply", detail: %{id: @id})
-            }
+            phx-click={Phoenix.LiveView.JS.dispatch("phx:date-picker-apply", detail: %{id: @id})}
           />
         </:actions>
       </.date_picker>
@@ -177,25 +173,21 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
     end
   end
 
-  def profile_status(%ModelBinding{enabled: true}),
-    do: %{label: gettext("Enabled"), color: "success"}
+  def profile_status(%ModelBinding{enabled: true}), do: %{label: gettext("Enabled"), color: "success"}
 
-  def profile_status(%ModelBinding{}),
-    do: %{label: gettext("Disabled"), color: "neutral"}
+  def profile_status(%ModelBinding{}), do: %{label: gettext("Disabled"), color: "neutral"}
 
-  def token_status(%Token{enabled: false}),
-    do: %{label: gettext("Revoked"), color: "neutral"}
+  def token_status(%Token{enabled: false}), do: %{label: gettext("Revoked"), color: "neutral"}
 
   def token_status(%Token{expires_at: %DateTime{} = expires_at}) do
-    if DateTime.compare(expires_at, DateTime.utc_now()) == :gt do
+    if DateTime.after?(expires_at, DateTime.utc_now()) do
       %{label: gettext("Active"), color: "success"}
     else
       %{label: gettext("Expired"), color: "warning"}
     end
   end
 
-  def token_status(%Token{}),
-    do: %{label: gettext("Active"), color: "success"}
+  def token_status(%Token{}), do: %{label: gettext("Active"), color: "success"}
 
   def token_expiry_table_label(nil), do: gettext("Never expires")
   def token_expiry_table_label(%DateTime{} = at), do: format_compact_datetime(at)
@@ -396,7 +388,7 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
   defp custom_period(params) do
     with {:ok, start_at} <- parse_datetime(params["usage-start-date"]),
          {:ok, end_at} <- parse_datetime(params["usage-end-date"]),
-         true <- DateTime.compare(start_at, end_at) == :lt do
+         true <- DateTime.before?(start_at, end_at) do
       {:ok, {start_at, end_at}}
     else
       _ -> :error
@@ -447,8 +439,7 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
   defp normalize_provider(nil), do: ""
   defp normalize_provider(provider), do: provider |> to_string() |> String.trim()
 
-  defp maybe_include_current_provider(options, provider)
-       when is_binary(provider) and provider != "" do
+  defp maybe_include_current_provider(options, provider) when is_binary(provider) and provider != "" do
     if Enum.any?(options, &(&1.value == provider)) do
       options
     else

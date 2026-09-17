@@ -5,13 +5,13 @@ defmodule Atlas.Inference do
 
   import Ecto.Query
 
-  alias Ecto.Multi
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.ModelIdentifier
   alias Atlas.Inference.Provider
   alias Atlas.Inference.Token
   alias Atlas.Inference.Usage
   alias Atlas.Repo
+  alias Ecto.Multi
   alias ServerSentEvents.Parser
 
   @config_key {__MODULE__, :config}
@@ -192,10 +192,7 @@ defmodule Atlas.Inference do
      }}
   end
 
-  def usage_summary(
-        %ModelBinding{} = binding,
-        {%DateTime{} = start_datetime, %DateTime{} = end_datetime}
-      ) do
+  def usage_summary(%ModelBinding{} = binding, {%DateTime{} = start_datetime, %DateTime{} = end_datetime}) do
     Usage
     |> where([usage], usage.model_binding_id == ^binding.id)
     |> billable_usage_query()
@@ -246,30 +243,19 @@ defmodule Atlas.Inference do
 
   def usage_series(subject, period, bucket \\ :day)
 
-  def usage_series(
-        %ModelBinding{} = binding,
-        {%DateTime{} = start_datetime, %DateTime{} = end_datetime},
-        bucket
-      ) do
+  def usage_series(%ModelBinding{} = binding, {%DateTime{} = start_datetime, %DateTime{} = end_datetime}, bucket) do
     Usage
     |> where([usage], usage.model_binding_id == ^binding.id)
     |> usage_series_query({start_datetime, end_datetime}, bucket)
   end
 
-  def usage_series(
-        %Token{} = token,
-        {%DateTime{} = start_datetime, %DateTime{} = end_datetime},
-        bucket
-      ) do
+  def usage_series(%Token{} = token, {%DateTime{} = start_datetime, %DateTime{} = end_datetime}, bucket) do
     Usage
     |> where([usage], usage.token_id == ^token.id)
     |> usage_series_query({start_datetime, end_datetime}, bucket)
   end
 
-  def token_usage_summaries(
-        %ModelBinding{} = binding,
-        {%DateTime{} = start_datetime, %DateTime{} = end_datetime}
-      ) do
+  def token_usage_summaries(%ModelBinding{} = binding, {%DateTime{} = start_datetime, %DateTime{} = end_datetime}) do
     Usage
     |> where([usage], usage.model_binding_id == ^binding.id)
     |> billable_usage_query()
@@ -356,8 +342,7 @@ defmodule Atlas.Inference do
 
   def model_allowed?(binding, requested_model, provider_id \\ "atlas")
 
-  def model_allowed?(%ModelBinding{name: name}, requested_model, provider_id)
-      when is_binary(requested_model) do
+  def model_allowed?(%ModelBinding{name: name}, requested_model, provider_id) when is_binary(requested_model) do
     requested_model in [name, "#{provider_id}/#{name}"]
   end
 
@@ -384,11 +369,7 @@ defmodule Atlas.Inference do
   def cap_atlas_inference_output(%Token{}, body) when is_map(body), do: body
 
   @doc false
-  def streaming_required?(%{
-        status: 400,
-        body: %{"error" => %{"code" => "streaming_required"}}
-      }),
-      do: true
+  def streaming_required?(%{status: 400, body: %{"error" => %{"code" => "streaming_required"}}}), do: true
 
   def streaming_required?(_response), do: false
 
@@ -523,10 +504,7 @@ defmodule Atlas.Inference do
     end
   end
 
-  defp build_streamed_completion(
-         response,
-         %{id: id, created: created, model: model, choices: choices} = completion
-       )
+  defp build_streamed_completion(response, %{id: id, created: created, model: model, choices: choices} = completion)
        when is_binary(id) and is_integer(created) and is_binary(model) do
     choices = choices |> Map.values() |> Enum.sort_by(& &1["index"])
 
@@ -547,8 +525,7 @@ defmodule Atlas.Inference do
     end
   end
 
-  defp build_streamed_completion(_response, _completion),
-    do: {:error, :invalid_streamed_completion}
+  defp build_streamed_completion(_response, _completion), do: {:error, :invalid_streamed_completion}
 
   defp maybe_put_usage(body, usage) when is_map(usage), do: Map.put(body, "usage", usage)
   defp maybe_put_usage(body, _usage), do: body
@@ -601,13 +578,7 @@ defmodule Atlas.Inference do
     :ok
   end
 
-  def record_usage(
-        %ModelBinding{} = binding,
-        %Token{} = token,
-        response,
-        usage_payload \\ nil,
-        opts \\ []
-      ) do
+  def record_usage(%ModelBinding{} = binding, %Token{} = token, response, usage_payload \\ nil, opts \\ []) do
     usage = billable_usage(response, usage_payload)
     input_tokens = Map.fetch!(usage, :input_tokens)
     output_tokens = Map.fetch!(usage, :output_tokens)
@@ -829,17 +800,13 @@ defmodule Atlas.Inference do
 
   defp atlas_token_allowed?(%Token{atlas_role: nil}, %ModelBinding{}), do: true
 
-  defp atlas_token_allowed?(%Token{atlas_role: "inference"}, %ModelBinding{atlas_inference: true}),
-    do: true
+  defp atlas_token_allowed?(%Token{atlas_role: "inference"}, %ModelBinding{atlas_inference: true}), do: true
 
-  defp atlas_token_allowed?(%Token{atlas_role: "coding"}, %ModelBinding{atlas_coding: true}),
-    do: true
+  defp atlas_token_allowed?(%Token{atlas_role: "coding"}, %ModelBinding{atlas_coding: true}), do: true
 
-  defp atlas_token_allowed?(%Token{atlas_role: "embedding"}, %ModelBinding{atlas_embedding: true}),
-    do: true
+  defp atlas_token_allowed?(%Token{atlas_role: "embedding"}, %ModelBinding{atlas_embedding: true}), do: true
 
-  defp atlas_token_allowed?(%Token{atlas_role: role}, %ModelBinding{}) when is_binary(role),
-    do: false
+  defp atlas_token_allowed?(%Token{atlas_role: role}, %ModelBinding{}) when is_binary(role), do: false
 
   defp normalize_usage_summary(nil) do
     %{
@@ -932,9 +899,8 @@ defmodule Atlas.Inference do
 
   defp normalize_profile_page(_page), do: 1
 
-  defp normalize_profile_page_size(page_size)
-       when is_integer(page_size) and page_size > 0,
-       do: min(page_size, @max_profile_page_size)
+  defp normalize_profile_page_size(page_size) when is_integer(page_size) and page_size > 0,
+    do: min(page_size, @max_profile_page_size)
 
   defp normalize_profile_page_size(page_size) when is_binary(page_size) do
     case Integer.parse(page_size) do

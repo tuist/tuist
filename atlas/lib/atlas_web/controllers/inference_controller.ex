@@ -1,12 +1,12 @@
 defmodule AtlasWeb.InferenceController do
   use AtlasWeb, :controller
 
-  require Logger
-
   alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
+
+  require Logger
 
   def models(conn, _params) do
     binding = conn.assigns.inference_model_binding
@@ -65,12 +65,8 @@ defmodule AtlasWeb.InferenceController do
   end
 
   def embeddings(
-        %Plug.Conn{
-          assigns: %{
-            inference_model_binding: %ModelBinding{} = binding,
-            inference_token: %Token{} = token
-          }
-        } = conn,
+        %Plug.Conn{assigns: %{inference_model_binding: %ModelBinding{} = binding, inference_token: %Token{} = token}} =
+          conn,
         params
       ) do
     with {:ok, requested_model} <- fetch_requested_model(params),
@@ -104,13 +100,7 @@ defmodule AtlasWeb.InferenceController do
     end
   end
 
-  defp proxy_upstream(
-         conn,
-         %ModelBinding{} = binding,
-         %Token{} = token,
-         request,
-         operation \\ :chat_completion
-       ) do
+  defp proxy_upstream(conn, %ModelBinding{} = binding, %Token{} = token, request, operation \\ :chat_completion) do
     case Inference.request_fun().(request) do
       {:ok, response} ->
         if Inference.streaming_required?(response) do
@@ -280,13 +270,7 @@ defmodule AtlasWeb.InferenceController do
   defp stream_usage_ref(conn_ref), do: {conn_ref, :inference_usage}
   defp stream_parser_ref(conn_ref), do: {conn_ref, :inference_stream_parser}
 
-  defp record_relay(
-         %ModelBinding{} = binding,
-         %Token{} = token,
-         response,
-         usage_payload,
-         operation
-       ) do
+  defp record_relay(%ModelBinding{} = binding, %Token{} = token, response, usage_payload, operation) do
     Inference.touch_model_binding(binding)
 
     {:ok, usage} =
@@ -314,11 +298,9 @@ defmodule AtlasWeb.InferenceController do
     })
   end
 
-  defp fetch_requested_model(%{"model" => model}) when is_binary(model) and model != "",
-    do: {:ok, model}
+  defp fetch_requested_model(%{"model" => model}) when is_binary(model) and model != "", do: {:ok, model}
 
-  defp fetch_requested_model(%{model: model}) when is_binary(model) and model != "",
-    do: {:ok, model}
+  defp fetch_requested_model(%{model: model}) when is_binary(model) and model != "", do: {:ok, model}
 
   defp fetch_requested_model(_params), do: {:error, :missing_model}
 

@@ -1,8 +1,8 @@
 defmodule AtlasWeb.Plugs.InferenceAuthentication do
   @moduledoc false
 
-  import Plug.Conn
   import Phoenix.Controller
+  import Plug.Conn
 
   alias Atlas.Audit
   alias Atlas.Inference

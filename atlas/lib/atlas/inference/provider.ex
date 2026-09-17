@@ -7,6 +7,9 @@ defmodule Atlas.Inference.Provider do
 
   import Ecto.Changeset
 
+  alias Plug.Crypto.KeyGenerator
+  alias Plug.Crypto.MessageEncryptor
+
   @key_format ~r/^[A-Za-z0-9][A-Za-z0-9._:-]*$/
   @primary_key {:id, :binary_id, autogenerate: true}
 
@@ -37,7 +40,7 @@ defmodule Atlas.Inference.Provider do
   def api_key(%__MODULE__{api_key_ciphertext: ciphertext}) when is_binary(ciphertext) do
     with {encryption_key, signing_key} <- encryption_keys(),
          {:ok, api_key} <-
-           Plug.Crypto.MessageEncryptor.decrypt(ciphertext, encryption_key, signing_key) do
+           MessageEncryptor.decrypt(ciphertext, encryption_key, signing_key) do
       api_key
     else
       _error -> nil
@@ -87,7 +90,7 @@ defmodule Atlas.Inference.Provider do
         put_change(
           changeset,
           :api_key_ciphertext,
-          Plug.Crypto.MessageEncryptor.encrypt(api_key, encryption_key, signing_key)
+          MessageEncryptor.encrypt(api_key, encryption_key, signing_key)
         )
 
       _api_key ->
@@ -99,12 +102,12 @@ defmodule Atlas.Inference.Provider do
     secret_key_base = AtlasWeb.Endpoint.config(:secret_key_base)
 
     {
-      Plug.Crypto.KeyGenerator.generate(
+      KeyGenerator.generate(
         secret_key_base,
         "atlas inference provider credential encryption",
         length: 32
       ),
-      Plug.Crypto.KeyGenerator.generate(
+      KeyGenerator.generate(
         secret_key_base,
         "atlas inference provider credential signing",
         length: 32

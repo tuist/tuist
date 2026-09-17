@@ -76,69 +76,63 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
   def render(assigns) do
     ~H"""
     <div id="admin-inference-providers">
-              <div data-part="page-header">
-          <div data-part="title-group">
-            <h1>{gettext("Providers")}</h1>
-            <p>
-              {gettext(
-                "Create upstream endpoints that profiles can target. Credentials are encrypted and are never shown after saving."
-              )}
-            </p>
-          </div>
+      <div data-part="page-header">
+        <div data-part="title-group">
+          <h1>{gettext("Providers")}</h1>
+          <p>
+            {gettext(
+              "Create upstream endpoints that profiles can target. Credentials are encrypted and are never shown after saving."
+            )}
+          </p>
         </div>
+      </div>
 
-        <.card title={gettext("Providers")} icon="server" data-part="providers-card">
-          <:actions>
-            <.new_provider_modal provider_form={@provider_form} />
-          </:actions>
-          <.card_section>
-            <p data-part="card-intro">
-              {gettext(
-                "Runtime-managed and environment-backed endpoints with profile references."
-              )}
-            </p>
+      <.card title={gettext("Providers")} icon="server" data-part="providers-card">
+        <:actions>
+          <.new_provider_modal provider_form={@provider_form} />
+        </:actions>
+        <.card_section>
+          <p data-part="card-intro">
+            {gettext("Runtime-managed and environment-backed endpoints with profile references.")}
+          </p>
 
-              <.table id="inference-providers-table" rows={@providers}>
-                <:col :let={provider} label={gettext("Provider")}>
-                  <.text_and_description_cell
-                    icon="server"
-                    label={provider.id}
-                    description={provider_description(provider)}
-                  />
-                </:col>
-                <:col :let={provider} label={gettext("Status")}>
-                  <% status = provider_status(provider) %>
-                  <.badge_cell label={status.label} color={status.color} style="light-fill" />
-                </:col>
-                <:col :let={provider} label={gettext("Endpoint")}>
-                  <div data-part="route-cell">
-                    <code :if={provider.base_url}>{provider.base_url}</code>
-                    <span :if={!provider.base_url}>{gettext("Not configured")}</span>
-                  </div>
-                </:col>
-                <:col :let={provider} label={gettext("Credential")}>
-                  <.text_cell label={credential_label(provider)} />
-                </:col>
-                <:col :let={provider} label={gettext("Timeout")}>
-                  <.text_cell label={timeout_label(provider.timeout)} />
-                </:col>
-                <:col :let={provider} label={gettext("Profiles")}>
-                  <.text_cell label={profile_count_label(provider.profile_count)} />
-                </:col>
-                <:empty_state>
-                  <.table_empty_state
-                    icon="server"
-                    title={gettext("No inference providers")}
-                    subtitle={
-                      gettext(
-                        "Create a provider before creating profiles that route to it."
-                      )
-                    }
-                  />
-                </:empty_state>
-              </.table>
-          </.card_section>
-        </.card>
+          <.table id="inference-providers-table" rows={@providers}>
+            <:col :let={provider} label={gettext("Provider")}>
+              <.text_and_description_cell
+                icon="server"
+                label={provider.id}
+                description={provider_description(provider)}
+              />
+            </:col>
+            <:col :let={provider} label={gettext("Status")}>
+              <% status = provider_status(provider) %>
+              <.badge_cell label={status.label} color={status.color} style="light-fill" />
+            </:col>
+            <:col :let={provider} label={gettext("Endpoint")}>
+              <div data-part="route-cell">
+                <code :if={provider.base_url}>{provider.base_url}</code>
+                <span :if={!provider.base_url}>{gettext("Not configured")}</span>
+              </div>
+            </:col>
+            <:col :let={provider} label={gettext("Credential")}>
+              <.text_cell label={credential_label(provider)} />
+            </:col>
+            <:col :let={provider} label={gettext("Timeout")}>
+              <.text_cell label={timeout_label(provider.timeout)} />
+            </:col>
+            <:col :let={provider} label={gettext("Profiles")}>
+              <.text_cell label={profile_count_label(provider.profile_count)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="server"
+                title={gettext("No inference providers")}
+                subtitle={gettext("Create a provider before creating profiles that route to it.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
     </div>
     """
   end
@@ -150,11 +144,7 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
     <.modal
       id="new-inference-provider-modal"
       title={gettext("Create provider")}
-      description={
-        gettext(
-          "Add an upstream endpoint that profiles can route requests to."
-        )
-      }
+      description={gettext("Add an upstream endpoint that profiles can route requests to.")}
       header_type="icon"
       header_size="large"
       on_dismiss="close_new_provider"
@@ -238,29 +228,21 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
     """
   end
 
-  defp provider_status(%{configured?: false}),
-    do: %{label: gettext("Missing"), color: "warning"}
+  defp provider_status(%{configured?: false}), do: %{label: gettext("Missing"), color: "warning"}
 
-  defp provider_status(%{endpoint_configured?: false}),
-    do: %{label: gettext("No endpoint"), color: "destructive"}
+  defp provider_status(%{endpoint_configured?: false}), do: %{label: gettext("No endpoint"), color: "destructive"}
 
-  defp provider_status(%{credential_configured?: false}),
-    do: %{label: gettext("No credential"), color: "warning"}
+  defp provider_status(%{credential_configured?: false}), do: %{label: gettext("No credential"), color: "warning"}
 
-  defp provider_status(_provider),
-    do: %{label: gettext("Ready"), color: "success"}
+  defp provider_status(_provider), do: %{label: gettext("Ready"), color: "success"}
 
-  defp provider_description(%{source: :database}),
-    do: gettext("Managed in Atlas")
+  defp provider_description(%{source: :database}), do: gettext("Managed in Atlas")
 
-  defp provider_description(%{source: :environment}),
-    do: gettext("Configured from the environment")
+  defp provider_description(%{source: :environment}), do: gettext("Configured from the environment")
 
-  defp provider_description(_provider),
-    do: gettext("Referenced by profiles but not configured")
+  defp provider_description(_provider), do: gettext("Referenced by profiles but not configured")
 
-  defp credential_label(%{credential_configured?: true}),
-    do: gettext("Configured")
+  defp credential_label(%{credential_configured?: true}), do: gettext("Configured")
 
   defp credential_label(_provider), do: gettext("Missing")
 
@@ -286,8 +268,7 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
 
   defp profile_count_label(1), do: gettext("1 profile")
 
-  defp profile_count_label(count),
-    do: gettext("%{count} profiles", count: count)
+  defp profile_count_label(count), do: gettext("%{count} profiles", count: count)
 
   defp assign_providers(socket) do
     assign(socket, :providers, Inference.list_provider_configs())

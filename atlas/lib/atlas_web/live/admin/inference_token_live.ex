@@ -4,17 +4,15 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
   use AtlasWeb, :live_view
   use Noora
 
+  import AtlasWeb.Admin.InferenceHelpers
+  import AtlasWeb.Components.EmptyCardSection
   import AtlasWeb.CoreComponents, only: []
 
   alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
-  alias AtlasWeb.Components.EmptyCardSection
   alias AtlasWeb.Utilities.Query
-
-  import EmptyCardSection
-  import AtlasWeb.Admin.InferenceHelpers
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -71,8 +69,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
          |> assign_token(token.id)}
 
       {:error, _changeset} ->
-        {:noreply,
-         put_flash(socket, :error, gettext("Failed to revoke token."))}
+        {:noreply, put_flash(socket, :error, gettext("Failed to revoke token."))}
     end
   end
 
@@ -84,150 +81,148 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
   def render(assigns) do
     ~H"""
     <div id="admin-inference-token">
-              <div data-part="page-header">
-          <div data-part="title-group">
-            <h1>{@token.name}</h1>
-            <p>
-              {gettext("Token bound to")}
-              <a href={~p"/admin/inference/profiles/#{@profile.id}"}>{@profile.name}</a>.
-            </p>
-          </div>
+      <div data-part="page-header">
+        <div data-part="title-group">
+          <h1>{@token.name}</h1>
+          <p>
+            {gettext("Token bound to")}
+            <a href={~p"/admin/inference/profiles/#{@profile.id}"}>{@profile.name}</a>.
+          </p>
         </div>
+      </div>
 
-        <.card title={gettext("Usage")} icon="chart_column" data-part="usage-card">
-          <:actions>
-            <.usage_period_picker
-              id="inference-token-usage-date-range-picker"
-              name="usage-date-range"
-              selected_preset={@usage_preset}
-              period={@usage_period}
-            />
-          </:actions>
-          <.card_section>
-            <.usage_widgets summary={@usage_summary} />
-          </.card_section>
-          <.card_section
-            :if={usage_chart_has_usage?(@usage_series)}
-            data-part="usage-chart-section"
+      <.card title={gettext("Usage")} icon="chart_column" data-part="usage-card">
+        <:actions>
+          <.usage_period_picker
+            id="inference-token-usage-date-range-picker"
+            name="usage-date-range"
+            selected_preset={@usage_preset}
+            period={@usage_period}
+          />
+        </:actions>
+        <.card_section>
+          <.usage_widgets summary={@usage_summary} />
+        </.card_section>
+        <.card_section
+          :if={usage_chart_has_usage?(@usage_series)}
+          data-part="usage-chart-section"
+        >
+          <.usage_chart
+            id="inference-token-usage-chart"
+            series={@usage_series}
+            preset={@usage_preset}
+            bucket={@usage_bucket}
+            label={
+              gettext("Input and output token usage for %{token}",
+                token: @token.name
+              )
+            }
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={!usage_chart_has_usage?(@usage_series)}
+          title={gettext("No usage yet")}
+          data-part="empty-usage-chart-card-section"
+        >
+          <:image>
+            <img src="/images/empty_line_chart_light.png" data-theme="light" />
+            <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </.card>
+
+      <.card
+        title={gettext("Configuration")}
+        icon="lock_password"
+        data-part="configuration-card"
+      >
+        <.card_section>
+          <div data-part="definition-grid">
+            <div data-part="definition-item">
+              <span>{gettext("Status")}</span>
+              <% status = token_status(@token) %>
+              <.badge label={status.label} color={status.color} style="light-fill" />
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Profile")}</span>
+              <a data-part="definition-link" href={~p"/admin/inference/profiles/#{@profile.id}"}>
+                {@profile.name}
+              </a>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Expires")}</span>
+              <strong>{token_expiry_table_label(@token.expires_at)}</strong>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Last used")}</span>
+              <strong>{last_used_label(@token.last_used_at)}</strong>
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+
+      <.card_section :if={@token.enabled} data-part="revoke-token-card-section">
+        <div data-part="header">
+          <span data-part="title">{gettext("Revoke token")}</span>
+          <span data-part="subtitle">
+            {gettext("Repositories using this token will stop being able to use its profile.")}
+          </span>
+        </div>
+        <div data-part="content">
+          <.modal
+            id="revoke-inference-token-modal"
+            title={gettext("Revoke this token?")}
+            description={gettext("This action cannot be undone.")}
+            header_type="warning"
+            header_size="large"
+            on_dismiss="close_revoke_token"
           >
-            <.usage_chart
-              id="inference-token-usage-chart"
-              series={@usage_series}
-              preset={@usage_preset}
-              bucket={@usage_bucket}
-              label={
-                gettext("Input and output token usage for %{token}",
+            <:trigger :let={attrs}>
+              <.button
+                label={gettext("Revoke token")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <.alert
+              status="warning"
+              type="secondary"
+              size="small"
+              title={
+                gettext(
+                  "Revoking %{token} will immediately reject future requests using this token.",
                   token: @token.name
                 )
               }
             />
-          </.card_section>
-          <.empty_card_section
-            :if={!usage_chart_has_usage?(@usage_series)}
-            title={gettext("No usage yet")}
-            data-part="empty-usage-chart-card-section"
-          >
-            <:image>
-              <img src="/images/empty_line_chart_light.png" data-theme="light" />
-              <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-            </:image>
-          </.empty_card_section>
-        </.card>
-
-        <.card
-          title={gettext("Configuration")}
-          icon="lock_password"
-          data-part="configuration-card"
-        >
-          <.card_section>
-            <div data-part="definition-grid">
-              <div data-part="definition-item">
-                <span>{gettext("Status")}</span>
-                <% status = token_status(@token) %>
-                <.badge label={status.label} color={status.color} style="light-fill" />
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Profile")}</span>
-                <a data-part="definition-link" href={~p"/admin/inference/profiles/#{@profile.id}"}>
-                  {@profile.name}
-                </a>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Expires")}</span>
-                <strong>{token_expiry_table_label(@token.expires_at)}</strong>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Last used")}</span>
-                <strong>{last_used_label(@token.last_used_at)}</strong>
-              </div>
-            </div>
-          </.card_section>
-        </.card>
-
-        <.card_section :if={@token.enabled} data-part="revoke-token-card-section">
-          <div data-part="header">
-            <span data-part="title">{gettext("Revoke token")}</span>
-            <span data-part="subtitle">
-              {gettext(
-                "Repositories using this token will stop being able to use its profile."
-              )}
-            </span>
-          </div>
-          <div data-part="content">
-            <.modal
-              id="revoke-inference-token-modal"
-              title={gettext("Revoke this token?")}
-              description={gettext("This action cannot be undone.")}
-              header_type="warning"
-              header_size="large"
-              on_dismiss="close_revoke_token"
-            >
-              <:trigger :let={attrs}>
-                <.button
-                  label={gettext("Revoke token")}
-                  variant="destructive"
-                  size="medium"
-                  {attrs}
-                />
-              </:trigger>
-              <.line_divider />
-              <.alert
-                status="warning"
-                type="secondary"
-                size="small"
-                title={
-                  gettext(
-                    "Revoking %{token} will immediately reject future requests using this token.",
-                    token: @token.name
-                  )
-                }
-              />
-              <.line_divider />
-              <:footer>
-                <.modal_footer>
-                  <:action>
-                    <.button
-                      type="button"
-                      label={gettext("Cancel")}
-                      variant="secondary"
-                      size="medium"
-                      phx-click="close_revoke_token"
-                    />
-                  </:action>
-                  <:action>
-                    <.button
-                      type="button"
-                      label={gettext("Revoke token")}
-                      variant="destructive"
-                      size="medium"
-                      phx-click="revoke_token"
-                    />
-                  </:action>
-                </.modal_footer>
-              </:footer>
-            </.modal>
-          </div>
-        </.card_section>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="medium"
+                    phx-click="close_revoke_token"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={gettext("Revoke token")}
+                    variant="destructive"
+                    size="medium"
+                    phx-click="revoke_token"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </.card_section>
     </div>
     """
   end
@@ -260,10 +255,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
   defp maybe_assign_usage(%{assigns: %{usage_period: _period}} = socket), do: assign_usage(socket)
   defp maybe_assign_usage(socket), do: socket
 
-  defp usage_period_patch(%Token{} = token, %URI{} = uri, "custom", %{
-         "start" => start_at,
-         "end" => end_at
-       }) do
+  defp usage_period_patch(%Token{} = token, %URI{} = uri, "custom", %{"start" => start_at, "end" => end_at}) do
     query =
       uri.query
       |> Query.put("usage-date-range", "custom")

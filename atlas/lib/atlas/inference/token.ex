@@ -9,6 +9,8 @@ defmodule Atlas.Inference.Token do
 
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Usage
+  alias Plug.Crypto.KeyGenerator
+  alias Plug.Crypto.MessageEncryptor
 
   @atlas_roles ~w(inference coding embedding)
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -49,7 +51,7 @@ defmodule Atlas.Inference.Token do
 
   def encrypt_value(value) when is_binary(value) do
     {encryption_key, signing_key} = encryption_keys()
-    Plug.Crypto.MessageEncryptor.encrypt(value, encryption_key, signing_key)
+    MessageEncryptor.encrypt(value, encryption_key, signing_key)
   end
 
   def value(%__MODULE__{token_ciphertext: nil}), do: nil
@@ -57,7 +59,7 @@ defmodule Atlas.Inference.Token do
   def value(%__MODULE__{token_ciphertext: ciphertext}) when is_binary(ciphertext) do
     with {encryption_key, signing_key} <- encryption_keys(),
          {:ok, value} <-
-           Plug.Crypto.MessageEncryptor.decrypt(ciphertext, encryption_key, signing_key) do
+           MessageEncryptor.decrypt(ciphertext, encryption_key, signing_key) do
       value
     else
       _error -> nil
@@ -81,12 +83,12 @@ defmodule Atlas.Inference.Token do
     secret_key_base = AtlasWeb.Endpoint.config(:secret_key_base)
 
     {
-      Plug.Crypto.KeyGenerator.generate(
+      KeyGenerator.generate(
         secret_key_base,
         "atlas inference token value encryption",
         length: 32
       ),
-      Plug.Crypto.KeyGenerator.generate(
+      KeyGenerator.generate(
         secret_key_base,
         "atlas inference token value signing",
         length: 32

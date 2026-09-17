@@ -8,6 +8,8 @@ defmodule Atlas.Inference.ModelBinding do
   import Ecto.Changeset
 
   alias Atlas.Inference.ModelIdentifier
+  alias Atlas.Inference.Token
+  alias Atlas.Inference.Usage
 
   @name_format ~r/^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 
@@ -27,8 +29,8 @@ defmodule Atlas.Inference.ModelBinding do
     field :atlas_embedding, :boolean, default: false
     field :last_used_at, :utc_datetime
 
-    has_many :tokens, Atlas.Inference.Token, foreign_key: :model_binding_id
-    has_many :usages, Atlas.Inference.Usage, foreign_key: :model_binding_id
+    has_many :tokens, Token, foreign_key: :model_binding_id
+    has_many :usages, Usage, foreign_key: :model_binding_id
 
     timestamps(type: :utc_datetime)
   end

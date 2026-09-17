@@ -4,17 +4,15 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
   use AtlasWeb, :live_view
   use Noora
 
+  import AtlasWeb.Admin.InferenceHelpers
+  import AtlasWeb.Components.EmptyCardSection
   import AtlasWeb.CoreComponents, only: []
 
   alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
-  alias AtlasWeb.Components.EmptyCardSection
   alias AtlasWeb.Utilities.Query
-
-  import EmptyCardSection
-  import AtlasWeb.Admin.InferenceHelpers
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -74,8 +72,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
       |> form_params()
       |> Map.put("upstream_provider", selected_value(params))
 
-    {:noreply,
-     assign_profile_form(socket, Inference.change_profile(socket.assigns.profile, params))}
+    {:noreply, assign_profile_form(socket, Inference.change_profile(socket.assigns.profile, params))}
   end
 
   def handle_event("update_profile", %{"profile" => params}, socket) do
@@ -117,8 +114,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
          |> assign_profile(profile.id)}
 
       {:error, _changeset} ->
-        {:noreply,
-         put_flash(socket, :error, gettext("Failed to update profile."))}
+        {:noreply, put_flash(socket, :error, gettext("Failed to update profile."))}
     end
   end
 
@@ -126,7 +122,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
     profile = socket.assigns.profile
 
     with {:ok, role, field} <- atlas_role(role),
-         enabled? <- enabled == "true",
+         enabled? = enabled == "true",
          {:ok, profile} <- Inference.update_profile(profile, %{field => enabled?}),
          {:ok, _token} <- maybe_ensure_atlas_token(profile, role, enabled?) do
       record_profile_audit(:"inference_profile.updated", profile)
@@ -138,8 +134,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
        |> assign_profile(profile.id)}
     else
       {:error, %Ecto.Changeset{}} ->
-        {:noreply,
-         put_flash(socket, :error, gettext("Failed to update profile."))}
+        {:noreply, put_flash(socket, :error, gettext("Failed to update profile."))}
 
       {:error, _reason} ->
         {:noreply,
@@ -152,8 +147,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
   end
 
   def handle_event("set_atlas_role", _params, socket) do
-    {:noreply,
-     put_flash(socket, :error, gettext("Unknown Atlas profile role."))}
+    {:noreply, put_flash(socket, :error, gettext("Unknown Atlas profile role."))}
   end
 
   def handle_event("create_token", %{"token" => params}, socket) do
@@ -216,205 +210,197 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
   def render(assigns) do
     ~H"""
     <div id="admin-inference-profile">
-              <div data-part="page-header">
-          <div data-part="title-group">
-            <h1>{@profile.name}</h1>
-            <p>
-              {@profile.description ||
-                gettext("Stable model profile routed through Atlas.")}
-            </p>
-          </div>
-          <div data-part="header-actions">
-            <.profile_actions_dropdown profile={@profile} />
+      <div data-part="page-header">
+        <div data-part="title-group">
+          <h1>{@profile.name}</h1>
+          <p>
+            {@profile.description ||
+              gettext("Stable model profile routed through Atlas.")}
+          </p>
+        </div>
+        <div data-part="header-actions">
+          <.profile_actions_dropdown profile={@profile} />
+        </div>
+      </div>
+
+      <.edit_profile_modal
+        profile_form={@profile_form}
+        provider_options={@provider_options}
+      />
+
+      <section :if={@generated_token} data-part="generated-token">
+        <div data-part="generated-copy">
+          <h2>
+            {gettext("Token created for %{profile}",
+              profile: @profile.name
+            )}
+          </h2>
+          <p>
+            {gettext("Store this token now. Atlas stores only its hash and cannot show it again.")}
+          </p>
+          <div data-part="read-only-value">
+            <code>{@generated_token.value}</code>
+            <.button
+              id="copy-inference-token-button"
+              variant="secondary"
+              size="small"
+              icon_only
+              type="button"
+              phx-hook="Clipboard"
+              data-clipboard-value={@generated_token.value}
+              aria-label={gettext("Copy token")}
+            >
+              <.copy />
+            </.button>
           </div>
         </div>
-
-        <.edit_profile_modal
-          profile_form={@profile_form}
-          provider_options={@provider_options}
+        <.button
+          label={gettext("Dismiss")}
+          variant="secondary"
+          size="small"
+          phx-click="dismiss_generated_token"
         />
+      </section>
 
-        <section :if={@generated_token} data-part="generated-token">
-          <div data-part="generated-copy">
-            <h2>
-              {gettext("Token created for %{profile}",
+      <.card title={gettext("Usage")} icon="chart_column" data-part="usage-card">
+        <:actions>
+          <.usage_period_picker
+            id="inference-profile-usage-date-range-picker"
+            name="usage-date-range"
+            selected_preset={@usage_preset}
+            period={@usage_period}
+          />
+        </:actions>
+        <.card_section>
+          <.usage_widgets summary={@usage_summary} />
+        </.card_section>
+        <.card_section
+          :if={usage_chart_has_usage?(@usage_series)}
+          data-part="usage-chart-section"
+        >
+          <.usage_chart
+            id="inference-profile-usage-chart"
+            series={@usage_series}
+            preset={@usage_preset}
+            bucket={@usage_bucket}
+            label={
+              gettext("Input and output token usage for %{profile}",
                 profile: @profile.name
-              )}
-            </h2>
-            <p>
-              {gettext(
-                "Store this token now. Atlas stores only its hash and cannot show it again."
-              )}
-            </p>
-            <div data-part="read-only-value">
-              <code>{@generated_token.value}</code>
-              <.button
-                id="copy-inference-token-button"
-                variant="secondary"
-                size="small"
-                icon_only
-                type="button"
-                phx-hook="Clipboard"
-                data-clipboard-value={@generated_token.value}
-                aria-label={gettext("Copy token")}
-              >
-                <.copy />
-              </.button>
+              )
+            }
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={!usage_chart_has_usage?(@usage_series)}
+          title={gettext("No usage yet")}
+          data-part="empty-usage-chart-card-section"
+        >
+          <:image>
+            <img src="/images/empty_line_chart_light.png" data-theme="light" />
+            <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </.card>
+
+      <.card
+        title={gettext("Configuration")}
+        icon="lock"
+        data-part="configuration-card"
+      >
+        <.card_section>
+          <div data-part="definition-grid">
+            <div data-part="definition-item">
+              <span>{gettext("Status")}</span>
+              <% status = profile_status(@profile) %>
+              <.badge label={status.label} color={status.color} style="light-fill" />
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Atlas usage")}</span>
+              <strong>{atlas_usage_label(@profile)}</strong>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Upstream provider")}</span>
+              <strong>{@profile.upstream_provider}</strong>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Upstream model")}</span>
+              <code>{@profile.upstream_model}</code>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Input cost")}</span>
+              <strong>{format_cost_per_million(@profile.input_cost_per_million)}</strong>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Output cost")}</span>
+              <strong>{format_cost_per_million(@profile.output_cost_per_million)}</strong>
+            </div>
+            <div data-part="definition-item">
+              <span>{gettext("Last used")}</span>
+              <strong>{last_used_label(@profile.last_used_at)}</strong>
             </div>
           </div>
-          <.button
-            label={gettext("Dismiss")}
-            variant="secondary"
-            size="small"
-            phx-click="dismiss_generated_token"
-          />
-        </section>
+        </.card_section>
+      </.card>
 
-        <.card title={gettext("Usage")} icon="chart_column" data-part="usage-card">
-          <:actions>
-            <.usage_period_picker
-              id="inference-profile-usage-date-range-picker"
-              name="usage-date-range"
-              selected_preset={@usage_preset}
-              period={@usage_period}
-            />
-          </:actions>
-          <.card_section>
-            <.usage_widgets summary={@usage_summary} />
-          </.card_section>
-          <.card_section
-            :if={usage_chart_has_usage?(@usage_series)}
-            data-part="usage-chart-section"
+      <.card title={gettext("Tokens")} icon="lock_password" data-part="tokens-card">
+        <:actions>
+          <.new_token_modal profile={@profile} token_form={@token_form} />
+        </:actions>
+        <.card_section>
+          <p data-part="card-intro">
+            {gettext("Tokens are bound to this profile and can be revoked independently.")}
+          </p>
+
+          <.table
+            id="inference-profile-tokens-table"
+            rows={@tokens}
+            row_navigate={fn token -> ~p"/admin/inference/tokens/#{token.id}" end}
           >
-            <.usage_chart
-              id="inference-profile-usage-chart"
-              series={@usage_series}
-              preset={@usage_preset}
-              bucket={@usage_bucket}
-              label={
-                gettext("Input and output token usage for %{profile}",
-                  profile: @profile.name
-                )
-              }
-            />
-          </.card_section>
-          <.empty_card_section
-            :if={!usage_chart_has_usage?(@usage_series)}
-            title={gettext("No usage yet")}
-            data-part="empty-usage-chart-card-section"
-          >
-            <:image>
-              <img src="/images/empty_line_chart_light.png" data-theme="light" />
-              <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-            </:image>
-          </.empty_card_section>
-        </.card>
-
-        <.card
-          title={gettext("Configuration")}
-          icon="lock"
-          data-part="configuration-card"
-        >
-          <.card_section>
-            <div data-part="definition-grid">
-              <div data-part="definition-item">
-                <span>{gettext("Status")}</span>
-                <% status = profile_status(@profile) %>
-                <.badge label={status.label} color={status.color} style="light-fill" />
+            <:col :let={token} label={gettext("Token")}>
+              <.text_cell label={token.name} />
+            </:col>
+            <:col :let={token} label={gettext("Status")}>
+              <% status = token_status(token) %>
+              <.badge_cell label={status.label} color={status.color} style="light-fill" />
+            </:col>
+            <:col :let={token} label={gettext("Created")}>
+              <.text_cell label={format_compact_datetime(token.inserted_at)} />
+            </:col>
+            <:col :let={token} label={gettext("Expires")}>
+              <.text_cell label={token_expiry_table_label(token.expires_at)} />
+            </:col>
+            <:col :let={token} label={gettext("Last used")}>
+              <.text_cell label={last_used_label(token.last_used_at)} />
+            </:col>
+            <:col :let={token} label={gettext("Usage")}>
+              <div data-part="token-usage-cell">
+                <% usage = token_usage(@token_usage_summaries, token) %>
+                <span>
+                  {gettext("%{count} in",
+                    count: format_count(usage.input_tokens)
+                  )}
+                </span>
+                <small>
+                  {gettext("%{count} out",
+                    count: format_count(usage.output_tokens)
+                  )}
+                </small>
               </div>
-              <div data-part="definition-item">
-                <span>{gettext("Atlas usage")}</span>
-                <strong>{atlas_usage_label(@profile)}</strong>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Upstream provider")}</span>
-                <strong>{@profile.upstream_provider}</strong>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Upstream model")}</span>
-                <code>{@profile.upstream_model}</code>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Input cost")}</span>
-                <strong>{format_cost_per_million(@profile.input_cost_per_million)}</strong>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Output cost")}</span>
-                <strong>{format_cost_per_million(@profile.output_cost_per_million)}</strong>
-              </div>
-              <div data-part="definition-item">
-                <span>{gettext("Last used")}</span>
-                <strong>{last_used_label(@profile.last_used_at)}</strong>
-              </div>
-            </div>
-          </.card_section>
-        </.card>
-
-        <.card title={gettext("Tokens")} icon="lock_password" data-part="tokens-card">
-          <:actions>
-            <.new_token_modal profile={@profile} token_form={@token_form} />
-          </:actions>
-          <.card_section>
-            <p data-part="card-intro">
-              {gettext(
-                "Tokens are bound to this profile and can be revoked independently."
-              )}
-            </p>
-
-              <.table
-                id="inference-profile-tokens-table"
-                rows={@tokens}
-                row_navigate={fn token -> ~p"/admin/inference/tokens/#{token.id}" end}
-              >
-                <:col :let={token} label={gettext("Token")}>
-                  <.text_cell label={token.name} />
-                </:col>
-                <:col :let={token} label={gettext("Status")}>
-                  <% status = token_status(token) %>
-                  <.badge_cell label={status.label} color={status.color} style="light-fill" />
-                </:col>
-                <:col :let={token} label={gettext("Created")}>
-                  <.text_cell label={format_compact_datetime(token.inserted_at)} />
-                </:col>
-                <:col :let={token} label={gettext("Expires")}>
-                  <.text_cell label={token_expiry_table_label(token.expires_at)} />
-                </:col>
-                <:col :let={token} label={gettext("Last used")}>
-                  <.text_cell label={last_used_label(token.last_used_at)} />
-                </:col>
-                <:col :let={token} label={gettext("Usage")}>
-                  <div data-part="token-usage-cell">
-                    <% usage = token_usage(@token_usage_summaries, token) %>
-                    <span>
-                      {gettext("%{count} in",
-                        count: format_count(usage.input_tokens)
-                      )}
-                    </span>
-                    <small>
-                      {gettext("%{count} out",
-                        count: format_count(usage.output_tokens)
-                      )}
-                    </small>
-                  </div>
-                </:col>
-                <:col :let={token} label={gettext("Cost")}>
-                  <% usage = token_usage(@token_usage_summaries, token) %>
-                  <.text_cell label={format_cost(usage.cost_usd)} />
-                </:col>
-                <:empty_state>
-                  <.table_empty_state
-                    icon="lock_password"
-                    title={gettext("No tokens")}
-                    subtitle={
-                      gettext(
-                        "Create a token when repositories are ready to use this profile."
-                      )
-                    }
-                  />
-                </:empty_state>
-              </.table>
-          </.card_section>
-        </.card>
+            </:col>
+            <:col :let={token} label={gettext("Cost")}>
+              <% usage = token_usage(@token_usage_summaries, token) %>
+              <.text_cell label={format_cost(usage.cost_usd)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="lock_password"
+                title={gettext("No tokens")}
+                subtitle={gettext("Create a token when repositories are ready to use this profile.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
     </div>
     """
   end
@@ -481,11 +467,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
     <.modal
       id="edit-inference-profile-modal"
       title={gettext("Edit profile")}
-      description={
-        gettext(
-          "Update the upstream provider or model behind this stable profile."
-        )
-      }
+      description={gettext("Update the upstream provider or model behind this stable profile.")}
       header_type="icon"
       header_size="large"
       on_dismiss="close_edit_profile"
@@ -726,10 +708,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
     Map.get(summaries, token_id, empty_usage_summary())
   end
 
-  defp usage_period_patch(%ModelBinding{} = profile, %URI{} = uri, "custom", %{
-         "start" => start_at,
-         "end" => end_at
-       }) do
+  defp usage_period_patch(%ModelBinding{} = profile, %URI{} = uri, "custom", %{"start" => start_at, "end" => end_at}) do
     query =
       uri.query
       |> Query.put("usage-date-range", "custom")
