@@ -13,6 +13,7 @@ import TuistPlugin
 import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
+import XcodeProj
 
 @Mockable
 public protocol Generating {
@@ -77,6 +78,13 @@ public class Generator: Generating {
             defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
         )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
+
+        // Opt into Xcode 27's experimental JSON5 project format when the user has enabled it.
+        // `XcodeProjWriter` dispatches on `xcodeProj.projectFormat`, so setting it here is enough.
+        let projectFormat: ProjectFormat = (options?.projectFormat ?? .pbxproj) == .xcproj ? .xcproj : .pbxproj
+        for projectDescriptor in workspaceDescriptor.projectDescriptors {
+            projectDescriptor.xcodeProj.projectFormat = projectFormat
+        }
 
         // Write
         try await writer.write(workspace: workspaceDescriptor)
