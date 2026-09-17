@@ -22752,6 +22752,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-238": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod, outcome) (rate(kura_reapi_keep_alive_actions_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}} · {{outcome}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Actions clients reported answering from their own local store (a runner's cache volume, a developer's warm store), by what this node held for them. `found` entries had every blob present and their Old-segment blobs were queued for copy-forward under trigger `keep_alive` (see segment_refreshes_total and promotion_drops_total). `missing` entries are not held here. `evicted` entries already lost a blob: no keep-alive can save them, and a sustained rate means clients are answering locally what this ring has already dropped.\n\nPrometheus name: `kura_reapi_keep_alive_actions_total_total` · labels: outcome",
+          "id": 238,
+          "links": [],
+          "title": "reapi_keep_alive_actions_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -23694,11 +23786,24 @@
                         "x": 16,
                         "y": 35
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-238"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 42
+                      }
                     }
                   ]
                 }
               },
-              "title": "Segment store, promotion & durability (18)"
+              "title": "Segment store, promotion & durability (19)"
             }
           },
           {

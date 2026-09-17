@@ -232,6 +232,7 @@ pub struct MetricsInner {
     promotion_failures: Counter,
     peer_connection_failures: Counter,
     promotion_drops: Family<RefreshTriggerLabels, Counter>,
+    keep_alive_actions: Family<KeepAliveOutcomeLabels, Counter>,
 }
 
 impl std::ops::Deref for Metrics {
@@ -924,6 +925,7 @@ impl Metrics {
         let promotion_failures = Counter::default();
         let peer_connection_failures = Counter::default();
         let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
+        let keep_alive_actions = Family::<KeepAliveOutcomeLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -1838,6 +1840,11 @@ impl Metrics {
             promotion_drops.clone(),
         );
         registry.register(
+            "kura_reapi_keep_alive_actions_total",
+            "Actions clients reported answering from their own local store, by what this node held for them",
+            keep_alive_actions.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -2045,6 +2052,7 @@ impl Metrics {
                 promotion_failures,
                 peer_connection_failures,
                 promotion_drops,
+                keep_alive_actions,
             }),
         };
 
@@ -2321,6 +2329,16 @@ impl Metrics {
                 trigger: trigger.to_owned(),
             })
             .inc();
+    }
+
+    pub fn record_keep_alive_actions(&self, found: u64, missing: u64, evicted: u64) {
+        for (outcome, count) in [("found", found), ("missing", missing), ("evicted", evicted)] {
+            self.keep_alive_actions
+                .get_or_create(&KeepAliveOutcomeLabels {
+                    outcome: outcome.to_owned(),
+                })
+                .inc_by(count);
+        }
     }
 
     /// A refresh the pressure gate declined. Counted on the same family as
@@ -3523,6 +3541,11 @@ struct SegmentRefreshRouteLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct RefreshTriggerLabels {
     trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct KeepAliveOutcomeLabels {
+    outcome: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

@@ -42,6 +42,7 @@ use super::{
         ChunkedBlobRecipe, FAST_CDC_AVERAGE_CHUNK_BYTES, PresenceBudget, fetch_chunk_manifests,
         fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys, recipe_key,
     },
+    keep_alive::*,
     snapshot::*,
 };
 
@@ -67,6 +68,7 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
+const KEEP_ALIVE_YIELD_INTERVAL: usize = 64;
 // ByteStream downloads can keep the response vector and Tonic's encoded frame
 // live while Hyper retains up to its separately capped per-stream send buffer.
 // The reader fills the response vector directly, so there is no intermediate
@@ -826,6 +828,83 @@ impl ReapiService {
         Ok(response)
     }
 
+    /// Extends the lifetimes of the blobs a served `GetActionResult` would, for
+    /// actions a client answered locally. Declined outside normal memory
+    /// pressure, where the serve-path gate would skip every refresh it queues.
+    async fn keep_action_results_alive(
+        &self,
+        namespace_id: &str,
+        actions: &[reapi::Digest],
+    ) -> Result<KeepAliveSummary, Status> {
+        let mut summary = KeepAliveSummary::default();
+        let store = &self.state.store;
+        if !store.segment_ring_is_aging() {
+            return Ok(summary);
+        }
+        if !self.state.memory.allow_segment_refresh() {
+            self.state
+                .metrics
+                .record_memory_action("keep_alive_declined");
+            return Err(Status::resource_exhausted(
+                "keep-alive declined under memory pressure",
+            ));
+        }
+        let mut budget = MaterializationBudget::new(&self.state);
+        for (index, action) in actions.iter().enumerate() {
+            if index > 0 && index % KEEP_ALIVE_YIELD_INTERVAL == 0 {
+                tokio::task::yield_now().await;
+            }
+            let key = action_cache_key(&digest_key(action)?);
+            let manifest = store
+                .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)
+                .map_err(|error| {
+                    Status::internal(format!("failed to look up action result: {error}"))
+                })?;
+            let Some(manifest) = manifest else {
+                summary.missing += 1;
+                continue;
+            };
+            let Ok(action_result) = read_manifest_bytes(&self.state, &manifest)
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|bytes| {
+                    reapi::ActionResult::decode(bytes.as_slice()).map_err(|error| error.to_string())
+                })
+            else {
+                summary.missing += 1;
+                continue;
+            };
+            let presence =
+                first_evicted_output(&self.state, namespace_id, &action_result, true, &mut budget)
+                    .await
+                    .map_err(|error| {
+                        chunk_presence_status(
+                            &self.state,
+                            "keep_alive",
+                            "failed to inspect action-result blobs",
+                            error,
+                        )
+                    })?;
+            if presence.evicted.is_some() {
+                summary.evicted += 1;
+                continue;
+            }
+            store.extend_artifact_lifetimes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &presence.present,
+                RefreshTrigger::KeepAlive,
+            );
+            summary.found += 1;
+        }
+        self.state.metrics.record_keep_alive_actions(
+            summary.found,
+            summary.missing,
+            summary.evicted,
+        );
+        Ok(summary)
+    }
+
     /// Serves the namespace's action-cache snapshot from the cached index:
     /// reconcile against the manifest keyspace (one index scan, no stored
     /// ActionResult reads), load only entries that are new or changed,
@@ -1441,6 +1520,16 @@ impl ActionCache for ReapiService {
                 .record_artifact_read(ArtifactProducer::Reapi, "ok", served);
             self.record_reapi_download(request.metadata(), namespace_id, served);
             return Ok(response);
+        }
+        if is_keep_alive(digest) {
+            let actions = keep_alive_actions(&request.get_ref().inline_output_files)?;
+            let summary = self
+                .keep_action_results_alive(namespace_id, &actions)
+                .await?;
+            return Ok(Response::new(reapi::ActionResult {
+                stdout_raw: summary.encode(),
+                ..Default::default()
+            }));
         }
         let mut materialization_budget =
             std::sync::Mutex::new(MaterializationBudget::new(&self.state));
@@ -5893,6 +5982,325 @@ mod tests {
             "a young stranded entry is kept — its blobs may still be mid-replication"
         );
         assert!(exists(&live_key));
+    }
+
+    async fn seed_locally_served_entry(
+        service: &ReapiService,
+        label: &str,
+    ) -> (reapi::Digest, reapi::Digest) {
+        let blob = format!("{label}: a compile unit every build replays from its volume");
+        let blob_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(blob.as_bytes())),
+            size_bytes: blob.len() as i64,
+        };
+        persist_cas_blob(&service.state, "ios", &blob_digest, blob.as_bytes())
+            .await
+            .expect("blob should persist");
+        let action_key = format!("{label}-action");
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(action_key.as_bytes())),
+            size_bytes: action_key.len() as i64,
+        };
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest.clone()),
+            action_result: Some(reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode(label.as_bytes()),
+                    digest: Some(blob_digest.clone()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        add_direct_write_admission(
+            &service.state,
+            &mut update,
+            ACTION_CACHE_UPDATE_DECODE_COPIES,
+        );
+        service
+            .update_action_result(update)
+            .await
+            .expect("entry should persist");
+        (action_digest, blob_digest)
+    }
+
+    fn keep_alive_request(actions: &[&reapi::Digest]) -> Request<reapi::GetActionResultRequest> {
+        const RESERVED_KEY: &[u8] = b"tuist-actioncache-keep-alive/v1";
+        Request::new(reapi::GetActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(reapi::Digest {
+                hash: hex::encode(Sha256::digest(RESERVED_KEY)),
+                size_bytes: RESERVED_KEY.len() as i64,
+            }),
+            inline_output_files: actions
+                .iter()
+                .map(|digest| format!("tuist-keep-alive:{}/{}", digest.hash, digest.size_bytes))
+                .collect(),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        })
+    }
+
+    fn get_action_request(action: &reapi::Digest) -> Request<reapi::GetActionResultRequest> {
+        Request::new(reapi::GetActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action.clone()),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn a_keep_alive_carries_a_locally_served_entry_through_capacity_eviction() {
+        for keep_alive in [false, true] {
+            let context = test_context(|config| {
+                config.cas_capacity_bytes = Some(1);
+            })
+            .await;
+            let service = ReapiService {
+                snapshot_cache: Default::default(),
+                state: context.state.clone(),
+            };
+            let store = &context.state.store;
+            let (action, blob) = seed_locally_served_entry(&service, "stable-module").await;
+            let blob_segment = store
+                .manifest_for_key(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&blob).expect("digest key")),
+                )
+                .expect("manifest lookup")
+                .and_then(|manifest| manifest.segment_id)
+                .expect("the blob should be segment-backed");
+
+            while !store.segment_ring_is_aging() {
+                store
+                    .rotate_segment_ring_for_test()
+                    .await
+                    .expect("rotation should succeed");
+            }
+
+            if keep_alive {
+                service
+                    .get_action_result(keep_alive_request(&[&action]))
+                    .await
+                    .expect("a keep-alive should be answered");
+                store
+                    .drain_promotions_for_test()
+                    .await
+                    .expect("promotions should complete");
+            }
+
+            loop {
+                let evicted = store
+                    .rotate_segment_ring_for_test()
+                    .await
+                    .expect("rotation should succeed");
+                if evicted.contains(&blob_segment) {
+                    break;
+                }
+            }
+
+            let served = service.get_action_result(get_action_request(&action)).await;
+            if keep_alive {
+                served.expect("the kept-alive entry must still serve after its segment is evicted");
+            } else {
+                assert_eq!(
+                    served
+                        .expect_err("without a keep-alive the blob is evicted with its segment")
+                        .code(),
+                    tonic::Code::NotFound
+                );
+            }
+        }
+    }
+
+    /// Run with `cargo test --release --lib keep_alive_cost -- --ignored --nocapture`.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "a measurement, not an assertion"]
+    async fn keep_alive_cost() {
+        const ACTIONS: usize = KEEP_ALIVE_MAX_ACTIONS;
+        const OUTPUTS: usize = 8;
+        const BLOB_BYTES: usize = 4 * 1024;
+        let context = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let mut actions = Vec::with_capacity(ACTIONS);
+        for action in 0..ACTIONS {
+            let mut output_files = Vec::with_capacity(OUTPUTS);
+            for output in 0..OUTPUTS {
+                let mut blob = vec![0u8; BLOB_BYTES];
+                blob[..16]
+                    .copy_from_slice(&(((action as u128) << 64) | output as u128).to_le_bytes());
+                let digest = reapi::Digest {
+                    hash: hex::encode(Sha256::digest(&blob)),
+                    size_bytes: blob.len() as i64,
+                };
+                persist_cas_blob(&context.state, "ios", &digest, &blob)
+                    .await
+                    .expect("blob should persist");
+                output_files.push(reapi::OutputFile {
+                    path: format!("{action}-{output}"),
+                    digest: Some(digest),
+                    ..Default::default()
+                });
+            }
+            let key = format!("cost-action-{action}");
+            let action_digest = reapi::Digest {
+                hash: hex::encode(Sha256::digest(key.as_bytes())),
+                size_bytes: key.len() as i64,
+            };
+            let mut update = Request::new(reapi::UpdateActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(action_digest.clone()),
+                action_result: Some(reapi::ActionResult {
+                    output_files,
+                    ..Default::default()
+                }),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            });
+            add_direct_write_admission(
+                &context.state,
+                &mut update,
+                ACTION_CACHE_UPDATE_DECODE_COPIES,
+            );
+            service
+                .update_action_result(update)
+                .await
+                .expect("entry should persist");
+            actions.push(action_digest);
+        }
+        while !store.segment_ring_is_aging() {
+            store
+                .rotate_segment_ring_for_test()
+                .await
+                .expect("rotation should succeed");
+        }
+        let request_actions: Vec<&reapi::Digest> = actions.iter().collect();
+
+        let started = std::time::Instant::now();
+        let summary = service
+            .get_action_result(keep_alive_request(&request_actions))
+            .await
+            .expect("a keep-alive should be answered")
+            .into_inner();
+        let aged = started.elapsed();
+        let queued = store
+            .snapshot()
+            .expect("store snapshot")
+            .promotion_queue_depth;
+        eprintln!(
+            "{ACTIONS} actions x {OUTPUTS} outputs of {BLOB_BYTES} bytes, all Old ({}): {aged:?} ({:?}/action), {queued} promotions queued",
+            String::from_utf8_lossy(&summary.stdout_raw),
+            aged / ACTIONS as u32,
+        );
+
+        let started = std::time::Instant::now();
+        store
+            .drain_promotions_for_test()
+            .await
+            .expect("promotions should complete");
+        let drained = started.elapsed();
+        eprintln!(
+            "promotions drained in {drained:?} ({:?}/promotion)",
+            drained / queued.max(1) as u32
+        );
+
+        let started = std::time::Instant::now();
+        service
+            .get_action_result(keep_alive_request(&request_actions))
+            .await
+            .expect("a keep-alive should be answered");
+        let young = started.elapsed();
+        eprintln!(
+            "nothing left to promote: {young:?} ({:?}/action)",
+            young / ACTIONS as u32
+        );
+    }
+
+    #[tokio::test]
+    async fn a_keep_alive_reports_what_it_found_without_serving_it() {
+        let context = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let (present, _) = seed_locally_served_entry(&service, "present").await;
+        let absent = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"never-published")),
+            size_bytes: "never-published".len() as i64,
+        };
+        while !store.segment_ring_is_aging() {
+            store
+                .rotate_segment_ring_for_test()
+                .await
+                .expect("rotation should succeed");
+        }
+
+        let response = service
+            .get_action_result(keep_alive_request(&[&present, &absent]))
+            .await
+            .expect("a keep-alive should be answered")
+            .into_inner();
+
+        assert!(
+            response.output_files.is_empty(),
+            "a keep-alive serves no entry"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&response.stdout_raw),
+            "found=1 missing=1 evicted=0"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_keep_alive_rejects_a_malformed_or_oversized_batch() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let mut malformed = keep_alive_request(&[]);
+        malformed
+            .get_mut()
+            .inline_output_files
+            .push("tuist-keep-alive:not-a-digest".into());
+        assert_eq!(
+            service
+                .get_action_result(malformed)
+                .await
+                .expect_err("a malformed key must be rejected")
+                .code(),
+            tonic::Code::InvalidArgument
+        );
+
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"action")),
+            size_bytes: 6,
+        };
+        let oversized = vec![&digest; 4_097];
+        assert_eq!(
+            service
+                .get_action_result(keep_alive_request(&oversized))
+                .await
+                .expect_err("a batch past the per-request bound must be rejected")
+                .code(),
+            tonic::Code::InvalidArgument
+        );
     }
 
     #[tokio::test]

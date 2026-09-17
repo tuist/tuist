@@ -365,6 +365,9 @@ impl PromotionQueue {
 /// Both stop at `Critical`, where a read-path write would compound the squeeze.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RefreshTrigger {
+    /// An action a client answered from its own local store. Serve-path, and
+    /// weaker than a read this node served.
+    KeepAlive,
     /// Background promotion of an artifact just served from an Old segment.
     Serve,
     /// A `GetActionResult` that passed its presence gate and is being served.
@@ -376,6 +379,7 @@ pub enum RefreshTrigger {
 impl RefreshTrigger {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::KeepAlive => "keep_alive",
             Self::Serve => "serve",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
@@ -385,7 +389,7 @@ impl RefreshTrigger {
     /// Whether this refresh backs a lifetime the node has vouched for, and so
     /// runs under the wider pressure gate.
     fn extends_vouched_lifetime(self) -> bool {
-        !matches!(self, Self::Serve)
+        !matches!(self, Self::KeepAlive | Self::Serve)
     }
 }
 
@@ -2467,6 +2471,46 @@ impl Store {
     /// blob.
     pub fn segment_ring_is_aging(&self) -> bool {
         !self.segment_state_snapshot().state.old.is_empty()
+    }
+
+    /// Rotates the ring as a full active segment would and returns the evicted
+    /// segment ids.
+    #[cfg(test)]
+    pub(crate) async fn rotate_segment_ring_for_test(&self) -> Result<Vec<String>, String> {
+        // An empty active segment is not sealed.
+        static FILLERS: AtomicU64 = AtomicU64::new(0);
+        self.persist_artifact_from_bytes(
+            ArtifactProducer::Gradle,
+            "rotation-filler",
+            &FILLERS.fetch_add(1, Ordering::Relaxed).to_string(),
+            "application/octet-stream",
+            b"filler",
+        )
+        .await?;
+        let mut writer = self.segment_write_lock.lock().await;
+        let (_, evicted) = self.active_segment(MAX_SEGMENT_BYTES, &mut writer).await?;
+        drop(writer);
+        let evicted_ids = evicted
+            .iter()
+            .map(|segment| segment.segment_id.clone())
+            .collect();
+        self.evict_segments(evicted).await?;
+        Ok(evicted_ids)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn drain_promotions_for_test(&self) -> Result<(), String> {
+        loop {
+            let next = self
+                .promotion_queue
+                .lock()
+                .expect("promotion queue lock")
+                .pop();
+            let Some((artifact_id, trigger)) = next else {
+                return Ok(());
+            };
+            self.promote_artifact(&artifact_id, trigger).await?;
+        }
     }
 
     /// Presence check that extends the blob's lifetime from the *same* manifest
@@ -14796,6 +14840,60 @@ mod tests {
             depth(),
             serve_ceiling + 1,
             "the reserve admits a refresh backing a promise already made to a client"
+        );
+    }
+
+    #[tokio::test]
+    async fn keep_alives_ride_the_serve_lane_and_never_take_the_vouched_reserve() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.enqueue_promotion("served", RefreshTrigger::Serve);
+        store.enqueue_promotion("served", RefreshTrigger::KeepAlive);
+        store.enqueue_promotion("kept-alive", RefreshTrigger::KeepAlive);
+        store.enqueue_promotion("vouched", RefreshTrigger::FindMissing);
+        {
+            let mut queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(
+                queue.pending.get("served"),
+                Some(&RefreshTrigger::Serve),
+                "a keep-alive does not relabel a read this node served"
+            );
+            assert_eq!(
+                queue.pop(),
+                Some(("vouched".to_owned(), RefreshTrigger::FindMissing))
+            );
+            assert_eq!(queue.pop().map(|(id, _)| id), Some("served".to_owned()));
+            assert_eq!(
+                queue.pop(),
+                Some(("kept-alive".to_owned(), RefreshTrigger::KeepAlive)),
+                "keep-alive work waits behind vouched work in the serve lane"
+            );
+        }
+
+        let serve_ceiling = MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE;
+        for index in 0..serve_ceiling {
+            store.enqueue_promotion(&format!("kept-alive-{index}"), RefreshTrigger::KeepAlive);
+        }
+        store.enqueue_promotion("kept-alive-overflow", RefreshTrigger::KeepAlive);
+        store.enqueue_promotion("vouched-after-flood", RefreshTrigger::ActionCache);
+        let queue = store.promotion_queue.lock().expect("queue lock");
+        assert!(
+            !queue.pending.contains_key("kept-alive-overflow"),
+            "a keep-alive stops at the serve ceiling"
+        );
+        assert!(
+            queue.pending.contains_key("vouched-after-flood"),
+            "a flood of keep-alives leaves the reserve to vouched refreshes"
+        );
+        drop(queue);
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .lines()
+                .any(|line| line.starts_with("kura_promotion_drops_total")
+                    && line.contains("trigger=\"keep_alive\"")),
+            "the dropped keep-alive is counted under its own trigger"
         );
     }
 
