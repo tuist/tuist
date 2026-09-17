@@ -23,8 +23,7 @@
   & > [data-part="gates-card-section"],
   & > [data-part="patch-card-section"],
   & > [data-part="excluded-paths-card-section"],
-  & > [data-part="git-history-card-section"],
-  & > [data-part="retention-card-section"] {
+  & > [data-part="git-history-card-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);

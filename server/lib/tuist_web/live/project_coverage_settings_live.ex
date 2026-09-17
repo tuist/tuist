@@ -1,14 +1,13 @@
 defmodule TuistWeb.ProjectCoverageSettingsLive do
   @moduledoc """
   The project's code coverage settings: gates, patch coverage on partial
-  runs, the paths left out of every figure, the Git history window and its
-  provider fallback, the tracked files, and the retention in effect.
+  runs, the Git history window with its provider fallback and tracked files,
+  and the paths left out of every figure.
   """
   use TuistWeb, :live_view
   use Noora
 
   alias Tuist.Authorization
-  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.GitHistory
   alias Tuist.Projects
@@ -126,7 +125,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
     |> assign(:excluded_path_globs, ExcludedPaths.globs(project))
     |> assign(:git_history, GitHistory.settings(project))
     |> assign(:git_history_defaults, GitHistory.settings(nil))
-    |> assign(:retention, Environment.coverage_retention_days())
     |> assign_forms()
   end
 

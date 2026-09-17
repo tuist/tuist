@@ -212,99 +212,6 @@
     </div>
   </.card_section>
 
-  <.card_section data-part="excluded-paths-card-section">
-    <div data-part="header">
-      <div data-part="title-group">
-        <span data-part="title">{dgettext("dashboard_projects", "Excluded paths")}</span>
-        <span data-part="subtitle">
-          {dgettext(
-            "dashboard_projects",
-            "Files left out of every coverage figure, such as generated code. Changes apply to past runs whose per-file coverage is still retained."
-          )}
-        </span>
-      </div>
-    </div>
-    <div data-part="content">
-      <div data-part="setting-row">
-        <div data-part="content">
-          <h3 data-part="title">{dgettext("dashboard_projects", "Globs")}</h3>
-          <div data-part="tags">
-            <.tag :for={glob <- @excluded_path_globs} label={glob} />
-            <.tag
-              :if={@excluded_path_globs == []}
-              label={dgettext("dashboard_projects", "Nothing excluded")}
-            />
-          </div>
-        </div>
-        <div data-part="row-content">
-          <.modal
-            id="coverage-excluded-paths-modal"
-            title={dgettext("dashboard_projects", "Configure excluded paths")}
-            header_size="large"
-            on_dismiss={JS.push("close_modal", value: %{form: "excluded_paths"})}
-          >
-            <:trigger :let={attrs}>
-              <.button
-                label={dgettext("dashboard_projects", "Configure")}
-                variant="secondary"
-                size="medium"
-                {attrs}
-              />
-            </:trigger>
-            <.line_divider />
-            <form
-              id="coverage-excluded-paths-form"
-              phx-change="update_form"
-              data-part="modal-form"
-            >
-              <input type="hidden" name="form" value="excluded_paths" />
-              <.text_area
-                id="coverage-excluded-path-globs"
-                name="globs"
-                label={dgettext("dashboard_projects", "One glob per line")}
-                hint={
-                  dgettext(
-                    "dashboard_projects",
-                    "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one."
-                  )
-                }
-                value={@forms["excluded_paths"]["globs"]}
-                placeholder={Enum.join(["Sources/API/Generated/**", "**/*.pb.swift"], "\n")}
-                rows={6}
-                max_length={10_000}
-                show_character_count={false}
-                phx-debounce="300"
-              />
-            </form>
-            <.line_divider />
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard_projects", "Cancel")}
-                    variant="secondary"
-                    phx-click="close_modal"
-                    phx-value-form="excluded_paths"
-                  />
-                </:action>
-                <:action>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard_projects", "Save")}
-                    variant="primary"
-                    phx-click="save_form"
-                    phx-value-form="excluded_paths"
-                  />
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </div>
-      </div>
-    </div>
-  </.card_section>
-
   <.card_section data-part="git-history-card-section">
     <div data-part="header">
       <div data-part="title-group">
@@ -535,33 +442,94 @@
     </div>
   </.card_section>
 
-  <.card_section data-part="retention-card-section">
+  <.card_section data-part="excluded-paths-card-section">
     <div data-part="header">
       <div data-part="title-group">
-        <span data-part="title">{dgettext("dashboard_projects", "Retention")}</span>
+        <span data-part="title">{dgettext("dashboard_projects", "Excluded paths")}</span>
         <span data-part="subtitle">
-          {dgettext("dashboard_projects", "How long coverage data is kept. Set by the server.")}
+          {dgettext(
+            "dashboard_projects",
+            "Files left out of every coverage figure, such as generated code. Changes apply to past runs whose per-file coverage is still retained."
+          )}
         </span>
       </div>
     </div>
     <div data-part="content">
-      <div
-        :for={
-          {label, days} <- [
-            {dgettext("dashboard_projects", "Per-file coverage"), @retention.files},
-            {dgettext("dashboard_projects", "Run totals"), @retention.runs},
-            {dgettext("dashboard_projects", "Commit graph"), @git_history.window_days}
-          ]
-        }
-        data-part="setting-row"
-      >
+      <div data-part="setting-row">
         <div data-part="content">
-          <h3 data-part="title">{label}</h3>
+          <h3 data-part="title">{dgettext("dashboard_projects", "Globs")}</h3>
+          <div data-part="tags">
+            <.tag :for={glob <- @excluded_path_globs} label={glob} />
+            <.tag
+              :if={@excluded_path_globs == []}
+              label={dgettext("dashboard_projects", "Nothing excluded")}
+            />
+          </div>
         </div>
         <div data-part="row-content">
-          <.tag label={
-            dngettext("dashboard_projects", "%{count} day", "%{count} days", days, count: days)
-          } />
+          <.modal
+            id="coverage-excluded-paths-modal"
+            title={dgettext("dashboard_projects", "Configure excluded paths")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "excluded_paths"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-excluded-paths-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="excluded_paths" />
+              <.text_area
+                id="coverage-excluded-path-globs"
+                name="globs"
+                label={dgettext("dashboard_projects", "One glob per line")}
+                hint={
+                  dgettext(
+                    "dashboard_projects",
+                    "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one."
+                  )
+                }
+                value={@forms["excluded_paths"]["globs"]}
+                placeholder={Enum.join(["Sources/API/Generated/**", "**/*.pb.swift"], "\n")}
+                rows={6}
+                max_length={10_000}
+                show_character_count={false}
+                phx-debounce="300"
+              />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </div>
       </div>
     </div>

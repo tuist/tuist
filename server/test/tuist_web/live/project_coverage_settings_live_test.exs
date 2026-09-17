@@ -30,7 +30,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
 
     assert has_element?(lv, "[data-part='excluded-paths-card-section'] .noora-tag", "Nothing excluded")
     assert has_element?(lv, "[data-part='gates-card-section'] .noora-tag", "No thresholds")
-    assert has_element?(lv, "[data-part='retention-card-section'] .noora-tag", "90 days")
 
     lv |> element("#coverage-gates-enabled") |> render_click()
     lv |> element("#coverage-patch-partial-runs") |> render_click()
