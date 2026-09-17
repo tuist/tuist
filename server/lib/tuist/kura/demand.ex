@@ -141,21 +141,12 @@ defmodule Tuist.Kura.Demand do
   end
 
   @doc """
-  Why an instance of the account is archived and waiting for its account to ask
-  for it: `:unused` when it was reclaimed for never storing anything, `:prepared`
-  when it was brought up ahead of the account's demand and archived before
-  anything used it. `nil` when neither holds. Only cache demand recorded after
-  that archival returns it.
+  True when an instance of the account was reclaimed for never storing anything
+  and has not been returned since. Only cache demand recorded after that
+  archival returns it.
   """
-  def archived_hold(%Account{id: account_id}) do
-    Repo.one(
-      from(l in AccountRegionLifecycle,
-        where: l.account_id == ^account_id and l.drain_reason in [:unused, :prepared],
-        order_by: [asc: l.service_region],
-        limit: 1,
-        select: l.drain_reason
-      )
-    )
+  def unused_hold?(%Account{id: account_id}) do
+    Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id and l.drain_reason == :unused))
   end
 
   @doc """

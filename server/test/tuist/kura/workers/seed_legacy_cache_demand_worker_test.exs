@@ -21,6 +21,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.SeedLegacyCacheDemandWorker
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -214,16 +215,19 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
 
   describe "dry run" do
     test "is the default, reports the plan and writes nothing" do
-      admission(%{"us-east" => 0, "eu-west" => 1_000})
-      account = account()
-      module_cache_run(account, at: ago(1))
+      admission(%{"us-east" => @instance_gib, "eu-west" => 1_000})
+      first = account()
+      module_cache_run(first, at: ago(1))
+      second = account()
+      module_cache_run(second, at: ago(1))
 
       report = run()
 
       assert report.dry_run
-      assert [%{outcome: :provision, region: "eu-west", preferred_region: "us-east"}] = entries_for(report, account)
-      assert lifecycle_rows_for(account) == []
-      assert PlacerRegions.primary_region(account) == nil
+      assert [%{outcome: :provision, region: "us-east"}] = entries_for(report, first)
+      assert [%{outcome: :provision, region: "eu-west", preferred_region: "us-east"}] = entries_for(report, second)
+      assert lifecycle_rows_for(first) == [] and lifecycle_rows_for(second) == []
+      assert PlacerRegions.primary_region(second) == nil
     end
   end
 
@@ -367,22 +371,30 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
                report.regions
     end
 
-    test "spills an account with nothing placed to the nearest region with room, and records it as first placement would" do
-      admission(%{"us-east" => 0, "eu-west" => 1_000})
-      account = account()
-      module_cache_run(account, at: ago(1))
+    # Resolution reads a region's room once a minute, so every account in a pass
+    # sees the room for one instance and resolves into it. The pass admits them
+    # one after another and spills the rest.
+    test "spills the accounts a region cannot hold to the nearest region with room, and records it as first placement would" do
+      admission(%{"us-east" => @instance_gib, "eu-west" => 1_000})
+      first = account()
+      module_cache_run(first, at: ago(1))
+      second = account()
+      module_cache_run(second, at: ago(1))
 
       report = seed()
 
-      assert [%{outcome: :provision, region: "eu-west", preferred_region: "us-east"}] = entries_for(report, account)
+      assert [%{outcome: :provision, region: "us-east"}] = entries_for(report, first)
+      assert [%{outcome: :provision, region: "eu-west", preferred_region: "us-east"}] = entries_for(report, second)
 
       assert %PlacerRegion{region: "eu-west", evidence: %{"signal" => "capacity_spill", "preferred_region" => "us-east"}} =
-               Repo.get_by(PlacerRegion, account_id: account.id, role: :primary)
+               Repo.get_by(PlacerRegion, account_id: second.id, role: :primary)
 
-      assert %{"us-east" => %{spilled_out: 1}, "eu-west" => %{spilled_in: 1, provisions: 1}} = report.regions
+      assert %{"us-east" => %{spilled_out: 1, provisions: 1}, "eu-west" => %{spilled_in: 1, provisions: 1}} =
+               report.regions
 
       assert :ok = Lifecycle.reconcile()
-      assert [%Server{status: :provisioning, region: "eu-west"}] = servers_for(account)
+      assert [%Server{status: :provisioning, region: "us-east"}] = servers_for(first)
+      assert [%Server{status: :provisioning, region: "eu-west"}] = servers_for(second)
     end
 
     test "does not spill an account placement already decided for" do
@@ -482,8 +494,25 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
       assert [%{outcome: :prepared, region: "us-east"}] = entries_for(third, account)
       refute third.in_flight
 
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id})
       assert :ok = Lifecycle.reconcile()
       assert %Server{status: :archived} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps an Enterprise instance in service, because the lifecycle never archives one" do
+      account = account(plan: :enterprise, region: :usa)
+      module_cache_run(account, at: ago(1))
+      started_at = started_at()
+
+      first = prepare_pass(started_at)
+      assert :ok = Lifecycle.reconcile()
+      server = activate(account)
+
+      report = prepare_pass(started_at, state(first))
+
+      assert [%{outcome: :serving}] = entries_for(report, account)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+      refute report.in_flight
     end
 
     test "seeds the next account once the instance ahead of it has released its reservation" do

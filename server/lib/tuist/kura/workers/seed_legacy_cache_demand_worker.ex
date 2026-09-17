@@ -38,11 +38,19 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   ## Preparing
 
   With `prepare`, an instance is brought up and then archived as soon as it is
-  active (`Tuist.Kura.Lifecycle.archive_prepared/2`), so the slow part of a
-  first provision is done ahead of time and the instance holds no capacity
-  until its account asks for it through Kura. The job runs in passes a minute
-  apart: each pass archives what the previous ones brought up and seeds the
-  next accounts into the room that frees, until nothing is on its way.
+  active, so the slow part of a first provision is done ahead of time and the
+  instance holds no capacity until its account asks for it through Kura. The
+  job runs in passes a minute apart: each pass archives what the previous ones
+  brought up and seeds the next accounts into the room that frees, until
+  nothing is on its way.
+
+  The archival goes through `Tuist.Kura.Lifecycle` unchanged: the job starts
+  the drain the way the never-used rule does, with the `:unused` reason, and
+  the lifecycle tears the instance down after the drain window. That reason
+  already means what a prepared instance needs: only demand recorded after the
+  archival provisions it again, and the project-creation seed leaves it
+  archived. Enterprise instances are left in service, because the lifecycle
+  cancels any inactivity drain on that plan.
 
   Only instances the backfill brought up are archived, at most once each. The
   job records the demand it seeded each account-region with, and an instance
@@ -69,14 +77,15 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   alias Tuist.Billing
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
-  alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.OriginMap
+  alias Tuist.Kura.Origins
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
@@ -259,7 +268,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
       traffic: traffic,
       inactive_cutoff: DateTime.add(DateTime.utc_now(), -Environment.kura_inactive_days() * 86_400, :second),
       resolutions: AccountPolicies.serving_regions_all(accounts),
-      origins: AccountPolicies.majority_origins(accounts),
+      origins: majority_origins(accounts),
       servers: servers_by_account(accounts),
       lifecycles: lifecycles_by_account(accounts),
       decided: decided_account_ids(accounts)
@@ -304,7 +313,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     lifecycle = lifecycle(context, account, entry.region)
 
     case Enum.find(servers, &(&1.region == entry.region and &1.status not in @not_live)) do
-      nil -> plan_absent(entry, account, lifecycle, primary? and spillable?(account, servers, context), context, ledger)
+      nil -> plan_absent(entry, account, primary? and spillable?(account, servers, context), context, ledger)
       live -> {[plan_live(entry, live, lifecycle, context)], ledger}
     end
   end
@@ -323,9 +332,9 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     %{entry | outcome: :waiting, kura_status: live.status, in_flight: in_flight}
   end
 
-  defp plan_absent(entry, account, lifecycle, spillable?, context, ledger) do
+  defp plan_absent(entry, account, spillable?, context, ledger) do
     cond do
-      context.prepare? and prepared_archive?(lifecycle) ->
+      context.prepare? and MapSet.member?(context.prepared, prepared_key(entry)) ->
         {[%{entry | outcome: :prepared}], ledger}
 
       reason = blocked(entry, account, entry.region, context) ->
@@ -348,8 +357,9 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   defp prepare?(entry, server, lifecycle, %{prepare?: true} = context) do
     case seeded_at(context.seeded, entry) do
       %DateTime{} = seeded_at ->
-        not MapSet.member?(context.prepared, prepared_key(entry)) and brought_up?(server, lifecycle, context) and
-          not is_nil(lifecycle) and not DateTime.after?(lifecycle.last_cache_demand_at, seeded_at)
+        entry.plan != :enterprise and not MapSet.member?(context.prepared, prepared_key(entry)) and
+          brought_up?(server, lifecycle, context) and not is_nil(lifecycle) and
+          not DateTime.after?(lifecycle.last_cache_demand_at, seeded_at)
 
       nil ->
         false
@@ -367,9 +377,6 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
        }), do: Enum.max([inserted_at, returned_at], DateTime)
 
   defp service_started_at(%Server{inserted_at: inserted_at}, _lifecycle), do: inserted_at
-
-  defp prepared_archive?(%AccountRegionLifecycle{drain_reason: :prepared, archived_at: %DateTime{}}), do: true
-  defp prepared_archive?(_lifecycle), do: false
 
   defp prepared_key(entry), do: "#{entry.account_id}:#{entry.region}"
 
@@ -526,11 +533,10 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     end)
   end
 
-  # Archived for never storing anything, or before anything used it, after the
-  # account's last demand: only demand recorded after the archival returns it.
-  defp archived_after(%AccountRegionLifecycle{drain_reason: reason, archived_at: %DateTime{} = archived_at}, demand_at)
-       when reason in [:unused, :prepared] do
-    if DateTime.compare(demand_at, archived_at) != :gt, do: :"archived_#{reason}_after_demand"
+  # Archived for never storing anything after the account's last demand: only
+  # demand recorded after the archival returns it.
+  defp archived_after(%AccountRegionLifecycle{drain_reason: :unused, archived_at: %DateTime{} = archived_at}, demand_at) do
+    if DateTime.compare(demand_at, archived_at) != :gt, do: :archived_unused_after_demand
   end
 
   defp archived_after(_lifecycle, _demand_at), do: nil
@@ -574,6 +580,27 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
     MapSet.new(placed ++ assigned)
   end
 
+  # The origin first placement reads (`Tuist.Kura.AccountPolicies`): where most
+  # of the account's cache runs came from over the last week, or its endpoint
+  # resolutions when it has no runs.
+  defp majority_origins(accounts) do
+    accounts
+    |> Enum.map(& &1.id)
+    |> Origins.rollups_since(Date.add(Date.utc_today(), -7))
+    |> Map.new(fn {account_id, rollups} ->
+      by_origin = Enum.group_by(rollups, & &1.origin)
+      {account_id, origin_leader(by_origin, & &1.run_count) || origin_leader(by_origin, & &1.demand_count)}
+    end)
+  end
+
+  defp origin_leader(by_origin, count) do
+    by_origin
+    |> Enum.map(fn {origin, rollups} -> {origin, rollups |> Enum.map(count) |> Enum.sum()} end)
+    |> Enum.reject(fn {_origin, total} -> total == 0 end)
+    |> Enum.max_by(fn {origin, total} -> {total, origin} end, fn -> {nil, 0} end)
+    |> elem(0)
+  end
+
   ## Applying
 
   defp apply_plan(%{entries: entries} = plan, options) do
@@ -598,10 +625,50 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
 
     archived =
       for %{outcome: :prepare} = entry <- entries,
-          :ok == Lifecycle.archive_prepared(Repo.get!(Server, entry.server_id), seeded_at(seeded, entry)),
+          :ok == start_drain(entry, seeded_at(seeded, entry)),
           do: prepared_key(entry)
 
     %{plan | prepared: Enum.uniq(plan.prepared ++ archived), seeded: seeded}
+  end
+
+  # What `Tuist.Kura.Lifecycle` does when the never-used rule drains an
+  # instance, so its own drain resolution carries the instance to archival.
+  # This node's buffered demand is flushed and the lifecycle row held while
+  # the demand is checked again, so a request through Kura that landed since
+  # the plan was taken keeps the instance in service.
+  defp start_drain(entry, seeded_at) do
+    Demand.flush()
+
+    fn ->
+      lifecycle =
+        Repo.one(
+          from(l in AccountRegionLifecycle,
+            where: l.account_id == ^entry.account_id and l.service_region == ^entry.region,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      with false <- is_nil(lifecycle) or DateTime.after?(lifecycle.last_cache_demand_at, seeded_at),
+           {:ok, _server} <- Kura.begin_drain(Repo.get!(Server, entry.server_id)),
+           {:ok, _lifecycle} <-
+             lifecycle
+             |> AccountRegionLifecycle.phase_changeset(%{
+               drain_started_at: now(),
+               teardown_started_at: nil,
+               drain_reason: :unused
+             })
+             |> Repo.update() do
+        Telemetry.drain_pending(entry.plan, entry.region, :unused)
+      else
+        true -> Repo.rollback(:demand_recorded)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp seed?(%{outcome: :provision} = entry, seeded, %{prepare?: true}), do: not Map.has_key?(seeded, prepared_key(entry))

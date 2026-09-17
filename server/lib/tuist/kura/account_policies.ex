@@ -610,12 +610,7 @@ defmodule Tuist.Kura.AccountPolicies do
     |> Map.get(account_id)
   end
 
-  @doc """
-  The origin first placement reads for each account: where most of its cache
-  runs came from over the last week, or its endpoint resolutions when it has no
-  runs. Keyed by account id; an account with no counted traffic has none.
-  """
-  def majority_origins(accounts) do
+  defp majority_origins(accounts) do
     since = Date.add(Date.utc_today(), -@origin_window_days)
 
     accounts
