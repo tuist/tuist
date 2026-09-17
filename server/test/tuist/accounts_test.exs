@@ -22,7 +22,6 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
-  alias Tuist.CacheEndpoints
   alias Tuist.Environment
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
@@ -5166,8 +5165,25 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_cache_resolution_for_handle/2" do
-    test "returns the account's Kura endpoints over its custom endpoints" do
+  describe "get_cache_endpoints_for_handle/1" do
+    test "returns custom endpoints when account has them configured and enabled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
+    end
+
+    test "returns account Kura endpoints when the client requests Kura and the account has Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -5179,11 +5195,14 @@ defmodule Tuist.AccountsTest do
 
       KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == ["https://kura-cache.example.com"]
+      assert endpoints == ["https://kura-cache.example.com"]
     end
 
     test "surfaces registered self-hosted node addresses for an entitled account" do
@@ -5195,10 +5214,10 @@ defmodule Tuist.AccountsTest do
       stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == ["https://node.acme.example:8080"]
+      assert endpoints == ["https://node.acme.example:8080"]
     end
 
     test "hides registered self-hosted node addresses when the account is not entitled to self-hosting" do
@@ -5208,15 +5227,17 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       reject(&Registrations.active_advertised_urls/1)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == []
+      assert endpoints == default_endpoints
     end
 
-    test "returns custom endpoints when the account has no Kura endpoints" do
+    test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints" do
       # Given
       # An account that has never routed through Kura keeps the custom-endpoint
       # behaviour. Stubbed rather than arranged, because the demand this very
@@ -5229,21 +5250,20 @@ defmodule Tuist.AccountsTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
-      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
-      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert Enum.sort(resolution.endpoints) == ["https://cache1.example.com", "https://cache2.example.com"]
+      assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns no endpoints while a lifecycle-managed account has no Kura instance" do
+    test "serves the Tuist-hosted default lane while a lifecycle-managed account has no Kura instance" do
       # Given
-      # An archived account must not fall back to the custom-endpoint path:
-      # that would make archiving accounts the thing that keeps that path alive.
-      # Nor does it fall back to the Tuist-hosted legacy cache nodes.
+      # An archived account must not fall back to the legacy custom-endpoint
+      # path: that would make archiving accounts the thing that keeps the
+      # legacy path alive.
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -5253,65 +5273,14 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
       {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
 
-      {:ok, _} =
-        CacheEndpoints.create_cache_endpoint(%{url: "https://cache-us-east.tuist.dev", display_name: "US East"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == []
-    end
-
-    test "returns no endpoints when the account has no Kura or custom endpoints" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Demand, :lifecycle_managed?, fn _account -> false end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
-
-      {:ok, _} =
-        CacheEndpoints.create_cache_endpoint(%{url: "https://cache-eu-central.tuist.dev", display_name: "EU"})
-
-      # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
-
-      # Then
-      assert resolution.endpoints == []
-    end
-
-    test "returns no endpoints when custom endpoints exist but are disabled" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Demand, :lifecycle_managed?, fn _account -> false end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
-
-      # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
-
-      # Then
-      assert resolution.endpoints == []
-    end
-
-    test "returns no endpoints when the account with custom endpoints is not enterprise" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Demand, :lifecycle_managed?, fn _account -> false end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
-      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
-
-      # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
-
-      # Then
-      assert resolution.endpoints == []
+      assert endpoints == default_endpoints
     end
 
     test "reports provisioning while the account's instance is not serving yet" do
@@ -5320,6 +5289,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
       stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
@@ -5332,10 +5302,10 @@ defmodule Tuist.AccountsTest do
       })
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == []
+      assert resolution.endpoints == ["https://default.tuist.dev"]
       assert resolution.provisioning
     end
 
@@ -5344,19 +5314,20 @@ defmodule Tuist.AccountsTest do
       # The request asking the question is the one that records the demand a
       # cold return is provisioned from, so a check that waited for the row
       # would answer `false` on the request where it matters most and leave the
-      # client caching an empty answer for its full interval.
+      # client caching a stand-in lane for its full interval.
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
       stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == []
+      assert resolution.endpoints == ["https://default.tuist.dev"]
       assert resolution.provisioning
     end
 
@@ -5365,12 +5336,13 @@ defmodule Tuist.AccountsTest do
       # A plan Kura does not serve resolves to no region, so no instance is
       # coming and the client must not poll for one.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       refute resolution.provisioning
@@ -5378,23 +5350,23 @@ defmodule Tuist.AccountsTest do
 
     test "reports provisioning for a paid account that allows every storage region" do
       # Given
-      # These accounts used to be refused a region outright, which left them
-      # without a dedicated instance indefinitely with the client told nothing
-      # was coming.
+      # These accounts used to be refused a region outright, which left them on
+      # a stand-in lane indefinitely with the client told nothing was coming.
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
       stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       {:ok, account} = Accounts.update_account(account, %{region: :all})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
-      assert resolution.endpoints == []
+      assert resolution.endpoints == ["https://default.tuist.dev"]
       assert resolution.provisioning
     end
 
@@ -5407,28 +5379,143 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
       refute resolution.provisioning
     end
 
-    test "records cache demand for the account when resolving endpoints" do
+    test "does not report provisioning when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "records cache demand for the account when a Kura client resolves endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
       stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
       # When
-      Accounts.get_cache_resolution_for_handle(account.name)
+      Accounts.get_cache_endpoints_for_handle(account.name, :kura)
       Demand.flush()
 
       # Then
       assert Demand.get(account.id, "us-east")
+    end
+
+    test "does not record cache demand when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_endpoints_for_handle(account.name)
+      Demand.flush()
+
+      # Then
+      refute Demand.get(account.id, "us-east")
+    end
+
+    test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "returns default endpoints when the client requests Kura but the account has no Kura or custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account has no custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when custom endpoints exist but are disabled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account is not enterprise on hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
     end
 
     test "returns environment endpoints when self-hosted" do
@@ -5442,44 +5529,34 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
 
       # Then
-      assert resolution == %{endpoints: default_endpoints, provisioning: false}
+      assert endpoints == default_endpoints
     end
 
-    test "returns no endpoints when self-hosted without endpoints configured" do
+    test "returns default endpoints when account handle does not exist" do
       # Given
-      stub(Environment, :tuist_hosted?, fn -> false end)
-      stub(Environment, :cache_endpoints, fn -> nil end)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle("any-account")
+      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
 
       # Then
-      assert resolution == %{endpoints: [], provisioning: false}
+      assert endpoints == default_endpoints
     end
 
-    test "returns no endpoints when the account handle does not exist" do
+    test "returns default endpoints when handle is nil" do
       # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle("nonexistent-account")
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
 
       # Then
-      assert resolution == %{endpoints: [], provisioning: false}
-    end
-
-    test "returns no endpoints when the handle is nil" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-
-      # When
-      resolution = Accounts.get_cache_resolution_for_handle(nil)
-
-      # Then
-      assert resolution == %{endpoints: [], provisioning: false}
+      assert endpoints == default_endpoints
     end
   end
 

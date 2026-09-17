@@ -1,8 +1,8 @@
 defmodule Tuist.CacheEndpoints.CacheEndpoint do
   @moduledoc """
-  Schema for the legacy Tuist-hosted cache nodes. Cache endpoint resolution never
-  hands these to clients; the records name the nodes that runs report as their
-  cache endpoint.
+  Schema for global Tuist-hosted cache endpoints.
+  These are the cache nodes that serve binary caching for all Tuist-hosted users.
+  Individual nodes can be disabled to take them out of rotation.
   """
   use Ecto.Schema
 

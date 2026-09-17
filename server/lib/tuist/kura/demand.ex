@@ -12,7 +12,7 @@ defmodule Tuist.Kura.Demand do
 
   It is deliberately a proxy for cache traffic rather than a measure of it, and
   it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the CAS proxy resolves an endpoint on every login: an
+  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
   account whose agent is installed but idle keeps refreshing its clock without
   anyone building, and may never reach a full inactive window. In the other
   direction the CLI caches a resolved endpoint for an hour, so most requests
@@ -131,10 +131,10 @@ defmodule Tuist.Kura.Demand do
   True when the account is under the demand-driven lifecycle in any region.
 
   Cache-endpoint resolution uses this to decide what to answer while no Kura
-  instance is serving: a lifecycle-managed account gets no endpoints rather
-  than its own legacy custom endpoints, because routing archived accounts at
-  the custom-endpoint path would make archival the thing that keeps that path
-  alive.
+  instance is serving: a lifecycle-managed account falls back to the
+  Tuist-hosted default lane rather than to its own legacy custom endpoints,
+  because routing archived accounts at the custom-endpoint path would make
+  archival the thing that keeps that path alive.
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))

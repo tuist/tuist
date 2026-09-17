@@ -20,6 +20,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.RemoteIp
 
   plug(
@@ -63,7 +64,7 @@ defmodule TuistWeb.API.CacheController do
         headers: %{
           "cache-control" => %OpenApiSpex.Header{
             description:
-              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving. While one is being provisioned the answer is `no-cache`, so a client waiting for the instance asks the server again rather than reusing it.",
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.",
             schema: %Schema{type: :string}
           }
         },
@@ -78,11 +79,6 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
-                },
-                provisioning: %Schema{
-                  type: :boolean,
-                  description:
-                    "Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready."
                 }
               }
             }
@@ -111,19 +107,13 @@ defmodule TuistWeb.API.CacheController do
     %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(RemoteIp.attributed_origin(conn))
+      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
 
-    # `no-cache` while provisioning: clients poll this endpoint until the instance
-    # serves, and an HTTP cache honoring the max-age would answer every poll with
-    # the same empty list.
-    cache_control =
-      if provisioning,
-        do: "private, no-cache, max-age=#{@provisioning_cache_max_age}",
-        else: "private, max-age=#{Kura.endpoint_freshness_seconds()}"
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
     conn
-    |> put_resp_header("cache-control", cache_control)
-    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
   end
 
   defp free_tier_exhausted_account(nil), do: nil
@@ -151,6 +141,14 @@ defmodule TuistWeb.API.CacheController do
 
     if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
       account_handle
+    end
+  end
+
+  defp technology(conn) do
+    if Headers.get_client_feature_flag(conn, "kura") do
+      :kura
+    else
+      :default
     end
   end
 

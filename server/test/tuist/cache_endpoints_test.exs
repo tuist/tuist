@@ -39,6 +39,29 @@ defmodule Tuist.CacheEndpointsTest do
     end
   end
 
+  describe "list_active_cache_endpoints/0" do
+    test "excludes disabled endpoints" do
+      endpoint1 = create_endpoint(%{enabled: true})
+      create_endpoint(%{enabled: false})
+
+      result = CacheEndpoints.list_active_cache_endpoints()
+
+      assert length(result) == 1
+      assert hd(result).id == endpoint1.id
+    end
+
+    test "returns enabled endpoints ordered by display_name" do
+      create_endpoint(%{display_name: "Zebra", enabled: true})
+      create_endpoint(%{display_name: "Alpha", enabled: true})
+      create_endpoint(%{display_name: "Beta", enabled: false})
+
+      result = CacheEndpoints.list_active_cache_endpoints()
+
+      assert length(result) == 2
+      assert Enum.map(result, & &1.display_name) == ["Alpha", "Zebra"]
+    end
+  end
+
   describe "get_cache_endpoint/1" do
     test "returns the endpoint" do
       endpoint = create_endpoint()

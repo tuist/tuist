@@ -64,14 +64,14 @@ KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 
 Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, so the server can still attach the node to the right account.
 
-If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
+If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, the page requires the `kura` feature flag and generating a self-hosted-node credential additionally requires an Enterprise plan.
 
 ## How clients reach your nodes {#routing}
 
 How the Tuist CLI is pointed at your nodes depends on which server your nodes report to:
 
 - **Hosted Tuist server (`tuist.dev`).** The server routes clients to your nodes automatically from their registration heartbeats. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node (below), and the advertised URL is handed to the CLI once the node is ready.
-- **Self-hosted Tuist server.** Use the same registration heartbeat flow. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node; the server advertises each ready, non-expired endpoint to CLI clients.
+- **Self-hosted Tuist server.** Use the same registration heartbeat flow. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node; the server advertises each ready, non-expired endpoint to Kura-enabled CLI clients.
 
 ## Bridged setup {#bridged-setup}
 
@@ -174,7 +174,7 @@ volumes:
 
 For a single node, leave peer TLS unset and set `KURA_PEERS` to an empty string. When `KURA_PEERS` is unset, Kura seeds static peer discovery from `KURA_NODE_URL` and periodically checks that URL's `/_internal/status` endpoint. With peer TLS disabled, `KURA_NODE_URL` must use the `http://` scheme even when the node is reachable through a private network name.
 
-`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` must be the URL that your developers and CI can reach; the Tuist server advertises ready, registered endpoints to CLI clients.
+`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` must be the URL that your developers and CI can reach; the Tuist server advertises ready, registered endpoints to Kura-enabled CLI clients.
 
 ### Kubernetes with Helm {#standalone-helm}
 
@@ -298,7 +298,7 @@ These variables configure every node, regardless of topology (peer TLS is the ex
 | `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (multi-node standalone). Not needed for a single node; omit them and use an `http://` `KURA_NODE_URL`. |
 | `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Service name and environment label for telemetry. |
 
-Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page and so CLI clients can be routed to it (see [How clients reach your nodes](#routing)).
+Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page and so Kura-enabled CLI clients can be routed to it (see [How clients reach your nodes](#routing)).
 
 ## Authentication of cache requests {#cache-auth}
 
