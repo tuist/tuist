@@ -1634,13 +1634,13 @@ shed age grows the claim after two qualifying days when the ring cycled about
 once a day over them, and after five when it did not. Days the account did
 not build are passed over rather than restarting the count. The step after a
 resize that landed below its own projection confirms on a single qualifying
-day of the resized ring instead, as long as that day falls within the matching
-rung's own window of the resize. A one-day reading is therefore routinely a
-control loop that is mid-confirmation, and this rule paged on exactly that
-while it was critical. It stays as the early signal; the page is **Kura
-instance retention horizon under a day for three days**. A rule at two days
-was deployed with this one on 2026-09-02 and removed on 2026-09-04, having
-fired only on the artifact described below.
+day of the resized ring instead, as long as that day shed at least a whole ring
+and falls within the matching rung's own window of the resize. A one-day
+reading is therefore routinely a control loop that is mid-confirmation, and
+this rule paged on exactly that while it was critical. It stays as the early
+signal; the page is **Kura instance retention horizon under a day for three
+days**. A rule at two days was deployed with this one on 2026-09-02 and
+removed on 2026-09-04, having fired only on the artifact described below.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker

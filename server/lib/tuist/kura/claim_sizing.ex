@@ -9,8 +9,8 @@ defmodule Tuist.Kura.ClaimSizing do
   the shedding, the shorter the window, and a tier's window can be bought down
   with the volume the ring cycled in place of elapsed time. The step a reading
   may take scales with the confirmation behind it. A step clamped below its own
-  projection lets the next one confirm on a single day of the resized ring,
-  within each rung's own window of the resize.
+  projection lets the next one confirm on a single day of the resized ring that
+  cycled at least a ring, within each rung's own window of the resize.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -173,7 +173,9 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # The capped step's evidence already proved the ring short, so a rung
   # confirms on one day of the resized ring, at the one-day bound, until its
-  # own window could have run since the resize.
+  # own window could have run since the resize. That day pays in volume, as
+  # the ladder's own one-day rungs do: a rebuilt ring sheds nothing older than
+  # itself, so shed age alone cannot tell a short ring from a young one.
   defp capped_resize_verdict(_by_date, _idle_dates, _floor_seconds, _current_bytes, %{capped_resize_from: nil}, _policy),
     do: nil
 
@@ -181,16 +183,26 @@ defmodule Tuist.Kura.ClaimSizing do
     previous_bytes = quantity_bytes(context.capped_resize_from)
     resize_date = DateTime.to_date(context.last_resized_at)
     resized = Map.filter(by_date, fn {_date, rollup} -> resized_ring?(rollup, previous_bytes) end)
+    one_day_turnover = one_day_ring_turnover(policy)
 
     Enum.find_value(policy.grow_windows, fn rung ->
       horizon = Date.add(resize_date, rung.window_days)
       days = Map.filter(resized, fn {date, _rollup} -> Date.compare(date, horizon) != :gt end)
+      turnover = max(Map.get(rung, :min_ring_turnover, 0), one_day_turnover)
+      one_day_rung = Map.merge(rung, %{window_days: 1, min_ring_turnover: turnover})
 
-      case rung_verdict([%{rung | window_days: 1}], days, idle_dates, floor_seconds, current_bytes, context, policy) do
+      case rung_verdict([one_day_rung], days, idle_dates, floor_seconds, current_bytes, context, policy) do
         nil -> nil
         {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
       end
     end)
+  end
+
+  defp one_day_ring_turnover(policy) do
+    policy.grow_windows
+    |> Enum.filter(&(&1.window_days == 1))
+    |> Enum.map(& &1.min_ring_turnover)
+    |> Enum.min()
   end
 
   # A claim funds a ring smaller than itself, so the day's smallest ring clears
