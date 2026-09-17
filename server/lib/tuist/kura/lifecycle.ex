@@ -88,8 +88,10 @@ defmodule Tuist.Kura.Lifecycle do
   only while the region's admission headroom can no longer take a new
   enterprise instance (`Tuist.Kura.Capacity.under_pressure?/1`). With room, the
   90-day target holds for every plan. Under pressure, the least-recently-demanded
-  Air instances go first, and only as many as it takes to fit. No account on any
-  plan is ever archived before 60 complete inactive days.
+  Air instances go first, and only as many as it takes to fit. Once archived,
+  the account-region is provisioned again only by demand recorded after the
+  archival. No account on any plan is ever archived before 60 complete inactive
+  days.
   """
 
   import Ecto.Query
@@ -403,10 +405,11 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
         where: not exists(destroyed_since_demand_exists),
-        # An instance reclaimed for never storing anything comes back only for
-        # demand recorded after its archival, not for the demand it already had.
+        # An instance reclaimed for never storing anything or under pressure
+        # comes back only for demand recorded after its archival, not for the
+        # demand it already had.
         where:
-          is_nil(l.drain_reason) or l.drain_reason != :unused or is_nil(l.archived_at) or
+          is_nil(l.drain_reason) or l.drain_reason not in [:unused, :capacity_pressure] or is_nil(l.archived_at) or
             l.last_cache_demand_at > l.archived_at,
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
         limit: ^limit,

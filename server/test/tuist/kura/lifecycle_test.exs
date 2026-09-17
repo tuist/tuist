@@ -9,6 +9,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Admission
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
@@ -453,6 +454,52 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :active
+    end
+
+    test "does not provision an instance archived under pressure again on the demand it already had" do
+      account = account()
+      server = archive_under_pressure(account)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "returns an instance archived under pressure when the account asks for the cache" do
+      account = account()
+      server = archive_under_pressure(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    # Archives an Air instance at 61 inactive days under pressure, then gives
+    # the region its room back.
+    defp archive_under_pressure(account) do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+
+      server = active_instance(account)
+      with_demand(account, 61)
+      stub_region_pods([reserved_pod(@pressure_line_gib - @air_resident_gib)])
+
+      assert :ok = Lifecycle.sweep()
+      assert reload_lifecycle(account).drain_reason == :capacity_pressure
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+      |> Repo.update!()
+
+      stub_region_pods([])
+      refute Capacity.under_pressure?(@region)
+
+      server
     end
   end
 
