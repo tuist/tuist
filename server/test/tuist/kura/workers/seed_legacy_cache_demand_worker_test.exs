@@ -10,6 +10,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
@@ -394,6 +395,18 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorkerTest do
 
       assert [%{outcome: :skipped, reason: :capacity_exhausted, region: "us-east"}] = entries_for(report, account)
       assert lifecycle_rows_for(account) == []
+    end
+
+    test "does not spill an account an operator assigned to its region" do
+      admission(%{"us-east" => 0, "eu-west" => 1_000})
+      account = account(plan: :pro)
+      {:ok, _} = AccountPolicies.assign_service_region(account, "us-east", AccountsFixtures.user_fixture(), "pinned")
+      module_cache_run(account, at: ago(1))
+
+      report = seed()
+
+      assert [%{outcome: :skipped, reason: :capacity_exhausted, region: "us-east"}] = entries_for(report, account)
+      assert PlacerRegions.primary_region(account) == nil
     end
 
     test "refuses rather than guesses when the region's capacity cannot be read" do

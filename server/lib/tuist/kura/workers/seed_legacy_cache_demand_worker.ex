@@ -71,6 +71,7 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
+  alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
@@ -559,12 +560,16 @@ defmodule Tuist.Kura.Workers.SeedLegacyCacheDemandWorker do
   end
 
   defp decided_account_ids(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
     placed = accounts |> PlacerRegions.primary_regions() |> Map.keys()
 
     assigned =
-      accounts
-      |> Enum.filter(&AccountPolicies.current_service_region_assignment/1)
-      |> Enum.map(& &1.id)
+      Repo.all(
+        from(policy in AccountRegionPolicy,
+          where: policy.account_id in ^account_ids and is_nil(policy.superseded_at),
+          select: policy.account_id
+        )
+      )
 
     MapSet.new(placed ++ assigned)
   end
