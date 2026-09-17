@@ -377,18 +377,23 @@ func TestNeverDispatchedDiscards(t *testing.T) {
 	}
 }
 
+// Admission runs when a branch is materialized, which is when it starts to write.
+// With no room even after eviction the branch gets no image, and the guest falls
+// back to its local cold cache.
 func TestAdmissionDeclinesToColdPath(t *testing.T) {
-	// Total capacity below one provisioned cap: no room even after eviction.
 	root := t.TempDir()
 	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
 	m := NewVolumeManager(root, 1, be)
 
-	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if err != nil {
-		t.Fatalf("AllocateBranch err: %v", err)
+	att := mustAllocate(t, m, "vm1")
+	if !att.Attached {
+		t.Fatal("a booting VM reserves nothing, so it always gets its share")
 	}
-	if att.Attached {
-		t.Fatal("admission should decline (cold path) when the root cannot fit a cap")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
+	}
+	if branchImageExists(m, att) {
+		t.Fatal("a declined branch must get no image, so the guest runs cold")
 	}
 }
 
@@ -402,12 +407,9 @@ func TestAdmissionDeclineIncrementsMetric(t *testing.T) {
 	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
 	m := NewVolumeManager(root, 1, be)
 
-	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if err != nil {
-		t.Fatalf("AllocateBranch err: %v", err)
-	}
-	if att.Attached {
-		t.Fatal("admission should decline to the cold path")
+	att := mustAllocate(t, m, "vm1")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
 	}
 	if got := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal); got != before+1 {
 		t.Fatalf("admission-declined counter = %v, want %v", got, before+1)
@@ -525,8 +527,8 @@ func TestAwaitMountedRootStopsOnContextCancel(t *testing.T) {
 }
 
 func TestAdmissionEvictsThenAdmits(t *testing.T) {
-	// 3 GiB total, 1 GiB cap. Seed 3 masters (free -> 0), then a new attach
-	// must evict an LRU master to make room and still admit.
+	// 3 GiB total, 1 GiB cap. Seed 3 masters (free -> 0), then materializing a
+	// branch must evict an LRU master to make room and still admit.
 	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
@@ -534,30 +536,56 @@ func TestAdmissionEvictsThenAdmits(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "vmX")
-	if !att.Attached {
-		t.Fatal("attach should admit after evicting an LRU master")
+	if _, _, err := m.Materialize(att, "d"); err != nil {
+		t.Fatalf("Materialize should admit after evicting an LRU master: %v", err)
 	}
 	if masterExists(m, "a") {
 		t.Fatal("oldest master 'a' should have been evicted for admission")
 	}
 }
 
-// Reservation (review finding 3): CoW branches start ~0 bytes, so instantaneous
-// free space would let N concurrent branches all pass a per-branch check and
-// later exhaust the quota. AllocateBranch reserves cap per live branch, so a
-// second concurrent branch is declined when only ~1 cap fits.
-func TestReservationPreventsOvercommit(t *testing.T) {
+// Admission now knows the account, so it must never evict the master it is about
+// to clone: that is the 2026-07-31 failure, where every job evicted the master it
+// was materializing and ran cold. The least recently used OTHER master goes
+// instead.
+func TestAdmissionKeepsTheMasterItMaterializes(t *testing.T) {
+	m, _ := newTestManager(t, 2)
+	seedMaster(t, m, "a")
+	setMtime(t, m.masterImage("a", ReservedTuistCacheVolume), time.Now().Add(-time.Hour))
+	seedMaster(t, m, "b")
+
+	att := mustAllocate(t, m, "vm-a")
+	warm, _, err := m.Materialize(att, "a")
+	if err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want a warm admission", warm, err)
+	}
+	if !masterExists(m, "a") {
+		t.Fatal("admission evicted the master it was materializing")
+	}
+	if masterExists(m, "b") {
+		t.Fatal("the other account's master should have been evicted instead")
+	}
+}
+
+// A warm standby booted with an empty share writes nothing until it has a job, so
+// it reserves nothing. Branches that have been materialized reserve a cap each,
+// which is what keeps concurrent jobs from collectively overrunning the quota.
+func TestWarmStandbysReserveNothing(t *testing.T) {
 	root := t.TempDir()
 	be := &fakeBackend{totalBytes: gib + gib/2, perMaster: gib, root: root} // 1.5 GiB
 	m := NewVolumeManager(root, 1, be)                                      // 1 GiB cap
 
-	a1, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if !a1.Attached {
-		t.Fatal("first branch should attach (needs 1 cap, 1.5 free)")
+	a1 := mustAllocate(t, m, "vm1")
+	a2 := mustAllocate(t, m, "vm2")
+	a3 := mustAllocate(t, m, "vm3")
+	if !a1.Attached || !a2.Attached || !a3.Attached {
+		t.Fatal("booting VMs reserve nothing, so every one gets its share")
 	}
-	a2, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm2")
-	if a2.Attached {
-		t.Fatal("second concurrent branch should decline: 2 caps reserved > 1.5 free")
+	if _, _, err := m.Materialize(a1, "42"); err != nil {
+		t.Fatalf("first job should be admitted (needs 1 cap, 1.5 free): %v", err)
+	}
+	if _, _, err := m.Materialize(a2, "43"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("second concurrent job err = %v; want a decline (2 caps > 1.5 free)", err)
 	}
 }
 
@@ -569,18 +597,20 @@ func TestFinalizeReleasesReservation(t *testing.T) {
 	m := NewVolumeManager(root, 1, be)                                  // 1 GiB cap
 
 	a1 := mustAllocate(t, m, "vm1")
+	if _, _, err := m.Materialize(a1, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
 	a1.SourceAccount = "42"
 	a1.PromotedGeneration = 1
 	writeBranchCache(t, m, a1, "x")
 	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("promote = %s", out)
 	}
-	// Free is now 1 GiB (2 - one master). With the reservation released
-	// (liveBranches back to 0) a new branch needs only 1 cap and fits without
-	// evicting account 42's fresh master.
+	// Free is now 1 GiB (2 - one master). With the reservation released a new
+	// job needs only 1 cap and fits without evicting account 42's fresh master.
 	a2 := mustAllocate(t, m, "vm2")
-	if !a2.Attached {
-		t.Fatal("second branch should attach after the first's reservation is released")
+	if _, _, err := m.Materialize(a2, "43"); err != nil {
+		t.Fatalf("second job should be admitted after the first's reservation is released: %v", err)
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("account 42's master must not be evicted to admit vm2")
@@ -629,8 +659,8 @@ func TestSweepBranches(t *testing.T) {
 	if _, err := os.Stat(a2.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("branch vm2 should be swept")
 	}
-	if m.liveBranches != 0 {
-		t.Fatalf("liveBranches after sweep = %d; want 0", m.liveBranches)
+	if got := m.reservedBranches(); got != 0 {
+		t.Fatalf("reserved branches after sweep = %d; want 0", got)
 	}
 	// A master must survive the sweep (only branches are removed).
 	seedMaster(t, m, "42")
@@ -644,8 +674,8 @@ func TestSweepBranches(t *testing.T) {
 
 // A branch belonging to a VM that survived the restart (ReattachBranch) must be
 // kept by the sweep — removing a virtio-fs-mounted branch would corrupt the
-// running job — while a sibling orphan branch is still reaped, and liveBranches
-// reflects only the retained one.
+// running job — while a sibling orphan branch is still reaped. A materialized
+// branch that survived keeps its reservation, because its job is still writing.
 func TestSweepBranchesRetainsReattached(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	live := mustAllocate(t, m, "vm-live")
@@ -669,8 +699,8 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	if _, err := os.Stat(orphan.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("orphan branch should be swept")
 	}
-	if m.liveBranches != 1 {
-		t.Fatalf("liveBranches after sweep = %d; want 1 (only the retained branch)", m.liveBranches)
+	if got := m.reservedBranches(); got != 1 {
+		t.Fatalf("reserved branches after sweep = %d; want 1 (only the retained, materialized branch)", got)
 	}
 }
 
@@ -1646,5 +1676,38 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	}
 	if len(labels) != 1 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
+	}
+}
+
+// A declined branch still has to release the guest at once: without cache-ready
+// it would sit out the whole CACHE_READY_TIMEOUT before running cold. With
+// cache-ready and no image, its attach fails and it runs on its local cold cache.
+// It must not be told the image was grown, and it is not a cold materialize.
+func TestDeclinedMaterializeReleasesTheGuestCold(t *testing.T) {
+	root := t.TempDir()
+	statusDir := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	coldBefore := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold"))
+
+	store := NewStore()
+	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
+	}})
+
+	if _, err := os.Stat(filepath.Join(statusDir, cacheReadyFile)); err != nil {
+		t.Fatalf("cache-ready not written for a declined branch: %v", err)
+	}
+	if branchImageExists(m, att) {
+		t.Fatal("a declined branch must have no image")
+	}
+	if _, err := os.Stat(filepath.Join(statusDir, cacheImageGrownFile)); err == nil {
+		t.Fatal("a declined branch must not tell the guest its image was grown")
+	}
+	if got := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold")); got != coldBefore {
+		t.Fatalf("cold materialize counter moved %v -> %v for a decline", coldBefore, got)
 	}
 }

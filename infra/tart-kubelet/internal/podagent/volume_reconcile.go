@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -332,9 +333,9 @@ const cacheBudgetFile = "cache-max-bytes"
 
 // allocateVolumeBranch prepares an empty per-VM cache branch directory for a
 // booting VM (shared into the guest as a virtio-fs mount), or returns an
-// un-attached zero value when the feature is off or admission declines. The
-// branch is filled later by maybeMaterializeVolume, once dispatch has bound
-// the VM to an account.
+// un-attached zero value when the feature is off or the root is not mounted. The
+// branch is filled, and admitted, later by maybeMaterializeVolume, once dispatch
+// has bound the VM to an account.
 func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, error) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return VolumeAttachment{}, nil
@@ -369,7 +370,7 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// an image of its own: cache-ready tells the guest to attach, and signalling
 	// without one would drop every fork job onto the local cold cache.
 	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
-		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil {
+		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
 			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
 		}
 		entry.Volume.Materialized = true
@@ -385,11 +386,15 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Materialize this host's LOCAL master into the branch immediately — a CoW
 	// clonefile that touches the network zero times (~tens of ms) — and signal
 	// the guest, so the job starts warm without ever blocking on a download.
+	// A declined branch has no image, so the guest's attach fails and it runs on
+	// its local cold cache. That is logged and counted where admission declines.
 	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
-	if err != nil {
-		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
-	} else {
+	declined := errors.Is(err, errAdmissionDeclined)
+	switch {
+	case err == nil:
 		writeCacheImageGrown(entry.VolumeStatusDir, r.Volumes.CapGiB)
+	case !declined:
+		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
@@ -406,7 +411,9 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
-	RecordVolumeMaterialized(warm)
+	if !declined {
+		RecordVolumeMaterialized(warm)
+	}
 
 	// Converge the on-disk master toward the account's HEAD in the background,
 	// off the job-start critical path. The running job already holds its own
