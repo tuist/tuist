@@ -358,18 +358,10 @@
             )}
           </span>
           <div data-part="tags">
-            <.tag label={
-              dngettext(
-                "dashboard_projects",
-                "%{count} glob",
-                "%{count} globs",
-                length(@git_history.tracked_file_globs),
-                count: length(@git_history.tracked_file_globs)
-              )
-            } />
+            <.tag :for={glob <- @git_history.tracked_file_globs} label={glob} />
             <.tag
-              :if={is_nil(@selected_project.tracked_file_globs)}
-              label={dgettext("dashboard_projects", "Server defaults")}
+              :if={@git_history.tracked_file_globs == []}
+              label={dgettext("dashboard_projects", "Nothing tracked")}
             />
           </div>
         </div>
@@ -402,11 +394,11 @@
                 hint={
                   dgettext(
                     "dashboard_projects",
-                    "Empty means the server defaults, shown as the placeholder."
+                    "Globs match the whole repository-relative path, as in excluded paths. Nothing is tracked when empty."
                   )
                 }
                 value={@forms["tracked_files"]["globs"]}
-                placeholder={Enum.join(@git_history_defaults.tracked_file_globs, "\n")}
+                placeholder={Enum.join(["Package.resolved", "**/*.xctestplan"], "\n")}
                 rows={8}
                 max_length={10_000}
                 show_character_count={false}

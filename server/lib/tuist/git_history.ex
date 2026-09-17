@@ -37,31 +37,6 @@ defmodule Tuist.GitHistory do
   # The files whose identity a run's evidence depends on beyond the sources a
   # test compiles: dependency manifests and lockfiles, Tuist's generator
   # configuration, toolchain pins, test plans and build settings, and snapshot
-  # fixtures. Git pathspec globs, relative to the repository root.
-  @default_tracked_file_globs [
-    "Tuist.swift",
-    "Tuist/**",
-    "Project.swift",
-    "Workspace.swift",
-    "**/Project.swift",
-    "Package.swift",
-    "Package.resolved",
-    "**/Package.swift",
-    "**/Package.resolved",
-    "Podfile",
-    "Podfile.lock",
-    "Cartfile",
-    "Cartfile.resolved",
-    "mise.toml",
-    ".mise.toml",
-    ".tool-versions",
-    ".xcode-version",
-    ".swift-version",
-    "**/*.xctestplan",
-    "**/*.xcconfig",
-    "**/__Snapshots__/**"
-  ]
-
   @defaults %{
     window_days: 365,
     window_commits: 5_000,
@@ -69,11 +44,9 @@ defmodule Tuist.GitHistory do
     upload_batch_size: 500,
     provider_fallback: true,
     provider_page_budget: 20,
-    tracked_file_globs: @default_tracked_file_globs,
+    tracked_file_globs: [],
     tracked_file_limit: 5_000
   }
-
-  def default_tracked_file_globs, do: @default_tracked_file_globs
 
   @doc """
   The history settings in effect for a project: the server defaults (from
@@ -88,8 +61,10 @@ defmodule Tuist.GitHistory do
   - `provider_fallback`: whether the server completes history from the VCS
     provider, and `provider_page_budget`, the API pages one run may spend;
   - `tracked_file_globs`: the files a run snapshots with their blobs
-    (`Tuist.Tests.TestRunTrackedFile`), and `tracked_file_limit`, how many a
-    client records before marking the snapshot truncated.
+    (`Tuist.Tests.TestRunTrackedFile`), which only the project sets since what
+    a run's evidence depends on beyond its sources differs per repository, and
+    `tracked_file_limit`, how many a client records before marking the
+    snapshot truncated.
   """
   def settings(%Project{} = project) do
     defaults = Map.merge(@defaults, Environment.git_history_defaults())

@@ -398,8 +398,7 @@ defmodule Tuist.Environment do
   The server-wide Git history settings set through the environment, as a map
   of the keys `Tuist.GitHistory.settings/1` merges over its defaults. Only the
   variables that are set appear. `TUIST_GIT_HISTORY_PROVIDER_FALLBACK` is a
-  boolean, `TUIST_GIT_HISTORY_TRACKED_FILE_GLOBS` a comma-separated list of
-  Git pathspec globs; the others are positive integers.
+  boolean; the others are positive integers.
   """
   def git_history_defaults(environment \\ System.get_env()) when is_map(environment) do
     integers =
@@ -410,22 +409,9 @@ defmodule Tuist.Environment do
         end
       end)
 
-    settings =
-      case Map.get(environment, "TUIST_GIT_HISTORY_PROVIDER_FALLBACK") do
-        nil -> integers
-        value -> Map.put(integers, :provider_fallback, truthy?(value))
-      end
-
-    case Map.get(environment, "TUIST_GIT_HISTORY_TRACKED_FILE_GLOBS") do
-      nil ->
-        settings
-
-      value ->
-        Map.put(
-          settings,
-          :tracked_file_globs,
-          value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-        )
+    case Map.get(environment, "TUIST_GIT_HISTORY_PROVIDER_FALLBACK") do
+      nil -> integers
+      value -> Map.put(integers, :provider_fallback, truthy?(value))
     end
   end
 

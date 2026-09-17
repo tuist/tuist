@@ -27,7 +27,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
              "window_commits" => 5000,
              "deepen_budget_seconds" => 60,
              "upload_batch_size" => 500,
-             "tracked_file_globs" => GitHistory.default_tracked_file_globs(),
+             "tracked_file_globs" => [],
              "tracked_file_limit" => 5000
            }
 
