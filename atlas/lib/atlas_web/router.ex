@@ -47,6 +47,11 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :inference do
+    plug :accepts, ["json", "event-stream"]
+    plug AtlasWeb.Plugs.InferenceAuthentication
+  end
+
   scope "/", AtlasWeb do
     get "/ready", HealthController, :ready
   end
@@ -76,6 +81,14 @@ defmodule AtlasWeb.Router do
     pipe_through [:mcp]
 
     forward "/mcp", StreamableHTTP, server: Server
+  end
+
+  scope "/inference/v1", AtlasWeb do
+    pipe_through :inference
+
+    get "/models", InferenceController, :models
+    post "/chat/completions", InferenceController, :chat_completions
+    post "/embeddings", InferenceController, :embeddings
   end
 
   scope "/api", AtlasWeb do
@@ -226,6 +239,11 @@ defmodule AtlasWeb.Router do
         live "/audit", AuditLive, :index
         live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
+        live "/inference", InferenceLive, :index
+        live "/inference/profiles", InferenceLive, :index
+        live "/inference/profiles/:id", InferenceProfileLive, :show
+        live "/inference/providers", InferenceProvidersLive, :index
+        live "/inference/tokens/:id", InferenceTokenLive, :show
       end
     end
 
