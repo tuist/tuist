@@ -46,6 +46,7 @@ env:
 jobs:
   prepare:
     name: Resolve stable version
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:

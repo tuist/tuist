@@ -59,7 +59,9 @@ jobs:
   prepare:
     name: Resolve RC version
     # Manual promotions don't cut a new line; only the weekly scheduled one does.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule'
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule')
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:

@@ -35,7 +35,7 @@ jobs:
     name: Build and deploy
     runs-on: tuist-linux
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore Swift Package Manager cache

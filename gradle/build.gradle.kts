@@ -51,6 +51,14 @@ tasks.jar {
     archiveClassifier.set("thin")
 }
 
+tasks.processResources {
+    val pluginVersion = project.version.toString()
+    inputs.property("version", pluginVersion)
+    filesMatching("dev/tuist/gradle/plugin.properties") {
+        expand("version" to pluginVersion)
+    }
+}
+
 listOf(configurations.apiElements, configurations.runtimeElements).forEach { config ->
     config.configure {
         outgoing.artifacts.clear()
