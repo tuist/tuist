@@ -53,6 +53,8 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
     public func shouldReplace(project: Project, target: Target) -> Bool {
         if focusedTargetNames.contains(target.name) { return false }
         if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
+        if profileTargetNames.contains(target.name) { return true }
+        if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
 
         switch project.type {
         case .external:
@@ -67,8 +69,6 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
             case .allPossible:
                 return true
             case .onlyExternal, .none:
-                if profileTargetNames.contains(target.name) { return true }
-                if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
                 return false
             }
         }
