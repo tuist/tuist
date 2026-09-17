@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.DNS
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Admission
@@ -691,9 +692,8 @@ defmodule Tuist.Kura do
 
   # Only the rows that still hold volumes, and only in the regions that size
   # instances from their account rather than alike. An archived or destroyed row
-  # holds nothing: teardown emptied or deleted every claim, so it needs no re-pin
-  # and takes the current claim on its cold return, where the controller drops
-  # an empty retained volume that is smaller than the claim.
+  # holds nothing, because teardown took the StatefulSet and every claim with it,
+  # so it needs no re-pin and takes the current claim on its cold return.
   #
   # A row already rendering `claim_size` is left alone: re-pinning it would
   # produce no manifest change, and reporting it as rebuilt would tell an
@@ -1440,9 +1440,12 @@ defmodule Tuist.Kura do
     end
   end
 
+  # Asked of the zone's authoritative nameservers: activation asks from before
+  # the record exists, and a caching resolver would hold that answer for the
+  # zone's negative TTL. See `Tuist.DNS`.
   defp ensure_public_host_resolves(host) do
-    case :inet.gethostbyname(String.to_charlist(host)) do
-      {:ok, _} -> :ok
+    case DNS.record_published(host) do
+      :ok -> :ok
       {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
     end
   end
@@ -1822,11 +1825,10 @@ defmodule Tuist.Kura do
   install rather than as drift against whatever the instance ran before it
   was archived.
 
-  Teardown suspended the instance and emptied its volumes, so this is also the
-  one point in a served instance's life where its disk footprint can change: the
-  account's plan is read again and the returning instance is built at whatever
-  that plan is worth now. The deployment's manifest carries no suspension, so
-  applying it is what scales a suspended instance back up.
+  Teardown took the whole StatefulSet and its volumes with it, so this is also
+  the one point in a served instance's life where its disk footprint can change:
+  the account's plan is read again and the returning instance is built at
+  whatever that plan is worth now.
   """
   def return_from_archive(server, image_tag, account \\ nil)
 

@@ -57,9 +57,9 @@ kura-eu-west-ingress-nginx:
     config:
       use-proxy-protocol: "false"
     # Endpoint changes reach nginx through the controller's sync, which the
-    # default rate limit (0.3/s) spaces ~3.3s apart. A Kura instance returning
-    # from suspension is routable only after the sync that follows its pods
-    # turning Ready, so one sync a second bounds that wait at a second.
+    # default rate limit (0.3/s) spaces ~3.3s apart. A new Kura instance is
+    # routable only after the sync that follows its pods turning Ready, so one
+    # sync a second bounds that wait at a second.
     extraArgs:
       sync-rate-limit: "1"
     nodeSelector:
@@ -94,9 +94,9 @@ kura-ca-east-ingress-nginx:
     config:
       use-proxy-protocol: "false"
     # Endpoint changes reach nginx through the controller's sync, which the
-    # default rate limit (0.3/s) spaces ~3.3s apart. A Kura instance returning
-    # from suspension is routable only after the sync that follows its pods
-    # turning Ready, so one sync a second bounds that wait at a second.
+    # default rate limit (0.3/s) spaces ~3.3s apart. A new Kura instance is
+    # routable only after the sync that follows its pods turning Ready, so one
+    # sync a second bounds that wait at a second.
     extraArgs:
       sync-rate-limit: "1"
     nodeSelector:

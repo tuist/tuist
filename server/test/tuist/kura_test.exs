@@ -6,6 +6,7 @@ defmodule Tuist.KuraTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.DNS
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PlacerClaims
@@ -951,6 +952,27 @@ defmodule Tuist.KuraTest do
 
       assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
       assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "waits on a public host whose record its authoritative nameservers do not have yet" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      stub(Provisioner, :public_url, fn _account, _server -> "https://acme-eu-west-1.kura.tuist.dev" end)
+      expect(DNS, :record_published, fn "acme-eu-west-1.kura.tuist.dev" -> {:error, :not_published} end)
+      reject(&Req.get/2)
+
+      assert {:error, {:public_host_not_resolvable, "acme-eu-west-1.kura.tuist.dev", :not_published}} =
+               Kura.activate_server(server, "0.5.2")
+
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
     end
 
     test "returns endpoint not ready instead of raising when the HTTPS readiness probe cannot connect" do

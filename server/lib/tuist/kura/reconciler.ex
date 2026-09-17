@@ -504,7 +504,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   # An instance coming up for the first time, or back from archive, is checked
-  # every second until it activates instead of on this minute's tick. Rollouts
+  # twice a second until it activates instead of on this minute's tick. Rollouts
   # of serving instances are left to the tick: they reach the whole fleet at
   # once, and a serving instance is not waiting on its activation.
   defp await_activation(%Server{status: :provisioning, move_phase: :none} = server) do

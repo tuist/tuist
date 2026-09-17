@@ -699,7 +699,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 # GitLab coordinator requests may long-poll; isolate them from general background work.
 # Kura instances coming up for a client that asked for its cache: bringing one
-# up and polling its endpoint every second, kept off :default so a busy queue
+# up and polling its endpoint twice a second, kept off :default so a busy queue
 # cannot delay either.
 base_queues = [
   runner_gitlab: 10,

@@ -153,10 +153,10 @@ func recordTargets(t *testing.T, endpoint *unstructured.Unstructured) []interfac
 	return endpoints[0].(map[string]interface{})["targets"].([]interface{})
 }
 
-// Until a pod is scheduled there is no box to point at, as when an instance
-// scales back up from suspension. The record keeps its last target meanwhile:
-// deleting it would have external-dns unpublish the host, and resolvers would
-// cache the NXDOMAIN well past the pods coming back.
+// While no pod is scheduled there is no box to point at, as when every pod of a
+// serving instance is being replaced. The record keeps its last target
+// meanwhile: deleting it would have external-dns unpublish a host clients are
+// using, and resolvers would cache the NXDOMAIN well past the pods coming back.
 func TestPublicDNSEndpointKeptWhenNoBox(t *testing.T) {
 	ctx := context.Background()
 	scheme, mapper := dnsEndpointScheme(t)

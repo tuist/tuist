@@ -897,9 +897,9 @@ func (prober *fakePeerPathProber) Probe(_ context.Context, address string, _ str
 }
 
 // With no failover IP the peer record names the box the pods run on, and there
-// is none until a pod is scheduled, as when an instance scales back up from
-// suspension. The record keeps its last target meanwhile rather than going out
-// of DNS, where resolvers would cache the NXDOMAIN.
+// is none while no pod is scheduled, as when every pod is being replaced. The
+// record keeps its last target meanwhile rather than going out of DNS, where
+// resolvers would cache the NXDOMAIN.
 func TestPeerDNSEndpointKeptUntilATargetIsKnown(t *testing.T) {
 	ctx := context.Background()
 	scheme, mapper := dnsEndpointScheme(t)

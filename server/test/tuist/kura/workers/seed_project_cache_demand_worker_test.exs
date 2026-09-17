@@ -249,8 +249,8 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
     end
 
     test "is not seeded again once it was archived for going unused" do
-      stub(Provisioner, :suspend, fn _server, _inputs -> :ok end)
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
       handler = attach_seed_declined_handler()
 
       account = account()

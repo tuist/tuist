@@ -130,11 +130,6 @@ defmodule Tuist.Kura.LifecycleTest do
     |> Repo.update!()
   end
 
-  defp stub_suspension(state) do
-    stub(Provisioner, :suspend, fn _server, _inputs -> :ok end)
-    stub(Provisioner, :suspension_state, fn _server -> state end)
-  end
-
   # A region whose pressure line cannot fit a single Air instance, with
   # admission enforced as it is in production.
   defp refuse_admission do
@@ -509,7 +504,8 @@ defmodule Tuist.Kura.LifecycleTest do
     # Archives an Air instance at 61 inactive days under pressure, then gives
     # the region its room back.
     defp archive_under_pressure(account) do
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       server = active_instance(account)
       with_demand(account, 61)
@@ -546,7 +542,6 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :active
       assert reload_lifecycle(account).drain_started_at == nil
       reject(&Provisioner.destroy/1)
-      reject(&Provisioner.suspend/2)
     end
 
     test "returns the drained instance to resolution" do
@@ -587,7 +582,6 @@ defmodule Tuist.Kura.LifecycleTest do
 
       assert reload(server).status == :active
       reject(&Provisioner.destroy/1)
-      reject(&Provisioner.suspend/2)
     end
 
     test "does not tear down when the drain clock is missing" do
@@ -599,7 +593,6 @@ defmodule Tuist.Kura.LifecycleTest do
       # whatever left it that way.
       lifecycle |> Ecto.Changeset.change(%{drain_started_at: nil}) |> Repo.update!()
       reject(&Provisioner.destroy/1)
-      reject(&Provisioner.suspend/2)
 
       assert :ok = Lifecycle.reconcile()
 
@@ -609,7 +602,8 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "does not cancel once teardown has been issued" do
-      stub_suspension({:ok, :suspending})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, @image_tag} end)
 
       account = account()
       server = active_instance(account)
@@ -628,32 +622,12 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "archiving" do
     setup do
-      stub(Provisioner, :suspend, fn _server, _inputs -> :ok end)
-      reject(&Provisioner.destroy/1)
+      stub(Provisioner, :destroy, fn _server -> :ok end)
       :ok
     end
 
-    test "suspends the backing resource instead of deleting it, so a return only has to start pods" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :running} end)
-
-      account = account()
-      server = active_instance(account)
-      start_drain(account, server)
-      elapse_drain(account)
-
-      expect(Provisioner, :suspend, fn %Server{id: id}, %{image_tag: @image_tag, account: %{id: account_id}} ->
-        assert id == server.id
-        assert account_id == account.id
-        :ok
-      end)
-
-      Lifecycle.reconcile()
-
-      assert reload_lifecycle(account).teardown_started_at
-    end
-
-    test "archives only once the backing resource reports its volumes emptied" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspending} end)
+    test "archives only once the backing resource is observably gone" do
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, @image_tag} end)
 
       account = account()
       server = active_instance(account)
@@ -663,41 +637,14 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
       assert reload(server).status == :drain_pending
 
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
-      Lifecycle.reconcile()
-
-      assert reload(server).status == :archived
-    end
-
-    test "asks for the suspension again while the backing resource still runs" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :running} end)
-
-      account = account()
-      server = active_instance(account)
-      start_drain(account, server)
-      elapse_drain(account)
-      Lifecycle.reconcile()
-
-      expect(Provisioner, :suspend, fn _server, _inputs -> :ok end)
-      Lifecycle.reconcile()
-
-      assert reload(server).status == :drain_pending
-    end
-
-    test "archives an instance whose backing resource is already gone" do
-      stub(Provisioner, :suspension_state, fn _server -> {:error, :not_found} end)
-
-      account = account()
-      server = active_instance(account)
-      start_drain(account, server)
-      elapse_drain(account)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
       Lifecycle.reconcile()
 
       assert reload(server).status == :archived
     end
 
     test "records reclaimed bytes and drain duration" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -714,7 +661,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "records the paid plan's larger reclaimed quota" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account(plan: :pro, region: :usa)
       server = active_instance(account, claim_size: "#{@grown_pro_gib}Gi")
@@ -727,7 +674,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "clears every field describing a running instance" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -743,7 +690,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "emits reclaimed bytes and drain duration" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -760,7 +707,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "stops advertising an archived region as a mesh peer" do
-      stub(Provisioner, :suspension_state, fn _server -> {:ok, :suspended} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -775,7 +722,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "cold return" do
     setup do
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
       :ok
     end
 
@@ -960,7 +908,8 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "leave the row able to cold-return, which requires no open deployment" do
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -1000,7 +949,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "activation cannot resurrect an archived instance" do
       stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account()
       server = active_instance(account)
@@ -1161,7 +1111,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "never-used instances" do
     setup do
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
       :ok
     end
 
@@ -1376,7 +1327,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "placement retirements" do
     setup do
-      stub_suspension({:ok, :suspending})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
       :ok
     end
 
@@ -1575,129 +1526,10 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
-  describe "suspension release" do
-    setup do
-      stub_suspension({:ok, :suspended})
-      :ok
-    end
-
-    defp archived_days_ago(account, days) do
-      server = active_instance(account)
-      start_drain(account, server)
-      elapse_drain(account)
-      Lifecycle.reconcile()
-      assert reload(server).status == :archived
-
-      account
-      |> reload_lifecycle()
-      |> Ecto.Changeset.change(%{archived_at: ago(days)})
-      |> Repo.update!()
-
-      server
-    end
-
-    test "deletes a suspended instance once it has been archived for the whole suspension window" do
-      account = account()
-      server = archived_days_ago(account, Lifecycle.suspension_days() + 1)
-
-      expect(Provisioner, :destroy, fn %Server{id: id} ->
-        assert id == server.id
-        :ok
-      end)
-
-      assert :ok = Lifecycle.sweep()
-
-      assert reload(server).status == :archived
-      assert reload_lifecycle(account).suspension_released_at
-    end
-
-    test "deletes it only once" do
-      account = account()
-      archived_days_ago(account, Lifecycle.suspension_days() + 1)
-      stub(Provisioner, :destroy, fn _server -> :ok end)
-      assert :ok = Lifecycle.sweep()
-
-      reject(&Provisioner.destroy/1)
-      assert :ok = Lifecycle.sweep()
-    end
-
-    test "keeps a recently archived instance suspended, so its return stays fast" do
-      account = account()
-      archived_days_ago(account, Lifecycle.suspension_days() - 1)
-      reject(&Provisioner.destroy/1)
-
-      assert :ok = Lifecycle.sweep()
-
-      refute reload_lifecycle(account).suspension_released_at
-    end
-
-    test "tries again when the cluster does not delete it" do
-      account = account()
-      archived_days_ago(account, Lifecycle.suspension_days() + 1)
-      stub(Provisioner, :destroy, fn _server -> {:error, :timeout} end)
-
-      assert :ok = Lifecycle.sweep()
-
-      refute reload_lifecycle(account).suspension_released_at
-    end
-
-    test "does not delete an instance that returned after the expired suspensions were read" do
-      account = account()
-      server = archived_days_ago(account, Lifecycle.suspension_days() + 2)
-      returning_account = account()
-      returning_server = archived_days_ago(returning_account, Lifecycle.suspension_days() + 1)
-
-      # While the older suspension is released, the other account returns: the
-      # row it flips to `:provisioning` is one this pass has already read.
-      expect(Provisioner, :destroy, fn %Server{id: id} ->
-        assert id == server.id
-        returning_server |> Ecto.Changeset.change(%{status: :provisioning}) |> Repo.update!()
-        :ok
-      end)
-
-      assert :ok = Lifecycle.sweep()
-
-      assert reload_lifecycle(account).suspension_released_at
-      refute reload_lifecycle(returning_account).suspension_released_at
-    end
-
-    test "does not date a suspension by an archival the account has returned from since" do
-      # Archival marks the row archived before it records `archived_at`, so for a
-      # moment the row is archived again while `archived_at` is still the one
-      # before the account's last return.
-      account = account()
-      archived_days_ago(account, Lifecycle.suspension_days() + 10)
-
-      account
-      |> reload_lifecycle()
-      |> Ecto.Changeset.change(%{last_returned_at: ago(Lifecycle.suspension_days() + 5)})
-      |> Repo.update!()
-
-      reject(&Provisioner.destroy/1)
-
-      assert :ok = Lifecycle.sweep()
-
-      refute reload_lifecycle(account).suspension_released_at
-    end
-
-    test "releases the suspension of a later archival too" do
-      account = account()
-      archived_days_ago(account, Lifecycle.suspension_days() + 1)
-
-      account
-      |> reload_lifecycle()
-      |> Ecto.Changeset.change(%{suspension_released_at: ago(Lifecycle.suspension_days() + 30)})
-      |> Repo.update!()
-
-      expect(Provisioner, :destroy, fn _server -> :ok end)
-
-      assert :ok = Lifecycle.sweep()
-    end
-  end
-
   describe "provisioning on request" do
     setup do
-      stub_suspension({:ok, :suspended})
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
       :ok
     end
 

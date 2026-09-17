@@ -109,10 +109,6 @@ rules:
   - apiGroups: ["policy"]
     resources: [poddisruptionbudgets]
     verbs: [get, list, watch, create, update, patch, delete]
-  # One-shot Jobs that empty a suspended instance's retained data volumes.
-  - apiGroups: ["batch"]
-    resources: [jobs]
-    verbs: [get, list, watch, create, delete]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
     verbs: [get, list, watch, create, update, patch, delete]

@@ -53,22 +53,6 @@ defmodule Tuist.Kura.Provisioner do
   @callback rollout(ref :: String.t(), inputs :: map()) :: :ok | {:error, term()}
 
   @doc """
-  Suspend the backing resource: run nothing and hold no cache, while keeping
-  what addresses it (endpoints, DNS records, bound volumes) so a later
-  `rollout/2`, which clears the suspension, only has to start the workload.
-  Takes the same inputs as `rollout/2`.
-  """
-  @callback suspend(ref :: String.t(), inputs :: map()) :: :ok | {:error, term()}
-
-  @doc """
-  How far a suspension has got: `:running` while the backing resource has not
-  been asked to suspend, `:suspending` until it reports running nothing with
-  its cache discarded, then `:suspended`.
-  """
-  @callback suspension_state(ref :: String.t(), Regions.t()) ::
-              {:ok, :running | :suspending | :suspended} | {:error, term()}
-
-  @doc """
   Destroy the backing resource. Must be safe to call on already-
   destroyed refs (return `:ok`) so the control plane can finalise the
   row after retries, even when a previous attempt already removed the
@@ -166,20 +150,6 @@ defmodule Tuist.Kura.Provisioner do
   def rollout(%Server{provisioner_node_ref: ref, region: region_id}, inputs) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout(ref, Map.put(inputs, :region, region))
-    end
-  end
-
-  @doc "Calls `suspend/2` on the region's provisioner."
-  def suspend(%Server{provisioner_node_ref: ref, region: region_id}, inputs) do
-    with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.suspend(ref, Map.put(inputs, :region, region))
-    end
-  end
-
-  @doc "Calls `suspension_state/2` on the region's provisioner."
-  def suspension_state(%Server{provisioner_node_ref: ref, region: region_id}) do
-    with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.suspension_state(ref, region)
     end
   end
 

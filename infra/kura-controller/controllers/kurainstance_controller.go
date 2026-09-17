@@ -24,7 +24,6 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -410,7 +409,6 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
@@ -452,10 +450,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
-	}
-
-	if instance.Spec.Suspended {
-		return r.reconcileSuspended(ctx, instance)
 	}
 
 	// Roles, and the Services that carry them, resolve BEFORE the storage
@@ -524,18 +518,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// An instance returning from suspension scales up onto volumes emptied while
-	// it was suspended: not while one is still being emptied, and not onto one
-	// whose machine can no longer take its pod.
-	if inProgress, err := r.settleWipeJobsBeforeResume(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	} else if inProgress {
-		return ctrl.Result{RequeueAfter: suspensionRequeueTime}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
-	}
-	if err := r.reconcileWipedVolumes(ctx, instance, pods); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -623,7 +605,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
-	instance.Status.ObservedGeneration = instance.Generation
 	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
 	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
 
@@ -1526,10 +1507,11 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 		}
 		return nil
 	}
-	// No target yet, as while an instance scales back up from suspension before
-	// its pods are scheduled. An existing record keeps its last target until a
-	// replacement is known: deleting it would have external-dns unpublish the
-	// host, and resolvers would cache the NXDOMAIN well past the pods returning.
+	// No target yet: every pod is between being deleted and being scheduled
+	// again, as in a storage rebuild or a node evacuation. An existing record
+	// keeps its last target until a replacement is known. Deleting it would have
+	// external-dns unpublish a host clients are using, and resolvers would cache
+	// the NXDOMAIN for the zone's negative TTL, well past the pods returning.
 	if target == "" {
 		return nil
 	}
@@ -1863,9 +1845,10 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		servicePort := grpcIngressServicePort(pods, observed, primaryPod)
 		// With no pod ready nothing is routed, so there is no evidence to act
 		// on and no traffic a stale port could misroute. Keeping the port an
-		// existing Ingress already names spares a starting or resuming instance
-		// two nginx reloads, which the regional gateway rate-limits and which
-		// would otherwise delay the moment its endpoint becomes routable.
+		// existing Ingress already names spares an instance whose pods are all
+		// restarting two nginx reloads, which the regional gateway rate-limits
+		// and which would otherwise delay the moment its endpoint is routable
+		// again.
 		if current := grpcIngressBackendPort(ingress); current != "" && !anyPodReady(pods) {
 			servicePort = current
 		}
@@ -3363,30 +3346,6 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 			continue
 		}
 
-		// An emptied volume no pod is using has nothing to preserve and no
-		// sibling to refill from, so it is dropped rather than rebuilt behind a
-		// serving standby, and the StatefulSet recreates it at the new size.
-		if claimWiped(pvc) {
-			podName := fmt.Sprintf("%s-%d", instance.Name, ordinal)
-			err := r.Get(ctx, types.NamespacedName{Name: podName, Namespace: instance.Namespace}, &corev1.Pod{})
-			if apierrors.IsNotFound(err) {
-				log.FromContext(ctx).Info(
-					"dropping an empty Kura data volume smaller than the claim",
-					"pvc", pvcName, "from", bound.String(), "to", desired.String(),
-				)
-				if err := r.reclaimDataVolume(ctx, pvc); err != nil {
-					return false, err
-				}
-				if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
-					return false, err
-				}
-				return true, nil
-			}
-			if err != nil {
-				return false, err
-			}
-		}
-
 		// Never take this one down while another is already down. Waiting here is
 		// what keeps the rebuild rolling rather than wholesale, and it is also
 		// what makes a rebuilt pod's backfill worth anything: it has a serving
@@ -4598,8 +4557,8 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 // readinessProbe and startupProbe come in two timings with the same budgets.
 // The fast timings notice a started pod within a second of it serving, instead
 // of after a 10s period (and, for readiness, a 5s initial delay), which is most
-// of what a returning instance spends between its pods starting and its
-// endpoint answering. The legacy timings stay on pods that are not being
+// of what a new instance spends between its pods starting and its endpoint
+// answering. The legacy timings stay on pods that are not being
 // replaced: probes are part of the pod template, so switching every instance
 // at once would roll the whole fleet outside the runtime rollout gate. See
 // templateUsesFastProbes.
@@ -4624,11 +4583,11 @@ func startupProbe(fast bool) *corev1.Probe {
 
 // templateUsesFastProbes reports whether the template about to be written takes
 // the fast probe timings. It does when the update lands on pods that are
-// created anyway, so adopting them costs no extra roll: a StatefulSet being created, one scaled to zero
-// (a suspended instance returning), or one whose image is changing. A template
-// already on the fast timings keeps them.
+// created anyway, so adopting them costs no extra roll: a StatefulSet being
+// created, or one whose image is changing. A template already on the fast
+// timings keeps them.
 func templateUsesFastProbes(sts *appsv1.StatefulSet, instance *kurav1alpha1.KuraInstance) bool {
-	if sts.ResourceVersion == "" || (sts.Spec.Replicas != nil && *sts.Spec.Replicas == 0) {
+	if sts.ResourceVersion == "" {
 		return true
 	}
 	for _, container := range sts.Spec.Template.Spec.Containers {
@@ -4794,7 +4753,6 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
-		Owns(&batchv1.Job{}).
 		Complete(r)
 }
 
@@ -4842,9 +4800,8 @@ func kuraPodPredicate() predicate.Predicate {
 
 // podRoutabilityChangedPredicate keeps the controller from re-running on
 // every pod heartbeat: it only enqueues when a pod appears, disappears,
-// crosses the Ready/terminating boundary that primary selection cares
-// about, or is found unschedulable, which a returning instance answers by
-// releasing an empty volume pinned to a full machine.
+// or crosses the Ready/terminating boundary that primary selection cares
+// about.
 func podRoutabilityChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc:  func(event.CreateEvent) bool { return true },
@@ -4856,7 +4813,7 @@ func podRoutabilityChangedPredicate() predicate.Predicate {
 			if !ok || !okNew {
 				return false
 			}
-			return podReady(oldPod) != podReady(newPod) || podUnschedulable(oldPod) != podUnschedulable(newPod)
+			return podReady(oldPod) != podReady(newPod)
 		},
 	}
 }

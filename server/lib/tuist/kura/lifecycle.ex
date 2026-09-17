@@ -51,20 +51,10 @@ defmodule Tuist.Kura.Lifecycle do
   the cold-provision path, on the same row, with no expectation of prior
   content.
 
-  ## Suspension
-
-  Teardown suspends the instance rather than deleting it: its workload stops
-  and its retained volumes are emptied, while its endpoints, DNS records and
-  volume bindings stay. That discards the cache exactly as a deletion would,
-  and holds no capacity, but a return then only has to start pods, instead of
-  provisioning volumes and publishing a DNS record that resolvers may have
-  cached as missing for half an hour. The suspension is released (deleted)
-  once the instance has been archived for `suspension_days/0`, after which a
-  return goes back to building everything.
-
-  A return starts from the request that asks for it (`provision_account/2`)
-  rather than from the reconciler tick, and its activation is checked every
-  second (`Tuist.Kura.Workers.AwaitActivationWorker`) rather than every minute.
+  An instance, a first one or a return, starts from the request that asks for
+  it (`provision_account/2`) rather than from the reconciler tick, and its
+  activation is checked twice a second (`Tuist.Kura.Workers.AwaitActivationWorker`)
+  rather than every minute.
 
   ## Why archival cannot run on empty demand data
 
@@ -137,11 +127,6 @@ defmodule Tuist.Kura.Lifecycle do
   @max_provisions_per_pass 20
   @max_archival_transitions_per_pass 100
 
-  # How long an archived instance stays suspended before it is deleted. Past
-  # this, a returning account is rare enough that keeping its endpoints and DNS
-  # records published is not worth what they cost to carry.
-  @suspension_days 30
-
   # Under capacity pressure, eligibility depends on each account's plan and so
   # is decided after the query. These bound the scan that looks past ineligible
   # rows for eligible ones: at most 1000 rows examined per region per pass.
@@ -161,9 +146,6 @@ defmodule Tuist.Kura.Lifecycle do
     each_region(&reconcile_region/1)
     reconcile_placement_retirements()
   end
-
-  @doc "Days an archived instance stays suspended before its workload is deleted."
-  def suspension_days, do: @suspension_days
 
   @doc """
   Provisions what one account's cache demand asks for, now, instead of on the
@@ -286,7 +268,6 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp sweep_region(%Regions{id: region_id} = region) do
     reconcile_drain_entries(region, Capacity.under_pressure?(region_id))
-    release_expired_suspensions(region)
   end
 
   ## Placement retirements
@@ -982,24 +963,23 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   # Past the drain window with no returning demand. Stamping
-  # `teardown_started_at` before the suspension is what makes this the point of
-  # no return: from here new demand cold-returns instead of cancelling, so an
-  # instance whose volumes are half emptied is never handed back to an account.
+  # `teardown_started_at` before the delete is what makes this the point of no
+  # return: from here new demand cold-provisions instead of cancelling, so a
+  # half-deleted instance is never handed back to an account.
   defp start_teardown(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
     {:ok, _lifecycle} =
       lifecycle
       |> AccountRegionLifecycle.phase_changeset(%{teardown_started_at: now()})
       |> Repo.update()
 
-    suspend_backing_resource(server)
+    destroy_backing_resource(server)
   end
 
-  # Instances whose teardown has been issued. The suspension is idempotent, so
-  # a tick that finds the resource still running simply asks again; the row
-  # only becomes archived once the resource reports its workload stopped and
-  # its volumes emptied, which is what makes "discard the directory only after
-  # the drain succeeds" true rather than assumed. A resource that is already
-  # gone has nothing left to discard.
+  # Instances whose teardown has been issued. The delete is idempotent, so a
+  # tick that finds the resource still present simply re-issues it; the row
+  # only becomes archived once the resource is observably gone, which is what
+  # makes "delete the pod and directory only after the drain succeeds" true
+  # rather than assumed.
   #
   # The archival flag is deliberately not consulted here. Past `teardown_started_at`
   # the resource is already being deleted, and abandoning the row mid-delete
@@ -1029,18 +1009,12 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   defp finish_teardown({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, region) do
-    case Provisioner.suspension_state(server) do
-      {:ok, :suspended} ->
-        complete_archival(server, lifecycle, region)
-
+    case Provisioner.current_image_tag(server) do
       {:error, :not_found} ->
         complete_archival(server, lifecycle, region)
 
-      {:ok, :suspending} ->
-        :ok
-
-      {:ok, :running} ->
-        suspend_backing_resource(server)
+      {:ok, _image_tag} ->
+        destroy_backing_resource(server)
 
       {:error, reason} ->
         Logger.warning("[Kura.Lifecycle] could not observe tearing-down instance #{server.id}: #{inspect(reason)}")
@@ -1049,95 +1023,21 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  defp suspend_backing_resource(%Server{} = server) do
-    inputs = %{image_tag: server.current_image_tag || image_tag(), account: server.account, server: server}
-
-    case Provisioner.suspend(server, inputs) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("[Kura.Lifecycle] suspension failed for instance #{server.id}: #{inspect(reason)}")
-        :ok
-    end
-  end
-
-  # Archived instances whose suspension has outlived `@suspension_days`. The
-  # deletion is idempotent, and an instance archived before archival suspended
-  # anything has nothing left to delete, so it is stamped the same way.
-  defp release_expired_suspensions(%Regions{id: region_id}) do
-    cutoff = DateTime.add(now(), -@suspension_days * 86_400, :second)
-
-    cutoff
-    |> expired_suspensions()
-    |> where([s, _l], s.region == ^region_id)
-    |> order_by([_s, l], asc: l.archived_at)
-    |> limit(^@max_archival_transitions_per_pass)
-    |> select([s, _l], s.id)
-    |> Repo.all()
-    |> Enum.each(&release_suspension(&1, cutoff))
-  end
-
-  # `archived_at` older than the account's last return belongs to an earlier
-  # archival: archival marks the row archived before it records the new date.
-  defp expired_suspensions(cutoff) do
-    from(s in Server,
-      join: l in AccountRegionLifecycle,
-      on: l.account_id == s.account_id and l.service_region == s.region,
-      where: s.status == :archived,
-      where: l.archived_at <= ^cutoff,
-      where: is_nil(l.last_returned_at) or l.last_returned_at < l.archived_at,
-      where: is_nil(l.suspension_released_at) or l.suspension_released_at < l.archived_at
-    )
-  end
-
-  # Checked again and deleted under the row lock a return takes before it moves
-  # the row out of `:archived`. A return that committed since the pass read the
-  # row leaves nothing to release, and one that starts meanwhile applies its
-  # instance only after the deletion was issued, so the reconciler recreates it
-  # rather than the deletion removing a returned instance.
-  defp release_suspension(server_id, cutoff) do
-    {:ok, :ok} =
-      Repo.transaction(fn ->
-        Repo.one(from(s in Server, where: s.id == ^server_id, lock: "FOR UPDATE", select: s.id))
-
-        cutoff
-        |> expired_suspensions()
-        |> where([s, _l], s.id == ^server_id)
-        |> select([s, l], {s, l})
-        |> Repo.one()
-        |> delete_suspended_workload()
-      end)
-
-    :ok
-  end
-
-  defp delete_suspended_workload(nil), do: :ok
-
-  defp delete_suspended_workload({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}) do
+  defp destroy_backing_resource(%Server{} = server) do
     case Provisioner.destroy(server) do
       :ok ->
-        {:ok, _lifecycle} =
-          lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{suspension_released_at: now()})
-          |> Repo.update()
-
-        Logger.info("[Kura.Lifecycle] deleted the suspended workload of archived instance #{server.id}")
         :ok
 
       {:error, reason} ->
-        Logger.warning(
-          "[Kura.Lifecycle] could not delete the suspended workload of archived instance #{server.id}: #{inspect(reason)}"
-        )
-
+        Logger.warning("[Kura.Lifecycle] teardown failed for instance #{server.id}: #{inspect(reason)}")
         :ok
     end
   end
 
   # Reclaimed bytes are what the region gets back: the quota every replica of
   # the instance held, not the bytes that happened to be resident, which the
-  # account could refill at any time up to that quota. Suspension empties every
-  # replica's volume.
+  # account could refill at any time up to that quota. Archival deletes the
+  # whole StatefulSet, so every replica's directory goes with it.
   defp complete_archival(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, region) do
     plan = Billing.effective_plan(server.account)
     reclaimed_bytes = Capacity.resident_bytes(region, server)
