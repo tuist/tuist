@@ -247,6 +247,94 @@ defmodule Tuist.Kura.PromExPluginTest do
     end
   end
 
+  describe "execute_new_instance_readiness_telemetry_event/0" do
+    defp spin_up(server, seconds_ago: seconds_ago, took: took) do
+      finished_at = DateTime.add(DateTime.utc_now(), -seconds_ago, :second)
+
+      Repo.insert!(%Deployment{
+        cluster_id: "test-cluster",
+        image_tag: "0.5.2",
+        kura_server_id: server.id,
+        status: :succeeded,
+        inserted_at: DateTime.add(finished_at, -took, :second),
+        finished_at: DateTime.truncate(finished_at, :second)
+      })
+    end
+
+    # An account-region the lifecycle tracks, so the instance is one resolution
+    # hands out rather than a runner cache node.
+    defp tracked_instance do
+      account = account()
+      {:ok, _lifecycle} = Demand.upsert(account.id, @region, DateTime.utc_now())
+      {account, instance(account)}
+    end
+
+    test "reports how long the window's new instances took to serve" do
+      for took <- [10, 20, 30, 300] do
+        {_account, server} = tracked_instance()
+        spin_up(server, seconds_ago: 600, took: took)
+      end
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 4, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert p90_seconds > 30 and p90_seconds <= 300
+    end
+
+    test "leaves out a rollout of an instance that was already serving" do
+      {_account, server} = tracked_instance()
+      spin_up(server, seconds_ago: 1200, took: 20)
+      spin_up(server, seconds_ago: 600, took: 300)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 1, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert_in_delta p90_seconds, 20, 1
+    end
+
+    test "counts the deployment that returned an instance from archive" do
+      {account, server} = tracked_instance()
+      # The provision that first brought this instance up is outside the window.
+      spin_up(server, seconds_ago: 2 * 24 * 3600, took: 20)
+      returned_at = DateTime.utc_now() |> DateTime.add(-900, :second) |> DateTime.truncate(:second)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{last_returned_at: returned_at})
+      |> Repo.update!()
+
+      spin_up(server, seconds_ago: 600, took: 300)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 1, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert_in_delta p90_seconds, 300, 1
+    end
+
+    test "reports nothing with no new instance in the window, so the alert has nothing to read" do
+      {_account, server} = tracked_instance()
+      spin_up(server, seconds_ago: 3 * 24 * 3600, took: 20)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      refute_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, _measurements, _metadata}
+    end
+  end
+
   describe "execute_unroutable_instances_telemetry_event/0" do
     test "counts instances that exist but cannot be resolved" do
       instance(account())

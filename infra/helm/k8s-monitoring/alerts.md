@@ -3978,6 +3978,64 @@ probe failed TLS verification every tick, and the endpoint-not-ready branch
 logged at info and returned `:ok` without writing anything. The instance was
 indistinguishable from one thirty seconds old.
 
+### Kura new instances slow to serve
+
+```promql
+max(tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds{cluster="tuist-production"})
+  and on()
+(max(tuist_kura_lifecycle_new_instances_count{cluster="tuist-production"}) >= 10)
+```
+
+- Threshold: `> 120` seconds, so the alert value is the p90 itself
+- Pending period: 30 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: OK**, **Error: Alerting**.
+- Live: rule `kura-new-instance-slow`, created 2026-09-17.
+- Summary: `Kura new instances took {{ $values.A.Value | printf "%.0f" }}s at
+  the 90th percentile over the last day`
+
+**What it measures.** `tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds`
+is a PromEx polling gauge, computed every five minutes from `kura_deployments`
+over the last 24 hours: for each account-region instance that started serving,
+the wall-clock from the deployment that brought it up to its endpoint
+answering. Only first provisions and cold returns count, which is the first
+deployment a server has had since its account-region last returned from
+archive. A fleet rollout mints ten times as many deployments as new instances
+and they pass through the same activation path, so counting those would measure
+the rollout gate instead.
+
+**Read it with `max`, not `sum`.** Like the gauges above, every
+`tuist-tuist-server` replica reports the same fleet-wide value and Adaptive
+Metrics has aggregated `instance` and `pod` away.
+
+**Why the sample gate.** Production provisions on the order of 30 new instances
+a day, so a 24-hour p90 is taken over a few dozen samples and a quiet day would
+otherwise let one slow instance decide the alert. The gauge is not emitted at
+all when the window holds nothing, which is why No Data is OK rather than
+Alerting: a fleet that provisioned nothing has no speed to report.
+
+**Why 120 seconds, and where it should go.** Before the on-demand provisioning
+work, production's p90 for a first provision was 181s over a week (p50 127s),
+and a staging drill of the same path afterwards returned an archived instance
+in 13.7s. 120s is therefore well clear of the expected range while still
+catching a regression to the old behaviour. Tighten it toward 60s once a couple
+of weeks of production data with the new path exist, and read the current
+distribution before changing it:
+
+```sql
+SELECT count(*), percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - inserted_at)))
+FROM kura_deployments WHERE status = 2 AND inserted_at > now() - interval '7 days';
+```
+
+**What it catches that the two rules above do not.** Those fire when an instance
+never serves, on a 15-minute stall threshold. This one fires when instances do
+serve but have got slower: DNS publication, volume provisioning, the regional
+gateway's sync rate, image pulls on a fresh box. The usual first read is the
+timeline of one recent instance, which `AwaitActivationWorker`'s log lines give
+(`waiting on DNS for server`, `waiting on public endpoint for server`) together
+with the pod and volume events in the `kura` namespace.
+
 ### Kura region admission headroom running out
 
 ```promql
