@@ -564,6 +564,15 @@ defmodule TuistWeb.UsageLive do
     Enum.map(dates, fn date -> [date, Float.round(Map.get(per_day, date, 0) / 1, 2)] end)
   end
 
+  @doc """
+  The caches with any usage of `field`, largest first.
+  """
+  def caches_by(caches, field) do
+    caches
+    |> Enum.filter(&(Map.fetch!(&1, field) > 0))
+    |> Enum.sort_by(&Map.fetch!(&1, field), :desc)
+  end
+
   def download_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
 
   def request_rate_label,

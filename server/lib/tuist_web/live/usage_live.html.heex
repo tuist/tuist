@@ -226,8 +226,7 @@
             </div>
             <dl data-part="lines">
               <div
-                :for={cache <- pricing.cache.caches}
-                :if={cache.bytes > 0}
+                :for={cache <- TuistWeb.UsageLive.caches_by(pricing.cache.caches, :bytes)}
                 data-part="line"
                 data-kind="detail"
               >
@@ -275,8 +274,7 @@
             </div>
             <dl data-part="lines">
               <div
-                :for={cache <- pricing.cache.caches}
-                :if={cache.requests > 0}
+                :for={cache <- TuistWeb.UsageLive.caches_by(pricing.cache.caches, :requests)}
                 data-part="line"
                 data-kind="detail"
               >

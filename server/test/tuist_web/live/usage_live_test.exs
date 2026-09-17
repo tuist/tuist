@@ -651,6 +651,19 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
+  describe "caches_by/2" do
+    test "orders each receipt's caches by its own quantity and leaves out unused ones" do
+      caches = [
+        %{id: "module", cache: :module, bytes: 900, requests: 10},
+        %{id: "xcode", cache: :xcode, bytes: 100, requests: 500},
+        %{id: "gradle", cache: :gradle, bytes: 0, requests: 20}
+      ]
+
+      assert Enum.map(UsageLive.caches_by(caches, :bytes), & &1.cache) == [:module, :xcode]
+      assert Enum.map(UsageLive.caches_by(caches, :requests), & &1.cache) == [:xcode, :gradle, :module]
+    end
+  end
+
   describe "runner_chart_series/2" do
     test "stacks the projected days onto the same bars as the spend" do
       # The projection has to share the axis and the stack with the
