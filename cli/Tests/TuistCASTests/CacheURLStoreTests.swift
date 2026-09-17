@@ -575,12 +575,15 @@
         }
     }
 
+    /// Answers after `delay` whether or not it is cancelled, the way a request does while it waits
+    /// for a token refresh another request started.
     private struct SlowGetCacheEndpointsService: GetCacheEndpointsServicing {
         let delay: Duration
         let resolution: CacheEndpointsResolution
 
         func getCacheEndpoints(serverURL _: URL, accountHandle _: String?) async throws -> CacheEndpointsResolution {
-            try await Task.sleep(for: delay)
+            let delay = delay
+            await Task { try? await Task.sleep(for: delay) }.value
             return resolution
         }
     }

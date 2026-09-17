@@ -236,21 +236,40 @@ public struct CacheURLStore: CacheURLStoring {
     }
 
     /// The server's answer, or `nil` when it does not arrive within `timeout`.
+    ///
+    /// The request and the timer run in tasks of their own, so giving up on the request does not
+    /// wait for it to end. A task group would: cancelling the request does not end every wait it
+    /// can be in, such as the one for a token refresh another request started.
     private func fetchResolution(serverURL: URL, accountHandle: String?, within timeout: Duration) async throws
         -> CacheEndpointsResolution?
     {
         let getCacheEndpointsService = getCacheEndpointsService
-        return try await withThrowingTaskGroup(of: CacheEndpointsResolution?.self) { group in
-            group.addTask {
-                try await getCacheEndpointsService.getCacheEndpoints(serverURL: serverURL, accountHandle: accountHandle)
+        let (outcomes, continuation) = AsyncThrowingStream<CacheEndpointsResolution?, any Error>.makeStream()
+        let request = Task {
+            do {
+                let resolution = try await getCacheEndpointsService.getCacheEndpoints(
+                    serverURL: serverURL,
+                    accountHandle: accountHandle
+                )
+                continuation.yield(resolution)
+            } catch {
+                continuation.finish(throwing: error)
             }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                return nil
-            }
-            defer { group.cancelAll() }
-            return try await group.next() ?? nil
         }
+        let timer = Task {
+            try await Task.sleep(for: timeout)
+            continuation.yield(nil)
+        }
+        defer {
+            request.cancel()
+            timer.cancel()
+        }
+
+        for try await outcome in outcomes {
+            return outcome
+        }
+        try Task.checkCancellation()
+        return nil
     }
 
     /// A failed probe is retried once before the endpoint counts as unreachable,
