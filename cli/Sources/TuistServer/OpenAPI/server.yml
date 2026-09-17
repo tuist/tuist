@@ -8704,7 +8704,7 @@ paths:
           description: List of cache endpoints
           headers:
             cache-control:
-              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving. While one is being provisioned the answer is `no-cache`, so a client waiting for the instance asks the server again rather than reusing it.
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
               schema:
                 type: string
                 x-struct:
