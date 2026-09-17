@@ -108,7 +108,9 @@ defmodule Tuist.Kura.Telemetry do
   Counts an account whose cache instance was not seeded ahead of its first
   cache request: `capacity_pressure` when the region it resolves to is over its
   pressure line, `unused` when the account's instance was reclaimed for never
-  storing anything and has not been asked for since.
+  storing anything and has not been asked for since, `prepared` when it was
+  brought up ahead of the account's demand and archived before anything used
+  it.
 
   Distinct from `resolution_refused`, which is about an account that has no
   region at all. This one has a region and will still be provisioned the

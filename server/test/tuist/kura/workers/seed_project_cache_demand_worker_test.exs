@@ -279,6 +279,28 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert_received {^handler, %{count: 1}, %{reason: "unused", region: @region}}
     end
 
+    test "is not seeded again once it was archived ahead of its account's demand" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      handler = attach_seed_declined_handler()
+
+      account = account()
+      {:ok, _} = Demand.upsert(account.id, @region, ago(1))
+      assert :ok = Lifecycle.reconcile()
+
+      [server] = servers_for(account)
+      server = server |> Ecto.Changeset.change(%{status: :active}) |> Repo.update!()
+      assert :ok = Lifecycle.archive_prepared(server)
+      archive_drained(account)
+      assert [%Server{status: :archived}] = servers_for(account)
+
+      assert :ok = seed(account)
+      assert :ok = Lifecycle.reconcile()
+
+      assert [%Server{status: :archived}] = servers_for(account)
+      assert_received {^handler, %{count: 1}, %{reason: "prepared", region: @region}}
+    end
+
     test "leaves placement undecided so the first-placement guess stays correctable" do
       account = account()
 

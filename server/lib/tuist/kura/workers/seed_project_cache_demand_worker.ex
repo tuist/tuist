@@ -26,8 +26,11 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   been in service for `Tuist.Environment.kura_unused_days/0`
   (`Tuist.Kura.Lifecycle`). The account's first cache request returns it, so
   reclaiming it early costs one provision. The seed declines while that hold is
-  in place (`Tuist.Kura.Demand.unused_hold?/1`); otherwise every new project
-  would provision the reclaimed instance again.
+  in place (`Tuist.Kura.Demand.archived_hold/1`); otherwise every new project
+  would provision the reclaimed instance again. The same holds for an instance
+  that was brought up ahead of its account's demand and archived before
+  anything used it: waking it here would spend the capacity archiving it
+  released, with no request through Kura to show it is wanted.
 
   **Placement.** The job carries `origin`, the coarse location label of the
   request that created the project (never an address). The seed is placed
@@ -90,11 +93,11 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
 
   defp seed_region(%Account{} = account, %{plan: plan, service_region: service_region}, origin) do
     cond do
-      Demand.unused_hold?(account) ->
-        Telemetry.seed_declined(plan, service_region, :unused)
+      reason = Demand.archived_hold(account) ->
+        Telemetry.seed_declined(plan, service_region, reason)
 
         Logger.info(
-          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id}: its instance was reclaimed for never storing anything"
+          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id}: its instance is archived (#{reason}) until the account asks for it"
         )
 
         :ok
