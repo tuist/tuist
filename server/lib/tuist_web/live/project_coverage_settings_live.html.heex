@@ -41,59 +41,143 @@
     {dgettext("dashboard_projects", "Code coverage")}
   </h2>
 
-  <.form
-    id="coverage-settings-form"
-    for={%{}}
-    phx-submit="save_settings"
-    data-part="form"
-  >
-    <.card_section data-part="gates-card-section">
-      <div data-part="header">
+  <.card_section data-part="gates-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
         <span data-part="title">{dgettext("dashboard_projects", "Gates")}</span>
         <span data-part="subtitle">
           {dgettext(
             "dashboard_projects",
-            "Gates report a tuist/coverage check on pull requests. A gate that cannot be evaluated, because there is no baseline or the run skipped tests, is neutral. Gates are never required on their own; make the check required in the repository to block merges."
+            "Report a tuist/coverage check on pull requests. A gate that cannot be evaluated, because there is no baseline or the run skipped tests, is neutral."
           )}
         </span>
       </div>
-      <div data-part="content">
-        <.toggle
-          id="coverage-gates-enabled"
-          phx-click="toggle_setting"
-          phx-value-setting="coverage_gates_enabled"
-          label={dgettext("dashboard_projects", "Post the tuist/coverage check on pull requests")}
-          checked={@gates.enabled}
-        />
-        <div data-part="field">
-          <label data-part="label" for="coverage-min-patch">
-            {dgettext("dashboard_projects", "Minimum patch coverage (%)")}
-          </label>
-          <.text_input
-            type="basic"
-            id="coverage-min-patch"
-            name="min_patch_coverage"
-            value={@gates.min_patch_coverage}
-            placeholder={dgettext("dashboard_projects", "Off")}
-          />
-        </div>
-        <div data-part="field">
-          <label data-part="label" for="coverage-max-drop">
-            {dgettext("dashboard_projects", "Maximum total drop (percentage points)")}
-          </label>
-          <.text_input
-            type="basic"
-            id="coverage-max-drop"
-            name="max_total_drop"
-            value={@gates.max_total_drop}
-            placeholder={dgettext("dashboard_projects", "Off")}
-          />
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="coverage-gates-enabled"
+              checked={@gates.enabled}
+              phx-click="toggle_setting"
+              phx-value-setting="coverage_gates_enabled"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Coverage check")}
+            </label>
+          </div>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_projects",
+              "Gates are never required on their own; make the check required in the repository to block merges."
+            )}
+          </span>
         </div>
       </div>
-    </.card_section>
+      <div data-part="setting-row">
+        <div data-part="content">
+          <h3 data-part="title">{dgettext("dashboard_projects", "Thresholds")}</h3>
+          <div data-part="tags">
+            <.tag
+              :if={@gates.min_patch_coverage}
+              label={
+                dgettext("dashboard_projects", "Patch coverage at least %{value}%",
+                  value: @gates.min_patch_coverage
+                )
+              }
+            />
+            <.tag
+              :if={@gates.max_total_drop}
+              label={
+                dgettext("dashboard_projects", "Total drop at most %{value} pp",
+                  value: @gates.max_total_drop
+                )
+              }
+            />
+            <.tag
+              :if={is_nil(@gates.min_patch_coverage) and is_nil(@gates.max_total_drop)}
+              label={dgettext("dashboard_projects", "No thresholds")}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-gates-modal"
+            title={dgettext("dashboard_projects", "Configure thresholds")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "gates"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form id="coverage-gates-form" phx-change="update_form" data-part="modal-form">
+              <input type="hidden" name="form" value="gates" />
+              <div data-part="schedule-row">
+                <label data-part="schedule-label" for="coverage-min-patch">
+                  {dgettext("dashboard_projects", "Minimum patch coverage (%)")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="coverage-min-patch"
+                  name="min_patch_coverage"
+                  value={@forms["gates"]["min_patch_coverage"]}
+                  placeholder={dgettext("dashboard_projects", "Off")}
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label" for="coverage-max-drop">
+                  {dgettext("dashboard_projects", "Maximum total drop (pp)")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="coverage-max-drop"
+                  name="max_total_drop"
+                  value={@forms["gates"]["max_total_drop"]}
+                  placeholder={dgettext("dashboard_projects", "Off")}
+                  phx-debounce="300"
+                />
+              </div>
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="gates"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="gates"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+    </div>
+  </.card_section>
 
-    <.card_section data-part="patch-card-section">
-      <div data-part="header">
+  <.card_section data-part="patch-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
         <span data-part="title">{dgettext("dashboard_projects", "Patch coverage")}</span>
         <span data-part="subtitle">
           {dgettext(
@@ -102,186 +186,384 @@
           )}
         </span>
       </div>
-      <div data-part="content">
-        <.toggle
-          id="coverage-patch-partial-runs"
-          phx-click="toggle_setting"
-          phx-value-setting="coverage_patch_partial_runs"
-          label={dgettext("dashboard_projects", "Compute patch coverage on partial runs")}
-          description={
-            dgettext(
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="coverage-patch-partial-runs"
+              checked={@gates.patch_partial_runs}
+              phx-click="toggle_setting"
+              phx-value-setting="coverage_patch_partial_runs"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Partial runs")}
+            </label>
+          </div>
+          <span data-part="description">
+            {dgettext(
               "dashboard_projects",
               "A run that skipped tests cannot prove every changed file's tests ran, so its patch coverage may read lower than it is."
-            )
-          }
-          checked={@gates.patch_partial_runs}
-        />
+            )}
+          </span>
+        </div>
       </div>
-    </.card_section>
+    </div>
+  </.card_section>
 
-    <.card_section data-part="excluded-paths-card-section">
-      <div data-part="header">
+  <.card_section data-part="excluded-paths-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
         <span data-part="title">{dgettext("dashboard_projects", "Excluded paths")}</span>
         <span data-part="subtitle">
           {dgettext(
             "dashboard_projects",
-            "Files left out of every coverage figure: totals, targets, files, patch coverage and gaps. Use it for generated code, whose lines no test is expected to cover. Changes apply to past runs whose per-file coverage is still retained."
+            "Files left out of every coverage figure, such as generated code. Changes apply to past runs whose per-file coverage is still retained."
           )}
         </span>
       </div>
-      <div data-part="content">
-        <div data-part="field">
-          <label data-part="label" for="coverage-excluded-path-globs">
-            {dgettext("dashboard_projects", "One glob per line")}
-          </label>
-          <span data-part="help">
-            {dgettext(
-              "dashboard_projects",
-              "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Nothing is excluded when empty."
-            )}
-          </span>
-          <textarea
-            id="coverage-excluded-path-globs"
-            name="excluded_path_globs"
-            rows="6"
-            data-part="textarea"
-            placeholder="Sources/API/Generated/**\n**/*.pb.swift"
-          >{Enum.join(@selected_project.coverage_excluded_path_globs || [], "\n")}</textarea>
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <h3 data-part="title">{dgettext("dashboard_projects", "Globs")}</h3>
+          <div data-part="tags">
+            <.tag :for={glob <- @excluded_path_globs} label={glob} />
+            <.tag
+              :if={@excluded_path_globs == []}
+              label={dgettext("dashboard_projects", "Nothing excluded")}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-excluded-paths-modal"
+            title={dgettext("dashboard_projects", "Configure excluded paths")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "excluded_paths"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-excluded-paths-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="excluded_paths" />
+              <.text_area
+                id="coverage-excluded-path-globs"
+                name="globs"
+                label={dgettext("dashboard_projects", "One glob per line")}
+                hint={
+                  dgettext(
+                    "dashboard_projects",
+                    "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one."
+                  )
+                }
+                value={@forms["excluded_paths"]["globs"]}
+                placeholder={Enum.join(["Sources/API/Generated/**", "**/*.pb.swift"], "\n")}
+                rows={6}
+                max_length={10_000}
+                show_character_count={false}
+                phx-debounce="300"
+              />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </div>
       </div>
-    </.card_section>
+    </div>
+  </.card_section>
 
-    <.card_section data-part="git-history-card-section">
-      <div data-part="header">
+  <.card_section data-part="git-history-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
         <span data-part="title">{dgettext("dashboard_projects", "Git history")}</span>
         <span data-part="subtitle">
           {dgettext(
             "dashboard_projects",
-            "How far back the repository's history is collected and walked when a pull request's baseline is resolved. Empty fields use the server defaults."
+            "The repository history collected with each run to resolve a pull request's baseline."
           )}
         </span>
       </div>
-      <div data-part="content">
-        <div data-part="field">
-          <label data-part="label" for="coverage-git-history-window-days">
-            {dgettext("dashboard_projects", "History window (days)")}
-          </label>
-          <.text_input
-            type="basic"
-            id="coverage-git-history-window-days"
-            name="git_history_window_days"
-            value={@selected_project.git_history_window_days}
-            placeholder={"#{@git_history_defaults.window_days}"}
-          />
-        </div>
-        <div data-part="field">
-          <label data-part="label" for="coverage-git-history-window-commits">
-            {dgettext("dashboard_projects", "History window (commits)")}
-          </label>
-          <.text_input
-            type="basic"
-            id="coverage-git-history-window-commits"
-            name="git_history_window_commits"
-            value={@selected_project.git_history_window_commits}
-            placeholder={"#{@git_history_defaults.window_commits}"}
-          />
-        </div>
-        <.toggle
-          id="coverage-git-history-provider-fallback"
-          phx-click="toggle_setting"
-          phx-value-setting="git_history_provider_fallback"
-          label={
-            dgettext(
-              "dashboard_projects",
-              "Complete missing history from the connected repository"
-            )
-          }
-          description={
-            dgettext(
-              "dashboard_projects",
-              "When a run arrives without its merge base, changed files or commit graph, fetch them from GitHub."
-            )
-          }
-          checked={@git_history.provider_fallback}
-        />
-      </div>
-    </.card_section>
-
-    <.card_section data-part="tracked-files-card-section">
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_projects", "Tracked files")}</span>
-        <span data-part="subtitle">
-          {dgettext(
-            "dashboard_projects",
-            "Files whose identity a run's evidence depends on beyond its sources: dependency manifests, generator configuration, fixtures, snapshots. Each run records the matched files with their blobs."
-          )}
-        </span>
-      </div>
-      <div data-part="content">
-        <div data-part="field">
-          <label data-part="label" for="coverage-tracked-file-globs">
-            {dgettext("dashboard_projects", "One Git pathspec glob per line")}
-          </label>
-          <span data-part="help">
-            {dgettext(
-              "dashboard_projects",
-              "Empty means the server defaults, shown as the placeholder."
-            )}
-          </span>
-          <textarea
-            id="coverage-tracked-file-globs"
-            name="tracked_file_globs"
-            rows="8"
-            data-part="textarea"
-            placeholder={Enum.join(@git_history_defaults.tracked_file_globs, "\n")}
-          >{Enum.join(@selected_project.tracked_file_globs || [], "\n")}</textarea>
-        </div>
-      </div>
-    </.card_section>
-
-    <.card_section data-part="retention-card-section">
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_projects", "Retention")}</span>
-        <span data-part="subtitle">
-          {dgettext("dashboard_projects", "How long coverage data is kept. Set by the server.")}
-        </span>
-      </div>
-      <div data-part="content">
-        <dl data-part="retention">
-          <div>
-            <dt>{dgettext("dashboard_projects", "Per-file coverage")}</dt>
-            <dd>
-              {dngettext("dashboard_projects", "%{count} day", "%{count} days", @retention.files,
-                count: @retention.files
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_projects", "Run totals")}</dt>
-            <dd>
-              {dngettext("dashboard_projects", "%{count} day", "%{count} days", @retention.runs,
-                count: @retention.runs
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_projects", "Commit graph")}</dt>
-            <dd>
-              {dngettext(
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <h3 data-part="title">{dgettext("dashboard_projects", "History window")}</h3>
+          <div data-part="tags">
+            <.tag label={
+              dngettext(
                 "dashboard_projects",
                 "%{count} day",
                 "%{count} days",
                 @git_history.window_days,
                 count: @git_history.window_days
-              )}
-            </dd>
+              )
+            } />
+            <.tag label={
+              dngettext(
+                "dashboard_projects",
+                "%{count} commit",
+                "%{count} commits",
+                @git_history.window_commits,
+                count: @git_history.window_commits
+              )
+            } />
           </div>
-        </dl>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-git-history-modal"
+            title={dgettext("dashboard_projects", "Configure history window")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "git_history"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-git-history-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="git_history" />
+              <div data-part="schedule-row">
+                <label data-part="schedule-label" for="coverage-git-history-window-days">
+                  {dgettext("dashboard_projects", "Days")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="coverage-git-history-window-days"
+                  name="window_days"
+                  value={@forms["git_history"]["window_days"]}
+                  placeholder={"#{@git_history_defaults.window_days}"}
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label" for="coverage-git-history-window-commits">
+                  {dgettext("dashboard_projects", "Commits")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="coverage-git-history-window-commits"
+                  name="window_commits"
+                  value={@forms["git_history"]["window_commits"]}
+                  placeholder={"#{@git_history_defaults.window_commits}"}
+                  phx-debounce="300"
+                />
+              </div>
+              <.hint_text label={
+                dgettext("dashboard_projects", "Empty fields use the server defaults.")
+              } />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="git_history"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="git_history"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
       </div>
-    </.card_section>
-
-    <div data-part="actions">
-      <.button type="submit" label={dgettext("dashboard_projects", "Save")} variant="primary" />
+      <div data-part="setting-row">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="coverage-git-history-provider-fallback"
+              checked={@git_history.provider_fallback}
+              phx-click="toggle_setting"
+              phx-value-setting="git_history_provider_fallback"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Complete from GitHub")}
+            </label>
+          </div>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_projects",
+              "When a run arrives without its merge base, changed files or commit graph, fetch them from the connected repository."
+            )}
+          </span>
+        </div>
+      </div>
+      <div data-part="setting-row">
+        <div data-part="content">
+          <h3 data-part="title">{dgettext("dashboard_projects", "Tracked files")}</h3>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_projects",
+              "Files a run's evidence depends on beyond its sources, recorded with their blobs: dependency manifests, generator configuration, fixtures, snapshots."
+            )}
+          </span>
+          <div data-part="tags">
+            <.tag label={
+              dngettext(
+                "dashboard_projects",
+                "%{count} glob",
+                "%{count} globs",
+                length(@git_history.tracked_file_globs),
+                count: length(@git_history.tracked_file_globs)
+              )
+            } />
+            <.tag
+              :if={is_nil(@selected_project.tracked_file_globs)}
+              label={dgettext("dashboard_projects", "Server defaults")}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-tracked-files-modal"
+            title={dgettext("dashboard_projects", "Configure tracked files")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "tracked_files"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-tracked-files-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="tracked_files" />
+              <.text_area
+                id="coverage-tracked-file-globs"
+                name="globs"
+                label={dgettext("dashboard_projects", "One Git pathspec glob per line")}
+                hint={
+                  dgettext(
+                    "dashboard_projects",
+                    "Empty means the server defaults, shown as the placeholder."
+                  )
+                }
+                value={@forms["tracked_files"]["globs"]}
+                placeholder={Enum.join(@git_history_defaults.tracked_file_globs, "\n")}
+                rows={8}
+                max_length={10_000}
+                show_character_count={false}
+                phx-debounce="300"
+              />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="tracked_files"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="tracked_files"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
     </div>
-  </.form>
+  </.card_section>
+
+  <.card_section data-part="retention-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Retention")}</span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_projects", "How long coverage data is kept. Set by the server.")}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div
+        :for={
+          {label, days} <- [
+            {dgettext("dashboard_projects", "Per-file coverage"), @retention.files},
+            {dgettext("dashboard_projects", "Run totals"), @retention.runs},
+            {dgettext("dashboard_projects", "Commit graph"), @git_history.window_days}
+          ]
+        }
+        data-part="setting-row"
+      >
+        <div data-part="content">
+          <h3 data-part="title">{label}</h3>
+        </div>
+        <div data-part="row-content">
+          <.tag label={
+            dngettext("dashboard_projects", "%{count} day", "%{count} days", days, count: days)
+          } />
+        </div>
+      </div>
+    </div>
+  </.card_section>
 </div>
