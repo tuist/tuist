@@ -1507,11 +1507,31 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 		}
 		return nil
 	}
-	// No target yet: every pod is between being deleted and being scheduled
-	// again, as in a storage rebuild or a node evacuation. An existing record
-	// keeps its last target until a replacement is known. Deleting it would have
-	// external-dns unpublish a host clients are using, and resolvers would cache
-	// the NXDOMAIN for the zone's negative TTL, well past the pods returning.
+	// No pod is scheduled. An existing record keeps its last target until a
+	// replacement is known: every pod is between being deleted and being
+	// scheduled again, as in a storage rebuild or a node evacuation, and deleting
+	// the record would have external-dns unpublish a host clients are using, and
+	// resolvers cache the NXDOMAIN for the zone's negative TTL. A new instance's
+	// record is published now, at a box of the region, and follows the primary
+	// once one is scheduled: the record takes seconds to propagate once
+	// external-dns writes it, and starting that while volumes are provisioned and
+	// pods start, rather than after, is most of how soon a new instance can be
+	// handed out.
+	if target == "" && !instance.Spec.Private {
+		existing := &unstructured.Unstructured{}
+		existing.SetGroupVersionKind(dnsEndpointGVK)
+		err := r.Get(ctx, types.NamespacedName{Namespace: endpoint.GetNamespace(), Name: endpoint.GetName()}, existing)
+		switch {
+		case err == nil:
+			return nil
+		case !apierrors.IsNotFound(err):
+			return err
+		}
+		target, err = r.regionBoxIP(ctx, instance)
+		if err != nil {
+			return err
+		}
+	}
 	if target == "" {
 		return nil
 	}
@@ -1536,6 +1556,36 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
 	})
 	return err
+}
+
+// regionBoxIP returns the InternalIP of a box the instance's pods could be
+// placed on, or "" when there is none: a Ready node matching the instance's
+// node selector that is not being evacuated, the first by name so the answer is
+// stable across reconciles. On a host-network region every such box runs the
+// regional gateway, which forwards to the instance's pods wherever they are.
+// An instance with no node selector names no pool, and so no box.
+func (r *KuraInstanceReconciler) regionBoxIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	if len(instance.Spec.NodeSelector) == 0 {
+		return "", nil
+	}
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes, client.MatchingLabels(instance.Spec.NodeSelector)); err != nil {
+		return "", err
+	}
+	items := nodes.Items
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	for i := range items {
+		node := &items[i]
+		if _, evacuating := node.Annotations[EvacuateNodeAnnotation]; evacuating || !nodeReady(node) || node.Spec.Unschedulable {
+			continue
+		}
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP && address.Address != "" {
+				return address.Address, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // instanceNodeIP returns the InternalIP of a node running one of the instance's

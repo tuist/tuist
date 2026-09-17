@@ -44,6 +44,7 @@ external-dns:
   # Lists replace rather than merge, so the base flags are repeated here.
   extraArgs:
     - --cloudflare-dns-records-per-page=5000
+    - --min-event-sync-interval=1s
     - --txt-wildcard-replacement=_wildcard
   tolerations: *previewTolerations
 
