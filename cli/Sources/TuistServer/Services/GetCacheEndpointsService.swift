@@ -13,10 +13,14 @@ import OpenAPIRuntime
 public struct CacheEndpointsResolution: Equatable, Sendable {
     public let endpoints: [String]
     public let maxAge: TimeInterval?
+    /// Whether the server is preparing a dedicated cache instance for the
+    /// account, which is why `endpoints` can be empty for now.
+    public let provisioning: Bool
 
-    public init(endpoints: [String], maxAge: TimeInterval?) {
+    public init(endpoints: [String], maxAge: TimeInterval?, provisioning: Bool = false) {
         self.endpoints = endpoints
         self.maxAge = maxAge
+        self.provisioning = provisioning
     }
 }
 
@@ -81,7 +85,8 @@ public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
                 // `maxAge` nil and the client on its own default.
                 return CacheEndpointsResolution(
                     endpoints: payload.endpoints,
-                    maxAge: Self.maxAge(from: okResponse.headers.cache_hyphen_control)
+                    maxAge: Self.maxAge(from: okResponse.headers.cache_hyphen_control),
+                    provisioning: payload.provisioning ?? false
                 )
             }
         case let .forbidden(forbidden):
