@@ -314,9 +314,6 @@ CACHE_CONTENT_DIGEST=""
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
-# Written by a host that grows every branch to the ceiling before cache-ready,
-# which is what makes it safe for teardown to shrink the image it promotes.
-CACHE_IMAGE_GROWN_MARKER="cache-image-grown"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -1130,31 +1127,21 @@ capture_settled_inventory() {
 # inventory and before the content digest, because both a shrink and a compaction
 # rewrite the bytes that digest names.
 #
-# The shrink to the image's minimum size happens only when the host grew this
-# branch before the job: a shrunk image is full, and only a host that grows every
-# branch it materializes can hand one to the next job. Compaction changes no
-# capacity, so it runs either way.
+# A shrunk image is full, which is safe because the host grows every branch to
+# the ceiling before it signals cache-ready.
 #
 # Best-effort and deliberately not time-bounded: a failure leaves the image larger
 # than its content, never wrong, whereas killing a resize midway could.
 shrink_cache_image() {
   [ -f "${CACHE_IMAGE}" ] || return 0
-  local before after started finished minimum shrink="skipped" compact="ok"
+  local before after started finished minimum shrink="ok" compact="ok"
   before=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
   started=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
-  if [ -f "${STATUS_SHARE}/${CACHE_IMAGE_GROWN_MARKER}" ]; then
-    minimum=$(hdiutil resize -limits "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
-    case "${minimum}" in
-      ''|*[!0-9]*) shrink="failed" ;;
-      *)
-        if hdiutil resize -sectors "${minimum}" "${CACHE_IMAGE}" >/dev/null 2>&1; then
-          shrink="ok"
-        else
-          shrink="failed"
-        fi
-        ;;
-    esac
-  fi
+  minimum=$(hdiutil resize -limits "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
+  case "${minimum}" in
+    ''|*[!0-9]*) shrink="failed" ;;
+    *) hdiutil resize -sectors "${minimum}" "${CACHE_IMAGE}" >/dev/null 2>&1 || shrink="failed" ;;
+  esac
   hdiutil compact "${CACHE_IMAGE}" >/dev/null 2>&1 || compact="failed"
   after=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
   finished=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)

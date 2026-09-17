@@ -173,11 +173,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Between the inventory and the content hash, a successful job whose image changed
   runs `shrink_cache_image`: a prune frees blocks inside the image's filesystem
   and none in the image file, so without `hdiutil compact` a master costs the host
-  the most it ever held. The image is also shrunk to its minimum size, but only
-  when the host staged `cache-image-grown`: a shrunk image is full, and only a
-  host that grows every branch to the ceiling before `cache-ready` can hand it to
-  the next job. Both rewrite the file, which is why they sit before the content
-  hash and after the inventory, which they do not change.
+  the most it ever held. The image is also shrunk to its minimum size, which
+  leaves it full; that is safe only because tart-kubelet grows every branch to the
+  cap before `cache-ready`, so a runner image with this must not reach a host
+  whose tart-kubelet does not grow. Both rewrite the file, which is why they sit
+  before the content hash and after the inventory, which they do not change.
   Alongside the inventory digest, `capture_content_digest` hashes the settled
   image FILE (SHA-256, after the read-only measuring attach detaches and after any
   shrink) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a

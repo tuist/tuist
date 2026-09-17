@@ -316,74 +316,34 @@ func TestDarwinGrowImageNeverShrinks(t *testing.T) {
 	}
 }
 
-func TestGuestReadsTheHostsGrownMarker(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
-	if err != nil {
-		t.Fatalf("read dispatch-poll.sh: %v", err)
-	}
-	if want := `CACHE_IMAGE_GROWN_MARKER="` + cacheImageGrownFile + `"`; !strings.Contains(string(b), want) {
-		t.Fatalf("dispatch-poll.sh does not name the host's marker; want %s", want)
-	}
-}
-
 // At teardown the guest shrinks the image it is about to promote to its content
-// and compacts it, so a master costs the host what it holds rather than the
-// most it ever held. It may only shrink when the host grows every branch it
-// materializes; compacting is safe either way.
+// and compacts it, so a master costs the host what it holds rather than the most
+// it ever held, and the host's grow gives the next job its room back.
 func TestGuestShrinkCacheImageKeepsItsContent(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		hostGrows    bool
-		wantShrunken bool
-	}{
-		{name: "host grows branches", hostGrows: true, wantShrunken: true},
-		{name: "host does not grow branches", hostGrows: false, wantShrunken: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			be := darwinVolumeBackend{}
-			image := filepath.Join(t.TempDir(), "cache.sparseimage")
-			if err := be.createImage(image, 1); err != nil {
-				t.Fatalf("create image: %v", err)
-			}
-			kept := seedPrunedCache(t, image)
-
-			statusDir := t.TempDir()
-			if tc.hostGrows {
-				if err := os.WriteFile(filepath.Join(statusDir, cacheImageGrownFile), []byte("1"), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			capacityBefore := imageCapacityBytes(t, image)
-			allocatedBefore := allocatedBytes(t, image)
-
-			cmd := exec.Command("/bin/bash", "-c", "set -u\n"+guestShellFunction(t, "shrink_cache_image")+"\nshrink_cache_image")
-			cmd.Env = append(os.Environ(),
-				"STATUS_SHARE="+statusDir,
-				"CACHE_IMAGE="+image,
-				"CACHE_IMAGE_GROWN_MARKER="+cacheImageGrownFile,
-			)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("shrink_cache_image: %v\n%s", err, out)
-			}
-
-			capacityAfter := imageCapacityBytes(t, image)
-			if tc.wantShrunken && capacityAfter >= capacityBefore/2 {
-				t.Fatalf("capacity %d -> %d; want the image shrunk to its content\n%s", capacityBefore, capacityAfter, out)
-			}
-			if !tc.wantShrunken && capacityAfter != capacityBefore {
-				t.Fatalf("capacity %d -> %d; a guest must not shrink an image no host will grow\n%s", capacityBefore, capacityAfter, out)
-			}
-			if allocatedAfter := allocatedBytes(t, image); allocatedAfter >= allocatedBefore {
-				t.Fatalf("allocated %d -> %d; want the pruned bytes returned to the host\n%s", allocatedBefore, allocatedAfter, out)
-			}
-			assertCacheContent(t, image, kept)
-
-			if tc.wantShrunken {
-				assertGrownImageTakesWrites(t, be, image)
-			}
-		})
+	be := darwinVolumeBackend{}
+	image := filepath.Join(t.TempDir(), "cache.sparseimage")
+	if err := be.createImage(image, 1); err != nil {
+		t.Fatalf("create image: %v", err)
 	}
+	kept := seedPrunedCache(t, image)
+	capacityBefore := imageCapacityBytes(t, image)
+	allocatedBefore := allocatedBytes(t, image)
+
+	cmd := exec.Command("/bin/bash", "-c", "set -u\n"+guestShellFunction(t, "shrink_cache_image")+"\nshrink_cache_image")
+	cmd.Env = append(os.Environ(), "CACHE_IMAGE="+image)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("shrink_cache_image: %v\n%s", err, out)
+	}
+
+	if capacityAfter := imageCapacityBytes(t, image); capacityAfter >= capacityBefore/2 {
+		t.Fatalf("capacity %d -> %d; want the image shrunk to its content\n%s", capacityBefore, capacityAfter, out)
+	}
+	if allocatedAfter := allocatedBytes(t, image); allocatedAfter >= allocatedBefore {
+		t.Fatalf("allocated %d -> %d; want the pruned bytes returned to the host\n%s", allocatedBefore, allocatedAfter, out)
+	}
+	assertCacheContent(t, image, kept)
+	assertGrownImageTakesWrites(t, be, image)
 }
 
 // The next job clones the shrunk master, and the host's grow is what gives it

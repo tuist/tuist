@@ -830,34 +830,6 @@ func TestMaterializeRunsColdWhenTheBranchCannotGrow(t *testing.T) {
 	}
 }
 
-// The guest only shrinks the image it promotes when the host says it grows every
-// branch it materializes, so a runner image that ships before this host code
-// never publishes a master some host would hand to a job full.
-func TestMaterializeTellsTheGuestTheImageWasGrown(t *testing.T) {
-	root := t.TempDir()
-	statusDir := t.TempDir()
-	be := &fakeBackend{totalBytes: 100 * gib, perMaster: gib, root: root}
-	m := NewVolumeManager(root, 30, be)
-	seedMaster(t, m, "42")
-	att := mustAllocate(t, m, "vm-marker")
-
-	store := NewStore()
-	entry := &Entry{VMName: "vm-marker", Volume: att, VolumeStatusDir: statusDir}
-	store.Put("ns", "pod", entry)
-	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
-	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
-	}})
-
-	raw, err := os.ReadFile(filepath.Join(statusDir, cacheImageGrownFile))
-	if err != nil {
-		t.Fatalf("reading the grown marker: %v", err)
-	}
-	if strings.TrimSpace(string(raw)) != "30" {
-		t.Fatalf("grown marker = %q; want the 30 GiB ceiling", raw)
-	}
-}
-
 // An untrusted (fork) job gets an image of its own — cache-ready tells the guest
 // to attach, so signalling without one would drop every fork job onto the local
 // cold cache — but it must be EMPTY, never a clone of the account's master.
@@ -1684,7 +1656,7 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 // A declined branch still has to release the guest at once: without cache-ready
 // it would sit out the whole CACHE_READY_TIMEOUT before running cold. With
 // cache-ready and no image, its attach fails and it runs on its local cold cache.
-// It must not be told the image was grown, and it is not a cold materialize.
+// It is not a cold materialize.
 func TestDeclinedMaterializeReleasesTheGuestCold(t *testing.T) {
 	root := t.TempDir()
 	statusDir := t.TempDir()
@@ -1705,9 +1677,6 @@ func TestDeclinedMaterializeReleasesTheGuestCold(t *testing.T) {
 	}
 	if branchImageExists(m, att) {
 		t.Fatal("a declined branch must have no image")
-	}
-	if _, err := os.Stat(filepath.Join(statusDir, cacheImageGrownFile)); err == nil {
-		t.Fatal("a declined branch must not tell the guest its image was grown")
 	}
 	if got := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold")); got != coldBefore {
 		t.Fatalf("cold materialize counter moved %v -> %v for a decline", coldBefore, got)
