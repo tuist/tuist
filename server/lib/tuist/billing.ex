@@ -13,6 +13,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -106,19 +107,29 @@ defmodule Tuist.Billing do
   half-open billing period `[period_start, period_end)`. The caller
   can enqueue each returned value as an independent Stripe reporting
   job without recalculating usage when that job retries.
+
+  With `usage_based_pricing: true`, the cache download, cache request, and
+  passing test case meters replace the remote cache hit meter.
   """
   def customer_meter_values(
-        %Account{customer_id: customer_id, id: account_id},
+        %Account{customer_id: customer_id, id: account_id} = account,
         %DateTime{} = period_start,
         %DateTime{} = period_end,
         opts \\ []
       ) do
-    remote_cache_values = [
-      %{
-        event_name: "remote_cache_hit",
-        value: CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
-      }
-    ]
+    remote_cache_values =
+      if Keyword.get(opts, :usage_based_pricing, false) do
+        account
+        |> UsagePricing.meter_values(period_start, period_end)
+        |> Enum.filter(&usage_meter_provisioned?(&1.event_name))
+      else
+        [
+          %{
+            event_name: "remote_cache_hit",
+            value: CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
+          }
+        ]
+      end
 
     language_model_values =
       if Keyword.get(opts, :include_qa, false) do
@@ -157,6 +168,12 @@ defmodule Tuist.Billing do
   # `runner_subscription_items/1` and `configured_runner_price_ids/0` both
   # skip empty ids, so no subscription ever carries the item and nothing
   # can be charged. Filling the id in is what turns billing on.
+  defp usage_meter_provisioned?(event_name) do
+    (Tuist.Environment.stripe_prices() || %{})
+    |> Map.get("usage_meters", %{})
+    |> Map.has_key?(event_name)
+  end
+
   defp runner_meter_provisioned?(event_name) do
     (Tuist.Environment.stripe_prices() || %{})
     |> Map.get("runners", %{})

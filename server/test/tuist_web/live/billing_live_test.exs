@@ -7,6 +7,7 @@ defmodule TuistWeb.BillingLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Prepaid
@@ -302,6 +303,81 @@ defmodule TuistWeb.BillingLiveTest do
       stub(Billing, :current_billing_period, fn _account ->
         {period_start, period_end || DateTime.shift(period_start, month: 1)}
       end)
+    end
+  end
+
+  describe "usage-based pricing" do
+    setup do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      reject(&Tuist.CommandEvents.remote_cache_hits_count_for_customer/3)
+      :ok
+    end
+
+    defp usage_pricing(billed?) do
+      cache_charge = Money.new(450, :USD)
+      tests_charge = Money.new(200, :USD)
+
+      %{
+        cache: %{
+          downloads: %{
+            metered: 110_000_000_000,
+            included: 100_000_000_000,
+            billable: 10_000_000_000,
+            charge: Money.new(350, :USD)
+          },
+          requests: %{metered: 1_100_000, included: 1_000_000, billable: 100_000, charge: Money.new(100, :USD)},
+          charge: cache_charge,
+          billed: if(billed?, do: cache_charge)
+        },
+        tests: %{
+          passed: 6_000_000,
+          included: 5_000_000,
+          billable: 1_000_000,
+          charge: tests_charge,
+          billed: if(billed?, do: tests_charge)
+        }
+      }
+    end
+
+    test "replaces the remote cache hit allowance with the new meters", %{conn: conn, account: account} do
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#remote-cache-hits-progress")
+      assert has_element?(lv, "#cache-downloads-progress", "110.0 GB")
+      assert has_element?(lv, "#cache-requests-progress", "1.1M")
+      assert has_element?(lv, "#passing-test-cases-progress", "6M")
+      assert render(lv) =~ "Free tier exceeded"
+    end
+
+    test "does not estimate a payment for an account with no subscription", %{conn: conn, account: account} do
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "0.00"
+    end
+
+    test "estimates the next payment from the new meters", %{conn: conn, account: account} do
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(true) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "6.50"
+      assert has_element?(lv, "#usage-pricing-table", "10.0 GB above free tier")
+      assert has_element?(lv, "#usage-pricing-table", "$2 per million")
+      refute has_element?(lv, "#usage-table")
     end
   end
 

@@ -9,6 +9,7 @@ defmodule TuistWeb.UsageLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Kura.Usage
   alias Tuist.Runners.Allowance
@@ -43,6 +44,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
+     |> assign(:usage_based_pricing, FeatureFlags.usage_based_pricing_enabled?(account))
      |> assign(:prepaid_balance, prepaid_balance)}
   end
 
@@ -52,7 +54,14 @@ defmodule TuistWeb.UsageLive do
   def handle_params(
         params,
         uri,
-        %{assigns: %{selected_account: account, periods: periods, prepaid_balance: prepaid_balance}} = socket
+        %{
+          assigns: %{
+            selected_account: account,
+            periods: periods,
+            prepaid_balance: prepaid_balance,
+            usage_based_pricing: usage_based_pricing
+          }
+        } = socket
       ) do
     {start_dt, end_dt} = period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
@@ -80,6 +89,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
+     |> assign_usage_pricing(usage_based_pricing, account, period)
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
@@ -93,6 +103,14 @@ defmodule TuistWeb.UsageLive do
           }}
        end
      )}
+  end
+
+  defp assign_usage_pricing(socket, false, _account, _period), do: assign(socket, :usage_pricing, nil)
+
+  defp assign_usage_pricing(socket, true, account, period) do
+    assign_async(socket, :usage_pricing, fn ->
+      {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
+    end)
   end
 
   # A prepaid balance is what the account holds today, so it describes
@@ -478,6 +496,125 @@ defmodule TuistWeb.UsageLive do
   """
   def money_label(nil), do: "—"
   def money_label(money), do: CldrHelpers.format_money(money)
+
+  @cache_colors ["primary", "secondary", "tertiary", "quaternary", "p50"]
+
+  @doc """
+  Every date a usage pricing chart draws, spend and projection alike.
+  """
+  def usage_chart_dates(%{days: days, projected_days: projected_days}) do
+    (days ++ projected_days)
+    |> Enum.map(& &1.date)
+    |> Enum.uniq()
+    |> Enum.sort(Date)
+  end
+
+  @doc """
+  One stacked bar series per cache, valued in dollars, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def cache_chart_series(%{days: days} = cache) do
+    dates = usage_chart_dates(cache)
+
+    days
+    |> Enum.group_by(& &1.cache)
+    |> Enum.sort_by(fn {_cache, rows} -> -Enum.sum(Enum.map(rows, & &1.dollars)) end)
+    |> Enum.with_index()
+    |> Enum.map(fn {{cache, rows}, index} ->
+      bar_series(
+        cache_label(cache),
+        Enum.at(@cache_colors, rem(index, length(@cache_colors))),
+        dates,
+        rows
+      )
+    end)
+    |> Kernel.++(projected_dollar_series(cache.projected_days, dates))
+  end
+
+  @doc """
+  The daily value of billable passing test cases, followed by the projection
+  for the days the period has not reached yet.
+  """
+  def tests_chart_series(%{days: days, projected_days: projected_days} = tests) do
+    dates = usage_chart_dates(tests)
+
+    [bar_series(dgettext("dashboard_usage", "Passing test cases"), "primary", dates, days)] ++
+      projected_dollar_series(projected_days, dates)
+  end
+
+  defp projected_dollar_series([], _dates), do: []
+
+  defp projected_dollar_series(projected_days, dates),
+    do: [bar_series(dgettext("dashboard_usage", "Projected"), "lines", dates, projected_days)]
+
+  defp bar_series(name, color, dates, rows) do
+    %{
+      color: "var:noora-chart-#{color}",
+      data: bar_series_data(dates, rows),
+      name: name,
+      type: "bar",
+      stack: "spend"
+    }
+  end
+
+  defp bar_series_data(dates, rows) do
+    per_day =
+      rows |> Enum.group_by(& &1.date, & &1.dollars) |> Map.new(fn {date, dollars} -> {date, Enum.sum(dollars)} end)
+
+    Enum.map(dates, fn date -> [date, Float.round(Map.get(per_day, date, 0) / 1, 2)] end)
+  end
+
+  def download_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
+
+  def request_rate_label,
+    do: "$0.01 " <> dgettext("dashboard_usage", "per %{count}", count: CldrHelpers.format_number(1_000))
+
+  def passing_test_case_rate_label, do: "$2 " <> dgettext("dashboard_usage", "per million")
+
+  def cache_label(:module), do: dgettext("dashboard_usage", "Module cache")
+  def cache_label(:xcode), do: dgettext("dashboard_usage", "Xcode cache")
+  def cache_label(:gradle), do: dgettext("dashboard_usage", "Gradle cache")
+  def cache_label(:bazel), do: dgettext("dashboard_usage", "Bazel cache")
+  def cache_label(_cache), do: dgettext("dashboard_usage", "Other caches")
+
+  @doc """
+  The heading of a usage pricing charge. Only an account with a subscription
+  is billed, so every other account is shown an estimate.
+  """
+  def usage_charge_title(%{billed: nil}), do: dgettext("dashboard_usage", "Estimated")
+  def usage_charge_title(_section), do: dgettext("dashboard_usage", "Billed")
+
+  def usage_charge_description(%{billed: nil}),
+    do: dgettext("dashboard_usage", "What this period comes to. There is no subscription to bill it to.")
+
+  def usage_charge_description(_section), do: dgettext("dashboard_usage", "What you'll owe for this period")
+
+  def usage_total_label(%{billed: nil}), do: dgettext("dashboard_usage", "Estimated for this period")
+  def usage_total_label(_section), do: dgettext("dashboard_usage", "Billed this period")
+
+  def not_billed_test_cases(%{failed: failed, skipped: skipped, on_runners: on_runners}),
+    do: failed + skipped + on_runners
+
+  def downloads_pace_label(%{projected: nil}), do: nil
+
+  def downloads_pace_label(%{projected: projected}),
+    do: dgettext("dashboard_usage", "On track for about %{size} this period.", size: format_bytes(projected))
+
+  def requests_pace_label(%{projected: nil}), do: nil
+
+  def requests_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "On track for about %{count} requests this period.",
+        count: CldrHelpers.format_number(projected)
+      )
+
+  def tests_pace_label(%{projected: nil}), do: nil
+
+  def tests_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "On track for about %{count} passing test cases this period.",
+        count: CldrHelpers.format_number(projected)
+      )
 
   def region_label(""), do: dgettext("dashboard_usage", "Unknown")
   def region_label(nil), do: dgettext("dashboard_usage", "Unknown")

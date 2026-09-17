@@ -9,6 +9,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -1047,6 +1048,86 @@ defmodule Tuist.BillingTest do
       end)
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "remote_cache_hit", value: 10}
+             ]
+    end
+
+    test "reports the usage-based pricing meters instead of the remote cache hit meter when enabled" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "runners" => %{},
+          "usage_meters" => %{"cache_download_megabytes" => "", "cache_requests" => "", "passing_test_cases" => ""}
+        }
+      end)
+
+      reject(&Tuist.CommandEvents.remote_cache_hits_count_for_customer/3)
+
+      expect(UsagePricing, :meter_values, fn ^account, ^period_start, ^period_end ->
+        [
+          %{event_name: "cache_download_megabytes", value: 1_200},
+          %{event_name: "cache_requests", value: 0},
+          %{event_name: "passing_test_cases", value: 42}
+        ]
+      end)
+
+      stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end -> [] end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end, usage_based_pricing: true) == [
+               %{event_name: "cache_download_megabytes", value: 1_200},
+               %{event_name: "passing_test_cases", value: 42}
+             ]
+    end
+
+    test "drops a usage-based pricing meter that does not exist in Stripe yet" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{}, "usage_meters" => %{"cache_download_megabytes" => ""}}
+      end)
+
+      stub(UsagePricing, :meter_values, fn _account, _period_start, _period_end ->
+        [
+          %{event_name: "cache_download_megabytes", value: 1_200},
+          %{event_name: "cache_requests", value: 30},
+          %{event_name: "passing_test_cases", value: 42}
+        ]
+      end)
+
+      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [] end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end, usage_based_pricing: true) == [
+               %{event_name: "cache_download_megabytes", value: 1_200}
+             ]
+    end
+
+    test "keeps the remote cache hit meter when usage-based pricing is off" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{}, "usage_meters" => %{"cache_download_megabytes" => ""}}
+      end)
+
+      reject(&UsagePricing.meter_values/3)
+
+      expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        10
+      end)
+
+      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [] end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end, usage_based_pricing: false) == [
                %{event_name: "remote_cache_hit", value: 10}
              ]
     end

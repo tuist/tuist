@@ -5,6 +5,7 @@ defmodule TuistWeb.UsageLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
@@ -133,6 +134,144 @@ defmodule TuistWeb.UsageLiveTest do
     }
 
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
+  end
+
+  defp usage_pricing_breakdown(billed?) do
+    cache_charge = Money.new(450, :USD)
+    tests_charge = Money.new(200, :USD)
+
+    %{
+      period_start: ~D[2026-08-01],
+      period_end: ~D[2026-09-01],
+      usage_through: ~D[2026-08-21],
+      cache: %{
+        caches: [
+          %{id: "module", cache: :module, bytes: 80_000_000_000, requests: 900_000},
+          %{id: "xcode", cache: :xcode, bytes: 60_000_000_000, requests: 400_000}
+        ],
+        downloads: %{
+          quantity: 140_000_000_000,
+          runner_quantity: 60_000_000_000,
+          metered: 110_000_000_000,
+          included: 100_000_000_000,
+          billable: 10_000_000_000,
+          gross: Money.new(4_900, :USD),
+          runner_credit: Money.new(1_050, :USD),
+          included_credit: Money.new(3_500, :USD),
+          charge: Money.new(350, :USD),
+          projected: 210_000_000_000
+        },
+        requests: %{
+          quantity: 1_300_000,
+          runner_quantity: 400_000,
+          metered: 1_100_000,
+          included: 1_000_000,
+          billable: 100_000,
+          gross: Money.new(1_300, :USD),
+          runner_credit: Money.new(200, :USD),
+          included_credit: Money.new(1_000, :USD),
+          charge: Money.new(100, :USD),
+          projected: nil
+        },
+        gross: Money.new(6_200, :USD),
+        charge: cache_charge,
+        billed: if(billed?, do: cache_charge),
+        days: [%{date: ~D[2026-08-20], cache: :module, dollars: 1.5}],
+        projected_days: [%{date: ~D[2026-08-22], dollars: 1.5}]
+      },
+      tests: %{
+        passed: 6_000_000,
+        failed: 20_000,
+        skipped: 3_000,
+        on_runners: 4_000_000,
+        included: 5_000_000,
+        billable: 1_000_000,
+        projected: nil,
+        gross: Money.new(1_200, :USD),
+        included_credit: Money.new(1_000, :USD),
+        charge: tests_charge,
+        billed: if(billed?, do: tests_charge),
+        days: [%{date: ~D[2026-08-20], dollars: 0.4}],
+        projected_days: []
+      }
+    }
+  end
+
+  describe "usage-based pricing" do
+    test "is hidden for an account without the flag", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+      reject(&UsagePricing.period_breakdown/2)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='cache-usage-card']")
+      refute has_element?(lv, "[data-part='test-insights-usage-card']")
+    end
+
+    test "walks cache and test usage down to an estimate for an account with no subscription", %{
+      conn: conn,
+      account: account
+    } do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-cache-downloads", "140.0 GB")
+      assert has_element?(lv, "#widget-cache-charge", "Estimated")
+      assert has_element?(lv, "#widget-cache-charge", "4.50")
+      refute has_element?(lv, "#widget-cache-charge", "Billed")
+
+      downloads = "[data-part='cache-usage-card'] [data-kind='downloads']"
+      assert has_element?(lv, downloads, "Module cache")
+      assert has_element?(lv, downloads, "140.0 GB downloaded")
+      assert has_element?(lv, downloads, "Tuist Runners traffic at half")
+      assert has_element?(lv, downloads, "−10.50")
+      assert has_element?(lv, downloads, "100.0 GB included")
+      assert has_element?(lv, downloads, "Estimated for this period")
+      assert has_element?(lv, downloads, "On track for about 210.0 GB this period.")
+
+      assert has_element?(lv, "#widget-passing-test-cases", "6M")
+      assert has_element?(lv, "#widget-not-billed-test-cases", "4M")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "20K failed")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "3,000 skipped")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "4M run on Tuist Runners")
+      assert has_element?(lv, "[data-kind='passing-test-cases']", "5M included")
+      refute has_element?(lv, "[data-part='test-insights-usage-card']", "Billed this period")
+    end
+
+    test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(true) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-cache-charge", "Billed")
+      assert has_element?(lv, "#widget-tests-charge", "2.00")
+      assert has_element?(lv, "[data-kind='downloads']", "Billed this period")
+      assert has_element?(lv, "[data-kind='passing-test-cases']", "Billed this period")
+    end
+
+    test "reads the period's cache downloads", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      insert_event(%{
+        account_id: account.id,
+        artifact_kind: "module",
+        bytes: 2_000_000_000,
+        request_count: 12,
+        window_start: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -60)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-cache-downloads", "2.0 GB")
+      assert has_element?(lv, "#widget-cache-requests", "12")
+      assert has_element?(lv, "[data-kind='downloads']", "Module cache")
+    end
   end
 
   describe "runner usage on a trial" do
