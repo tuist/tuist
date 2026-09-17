@@ -92,7 +92,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
     |> assign(:gates, Gates.settings(project))
     |> assign(:git_history, GitHistory.settings(project))
     |> assign(:git_history_defaults, GitHistory.settings(nil))
-    |> assign(:excluded_path_defaults, ExcludedPaths.globs(nil))
     |> assign(:retention, Environment.coverage_retention_days())
   end
 
@@ -114,7 +113,7 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
 
   defp integer_or_nil(_value), do: nil
 
-  # One glob per line; an empty field means the server defaults.
+  # One glob per line; an empty field clears the setting.
   defp globs_or_nil(value) when is_binary(value) do
     case value |> String.split(~r/\R/) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")) do
       [] -> nil

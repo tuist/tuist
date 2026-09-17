@@ -318,6 +318,7 @@ defmodule Tuist.Tests.CoverageTest do
     defp generated, do: file("Sources/Client/Client.generated.swift", "client1", ["Calculator"], [{1, 0}, {2, 0}, {3, 0}])
 
     test "are stored but left out of the totals, targets, files and line counts", %{project: project, account: account} do
+      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["**/*.generated.swift"]})
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
 
       assert %{covered_lines: 2, executable_lines: 5} = Coverage.run_summary(project.id, test.id)
@@ -331,7 +332,10 @@ defmodule Tuist.Tests.CoverageTest do
       assert %{executable_lines: 3} = Coverage.file_detail(project.id, test.id, "Sources/Client/Client.generated.swift")
     end
 
-    test "follow the project's globs over the server's", %{project: project, account: account} do
+    test "are the project's own, nothing being excluded by default", %{project: project, account: account} do
+      {:ok, default} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
+      assert %{covered_lines: 2, executable_lines: 8} = Coverage.run_summary(project.id, default.id)
+
       {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/Formatter/**"]})
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), generated(), formatter()])})
 
@@ -344,7 +348,7 @@ defmodule Tuist.Tests.CoverageTest do
       {:ok, first} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
       {:ok, second} = create_test(project, account, %{xcode_coverage: coverage([formatter(), generated()])})
       {:ok, only_generated} = create_test(project, account, %{xcode_coverage: coverage([generated()])})
-      assert %{executable_lines: 0} = published_totals(project, only_generated)
+      assert %{executable_lines: 3} = published_totals(project, only_generated)
 
       {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/Calculator/**"]})
 
@@ -369,12 +373,12 @@ defmodule Tuist.Tests.CoverageTest do
       sharded = %{shard_plan_id: shard_plan.id, shard_index: 0, xcode_coverage: coverage([add(), generated()])}
       {:ok, test} = create_test(project, account, sharded)
 
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: []})
+      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["**/*.generated.swift"]})
       assert Coverage.recompute_totals(project.id, batch_size: 10) == nil
-      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 8, partial: true}
+      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 5, partial: true}
 
       {:ok, _test} = create_test(project, account, %{sharded | shard_index: 1, xcode_coverage: coverage([untested()])})
-      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 10, partial: false}
+      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 7, partial: false}
     end
   end
 

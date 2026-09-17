@@ -7,7 +7,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Projects
-  alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Workers.RecomputeTotalsWorker
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -30,8 +29,8 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
     assert has_element?(lv, "#coverage-gates-enabled")
     assert has_element?(lv, "[data-part='retention']", "90 days")
 
-    assert lv |> element("#coverage-excluded-path-globs") |> render() =~
-             Enum.join(ExcludedPaths.defaults(), "\n")
+    # Nothing is excluded until the project says what is generated.
+    assert lv |> element("#coverage-excluded-path-globs") |> render() =~ ~r/<textarea[^>]*>\s*<\/textarea>/
 
     lv |> element("#coverage-gates-enabled") |> render_click()
     lv |> element("#coverage-patch-partial-runs") |> render_click()

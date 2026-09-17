@@ -2851,11 +2851,6 @@ msgstr ""
 msgid "Git history"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:138
-#, elixir-autogen, elixir-format
-msgid "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Empty means the server defaults, shown as the placeholder."
-msgstr ""
-
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "History window (commits)"
@@ -2940,4 +2935,9 @@ msgstr ""
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "When a run arrives without its merge base, changed files or commit graph, fetch them from GitHub."
+msgstr ""
+
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one. Nothing is excluded when empty."
 msgstr ""

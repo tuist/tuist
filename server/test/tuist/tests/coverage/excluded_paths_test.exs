@@ -1,8 +1,6 @@
 defmodule Tuist.Tests.Coverage.ExcludedPathsTest do
   use TuistTestSupport.Cases.DataCase, async: false
-  use Mimic
 
-  alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage.ExcludedPaths
 
@@ -42,14 +40,11 @@ defmodule Tuist.Tests.Coverage.ExcludedPathsTest do
   end
 
   describe "globs/1" do
-    test "prefers the project's globs, then the server's, then the defaults" do
+    test "are the project's own, and none when it set none" do
       assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: ["A/**"]}) == ["A/**"]
       assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: []}) == []
-      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: nil}) == ExcludedPaths.defaults()
-
-      stub(Environment, :coverage_excluded_path_globs, fn -> ["Server/**"] end)
-      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: nil}) == ["Server/**"]
-      assert ExcludedPaths.globs(nil) == ["Server/**"]
+      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: nil}) == []
+      assert ExcludedPaths.pattern_for_project(%Project{coverage_excluded_path_globs: nil}) == nil
     end
   end
 end

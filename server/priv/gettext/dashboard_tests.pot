@@ -1310,7 +1310,7 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:161
 #: lib/tuist_web/helpers/test_labels.ex:40
-#: lib/tuist_web/live/coverage_live.ex:438
+#: lib/tuist_web/live/coverage_live.ex:430
 #: lib/tuist_web/live/coverage_live.html.heex:781
 #: lib/tuist_web/live/coverage_live.html.heex:792
 #: lib/tuist_web/live/shards_live.html.heex:559
@@ -2114,7 +2114,7 @@ msgstr ""
 msgid "Lines the compiler instrumented for coverage."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:439
+#: lib/tuist_web/live/coverage_live.ex:431
 #: lib/tuist_web/live/test_run_live.html.heex:2355
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -2162,7 +2162,7 @@ msgstr ""
 msgid "Uncovered lines"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:451
+#: lib/tuist_web/live/coverage_live.ex:443
 #: lib/tuist_web/live/test_runs_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "F"
@@ -2185,7 +2185,7 @@ msgstr ""
 msgid "No coverage"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:450
+#: lib/tuist_web/live/coverage_live.ex:442
 #: lib/tuist_web/live/test_runs_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "P"
@@ -2319,7 +2319,7 @@ msgstr ""
 msgid "Coverage:"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:433
+#: lib/tuist_web/live/coverage_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Diff too large to record its lines"
 msgstr ""
@@ -2355,7 +2355,7 @@ msgstr ""
 msgid "Least covered files"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:431
+#: lib/tuist_web/live/coverage_live.ex:423
 #, elixir-autogen, elixir-format
 msgid "Measured on another version of the file"
 msgstr ""
@@ -2371,7 +2371,7 @@ msgstr ""
 msgid "No baseline"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:382
+#: lib/tuist_web/live/coverage_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "No baseline: %{reason}"
 msgstr ""
@@ -2397,7 +2397,7 @@ msgstr ""
 msgid "No full run with coverage on %{branch} in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:432
+#: lib/tuist_web/live/coverage_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "No per-line data in the run"
 msgstr ""
@@ -2412,7 +2412,7 @@ msgstr ""
 msgid "No run gathered coverage in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:246
+#: lib/tuist_web/live/coverage_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "No test run of pull request #%{number} gathered coverage."
 msgstr ""
@@ -2422,12 +2422,12 @@ msgstr ""
 msgid "Not compared"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:379
+#: lib/tuist_web/live/coverage_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Not compared (partial run)"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:434
+#: lib/tuist_web/live/coverage_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Not compiled into any tested target"
 msgstr ""
@@ -2458,7 +2458,7 @@ msgstr ""
 msgid "Pull request #%{number}"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:239
+#: lib/tuist_web/live/coverage_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Pull request not found."
 msgstr ""
@@ -2525,17 +2525,17 @@ msgstr ""
 msgid "Why"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:399
+#: lib/tuist_web/live/coverage_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "commit %{sha} is not in the project's Git history"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:405
+#: lib/tuist_web/live/coverage_live.ex:397
 #, elixir-autogen, elixir-format
 msgid "no full coverage run of %{scheme} on %{branch} in the last %{days} days"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:413
+#: lib/tuist_web/live/coverage_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "no full run on %{branch} within %{commits} commits before %{sha}"
 msgstr ""
@@ -2545,33 +2545,33 @@ msgstr ""
 msgid "over the period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:391
+#: lib/tuist_web/live/coverage_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "the merge base with %{branch} is unknown"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:419
-#: lib/tuist_web/live/coverage_live.ex:420
+#: lib/tuist_web/live/coverage_live.ex:411
+#: lib/tuist_web/live/coverage_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "the run skipped tests"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:423
+#: lib/tuist_web/live/coverage_live.ex:415
 #, elixir-autogen, elixir-format
 msgid "the run's Git history was not collected"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:425
+#: lib/tuist_web/live/coverage_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "unknown"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:435
+#: lib/tuist_web/live/coverage_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Excluded in the project's coverage settings"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.ex:394
+#: lib/tuist_web/live/coverage_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "the run's commit is unknown"
 msgstr ""

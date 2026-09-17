@@ -3,7 +3,7 @@ defmodule Tuist.Repo.Migrations.AddCoverageExcludedPathGlobsToProjects do
 
   def change do
     alter table(:projects) do
-      # Null means the server defaults; an empty list excludes nothing.
+      # Null or empty: nothing is excluded.
       add :coverage_excluded_path_globs, {:array, :string}
     end
   end
