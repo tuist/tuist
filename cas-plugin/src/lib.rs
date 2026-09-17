@@ -345,97 +345,108 @@ struct CasState {
     stats_mat_store: OpStats,
     stats_mat_store_bytes: AtomicU64,
     stats_local_put_ms: AtomicU64,
-    local_hits: LocalHits,
+    local_hits: Arc<LocalHits>,
 }
 
-/// Action keys this handle answered from its local store, reported to the proxy
+/// Action keys a handle answered from its local store, reported to the proxy
 /// off the lookup path so kura keeps their entries alive (see `keep_alive`).
-#[derive(Default)]
+/// Shared with the process's reporter thread, so hits outlive the handle.
 struct LocalHits {
-    pending: Mutex<Vec<Vec<u8>>>,
-    // Set when a proxy does not accept a report, as an older one does not.
-    unsupported: Arc<AtomicBool>,
-}
-
-struct LocalHitsReport {
+    keys: Mutex<Vec<Vec<u8>>>,
     client: ProxyClient,
     cas_path: String,
     instance: String,
-    keys: Vec<Vec<u8>>,
-    unsupported: Arc<AtomicBool>,
+    registered: AtomicBool,
+    disposed: AtomicBool,
+    // Set when a proxy does not accept a report, as an older one does not.
+    unsupported: AtomicBool,
 }
 
-/// Reports waiting for the process's reporter thread. Past this the proxy is not
-/// keeping up, and later reports are dropped.
-const LOCAL_HITS_MAX_QUEUED: usize = 64;
+/// Hits a handle holds while its reports are not getting out. Past this, more
+/// are dropped.
+const LOCAL_HITS_MAX_PENDING: usize = 65_536;
+
+/// How long the reporter waits after a report before sending the next, so hits
+/// arriving meanwhile go out together. The first hit of an idle process is sent
+/// at once: a compiler may exit right after its lookup, without disposing.
+const LOCAL_HITS_REPORT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
+#[derive(Default)]
+struct LocalHitsReporter {
+    state: Mutex<(Vec<Arc<LocalHits>>, bool)>,
+    wake: std::sync::Condvar,
+}
 
 fn note_local_hit(state: &CasState, key: &[u8]) {
     let hits = &state.local_hits;
     if hits.unsupported.load(Ordering::Relaxed) {
         return;
     }
-    let batch = {
-        let mut pending = hits.pending.lock().unwrap();
-        pending.push(key.to_vec());
-        if pending.len() < proxy_proto::LOCAL_HITS_BATCH {
+    let first = {
+        let mut keys = hits.keys.lock().unwrap();
+        if keys.len() >= LOCAL_HITS_MAX_PENDING {
             return;
         }
-        std::mem::replace(&mut *pending, Vec::with_capacity(proxy_proto::LOCAL_HITS_BATCH))
+        keys.push(key.to_vec());
+        keys.len() == 1
     };
-    queue_local_hits(state, batch);
+    if first {
+        wake_local_hits_reporter(hits);
+    }
 }
 
-type LocalHitsQueue = (Mutex<std::collections::VecDeque<LocalHitsReport>>, std::sync::Condvar);
+fn wake_local_hits_reporter(hits: &Arc<LocalHits>) {
+    let Some(reporter) = local_hits_reporter() else { return };
+    let mut state = reporter.state.lock().unwrap();
+    if !hits.registered.swap(true, Ordering::AcqRel) {
+        state.0.push(hits.clone());
+    }
+    state.1 = true;
+    reporter.wake.notify_one();
+}
 
 /// The process's one reporter thread, started on first use. LLVM loads CAS
 /// plugins as permanent libraries, so it may outlive every handle.
-fn local_hits_reporter() -> Option<&'static LocalHitsQueue> {
-    static QUEUE: OnceLock<LocalHitsQueue> = OnceLock::new();
+fn local_hits_reporter() -> Option<&'static LocalHitsReporter> {
+    static REPORTER: OnceLock<LocalHitsReporter> = OnceLock::new();
     static STARTED: OnceLock<bool> = OnceLock::new();
-    let queue: &'static LocalHitsQueue = QUEUE.get_or_init(Default::default);
+    let reporter: &'static LocalHitsReporter = REPORTER.get_or_init(Default::default);
     let started = STARTED.get_or_init(|| {
         std::thread::Builder::new()
             .name("tuist-cas-local-hits".into())
-            .spawn(move || loop {
-                let report = {
-                    let mut waiting = queue.0.lock().unwrap();
-                    loop {
-                        match waiting.pop_front() {
-                            Some(report) => break report,
-                            None => waiting = queue.1.wait(waiting).unwrap(),
-                        }
-                    }
-                };
-                if report.unsupported.load(Ordering::Relaxed) {
-                    continue;
-                }
-                if report.client.report_local_hits(&report.cas_path, &report.instance, &report.keys).is_err() {
-                    report.unsupported.store(true, Ordering::Relaxed);
-                }
-            })
+            .spawn(move || run_local_hits_reporter(reporter))
             .is_ok()
     });
-    started.then_some(queue)
+    started.then_some(reporter)
 }
 
-fn queue_local_hits(state: &CasState, keys: Vec<Vec<u8>>) {
-    let Some((queue, ready)) = local_hits_reporter() else { return };
-    let mut waiting = queue.lock().unwrap();
-    if waiting.len() >= LOCAL_HITS_MAX_QUEUED {
-        return;
+fn run_local_hits_reporter(reporter: &LocalHitsReporter) {
+    loop {
+        let handles = {
+            let mut state = reporter.state.lock().unwrap();
+            while !state.1 {
+                state = reporter.wake.wait(state).unwrap();
+            }
+            state.1 = false;
+            state.0.clone()
+        };
+        for hits in &handles {
+            let keys = std::mem::take(&mut *hits.keys.lock().unwrap());
+            if keys.is_empty() || hits.unsupported.load(Ordering::Relaxed) {
+                continue;
+            }
+            if hits.client.report_local_hits(&hits.cas_path, &hits.instance, &keys).is_err() {
+                hits.unsupported.store(true, Ordering::Relaxed);
+            }
+        }
+        reporter
+            .state
+            .lock()
+            .unwrap()
+            .0
+            .retain(|hits| !(hits.disposed.load(Ordering::Acquire) && hits.keys.lock().unwrap().is_empty()));
+        std::thread::sleep(LOCAL_HITS_REPORT_INTERVAL);
     }
-    waiting.push_back(LocalHitsReport {
-        client: ProxyClient { socket_path: state.proxy.socket_path.clone() },
-        cas_path: state
-            .cas_dir
-            .as_ref()
-            .map(|dir| dir.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        instance: state.proxy_instance.clone(),
-        keys,
-        unsupported: state.local_hits.unsupported.clone(),
-    });
-    ready.notify_one();
 }
 
 /// Process CPU (user+system) in milliseconds, for attributing wall-time gaps
@@ -672,6 +683,18 @@ pub unsafe extern "C" fn llcas_cas_create(
         .and_then(|p| p.to_str().ok())
         .map(std::path::PathBuf::from);
     let upload_in_background = resolve_upload_in_background(cas_dir.as_deref());
+    let local_hits = Arc::new(LocalHits {
+        keys: Mutex::new(Vec::new()),
+        client: ProxyClient { socket_path: proxy.socket_path.clone() },
+        cas_path: cas_dir
+            .as_ref()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        instance: proxy_instance.clone(),
+        registered: AtomicBool::new(false),
+        disposed: AtomicBool::new(false),
+        unsupported: AtomicBool::new(false),
+    });
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
@@ -695,7 +718,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_mat_store: OpStats::default(),
         stats_mat_store_bytes: AtomicU64::new(0),
         stats_local_put_ms: AtomicU64::new(0),
-        local_hits: LocalHits::default(),
+        local_hits,
     }));
     state_ptr as llcas_cas_t
 }
@@ -773,9 +796,9 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
                 state.stats_local_put_ms.load(Ordering::Relaxed),
             ));
         }
-        let tail = std::mem::take(&mut *state.local_hits.pending.lock().unwrap());
-        if !tail.is_empty() && !state.local_hits.unsupported.load(Ordering::Relaxed) {
-            queue_local_hits(state, tail);
+        state.local_hits.disposed.store(true, Ordering::Release);
+        if state.local_hits.registered.load(Ordering::Acquire) {
+            wake_local_hits_reporter(&state.local_hits);
         }
         (state.up.llcas_cas_dispose)(state.cas);
     }

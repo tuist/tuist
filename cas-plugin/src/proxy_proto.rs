@@ -108,8 +108,6 @@ pub const OP_PUBLISH_WAIT: u8 = 8;
 /// alive. Additive like OP_DRAIN: a proxy that predates it answers `bad op`.
 pub const OP_LOCAL_HITS: u8 = 9;
 
-pub const LOCAL_HITS_BATCH: usize = 256;
-
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
 pub const STATUS_ERROR: u8 = 2;

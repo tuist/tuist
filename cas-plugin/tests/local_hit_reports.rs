@@ -53,6 +53,28 @@ fn a_long_lived_handle_reports_local_hits_before_it_is_disposed() {
 }
 
 #[test]
+fn a_handle_that_is_never_disposed_reports_hits_short_of_a_batch() {
+    let Some(env) = Fixture::new("reports-partial") else {
+        return;
+    };
+    let keys = env.seed_backed_associations("partial", 20);
+
+    for key in &keys {
+        assert_eq!(
+            env.cas().actioncache_get(key).0,
+            LLCAS_LOOKUP_RESULT_SUCCESS
+        );
+    }
+
+    let reported = env
+        .proxy
+        .wait_for_reported(Duration::from_secs(5), |reported| {
+            reported.len() == keys.len()
+        });
+    assert_eq!(reported, keys);
+}
+
+#[test]
 fn every_local_hit_is_reported_once_the_handle_is_disposed() {
     let Some(mut env) = Fixture::new("reports-dispose") else {
         return;
