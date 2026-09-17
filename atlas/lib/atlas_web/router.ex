@@ -117,6 +117,12 @@ defmodule AtlasWeb.Router do
     put "/documents/uploads/local/:token", DocumentUploadController, :put
   end
 
+  scope "/api", AtlasWeb.ErrorsAPI do
+    pipe_through [:api]
+
+    post "/:project_id/envelope/", EnvelopeController, :create
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
