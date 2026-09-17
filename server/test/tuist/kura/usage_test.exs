@@ -84,6 +84,25 @@ defmodule Tuist.Kura.UsageTest do
       assert p_id == project.id
     end
 
+    # A managed instance reports the tenant it was rendered with, which is the
+    # lowercased handle even where the handle is no DNS label.
+    test "resolves a legacy handle with a space to its account" do
+      account =
+        AccountsFixtures.organization_fixture().account
+        |> Ecto.Changeset.change(name: "Legacy Studio #{System.unique_integer([:positive])}")
+        |> Tuist.Repo.update!()
+
+      event_id = "wire-legacy-#{account.id}"
+
+      {:ok, 1} =
+        Usage.create_events([wire_event(%{"event_id" => event_id, "tenant_id" => String.downcase(account.name)})])
+
+      assert [%UsageEvent{account_id: account_id}] =
+               ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
+
+      assert account_id == account.id
+    end
+
     test "matches the namespace to a project regardless of casing" do
       account = AccountsFixtures.organization_fixture().account
       project = ProjectsFixtures.project_fixture(account: account, name: "ios")

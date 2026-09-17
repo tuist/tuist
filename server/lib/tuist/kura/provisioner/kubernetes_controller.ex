@@ -11,6 +11,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
+  import Ecto.Query
+
+  alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
@@ -19,8 +22,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Repo
 
   @namespace "kura"
+  @dns_label_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+  # The longest handle an account can register (`Tuist.Accounts.Account`), so a
+  # derived label fits wherever a registrable handle does.
+  @derived_dns_handle_max_length 32
+  # The controller suffixes `metadata.name` into names capped at 63 characters.
+  @instance_name_max_length 53
+  @digest_length 8
+  @resource_names_lock_namespace 1_285_447_894
   # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
   @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
@@ -52,8 +64,50 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @kura_segment_ring_floor_segments 5
   @kura_segment_ring_floor_bytes @kura_segment_ring_floor_segments * @kura_max_segment_bytes
   @impl true
-  def provision(%{name: handle}, %Regions{} = region, %Server{}) do
-    {:ok, instance_name(handle, region)}
+  def provision(%{name: handle} = account, %Regions{} = region, %Server{}) do
+    name = instance_name(handle, region)
+
+    with :ok <- ensure_resource_names_unclaimed(account, name) do
+      {:ok, name}
+    end
+  end
+
+  # A derived label is deterministic, so an account can register it as its
+  # handle. Two accounts on one label would share the objects the controller
+  # names after it (the pod label, peer Service and peer CA), and two on one
+  # instance name would share its volumes. The account whose instances already
+  # carry the name keeps it; the other is refused. Both callers run this inside
+  # the transaction that inserts the server row, which holds the lock until then.
+  defp ensure_resource_names_unclaimed(%{id: account_id, name: handle}, name) do
+    dns_handle = dns_handle(handle)
+
+    Repo.query!("SELECT pg_advisory_xact_lock($1::integer, hashtext($2))", [
+      @resource_names_lock_namespace,
+      dns_handle
+    ])
+
+    claimed? =
+      from(server in Server,
+        join: account in Account,
+        on: account.id == server.account_id,
+        where: server.account_id != ^account_id and server.status != :destroyed,
+        where:
+          server.provisioner_node_ref == ^name or account.name == ^dns_handle or
+            fragment("lower(?) !~ ?", account.name, ^Regex.source(@dns_label_format)),
+        distinct: true,
+        select: {server.provisioner_node_ref, account.name}
+      )
+      |> Repo.all()
+      |> Enum.any?(fn {ref, other_handle} -> ref == name or dns_handle(other_handle) == dns_handle end)
+
+    if claimed? do
+      {:error,
+       %Server{}
+       |> Ecto.Changeset.change()
+       |> Ecto.Changeset.add_error(:account_handle, "names the same Kura resources as another account's instances")}
+    else
+      :ok
+    end
   end
 
   @impl true
@@ -319,8 +373,53 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def resources_for(%Server{}), do: %{}
 
+  @doc """
+  The instance's `metadata.name`, which the controller names the instance's
+  StatefulSet, Services, volumes and certificates after.
+
+  A name that fits is `kura-<dns_handle>-<cluster_id>`. A handle too long for
+  the region's cluster ID is shortened and suffixed with a digest of the handle.
+  """
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
-    "kura-#{dns_handle(handle)}-#{cluster_id}"
+    name = "kura-#{dns_handle(handle)}-#{cluster_id}"
+
+    if String.length(name) <= @instance_name_max_length do
+      name
+    else
+      max_length = @instance_name_max_length - String.length("kura--#{cluster_id}")
+      "kura-#{derived_dns_label(String.downcase(handle), max_length)}-#{cluster_id}"
+    end
+  end
+
+  @doc """
+  The DNS label the account's pods are labelled with, and its account-wide
+  objects and hostnames are named after, in every region.
+
+  It is the lowercased handle when that is a DNS label. Any other handle, such
+  as one registered before handle validation with a space in it, gets a label
+  derived from it, suffixed with a digest of the handle.
+  """
+  def dns_handle(handle) do
+    normalized = String.downcase(handle)
+
+    if Regex.match?(@dns_label_format, normalized) do
+      normalized
+    else
+      derived_dns_label(normalized, @derived_dns_handle_max_length)
+    end
+  end
+
+  defp derived_dns_label(normalized, max_length) do
+    digest = :sha256 |> :crypto.hash(normalized) |> Base.encode16(case: :lower) |> binary_part(0, @digest_length)
+
+    prefix =
+      normalized
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+      |> String.slice(0, max_length - @digest_length - 1)
+      |> String.trim_trailing("-")
+
+    if prefix == "", do: digest, else: "#{prefix}-#{digest}"
   end
 
   @doc false
@@ -376,7 +475,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       "spec" =>
         %{
           "accountHandle" => account_handle,
-          "tenantID" => account_handle,
+          # Kura authorizes requests against the handle itself, not its DNS label.
+          "tenantID" => String.downcase(account.name),
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           # Only the steady-state (`:none`) server publishes the account's
@@ -1104,8 +1204,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> String.replace("{account_handle}", handle)
     |> String.replace("{cluster_id}", cluster_id)
   end
-
-  defp dns_handle(handle), do: String.downcase(handle)
 
   defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 

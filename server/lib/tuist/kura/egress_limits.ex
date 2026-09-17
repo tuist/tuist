@@ -47,6 +47,7 @@ defmodule Tuist.Kura.EgressLimits do
   alias Tuist.Billing.Entitlements
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimit
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -316,7 +317,7 @@ defmodule Tuist.Kura.EgressLimits do
   See `Tuist.Kura.Capacity`.
   """
   def node_headroom(%Account{name: name}, %Regions{id: region_id}) do
-    Capacity.egress_headroom(region_id, String.downcase(name))
+    Capacity.egress_headroom(region_id, KubernetesController.dns_handle(name))
   end
 
   @doc """

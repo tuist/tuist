@@ -93,6 +93,41 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_AUTH_JWT_PUBLIC_KEY")
     end
 
+    test "names a legacy handle's resources and hosts after its DNS label and keeps the handle as the tenant" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      dns_handle = KubernetesController.dns_handle("Legacy Studio")
+      region = eu_region(%{mesh: true})
+      name = KubernetesController.instance_name("Legacy Studio", region)
+
+      manifest =
+        KubernetesController.manifest(name, "0.5.2", %Account{id: 1, name: "Legacy Studio"}, region, %Server{})
+
+      assert manifest["metadata"]["name"] == "kura-#{dns_handle}-eu-west-1"
+      assert manifest["metadata"]["labels"]["tuist.dev/account"] == dns_handle
+
+      spec = manifest["spec"]
+      assert spec["accountHandle"] == dns_handle
+      # Kura authorizes a request by comparing the handle the client sends, and
+      # the handles in its grants, against this value, so it stays the handle.
+      assert spec["tenantID"] == "legacy studio"
+      assert spec["publicHost"] == "#{dns_handle}-eu-west-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "#{dns_handle}-eu-west-1.kura.tuist.dev"
+      assert spec["meshPublicPeerHost"] == "peer.#{dns_handle}-eu-west-1.kura.tuist.dev"
+
+      assert KubernetesController.public_url("Legacy Studio", region, name) ==
+               "https://#{dns_handle}-eu-west-1.kura.tuist.dev"
+
+      assert KubernetesController.grpc_public_url("Legacy Studio", region, name) ==
+               "grpcs://#{dns_handle}-eu-west-1.kura.tuist.dev"
+    end
+
     test "reserves the Egress floor for enterprise accounts" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -1750,6 +1785,70 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "returns nil when the region has no gRPC host configured" do
       assert KubernetesController.grpc_public_url("TUIST", local_controller_region(), "any-ref") ==
                nil
+    end
+  end
+
+  describe "dns_handle/1" do
+    test "keeps a handle that is already a DNS label byte-for-byte, only lowercased" do
+      for handle <- ["tuist", "Acme-Corp", "a", "0day", String.duplicate("a", 32), String.duplicate("b1-", 13) <> "b"] do
+        assert KubernetesController.dns_handle(handle) == String.downcase(handle)
+      end
+    end
+
+    test "derives a stable DNS label from a legacy handle with a space" do
+      dns_handle = KubernetesController.dns_handle("Legacy Studio")
+
+      assert dns_handle =~ ~r/^legacy-studio-[0-9a-f]{8}$/
+      assert KubernetesController.dns_handle("Legacy Studio") == dns_handle
+      assert KubernetesController.dns_handle("legacy studio") == dns_handle
+    end
+
+    test "never derives the handle another account could hold" do
+      refute KubernetesController.dns_handle("Legacy Studio") == KubernetesController.dns_handle("legacy-studio")
+    end
+
+    test "derives a DNS label from handles that are not DNS labels for other reasons" do
+      for handle <- ["-leading", "trailing-", "under_score", "dot.ted", "Ünïcode Studio", "日本"] do
+        dns_handle = KubernetesController.dns_handle(handle)
+
+        assert dns_handle =~ ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+        assert String.length(dns_handle) <= 32
+      end
+    end
+
+    test "bounds a long legacy handle to the length of a registrable handle and keeps it distinct" do
+      first = KubernetesController.dns_handle("A Very Long Legacy Studio Name Number 1")
+      second = KubernetesController.dns_handle("A Very Long Legacy Studio Name Number 2")
+
+      assert String.length(first) == 32
+      assert first =~ ~r/^a-very-long-legacy-stud-[0-9a-f]{8}$/
+      refute first == second
+    end
+  end
+
+  describe "instance_name/2" do
+    test "keeps the name a handle that fits the region already produces" do
+      assert KubernetesController.instance_name("Tuist", eu_region()) == "kura-tuist-eu-west-1"
+
+      handle = String.duplicate("a", 32)
+
+      assert KubernetesController.instance_name(handle, Regions.get("ap-southeast")) ==
+               "kura-#{handle}-ap-southeast-1"
+    end
+
+    test "names a legacy handle with a space after its DNS label" do
+      assert KubernetesController.instance_name("Legacy Studio", eu_region()) ==
+               "kura-#{KubernetesController.dns_handle("Legacy Studio")}-eu-west-1"
+    end
+
+    test "shortens a handle too long for the region to a valid, distinct resource name" do
+      region = Regions.get("ap-southeast")
+      first = KubernetesController.instance_name(String.duplicate("a", 39) <> "1", region)
+      second = KubernetesController.instance_name(String.duplicate("a", 39) <> "2", region)
+
+      assert String.length(first) == 53
+      assert first =~ ~r/^kura-a{24}-[0-9a-f]{8}-ap-southeast-1$/
+      refute first == second
     end
   end
 

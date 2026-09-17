@@ -790,6 +790,14 @@ defmodule Tuist.Kura.RegionsTest do
                "https://peer.acme-eu-west-1.kura.tuist.dev:7443"
     end
 
+    test "interpolate the DNS label of a legacy handle that is not one" do
+      region = Regions.get("eu-west")
+      dns_handle = KubernetesController.dns_handle("Legacy Studio")
+
+      assert Regions.peer_public_host("Legacy Studio", region) == "peer.#{dns_handle}-eu-west-1.kura.tuist.dev"
+      assert Regions.public_url("Legacy Studio", region) == "https://#{dns_handle}-eu-west-1.kura.tuist.dev"
+    end
+
     test "return nil for regions without a peer public host (local controller)" do
       region = Regions.get("local-controller")
 

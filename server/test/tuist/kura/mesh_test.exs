@@ -9,6 +9,7 @@ defmodule Tuist.Kura.MeshTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Mesh
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Registrations
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -37,6 +38,36 @@ defmodule Tuist.Kura.MeshTest do
     stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
     ca_cert
+  end
+
+  describe "read_account_peer_ca/1" do
+    test "reads the secret the controller names after a legacy handle's DNS label" do
+      account =
+        AccountsFixtures.organization_fixture().account
+        |> Ecto.Changeset.change(name: "Legacy Studio #{TuistTestSupport.Utilities.unique_integer()}")
+        |> Repo.update!()
+
+      ca_key = X509.PrivateKey.new_ec(:secp256r1)
+      ca_cert = X509.Certificate.self_signed(ca_key, "/CN=kura test peer CA", template: :root_ca)
+      secret_name = "kura-#{KubernetesController.dns_handle(account.name)}-peer-ca"
+
+      stub(Kura, :server_regions_for_account, fn _ -> ["local-controller"] end)
+
+      expect(Client, :get, fn path, _opts ->
+        assert path == "/api/v1/namespaces/kura/secrets/#{secret_name}"
+
+        {:ok,
+         %{
+           "data" => %{
+             "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+             "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+           }
+         }}
+      end)
+
+      assert {:ok, %{certificate_pem: certificate_pem}} = Mesh.read_account_peer_ca(account)
+      assert certificate_pem == X509.Certificate.to_pem(ca_cert)
+    end
   end
 
   describe "sign_node_certificate/3" do

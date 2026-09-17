@@ -57,11 +57,13 @@ spec:
                   minLength: 1
                   maxLength: 63
                   pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                # The account handle Kura authorizes requests against, not a
+                # Kubernetes name: handles registered before handle validation
+                # can hold spaces. Only accountHandle names objects.
                 tenantID:
                   type: string
                   minLength: 1
                   maxLength: 63
-                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                 region:
                   type: string
                   minLength: 1

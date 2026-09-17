@@ -7,7 +7,9 @@ defmodule Tuist.Kura.EgressLimitsTest do
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -34,6 +36,18 @@ defmodule Tuist.Kura.EgressLimitsTest do
     BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
     %{account: account, region: Regions.get("eu-west")}
+  end
+
+  describe "node_headroom/2" do
+    test "reads the pods by the account label a legacy handle's instances carry", %{account: account, region: region} do
+      account = account |> Ecto.Changeset.change(name: "Legacy Studio #{account.id}") |> Repo.update!()
+      dns_handle = KubernetesController.dns_handle(account.name)
+      headroom = %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2}
+
+      expect(Capacity, :egress_headroom, fn "eu-west", ^dns_handle -> headroom end)
+
+      assert EgressLimits.node_headroom(account, region) == headroom
+    end
   end
 
   describe "effective_limits/2" do

@@ -490,19 +490,65 @@ defmodule Tuist.KuraTest do
       assert {:error, %Ecto.Changeset{}} = Kura.create_server(attrs)
     end
 
-    test "returns an account handle error when the generated Kubernetes name is too long" do
-      user = AccountsFixtures.user_fixture(handle: String.duplicate("a", 32))
-      account = Accounts.get_account_from_user(user)
+    test "provisions an account whose handle is too long for the region's resource names" do
+      handle = String.pad_trailing("a#{TuistTestSupport.Utilities.unique_integer()}", 32, "a")
+      account = AccountsFixtures.user_fixture(handle: handle).account
+
+      assert {:ok, server} =
+               Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert server.provisioner_node_ref == KubernetesController.instance_name(handle, Regions.get("local-controller"))
+      assert String.length(server.provisioner_node_ref) == 53
+    end
+
+    test "provisions an account whose legacy handle contains a space", %{account: account} do
+      account = legacy_handle(account, "Legacy Studio #{account.id}")
+
+      assert {:ok, server} =
+               Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert server.provisioner_node_ref ==
+               "kura-#{KubernetesController.dns_handle(account.name)}-local-controller"
+    end
+
+    test "provisions a legacy handle apart from the account whose handle it resembles", %{account: account} do
+      legacy = legacy_handle(account, "Legacy Studio #{account.id}")
+      lookalike = AccountsFixtures.user_fixture(handle: "legacy-studio-#{account.id}").account
+
+      assert {:ok, legacy_server} =
+               Kura.create_server(%{account_id: legacy.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert {:ok, lookalike_server} =
+               Kura.create_server(%{account_id: lookalike.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert lookalike_server.provisioner_node_ref == "kura-legacy-studio-#{account.id}-local-controller"
+      refute legacy_server.provisioner_node_ref == lookalike_server.provisioner_node_ref
+    end
+
+    test "refuses an account whose handle another account's instances are already named after", %{account: account} do
+      legacy = legacy_handle(account, "Legacy Studio #{account.id}")
+      squatter = AccountsFixtures.user_fixture(handle: KubernetesController.dns_handle(legacy.name)).account
+
+      assert {:ok, _server} =
+               Kura.create_server(%{account_id: legacy.id, region: "local-controller", image_tag: "0.5.2"})
 
       assert {:error, %Ecto.Changeset{} = changeset} =
-               Kura.create_server(%{
-                 account_id: account.id,
-                 region: "local-controller",
-                 image_tag: "0.5.2"
-               })
+               Kura.create_server(%{account_id: squatter.id, region: "local-controller", image_tag: "0.5.2"})
 
-      assert {"is too long for Kura in this region; shorten it so the generated Kubernetes resource name stays under 53 characters",
-              _} = changeset.errors[:account_handle]
+      assert {"names the same Kura resources as another account's instances", _} = changeset.errors[:account_handle]
+    end
+
+    test "refuses a legacy handle whose name another account's instances already hold", %{account: account} do
+      squatter = legacy_handle(account, "Legacy Studio #{account.id}")
+      holder = AccountsFixtures.user_fixture(handle: KubernetesController.dns_handle(squatter.name)).account
+
+      assert {:ok, _server} =
+               Kura.create_server(%{account_id: holder.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Kura.create_server(%{account_id: squatter.id, region: "local-controller", image_tag: "0.5.2"})
+
+      assert {"names the same Kura resources as another account's instances", _} = changeset.errors[:account_handle]
     end
 
     test "ignores unknown string keys instead of raising", %{account: account} do
@@ -1645,6 +1691,12 @@ defmodule Tuist.KuraTest do
   # A public server as `activate_server/2` leaves it: active, public
   # `url`, and the URL mirrored into `account_cache_endpoints`. The
   # fallback intersects mirror and active servers, so tests need both.
+  # Handles registered before today's validation can hold characters no
+  # changeset accepts any more, so they are written past it.
+  defp legacy_handle(account, name) do
+    account |> Ecto.Changeset.change(name: name) |> Repo.update!()
+  end
+
   defp mark_initial_deployment_succeeded(server) do
     deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
     {:ok, deployment} = Kura.mark_running(deployment)

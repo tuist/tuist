@@ -47,9 +47,9 @@ defmodule Tuist.Kura.LifecycleTest do
   # Drive `Regions.available/0` to the real `us-east` managed region rather
   # than the dev-only local controller, so the loop runs against the same
   # region catalog and service-region resolution production uses.
-  # `KubernetesController.provision/3` is pure (it builds the instance name),
-  # so provisioning runs for real against the sandbox; only the observation
-  # and teardown calls that would reach the apiserver are stubbed.
+  # `KubernetesController.provision/3` only reads the database (it builds the
+  # instance name), so provisioning runs for real against the sandbox; only the
+  # observation and teardown calls that would reach the apiserver are stubbed.
   setup do
     stub(Environment, :env, fn -> :prod end)
     stub(Environment, :dev?, fn -> false end)

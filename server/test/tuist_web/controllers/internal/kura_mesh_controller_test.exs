@@ -440,6 +440,26 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     assert %{"peers" => [], "peer_roles" => [], "replication_pull" => true} = json_response(conn, 200)
   end
 
+  test "answers the peer view for a managed instance of a legacy handle with a space", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    account = account |> Ecto.Changeset.change(name: "Legacy Studio #{account.id}") |> Tuist.Repo.update!()
+    KuraFixtures.active_server_fixture(account, region: "eu-west")
+    reject(&Client.get_kura_instance/3)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?#{[tenant_id: String.downcase(account.name)]}")
+
+    assert %{"peers" => [], "peer_roles" => []} = json_response(conn, 200)
+  end
+
   test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do
     conn =
       conn

@@ -21,6 +21,7 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -81,7 +82,7 @@ defmodule Tuist.Kura.Mesh do
   end
 
   defp peer_ca_secret_path(%Account{name: name}) do
-    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{String.downcase(name)}-peer-ca"
+    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{KubernetesController.dns_handle(name)}-peer-ca"
   end
 
   defp decode_pem(value) when is_binary(value), do: Base.decode64(value)

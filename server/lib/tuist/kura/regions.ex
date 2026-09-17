@@ -850,7 +850,7 @@ defmodule Tuist.Kura.Regions do
       })
       when is_binary(handle) do
     template
-    |> String.replace("{account_handle}", String.downcase(handle))
+    |> String.replace("{account_handle}", KubernetesController.dns_handle(handle))
     |> String.replace("{cluster_id}", cluster_id)
   end
 
@@ -879,7 +879,7 @@ defmodule Tuist.Kura.Regions do
       when is_binary(handle) do
     host =
       template
-      |> String.replace("{account_handle}", String.downcase(handle))
+      |> String.replace("{account_handle}", KubernetesController.dns_handle(handle))
       |> String.replace("{cluster_id}", cluster_id)
 
     "https://" <> host

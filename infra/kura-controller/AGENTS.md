@@ -16,6 +16,7 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 - API group: `kura.tuist.dev`
 - Primary resource: `KuraInstance`
+- `spec.accountHandle` is the DNS label the server derives from the account handle (`KubernetesController.dns_handle/1`), and it is what account-wide objects, the `tuist.dev/account` label and hosts are named after. `spec.tenantID` is the lowercased handle itself, which Kura authorizes requests against. Handles registered before handle validation can hold spaces, so never name an object after `tenantID`.
 - Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
 
 ## Deployment Topology

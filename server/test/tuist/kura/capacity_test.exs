@@ -9,6 +9,7 @@ defmodule Tuist.Kura.CapacityTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -1025,6 +1026,14 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
+    test "counts back what a legacy handle's own replicas release" do
+      account = %{placement_account() | name: "Legacy Studio"}
+      stub_pool([disk_box("box-1", 100, [kura_pod(account, 30), kura_pod(account, 30)])])
+
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
+    end
+
     test "refuses a raise the instance's own box cannot take, however empty its siblings are" do
       # The 2026-09-11 refusal: the region had hundreds of gibibytes free on
       # another box, and both replicas were pinned by their local volumes to
@@ -1237,7 +1246,7 @@ defmodule Tuist.Kura.CapacityTest do
       "labels" => %{
         "app.kubernetes.io/managed-by" => "kura-controller",
         "tuist.dev/region" => Keyword.get(opts, :region, @region),
-        "tuist.dev/account" => String.downcase(name)
+        "tuist.dev/account" => KubernetesController.dns_handle(name)
       }
     })
   end
