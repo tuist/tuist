@@ -199,10 +199,10 @@ impl KeepAlive {
             .pending
             .keys()
             .filter(|instance| {
-                !state
+                state
                     .paused_until
                     .get(*instance)
-                    .is_some_and(|until| now < *until)
+                    .is_none_or(|until| now >= *until)
             })
             .cloned()
             .collect()
