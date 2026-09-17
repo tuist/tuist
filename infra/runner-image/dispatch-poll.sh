@@ -636,6 +636,15 @@ CAS_DRAIN_TIMEOUT=120
 # not there — which reads as "no proxy" and silently costs the precise wait.
 CAS_PROXY_SOCKET="${HOME:-/Users/runner}/.local/state/tuist/cas-proxy.sock"
 
+# The image's own proxy binary. It is built from the same commit as this script,
+# so unlike the job's it always knows `--prune`.
+CAS_IMAGE_PROXY=/opt/tuist/tuist-cas-proxy
+
+# The launch agent `tuist setup cache` runs the per-machine proxy under, and how
+# long stop_cas_proxy waits for that process to exit once it is booted out.
+CAS_PROXY_LABEL="tuist.cas-proxy"
+CAS_PROXY_STOP_TIMEOUT=10
+
 # cas_spool_dirs lists the publication spools inside the mounted image. The
 # plugin keeps one per CAS directory it opens (`<cas dir>/tuist-spool`) and the
 # compiler picks the subdirectory under COMPILATION_CACHE_CAS_PATH, so discover
@@ -655,22 +664,17 @@ cas_spool_records() {
   find "$1" -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# cas_proxy_client finds the binary that can ask the running proxy to drain (so
-# the gate waits on the publisher itself instead of sampling a directory) and to
-# prune (so the compilation cache is bounded at all).
+# cas_proxy_client finds the binary that can ask the running proxy to drain, so
+# the gate waits on the publisher itself instead of sampling a directory.
 #
 # The launch agent `tuist setup cache` installed is the reliable pointer: its
 # `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
 # binary ships beside it. It is preferred over the image's own copy because it
-# matches the proxy actually running, which is what a drain has to talk to.
+# matches the proxy actually running, which is what a drain has to talk to. The
+# image's copy is the last resort.
 #
-# The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
-# that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
-# installs no launch agent and puts no tuist on PATH. Those jobs still write a
-# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
-# without a binary in the image they were exactly the jobs whose store nothing
-# could ever prune, which is the unbounded growth this path exists to stop. (The
-# drain is a legitimate no-op for them: no plugin means no spool.)
+# The prune does not use this. The job's binary can predate `--prune`, so
+# prune_cas_stores always runs the image's.
 cas_proxy_client() {
   local candidate program plist
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
@@ -683,7 +687,7 @@ cas_proxy_client() {
     "$(command -v tuist-cas-proxy 2>/dev/null)" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
     "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
-    /opt/tuist/tuist-cas-proxy; do
+    "${CAS_IMAGE_PROXY}"; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
       return 0
@@ -796,6 +800,36 @@ cas_store_dirs() {
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
+# stop_cas_proxy boots the job's proxy out of launchd and waits for its process to
+# exit, which closes the handle it holds on every store it has served. Booted out
+# rather than killed: the agent restarts on an unsuccessful exit, and a restarted
+# proxy reopens the stores it knows.
+#
+# Both domains, like `tuist teardown cache`, since the agent lands in `user` when
+# the session has no `gui` one. A label that is not loaded, as on every job that
+# never ran `tuist setup cache`, makes this a no-op.
+stop_cas_proxy() {
+  local uid domain pid pids="" waited=0
+  uid=$(id -u)
+  for domain in gui user; do
+    pid=$(launchctl print "${domain}/${uid}/${CAS_PROXY_LABEL}" 2>/dev/null |
+      awk -F' = ' '$1 == "\tpid" { print $2; exit }')
+    launchctl bootout "${domain}/${uid}/${CAS_PROXY_LABEL}" > /dev/null 2>&1 || continue
+    pids="${pids} ${pid}"
+  done
+  for pid in ${pids}; do
+    while kill -0 "${pid}" 2>/dev/null; do
+      if [ "${waited}" -ge "${CAS_PROXY_STOP_TIMEOUT}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS proxy (pid ${pid}) still running ${CAS_PROXY_STOP_TIMEOUT}s after bootout"
+        return 0
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+    echo "$(date -u +%FT%TZ) dispatch-poll: CAS proxy (pid ${pid}) stopped"
+  done
+}
+
 # prune_cas_stores is what actually bounds the compilation cache on this image.
 #
 # COMPILATION_CACHE_LIMIT_SIZE does NOT cap the store directory, which is the
@@ -824,19 +858,26 @@ cas_store_dirs() {
 #
 # Placement in teardown is load-bearing on three sides:
 #   - AFTER drain_cas_publications: a prune deletes objects, and deleting one the
-#     spool still owed the remote would strand the association naming it;
+#     spool still owed the remote would strand the association naming it. It also
+#     stops the proxy the drain talks to;
 #   - BEFORE sample_cache_fill, so the fill % that gates promotion describes the
 #     image as it will be published rather than as it was at its peak;
 #   - BEFORE the detach, since the store has to be mounted to be pruned — and it
 #     finishes here, so it cannot be the straggler that writes past
 #     capture_settled_inventory's measurement.
 #
-# The prune runs through the proxy binary rather than in this shell because llcas
-# rotates a store as its LAST handle closes, and the per-machine proxy holds one
-# open for its process lifetime. A prune driven from a handle of its own would
-# find the chain still live, collect nothing, and report success. `--prune` asks
-# the running proxy first for exactly that reason, and only prunes in-process for
-# a store no proxy holds (the builtin lane).
+# llcas rotates a store only as its LAST handle closes, and the job's proxy holds
+# one open for its process lifetime, so a prune through any other handle finds the
+# chain still live, collects nothing, and reports success. So the job's proxy is
+# stopped first, and the image's own binary prunes every store in-process, with
+# nothing else holding it.
+#
+# Stopped rather than asked to prune, because that proxy is whichever CLI the job
+# pinned. One released before `--prune` answers the op `bad op`, and its own
+# binary does not know the flag at all. Stopping it takes the CLI's version out of
+# the question, in both directions. That is only safe where no job can still need
+# the proxy: at attach none has been started yet, and at teardown the job is over,
+# the drain has run, and the VM halts once teardown ends.
 #
 # Best-effort: a store we could not prune costs the volume space, which
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
@@ -856,11 +897,11 @@ prune_cas_stores() {
   stores=$(cas_store_dirs)
   [ -n "${stores}" ] || return 0
 
-  local client budget store
-  client=$(cas_proxy_client) || {
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
+  local budget store
+  if [ ! -x "${CAS_IMAGE_PROXY}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary at ${CAS_IMAGE_PROXY}; compilation-cache stores left unbounded"
     return 0
-  }
+  fi
   # The per-generation budget the host staged, from the same marker
   # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
   # prunes against whatever limit the store already carries rather than
@@ -889,30 +930,28 @@ prune_cas_stores() {
   case "${stores_count}" in ''|*[!0-9]*|0) stores_count=1 ;; esac
   budget=$((budget / stores_count))
 
+  stop_cas_proxy
+
   while IFS= read -r store; do
     [ -n "${store}" ] || continue
-    # `env -u TUIST_CAS_REMOTE_GRPC_URL` is the version-skew guard the drain uses
-    # for the same reason: a proxy binary older than this op does not recognise
-    # `--prune` and falls through to its SERVE path, which unlinks the machine's
-    # socket and binds its own — killing the live proxy from a teardown script.
-    # Without that variable it exits before reaching the bind, every time.
     # Captured rather than left to stream: the client reports the bytes it
     # freed and which route it took, and both belong ON this line. Loose on
     # stderr they land in the runner's own multi-MB log, attributable to
     # neither the store nor the pass that produced them.
     local output reclaimed via
-    if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
+    if output=$("${CAS_IMAGE_PROXY}" --prune "${store}" \
       --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
       # 0 is the ordinary healthy answer — a store inside its budget has no
       # generation to collect — so it must stay distinguishable from "no figure
       # reported", which would mean the client changed under us.
       reclaimed=$(printf '%s\n' "${output}" | sed -n 's/.*reclaiming \([0-9][0-9]*\) bytes.*/\1/p' | tail -1)
-      # Which path actually ran. A store the proxy holds can ONLY be rotated
-      # through the proxy, so a `local` route on the plugin lane is the shape of
-      # a prune that collected nothing while reporting success.
+      # Which path actually ran. `proxy refused` is a proxy that outlived
+      # stop_cas_proxy and could not run the op: if it holds this store, the
+      # in-process prune that followed collected nothing while reporting success.
       case "${output}" in
         *"proxy pruned"*) via="proxy" ;;
         *"holds no handle"*) via="local, proxy holds no handle" ;;
+        *"could not ask the proxy (proxy error"*) via="local, proxy refused" ;;
         *"could not ask the proxy"*) via="local, no proxy" ;;
         *) via="local" ;;
       esac
@@ -1702,8 +1741,9 @@ HOOK
       #      configured limit bounds a generation, not the directory, so without
       #      this the folded CAS grows without bound until the volume is full and
       #      the account wedges. After the drain (a prune must not delete an
-      #      object the spool still owed) and before the fill sample (so the
-      #      gauge describes the image that gets published);
+      #      object the spool still owed, and it stops the job's proxy, which the
+      #      drain talks to) and before the fill sample (so the gauge describes
+      #      the image that gets published);
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn

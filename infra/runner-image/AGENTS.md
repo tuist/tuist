@@ -241,11 +241,19 @@ added to catch that failed on `admin`'s unwritable cache instead.
   falls off — which no part of a build ever calls, so the store grew without
   bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
   CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
-  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and a
-  prune alongside it collects nothing while reporting success. Both lanes are
-  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
-  generation dirs, and the staged allowance is SPLIT between them: the marker
+  days). The prune runs through the image's own `/opt/tuist/tuist-cas-proxy
+  --prune`, after `stop_cas_proxy` boots the job's `tuist.cas-proxy` launch
+  agent out: llcas only rotates a store as its last handle closes, the proxy
+  holds a handle per path for its lifetime, and a prune alongside it collects
+  nothing while reporting success. Stopping the proxy rather than asking it to
+  prune is what makes the prune independent of the CLI the job pinned: a proxy
+  released before `--prune` answers the op `bad op`, and its own binary does not
+  know the flag, falling through to its serve path. It is safe at teardown
+  because the job is over and the drain has run, and a no-op at attach, where no
+  proxy exists yet. A proxy still running after the bootout shows up as `local,
+  proxy refused` on the pruned line. Both lanes are swept (`plugin` and the
+  builtin `generic`), discovered by their `v1.N` generation dirs, and the staged
+  allowance is SPLIT between them: the marker
   budgets the CAS as a whole while llcas only takes a per-generation bound per
   store, so handing each the full figure would let a two-lane job occupy twice
   the CAS the image was sized for. Teardown is the only place that can count the
@@ -324,21 +332,23 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
-- `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
-  client, built from `cas-plugin/` alongside `runner-shell-agent` by
+- `/opt/tuist/tuist-cas-proxy` — the compilation-cache (CAS) prune client,
+  built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
   `runner.pkr.hcl` is a MANDATORY input and the template has two callers
   (`runner-image.yml` and `server-production-deployment.yml`'s
   `runner-image-build`), so a binary built in only one fails the other with
   `Bad source` — on the release path that takes down the whole cascade. Add new
-  provisioned binaries to that action, not to a workflow. `cas_proxy_client` prefers the binary beside the tuist
+  provisioned binaries to that action, not to a workflow. `prune_cas_stores`
+  always runs this one, since it is built from the same commit as
+  `dispatch-poll.sh` and so always knows `--prune`, while the job's may not.
+  The drain is different: `cas_proxy_client` prefers the binary beside the tuist
   that `tuist setup cache` installed (it matches the proxy actually running,
-  which is what a drain must talk to) and falls back to this one. It exists
-  because a plain `xcodebuild` workflow never runs Tuist, so it installs no
-  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
-  lane into the volume, so without a binary here nothing on the machine could
-  ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
-  no CAS daemon of its own.
+  which is what a drain must talk to) and falls back to this one. It is only
+  ever invoked as `--prune`/`--drain`; the image runs no CAS daemon of its own.
+  `dispatch-poll_test.sh` covers the drain and prune against fakes of launchctl
+  and of a proxy that predates `--prune`; it runs on PRs through
+  `.github/workflows/runner-image-scripts.yml`.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are

@@ -60,10 +60,9 @@ packer {
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
-#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
-#                                                  the last-resort one for jobs that never
-#                                                  run Tuist and so install no proxy of
-#                                                  their own; see cas_proxy_client
+#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client
+#                                                  for every job, whichever CLI it pinned;
+#                                                  see prune_cas_stores
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
 # The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`

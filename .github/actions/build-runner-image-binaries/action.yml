@@ -53,11 +53,11 @@ runs:
         working-directory: cas-plugin
         github-token: ${{ inputs.github-token }}
 
-    # The image's last-resort CAS prune client (`/opt/tuist/tuist-cas-proxy`). A
-    # plain `xcodebuild` workflow never runs Tuist, so it installs no cas-proxy of
-    # its own — and without a binary in the image nothing on the machine can bound
-    # the compilation cache those jobs write, which is how the per-account cache
-    # volume filled every ~2 days.
+    # The image's CAS prune client (`/opt/tuist/tuist-cas-proxy`). The runner
+    # prunes every job's compilation cache with it rather than with the job's
+    # own proxy binary, which may predate `--prune` or be absent entirely (a
+    # plain `xcodebuild` workflow never runs Tuist), and an unpruned store is
+    # how the per-account cache volume filled every ~2 days.
     #
     # Native arm64: the guest is Apple Silicon macOS, like these builders, so no
     # universal binary is needed (the CLI bundle builds one because it ships to
