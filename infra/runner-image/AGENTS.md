@@ -516,9 +516,19 @@ Bumping the Xcode customers see on their runners:
    `XCODE_VERSION` to match** — that image must be at least as new
    as the newest runner profile.
    Also add the matching `runnersFleet.xcodeVersions` entry in
-   `values-managed-common.yaml` so the fleet renders a pool for it.
-   Commit with a `feat(runner-image): ...` message so check-releases
-   triggers the rebuild.
+   `values-managed-common.yaml` (and `values.yaml` and
+   `server/config/config.exs`) so the fleet renders a pool for it, in
+   the same commit. Commit with a `feat(runner-image): ...` message so
+   check-releases triggers the rebuild. Landing the catalog entry
+   before the image is safe: every deploy probes GHCR for the image
+   each macOS pool pulls (`macos-<dashes>-<semver>`, or an `imageTag`
+   override) and passes the versions without one as
+   `runnersFleet.unavailableXcodeVersions`. Their pools still render,
+   but the server's catalog leaves them out, so Runner Profiles can't
+   select them, and the deploy after the release offers them with no
+   further edit. The one exception is the default: don't mark a
+   version `default: true` until its image is released, because a
+   default without an image fails the chart render and so the deploy.
 3. Once customers have migrated off an older Xcode, drop its entry
    from `profiles.json` (and its `values-managed-common.yaml` pool).
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
@@ -540,10 +550,10 @@ Two things fall out of that, both wanted:
   fortnightly beta cadence.
 - The channel is what customers' Runner Profiles store in
   `xcode_version`. Retiring a catalog entry a profile still names
-  strands it on a RunnerPool that no longer renders, and a
-  stranded macOS profile queues its jobs forever rather than
-  failing them. A channel outlives the betas behind it, so that
-  never comes up.
+  strands it on a RunnerPool that no longer renders; the server
+  stops dispatching that profile's jobs, which then wait on GitHub
+  until they time out. A channel outlives the betas behind it, so
+  that never comes up.
 
 The cost is one more ~30 min bake per runner-image release, and
 `fail-fast: true` on the matrix means a beta base that cannot take

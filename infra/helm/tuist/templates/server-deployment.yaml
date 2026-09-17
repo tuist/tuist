@@ -310,13 +310,26 @@ spec:
             {{- end }}
             {{- with .Values.runnersFleet.xcodeVersions }}
             # macOS Xcode catalog injection. Mirrors the shape pattern:
-            # one source for the chart pool rendering (planned) and the
-            # server's `:runner_macos_xcode_versions` validation.
+            # one source for the chart pool rendering and the server's
+            # `:runner_macos_xcode_versions` catalog. Versions whose pool
+            # image is unpublished are left out, so Runner Profiles only
+            # offer versions a pool can pull.
+            {{- $unavailableXcodeVersions := list }}
+            {{- range ($.Values.runnersFleet.unavailableXcodeVersions | default list) }}
+            {{- $unavailableXcodeVersions = append $unavailableXcodeVersions (toString .) }}
+            {{- end }}
             {{- $serverXcodeVersions := list }}
             {{- range . }}
-            {{- $entry := dict "xcodeVersion" (.xcodeVersion | toString) }}
+            {{- $xcodeVersion := .xcodeVersion | toString }}
+            {{- if has $xcodeVersion $unavailableXcodeVersions }}
+            {{- if .default }}
+            {{- fail (printf "runnersFleet.xcodeVersions default %s has no published runner image. Make a version the default only once its runner image is released." $xcodeVersion) }}
+            {{- end }}
+            {{- else }}
+            {{- $entry := dict "xcodeVersion" $xcodeVersion }}
             {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
             {{- $serverXcodeVersions = append $serverXcodeVersions $entry }}
+            {{- end }}
             {{- end }}
             - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
               value: {{ $serverXcodeVersions | toJson | quote }}

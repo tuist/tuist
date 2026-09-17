@@ -19,7 +19,7 @@ name: macOS + Xcode Image
 # so a beta bump is a republish here plus the next runner-image
 # release, with no repo edit. Naming the exact tag instead would
 # strand every Runner Profile pointing at it once beta 7 landed,
-# and a stranded macOS profile queues its jobs forever. Newest
+# and a stranded macOS profile's jobs are never dispatched. Newest
 # dispatch wins the channel.
 #
 # Publishing here does not put a tag in front of customers: the

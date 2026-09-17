@@ -2309,8 +2309,8 @@ runnersFleet:
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
   # `server-production-deployment.yml`'s `runner-image-build` matrix
-  # expands. A catalog entry with no runner image published for it
-  # renders a pool that can never pull.
+  # expands. An entry can land before its runner image is released: see
+  # `unavailableXcodeVersions` below.
   xcodeVersions:
     - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
@@ -2320,6 +2320,15 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+  # `xcodeVersions` entries whose pool image is not published. Set by
+  # `server-deployment.yml`, which probes GHCR for every macOS pool image
+  # it renders; not meant to be set in values files. A listed version
+  # still renders its pools, so `queued` jobs keep the pool their
+  # `fleet_name` names, but is left out of
+  # `TUIST_RUNNER_MACOS_XCODE_VERSIONS`, so Runner Profiles can't select
+  # it. The first deploy that finds the image offers it. Listing the
+  # `default: true` version fails the render.
+  unavailableXcodeVersions: []
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
   # common values file; each managed env layers its overrides here

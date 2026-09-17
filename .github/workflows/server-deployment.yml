@@ -980,6 +980,9 @@ jobs:
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
         timeout-minutes: 70
+        env:
+          # Authenticates the runner image probes below.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -1112,6 +1115,72 @@ jobs:
           add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
 
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
+
+          # The RunnerPools this deploy renders, as a JSON array, read by the
+          # two blocks below. Captured into a variable so a `kubectl` or `jq`
+          # failure stops the step instead of reading as "no pools".
+          runner_pools_json="[]"
+          runner_pools_render="$(mktemp)"
+          if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+               "${helm_values_args[@]}" \
+               --set server.image.tag="$IMAGE_TAG" \
+               --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+               --set registry.image.tag="$registry_probe_tag" \
+               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+               "${image_sets[@]}" \
+               --show-only templates/runner-pool.yaml \
+               > "$runner_pools_render" 2>/dev/null; then
+            runner_pools_json="$(
+              kubectl create --dry-run=client -o json -f "$runner_pools_render" |
+                jq -c -s '[.[] | if .kind == "List" then .items[] else . end
+                           | select(.kind == "RunnerPool")]'
+            )"
+          fi
+          rm -f "$runner_pools_render"
+
+          # A pool whose image is not in GHCR never starts a runner, so its Xcode
+          # version must not be selectable. Probe the image each macOS pool
+          # pulls (resolved semver or `imageTag` override) and pass the versions
+          # without one to the chart. It still renders their pools, which queued
+          # jobs name, but leaves them out of the server's catalog. The first
+          # deploy that finds the image offers the version again.
+          echo "::group::Hide Xcode versions without a published runner image"
+          unavailable_xcode_versions=()
+          probe=.github/scripts/ghcr-image-published.sh
+          if [ -x "$probe" ]; then
+            xcode_pool_images="$(
+              jq -r '[.[] | select(.metadata.labels["tuist.dev/xcode-version"] != null)
+                      | [.metadata.labels["tuist.dev/xcode-version"], .spec.image] | @tsv]
+                     | unique | .[]' <<< "$runner_pools_json"
+            )"
+            while IFS=$'\t' read -r xcode_version image; do
+              [ -n "$xcode_version" ] || continue
+              if [[ "$image" != ghcr.io/* ]]; then
+                continue
+              fi
+              reference="${image#ghcr.io/}"
+              if [[ "$reference" == *@* ]]; then
+                repository="${reference%%@*}"
+                image_tag="${reference#*@}"
+              else
+                repository="${reference%:*}"
+                image_tag="${reference##*:}"
+              fi
+              if "$probe" "$repository" "$image_tag" < /dev/null; then
+                echo "Xcode ${xcode_version}: ${image} is published."
+              else
+                echo "::warning title=Xcode ${xcode_version} hidden from Runner Profiles::${image} is not published, so profiles cannot select Xcode ${xcode_version} until a deploy finds it."
+                unavailable_xcode_versions+=("$xcode_version")
+              fi
+            done <<< "$xcode_pool_images"
+          fi
+          unavailable_xcode_versions_json="$(
+            printf '%s\n' "${unavailable_xcode_versions[@]}" | jq -Rnc '[inputs | select(. != "")] | unique'
+          )"
+          image_sets+=(--set-json "runnersFleet.unavailableXcodeVersions=${unavailable_xcode_versions_json}")
+          echo "Xcode versions hidden from Runner Profiles: ${unavailable_xcode_versions_json}"
+          echo "::endgroup::"
+
           registry_render="$(mktemp)"
           helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             "${helm_values_args[@]}" \
@@ -1167,30 +1236,15 @@ jobs:
           # runners-controller owns it from then on. Reasserting either would
           # have this step fight the controller on every deploy.
           echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
-          runner_pools_render="$(mktemp)"
-          if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-               "${helm_values_args[@]}" \
-               --set server.image.tag="$IMAGE_TAG" \
-               --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
-               --set registry.image.tag="$registry_probe_tag" \
-               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
-               "${image_sets[@]}" \
-               --show-only templates/runner-pool.yaml \
-               > "$runner_pools_render" 2>/dev/null; then
-            # `mapfile` does not report failures from a process substitution, so
-            # the pipeline is captured first: a `kubectl` or `jq` error would
-            # otherwise read as "no pools to reconcile" and let the upgrade
-            # proceed unreconciled.
+          if [ "$runner_pools_json" != "[]" ]; then
             rendered_pools_json="$(
-              kubectl create --dry-run=client -o json -f "$runner_pools_render" |
-                jq -c -s '[.[] | if .kind == "List" then .items[] else . end
-                            | select(.kind == "RunnerPool" and .spec.autoscaling != null)
-                            | {name: .metadata.name, namespace: .metadata.namespace,
-                               autoscaling: (.spec.autoscaling
-                                 | with_entries(select(.key | . == "maxReplicas"
-                                                         or . == "scaleDownCooldownSeconds")))}
-                            | select(.autoscaling != {})]
-                          | .[]'
+              jq -c '[.[] | select(.spec.autoscaling != null)
+                      | {name: .metadata.name, namespace: .metadata.namespace,
+                         autoscaling: (.spec.autoscaling
+                           | with_entries(select(.key | . == "maxReplicas"
+                                                   or . == "scaleDownCooldownSeconds")))}
+                      | select(.autoscaling != {})]
+                     | .[]' <<< "$runner_pools_json"
             )"
             rendered_pools=()
             if [ -n "$rendered_pools_json" ]; then
@@ -1236,7 +1290,6 @@ jobs:
           else
             echo "Chart renders no RunnerPools for this environment; nothing to reassert."
           fi
-          rm -f "$runner_pools_render"
           echo "::endgroup::"
 
           # Push the rendered release through the API server, admission

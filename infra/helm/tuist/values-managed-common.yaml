@@ -523,7 +523,10 @@ observability:
 # - The server reads these via `TUIST_RUNNER_MACOS_SHAPES` and
 #   `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON projections in
 #   server-deployment.yaml), so the Profiles dropdown + validation
-#   stay in lockstep with the rendered pools.
+#   stay in lockstep with the rendered pools. The deploy leaves out
+#   any version whose pool image isn't published yet
+#   (`runnersFleet.unavailableXcodeVersions` in values.yaml), so an
+#   entry can land here before its runner image is released.
 # Keep `xcodeVersions` aligned with the build matrix in
 # `infra/runner-image/profiles.json` (the single source of truth for
 # which Xcode runner images are built) so every active Xcode tag has a
@@ -535,8 +538,8 @@ observability:
 # (`27.0-beta-6`). The channel is what customers' Runner Profiles
 # store, so it has to survive Apple replacing the beta behind it;
 # retiring an entry a profile still names strands that profile on a
-# pool that no longer renders, and its jobs then queue forever
-# rather than failing. `infra/runner-image/profiles.json` names the
+# pool that no longer renders, and the server stops dispatching its
+# jobs, which wait on GitHub until they time out. `infra/runner-image/profiles.json` names the
 # same channel, so a beta bump needs no edit here at all: the
 # macos-xcode-image build moves the channel tag and the next
 # runner-image release rebuilds against it. Runbook: "Promoting an

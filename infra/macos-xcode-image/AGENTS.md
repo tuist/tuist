@@ -247,10 +247,16 @@ automatically roll customer runners to Xcode 26.5. To promote:
 3. Add a matching `runnersFleet.xcodeVersions` entry in
    `infra/helm/tuist/values-managed-common.yaml` and an
    `xcodeOverrides` entry in each of the three managed env values
-   files. The catalog entry is what renders the RunnerPool and what
-   the Runner Profiles dropdown offers; `default: true` marks the
-   version `runs-on: tuist-macos` resolves to. A catalog entry with
-   no runner image built for it renders a pool that can never pull.
+   files, plus the same entry in `infra/helm/tuist/values.yaml` and
+   `server/config/config.exs`. The catalog entry is what renders the
+   RunnerPool and what the Runner Profiles dropdown offers;
+   `default: true` marks the version `runs-on: tuist-macos` resolves
+   to. The dropdown only offers it once its runner image exists: each
+   deploy probes GHCR for the image every macOS pool pulls and hides
+   versions without one (`runnersFleet.unavailableXcodeVersions`), so
+   the entry can land before the image is built. Make a version the
+   default only after its image is released; a default without one
+   fails the deploy.
 4. Bump the inline `XCODE_VERSION` on
    `server-production-deployment.yml`'s
    `release-xcresult-processor-image.Build image` step in the same
@@ -270,9 +276,9 @@ beta (`27.0-beta-6`), and the base image publishes both tags.
 The channel has to be the identity because customers' Runner
 Profiles store the `xcode_version` string. Retiring a catalog entry
 a profile still names strands it on a RunnerPool that no longer
-renders, and a stranded macOS profile queues its jobs forever
-rather than failing them. A channel that outlives each individual
-beta avoids that entirely.
+renders; the server stops dispatching that profile's jobs, which
+then wait on GitHub until they time out. A channel that outlives
+each individual beta avoids that entirely.
 
 Once wired, a beta bump needs **no repo change**:
 
