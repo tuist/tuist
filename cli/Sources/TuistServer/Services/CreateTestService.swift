@@ -233,6 +233,7 @@ import TuistHTTP
                 return Operations.createTest.Input.Body.jsonPayload
                     .test_modulesPayloadPayload(
                         duration: module.duration,
+                        execution_mode: module.executionMode.flatMap { .init(rawValue: $0) },
                         name: module.name,
                         status: mapModuleStatus(module.status),
                         test_cases: moduleTestCases,
@@ -265,6 +266,8 @@ import TuistHTTP
                 gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
             let historySource: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? =
                 gitHistory.map { $0.source == "client" ? .client : .none }
+            let trackedFiles: [Operations.createTest.Input.Body.jsonPayload.tracked_filesPayloadPayload]? =
+                gitHistory.map { history in history.trackedFiles.map { .init(git_blob_id: $0.blobId, path: $0.path) } }
 
             let response = try await client.createTest(
                 .init(
@@ -276,6 +279,8 @@ import TuistHTTP
                         .init(
                             git_branch: gitBranch,
                             xcode_coverage_storage_key: coverageUpload?.storageKey,
+                            tracked_files: trackedFiles,
+                            execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
                             git_object_format: objectFormat,
                             scheme: testSummary.testPlanName,
                             merge_base_sha: gitHistory?.mergeBaseSHA,
@@ -284,6 +289,7 @@ import TuistHTTP
                             history_fallback_reason: gitHistory?.fallbackReason,
                             is_pull_request: gitHistory?.isPullRequest,
                             status: status,
+                            tracked_files_truncated: gitHistory?.trackedFilesTruncated,
                             shard_index: shardIndex,
                             only_test_identifiers: onlyTestIdentifiers,
                             history_source: historySource,

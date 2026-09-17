@@ -50,6 +50,8 @@ defmodule Tuist.Tests.Test do
     field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
     field :history_source, Ch, type: "LowCardinality(String)", default: ""
     field :history_fallback_reason, Ch, type: "String", default: ""
+    field :tracked_files_truncated, :boolean, default: false
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
@@ -106,6 +108,8 @@ defmodule Tuist.Tests.Test do
       :git_object_format,
       :history_source,
       :history_fallback_reason,
+      :tracked_files_truncated,
+      :execution_mode,
       :ran_at,
       :inserted_at,
       :build_run_id,

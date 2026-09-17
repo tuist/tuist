@@ -39,6 +39,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestRunStressCandidate
+  alias Tuist.Tests.TestRunTrackedFile
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
@@ -327,6 +328,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
         Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
         Supervisor.child_spec(TestRunChangedFile.Buffer, id: TestRunChangedFile.Buffer),
+        Supervisor.child_spec(TestRunTrackedFile.Buffer, id: TestRunTrackedFile.Buffer),
         Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),

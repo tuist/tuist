@@ -2,6 +2,16 @@ import Foundation
 import Path
 
 extension GitController {
+    public func trackedFiles(workingDirectory: AbsolutePath, globs: [String], limit: Int) async throws -> GitTrackedFiles {
+        guard !globs.isEmpty, limit > 0 else { return GitTrackedFiles(files: [], truncated: false) }
+        let pathspecs = globs.map { ":(glob)\($0)" }
+        let output = try await capture(
+            arguments: ["git", "-C", workingDirectory.pathString, "ls-files", "--stage", "-z", "--"] + pathspecs
+        )
+        let files = GitHistoryParser.parseTrackedFiles(output)
+        return GitTrackedFiles(files: Array(files.prefix(limit)), truncated: files.count > limit)
+    }
+
     public func gitHistory(
         workingDirectory: AbsolutePath,
         headSHA: String?,

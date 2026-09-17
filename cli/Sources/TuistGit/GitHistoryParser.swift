@@ -88,4 +88,15 @@ enum GitHistoryParser {
         }
         return hunks
     }
+
+    /// The entries of `git ls-files --stage -z`: `<mode> <blob> <stage>\t<path>`, NUL-separated.
+    /// Only stage 0 entries count; a path in a merge conflict has no single blob.
+    static func parseTrackedFiles(_ output: String) -> [GitTrackedFile] {
+        output.split(separator: "\0", omittingEmptySubsequences: true).compactMap { entry in
+            guard let tab = entry.firstIndex(of: "\t") else { return nil }
+            let fields = entry[..<tab].split(separator: " ", omittingEmptySubsequences: true)
+            guard fields.count == 3, fields[2] == "0" else { return nil }
+            return GitTrackedFile(path: String(entry[entry.index(after: tab)...]), blobId: String(fields[1]))
+        }
+    }
 }

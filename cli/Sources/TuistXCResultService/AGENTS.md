@@ -17,3 +17,4 @@ This module provides XCResult handling helpers for test results.
 ## Invariants
 - Test results track status, duration, and structured failures for reporting.
 - The parsers live in the shared `XCResultParser` package under `server/native/xcresult_nif`, so the CLI and the server's xcresult processor read bundles the same way.
+- `TestExecutionModes` (shared package) records whether a run executed its tests in parallel or serially, per target: `TuistKit.TestExecutionModeResolver` resolves it from `-parallel-testing-enabled` and the xctestrun's `ParallelizationEnabled` (from `-xctestrun`, `-testProductsPath` or the derived data's build products) and writes `tuist_execution_modes.json` into the result bundle before the upload; the shared parser applies the file to the summary (`applying(executionModes:)`, run and per module), so the local-mode payload and the server's processor record the same `execution_mode`. Without an xctestrun or the flag nothing is guessed.

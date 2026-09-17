@@ -71,6 +71,37 @@ components:
           type: string
           x-struct:
           x-validate:
+        tracked_files:
+          description: "The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage."
+          items:
+            properties:
+              git_blob_id:
+                description: "The file's Git blob at the run's commit."
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: Relative to the repository root.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - git_blob_id
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        execution_mode:
+          description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+          enum:
+            - parallel
+            - serial
+          type: string
+          x-struct:
+          x-validate:
         git_object_format:
           description: The repository's Git object format.
           enum:
@@ -118,6 +149,11 @@ components:
             - processing
             - failed_processing
           type: string
+          x-struct:
+          x-validate:
+        tracked_files_truncated:
+          description: Whether the client stopped listing tracked files at the server's limit.
+          type: boolean
           x-struct:
           x-validate:
         shard_index:
@@ -325,6 +361,14 @@ components:
               duration:
                 description: The duration of the test module in milliseconds.
                 type: integer
+                x-struct:
+                x-validate:
+              execution_mode:
+                description: Whether the module's tests executed in parallel or serially; absent when unknown.
+                enum:
+                  - parallel
+                  - serial
+                type: string
                 x-struct:
                 x-validate:
               name:
@@ -2858,6 +2902,11 @@ components:
           type: integer
           x-struct:
           x-validate:
+        execution_mode:
+          description: '`parallel`, `serial`, or empty when unknown.'
+          type: string
+          x-struct:
+          x-validate:
         git_branch:
           type: string
           x-struct:
@@ -3007,6 +3056,20 @@ components:
           type: integer
           x-struct:
           x-validate:
+        tracked_file_globs:
+          description: Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        tracked_file_limit:
+          description: How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
+          type: integer
+          x-struct:
+          x-validate:
         upload_batch_size:
           description: How many commits to send per upload request.
           type: integer
@@ -3027,6 +3090,8 @@ components:
         - window_commits
         - deepen_budget_seconds
         - upload_batch_size
+        - tracked_file_globs
+        - tracked_file_limit
       title: GitHistorySettings
       type: object
       x-struct:
@@ -11981,6 +12046,20 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  tracked_file_globs:
+                    description: Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tracked_file_limit:
+                    description: How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
+                    type: integer
+                    x-struct:
+                    x-validate:
                   upload_batch_size:
                     description: How many commits to send per upload request.
                     type: integer
@@ -12001,6 +12080,8 @@ paths:
                   - window_commits
                   - deepen_budget_seconds
                   - upload_batch_size
+                  - tracked_file_globs
+                  - tracked_file_limit
                 title: GitHistorySettings
                 type: object
                 x-struct:
@@ -12282,6 +12363,37 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                tracked_files:
+                  description: "The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage."
+                  items:
+                    properties:
+                      git_blob_id:
+                        description: "The file's Git blob at the run's commit."
+                        type: string
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: Relative to the repository root.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - git_blob_id
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                execution_mode:
+                  description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+                  enum:
+                    - parallel
+                    - serial
+                  type: string
+                  x-struct:
+                  x-validate:
                 git_object_format:
                   description: The repository's Git object format.
                   enum:
@@ -12329,6 +12441,11 @@ paths:
                     - processing
                     - failed_processing
                   type: string
+                  x-struct:
+                  x-validate:
+                tracked_files_truncated:
+                  description: Whether the client stopped listing tracked files at the server's limit.
+                  type: boolean
                   x-struct:
                   x-validate:
                 shard_index:
@@ -12536,6 +12653,14 @@ paths:
                       duration:
                         description: The duration of the test module in milliseconds.
                         type: integer
+                        x-struct:
+                        x-validate:
+                      execution_mode:
+                        description: Whether the module's tests executed in parallel or serially; absent when unknown.
+                        enum:
+                          - parallel
+                          - serial
+                        type: string
                         x-struct:
                         x-validate:
                       name:
@@ -14914,6 +15039,11 @@ paths:
                     x-validate:
                   executable_lines:
                     type: integer
+                    x-struct:
+                    x-validate:
+                  execution_mode:
+                    description: '`parallel`, `serial`, or empty when unknown.'
+                    type: string
                     x-struct:
                     x-validate:
                   git_branch:

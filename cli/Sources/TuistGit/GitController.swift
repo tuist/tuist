@@ -90,6 +90,11 @@ public protocol GitControlling {
         limits: GitHistoryLimits
     ) async throws -> GitHistory
 
+    /// The files `globs` (Git pathspec globs, relative to the repository's top level) match in the
+    /// index, with the blob each has, at most `limit` of them in path order. Files the working
+    /// tree changed keep the blob of the index: the snapshot describes what a commit records.
+    func trackedFiles(workingDirectory: AbsolutePath, globs: [String], limit: Int) async throws -> GitTrackedFiles
+
     /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
     /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
     /// working tree has changed, and untracked files Git does not ignore, are hashed from the

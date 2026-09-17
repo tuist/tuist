@@ -850,6 +850,58 @@ struct UploadResultBundleServiceTests {
             .called(0)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_appliesTheExecutionModesRecordedInTheBundle() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try TestExecutionModes(run: "parallel", targets: ["AppTests": "serial"])
+            .write(toResultBundle: URL(fileURLWithPath: xcresultPath.pathString))
+
+        _ = try await subject.uploadTestSummary(
+            testSummary: TestSummary(
+                testPlanName: nil,
+                status: .passed,
+                duration: 10,
+                testModules: [TestModule(name: "AppTests", status: .passed, duration: 5, testSuites: [], testCases: [])]
+            ),
+            resultBundlePath: xcresultPath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .matching { $0.executionMode == "parallel" && $0.testModules.first?.executionMode == "serial" },
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
+            )
+            .called(1)
+    }
+
     // MARK: - uploadResultBundle (remote)
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

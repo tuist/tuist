@@ -147,6 +147,23 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
+
+    & > [data-part="settings-help"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="settings-textarea"] {
+      box-shadow: var(--noora-border-light-default);
+      border: none;
+      border-radius: var(--noora-radius-medium);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-3);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-small);
+      font-family: var(--noora-font-family-mono, monospace);
+      resize: vertical;
+    }
   }
 
   & [data-part="retention"] {

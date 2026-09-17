@@ -39,6 +39,16 @@ public struct TestRunGitHistory: Equatable, Sendable {
         }
     }
 
+    public struct TrackedFile: Equatable, Sendable {
+        public let path: String
+        public let blobId: String
+
+        public init(path: String, blobId: String) {
+            self.path = path
+            self.blobId = blobId
+        }
+    }
+
     public let baseBranch: String?
     public let mergeBaseSHA: String?
     public let isPullRequest: Bool
@@ -49,6 +59,10 @@ public struct TestRunGitHistory: Equatable, Sendable {
     public let source: String
     public let fallbackReason: String?
     public let changedFiles: [ChangedFile]
+    /// The files the project's tracked-file globs matched, with their blobs at the run's commit.
+    public let trackedFiles: [TrackedFile]
+    /// Whether the tracked files stop at the server's limit.
+    public let trackedFilesTruncated: Bool
 
     public init(
         baseBranch: String?,
@@ -58,7 +72,9 @@ public struct TestRunGitHistory: Equatable, Sendable {
         objectFormat: String?,
         source: String,
         fallbackReason: String?,
-        changedFiles: [ChangedFile]
+        changedFiles: [ChangedFile],
+        trackedFiles: [TrackedFile] = [],
+        trackedFilesTruncated: Bool = false
     ) {
         self.baseBranch = baseBranch
         self.mergeBaseSHA = mergeBaseSHA
@@ -68,6 +84,8 @@ public struct TestRunGitHistory: Equatable, Sendable {
         self.source = source
         self.fallbackReason = fallbackReason
         self.changedFiles = changedFiles
+        self.trackedFiles = trackedFiles
+        self.trackedFilesTruncated = trackedFilesTruncated
     }
 }
 
@@ -77,12 +95,25 @@ public struct GitHistorySettings: Equatable, Sendable {
     public let windowCommits: Int
     public let deepenBudgetSeconds: Int
     public let uploadBatchSize: Int
+    /// Git pathspec globs of the files snapshotted with each run.
+    public let trackedFileGlobs: [String]
+    /// How many tracked files to send before marking the snapshot truncated.
+    public let trackedFileLimit: Int
 
-    public init(windowDays: Int, windowCommits: Int, deepenBudgetSeconds: Int, uploadBatchSize: Int) {
+    public init(
+        windowDays: Int,
+        windowCommits: Int,
+        deepenBudgetSeconds: Int,
+        uploadBatchSize: Int,
+        trackedFileGlobs: [String] = [],
+        trackedFileLimit: Int = 5000
+    ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
         self.uploadBatchSize = uploadBatchSize
+        self.trackedFileGlobs = trackedFileGlobs
+        self.trackedFileLimit = trackedFileLimit
     }
 }
 
@@ -141,7 +172,9 @@ public struct GetGitHistorySettingsService: GetGitHistorySettingsServicing {
                     windowDays: settings.window_days,
                     windowCommits: settings.window_commits,
                     deepenBudgetSeconds: settings.deepen_budget_seconds,
-                    uploadBatchSize: settings.upload_batch_size
+                    uploadBatchSize: settings.upload_batch_size,
+                    trackedFileGlobs: settings.tracked_file_globs,
+                    trackedFileLimit: settings.tracked_file_limit
                 )
             }
         case let .notFound(notFound):

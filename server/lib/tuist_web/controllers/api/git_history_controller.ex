@@ -48,9 +48,26 @@ defmodule TuistWeb.API.GitHistoryController do
                type: :integer,
                description: "How long the client may spend deepening a shallow clone to find the merge base."
              },
-             upload_batch_size: %Schema{type: :integer, description: "How many commits to send per upload request."}
+             upload_batch_size: %Schema{type: :integer, description: "How many commits to send per upload request."},
+             tracked_file_globs: %Schema{
+               type: :array,
+               items: %Schema{type: :string},
+               description:
+                 "Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`."
+             },
+             tracked_file_limit: %Schema{
+               type: :integer,
+               description: "How many tracked files to send; beyond it the run is marked `tracked_files_truncated`."
+             }
            },
-           required: [:window_days, :window_commits, :deepen_budget_seconds, :upload_batch_size]
+           required: [
+             :window_days,
+             :window_commits,
+             :deepen_budget_seconds,
+             :upload_batch_size,
+             :tracked_file_globs,
+             :tracked_file_limit
+           ]
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
@@ -65,7 +82,9 @@ defmodule TuistWeb.API.GitHistoryController do
       window_days: settings.window_days,
       window_commits: settings.window_commits,
       deepen_budget_seconds: settings.deepen_budget_seconds,
-      upload_batch_size: settings.upload_batch_size
+      upload_batch_size: settings.upload_batch_size,
+      tracked_file_globs: settings.tracked_file_globs,
+      tracked_file_limit: settings.tracked_file_limit
     })
   end
 

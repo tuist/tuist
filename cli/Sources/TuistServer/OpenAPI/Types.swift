@@ -3434,6 +3434,52 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage_storage_key`.
             public var xcode_coverage_storage_key: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/TestParams/tracked_filesPayload`.
+            public struct tracked_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The file's Git blob at the run's commit.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/tracked_filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String
+                /// Relative to the repository root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/tracked_filesPayload/path`.
+                public var path: Swift.String
+                /// Creates a new `tracked_filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - git_blob_id: The file's Git blob at the run's commit.
+                ///   - path: Relative to the repository root.
+                public init(
+                    git_blob_id: Swift.String,
+                    path: Swift.String
+                ) {
+                    self.git_blob_id = git_blob_id
+                    self.path = path
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case git_blob_id
+                    case path
+                }
+            }
+            /// The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/tracked_files`.
+            public typealias tracked_filesPayload = [Components.Schemas.TestParams.tracked_filesPayloadPayload]
+            /// The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/tracked_files`.
+            public var tracked_files: Components.Schemas.TestParams.tracked_filesPayload?
+            /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
+            @frozen public enum execution_modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case parallel = "parallel"
+                case serial = "serial"
+            }
+            /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
+            public var execution_mode: Components.Schemas.TestParams.execution_modePayload?
             /// The repository's Git object format.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_object_format`.
@@ -3483,6 +3529,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
             public var status: Components.Schemas.TestParams.statusPayload?
+            /// Whether the client stopped listing tracked files at the server's limit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/tracked_files_truncated`.
+            public var tracked_files_truncated: Swift.Bool?
             /// The zero-based shard index for this test result.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
@@ -3701,6 +3751,17 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/duration`.
                 public var duration: Swift.Int
+                /// Whether the module's tests executed in parallel or serially; absent when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/execution_mode`.
+                @frozen public enum execution_modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case parallel = "parallel"
+                    case serial = "serial"
+                }
+                /// Whether the module's tests executed in parallel or serially; absent when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/execution_mode`.
+                public var execution_mode: Components.Schemas.TestParams.test_modulesPayloadPayload.execution_modePayload?
                 /// The name of the test module/target.
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/name`.
@@ -4177,18 +4238,21 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - duration: The duration of the test module in milliseconds.
+                ///   - execution_mode: Whether the module's tests executed in parallel or serially; absent when unknown.
                 ///   - name: The name of the test module/target.
                 ///   - status: The status of the test module.
                 ///   - test_cases: The test cases within this module.
                 ///   - test_suites: The test suites within this module.
                 public init(
                     duration: Swift.Int,
+                    execution_mode: Components.Schemas.TestParams.test_modulesPayloadPayload.execution_modePayload? = nil,
                     name: Swift.String,
                     status: Components.Schemas.TestParams.test_modulesPayloadPayload.statusPayload,
                     test_cases: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayload? = nil,
                     test_suites: Components.Schemas.TestParams.test_modulesPayloadPayload.test_suitesPayload? = nil
                 ) {
                     self.duration = duration
+                    self.execution_mode = execution_mode
                     self.name = name
                     self.status = status
                     self.test_cases = test_cases
@@ -4196,6 +4260,7 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case duration
+                    case execution_mode
                     case name
                     case status
                     case test_cases
@@ -4219,6 +4284,8 @@ public enum Components {
             /// - Parameters:
             ///   - git_branch: The git branch.
             ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+            ///   - tracked_files: The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+            ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
             ///   - git_object_format: The repository's Git object format.
             ///   - scheme: The scheme used for the test run.
             ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -4227,6 +4294,7 @@ public enum Components {
             ///   - history_fallback_reason: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
             ///   - is_pull_request: Whether the run was for a pull or merge request.
             ///   - status: The status of the test run.
+            ///   - tracked_files_truncated: Whether the client stopped listing tracked files at the server's limit.
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
@@ -4256,6 +4324,8 @@ public enum Components {
             public init(
                 git_branch: Swift.String? = nil,
                 xcode_coverage_storage_key: Swift.String? = nil,
+                tracked_files: Components.Schemas.TestParams.tracked_filesPayload? = nil,
+                execution_mode: Components.Schemas.TestParams.execution_modePayload? = nil,
                 git_object_format: Components.Schemas.TestParams.git_object_formatPayload? = nil,
                 scheme: Swift.String? = nil,
                 merge_base_sha: Swift.String? = nil,
@@ -4264,6 +4334,7 @@ public enum Components {
                 history_fallback_reason: Swift.String? = nil,
                 is_pull_request: Swift.Bool? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
+                tracked_files_truncated: Swift.Bool? = nil,
                 shard_index: Swift.Int? = nil,
                 only_test_identifiers: [Swift.String]? = nil,
                 history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
@@ -4293,6 +4364,8 @@ public enum Components {
             ) {
                 self.git_branch = git_branch
                 self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                self.tracked_files = tracked_files
+                self.execution_mode = execution_mode
                 self.git_object_format = git_object_format
                 self.scheme = scheme
                 self.merge_base_sha = merge_base_sha
@@ -4301,6 +4374,7 @@ public enum Components {
                 self.history_fallback_reason = history_fallback_reason
                 self.is_pull_request = is_pull_request
                 self.status = status
+                self.tracked_files_truncated = tracked_files_truncated
                 self.shard_index = shard_index
                 self.only_test_identifiers = only_test_identifiers
                 self.history_source = history_source
@@ -4331,6 +4405,8 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case git_branch
                 case xcode_coverage_storage_key
+                case tracked_files
+                case execution_mode
                 case git_object_format
                 case scheme
                 case merge_base_sha
@@ -4339,6 +4415,7 @@ public enum Components {
                 case history_fallback_reason
                 case is_pull_request
                 case status
+                case tracked_files_truncated
                 case shard_index
                 case only_test_identifiers
                 case history_source
@@ -7415,6 +7492,10 @@ public enum Components {
             public var covered_lines: Swift.Int
             /// - Remark: Generated from `#/components/schemas/TestRunCoverage/executable_lines`.
             public var executable_lines: Swift.Int
+            /// `parallel`, `serial`, or empty when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRunCoverage/execution_mode`.
+            public var execution_mode: Swift.String?
             /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_branch`.
             public var git_branch: Swift.String
             /// - Remark: Generated from `#/components/schemas/TestRunCoverage/git_commit_sha`.
@@ -7551,6 +7632,7 @@ public enum Components {
             ///   - coverage: Line coverage over the run's product files, in percent.
             ///   - covered_lines:
             ///   - executable_lines:
+            ///   - execution_mode: `parallel`, `serial`, or empty when unknown.
             ///   - git_branch:
             ///   - git_commit_sha:
             ///   - git_history: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
@@ -7565,6 +7647,7 @@ public enum Components {
                 coverage: Swift.Double,
                 covered_lines: Swift.Int,
                 executable_lines: Swift.Int,
+                execution_mode: Swift.String? = nil,
                 git_branch: Swift.String,
                 git_commit_sha: Swift.String,
                 git_history: Components.Schemas.TestRunCoverage.git_historyPayload,
@@ -7579,6 +7662,7 @@ public enum Components {
                 self.coverage = coverage
                 self.covered_lines = covered_lines
                 self.executable_lines = executable_lines
+                self.execution_mode = execution_mode
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
                 self.git_history = git_history
@@ -7594,6 +7678,7 @@ public enum Components {
                 case coverage
                 case covered_lines
                 case executable_lines
+                case execution_mode
                 case git_branch
                 case git_commit_sha
                 case git_history
@@ -7629,6 +7714,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/GitHistorySettings/deepen_budget_seconds`.
             public var deepen_budget_seconds: Swift.Int
+            /// Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/tracked_file_globs`.
+            public var tracked_file_globs: [Swift.String]
+            /// How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GitHistorySettings/tracked_file_limit`.
+            public var tracked_file_limit: Swift.Int
             /// How many commits to send per upload request.
             ///
             /// - Remark: Generated from `#/components/schemas/GitHistorySettings/upload_batch_size`.
@@ -7645,22 +7738,30 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - deepen_budget_seconds: How long the client may spend deepening a shallow clone to find the merge base.
+            ///   - tracked_file_globs: Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+            ///   - tracked_file_limit: How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
             ///   - upload_batch_size: How many commits to send per upload request.
             ///   - window_commits: How many commits back history is collected and kept.
             ///   - window_days: How many days back history is collected and kept.
             public init(
                 deepen_budget_seconds: Swift.Int,
+                tracked_file_globs: [Swift.String],
+                tracked_file_limit: Swift.Int,
                 upload_batch_size: Swift.Int,
                 window_commits: Swift.Int,
                 window_days: Swift.Int
             ) {
                 self.deepen_budget_seconds = deepen_budget_seconds
+                self.tracked_file_globs = tracked_file_globs
+                self.tracked_file_limit = tracked_file_limit
                 self.upload_batch_size = upload_batch_size
                 self.window_commits = window_commits
                 self.window_days = window_days
             }
             public enum CodingKeys: String, CodingKey {
                 case deepen_budget_seconds
+                case tracked_file_globs
+                case tracked_file_limit
                 case upload_batch_size
                 case window_commits
                 case window_days
@@ -23760,6 +23861,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/deepen_budget_seconds`.
                         public var deepen_budget_seconds: Swift.Int
+                        /// Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/tracked_file_globs`.
+                        public var tracked_file_globs: [Swift.String]
+                        /// How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/tracked_file_limit`.
+                        public var tracked_file_limit: Swift.Int
                         /// How many commits to send per upload request.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/settings/GET/responses/200/content/json/upload_batch_size`.
@@ -23776,22 +23885,30 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - deepen_budget_seconds: How long the client may spend deepening a shallow clone to find the merge base.
+                        ///   - tracked_file_globs: Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`.
+                        ///   - tracked_file_limit: How many tracked files to send; beyond it the run is marked `tracked_files_truncated`.
                         ///   - upload_batch_size: How many commits to send per upload request.
                         ///   - window_commits: How many commits back history is collected and kept.
                         ///   - window_days: How many days back history is collected and kept.
                         public init(
                             deepen_budget_seconds: Swift.Int,
+                            tracked_file_globs: [Swift.String],
+                            tracked_file_limit: Swift.Int,
                             upload_batch_size: Swift.Int,
                             window_commits: Swift.Int,
                             window_days: Swift.Int
                         ) {
                             self.deepen_budget_seconds = deepen_budget_seconds
+                            self.tracked_file_globs = tracked_file_globs
+                            self.tracked_file_limit = tracked_file_limit
                             self.upload_batch_size = upload_batch_size
                             self.window_commits = window_commits
                             self.window_days = window_days
                         }
                         public enum CodingKeys: String, CodingKey {
                             case deepen_budget_seconds
+                            case tracked_file_globs
+                            case tracked_file_limit
                             case upload_batch_size
                             case window_commits
                             case window_days
@@ -24609,6 +24726,52 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage_storage_key`.
                     public var xcode_coverage_storage_key: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_filesPayload`.
+                    public struct tracked_filesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The file's Git blob at the run's commit.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_filesPayload/git_blob_id`.
+                        public var git_blob_id: Swift.String
+                        /// Relative to the repository root.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_filesPayload/path`.
+                        public var path: Swift.String
+                        /// Creates a new `tracked_filesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - git_blob_id: The file's Git blob at the run's commit.
+                        ///   - path: Relative to the repository root.
+                        public init(
+                            git_blob_id: Swift.String,
+                            path: Swift.String
+                        ) {
+                            self.git_blob_id = git_blob_id
+                            self.path = path
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case git_blob_id
+                            case path
+                        }
+                    }
+                    /// The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_files`.
+                    public typealias tracked_filesPayload = [Operations.createTest.Input.Body.jsonPayload.tracked_filesPayloadPayload]
+                    /// The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_files`.
+                    public var tracked_files: Operations.createTest.Input.Body.jsonPayload.tracked_filesPayload?
+                    /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
+                    @frozen public enum execution_modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case parallel = "parallel"
+                        case serial = "serial"
+                    }
+                    /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
+                    public var execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload?
                     /// The repository's Git object format.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_object_format`.
@@ -24658,6 +24821,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
                     public var status: Operations.createTest.Input.Body.jsonPayload.statusPayload?
+                    /// Whether the client stopped listing tracked files at the server's limit.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/tracked_files_truncated`.
+                    public var tracked_files_truncated: Swift.Bool?
                     /// The zero-based shard index for this test result.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
@@ -24876,6 +25043,17 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/duration`.
                         public var duration: Swift.Int
+                        /// Whether the module's tests executed in parallel or serially; absent when unknown.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/execution_mode`.
+                        @frozen public enum execution_modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case parallel = "parallel"
+                            case serial = "serial"
+                        }
+                        /// Whether the module's tests executed in parallel or serially; absent when unknown.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/execution_mode`.
+                        public var execution_mode: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.execution_modePayload?
                         /// The name of the test module/target.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/name`.
@@ -25352,18 +25530,21 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - duration: The duration of the test module in milliseconds.
+                        ///   - execution_mode: Whether the module's tests executed in parallel or serially; absent when unknown.
                         ///   - name: The name of the test module/target.
                         ///   - status: The status of the test module.
                         ///   - test_cases: The test cases within this module.
                         ///   - test_suites: The test suites within this module.
                         public init(
                             duration: Swift.Int,
+                            execution_mode: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.execution_modePayload? = nil,
                             name: Swift.String,
                             status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.statusPayload,
                             test_cases: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayload? = nil,
                             test_suites: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_suitesPayload? = nil
                         ) {
                             self.duration = duration
+                            self.execution_mode = execution_mode
                             self.name = name
                             self.status = status
                             self.test_cases = test_cases
@@ -25371,6 +25552,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case duration
+                            case execution_mode
                             case name
                             case status
                             case test_cases
@@ -25394,6 +25576,8 @@ public enum Operations {
                     /// - Parameters:
                     ///   - git_branch: The git branch.
                     ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+                    ///   - tracked_files: The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.
+                    ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                     ///   - git_object_format: The repository's Git object format.
                     ///   - scheme: The scheme used for the test run.
                     ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -25402,6 +25586,7 @@ public enum Operations {
                     ///   - history_fallback_reason: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
                     ///   - is_pull_request: Whether the run was for a pull or merge request.
                     ///   - status: The status of the test run.
+                    ///   - tracked_files_truncated: Whether the client stopped listing tracked files at the server's limit.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards.
@@ -25431,6 +25616,8 @@ public enum Operations {
                     public init(
                         git_branch: Swift.String? = nil,
                         xcode_coverage_storage_key: Swift.String? = nil,
+                        tracked_files: Operations.createTest.Input.Body.jsonPayload.tracked_filesPayload? = nil,
+                        execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload? = nil,
                         git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? = nil,
                         scheme: Swift.String? = nil,
                         merge_base_sha: Swift.String? = nil,
@@ -25439,6 +25626,7 @@ public enum Operations {
                         history_fallback_reason: Swift.String? = nil,
                         is_pull_request: Swift.Bool? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
+                        tracked_files_truncated: Swift.Bool? = nil,
                         shard_index: Swift.Int? = nil,
                         only_test_identifiers: [Swift.String]? = nil,
                         history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
@@ -25468,6 +25656,8 @@ public enum Operations {
                     ) {
                         self.git_branch = git_branch
                         self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                        self.tracked_files = tracked_files
+                        self.execution_mode = execution_mode
                         self.git_object_format = git_object_format
                         self.scheme = scheme
                         self.merge_base_sha = merge_base_sha
@@ -25476,6 +25666,7 @@ public enum Operations {
                         self.history_fallback_reason = history_fallback_reason
                         self.is_pull_request = is_pull_request
                         self.status = status
+                        self.tracked_files_truncated = tracked_files_truncated
                         self.shard_index = shard_index
                         self.only_test_identifiers = only_test_identifiers
                         self.history_source = history_source
@@ -25506,6 +25697,8 @@ public enum Operations {
                     public enum CodingKeys: String, CodingKey {
                         case git_branch
                         case xcode_coverage_storage_key
+                        case tracked_files
+                        case execution_mode
                         case git_object_format
                         case scheme
                         case merge_base_sha
@@ -25514,6 +25707,7 @@ public enum Operations {
                         case history_fallback_reason
                         case is_pull_request
                         case status
+                        case tracked_files_truncated
                         case shard_index
                         case only_test_identifiers
                         case history_source
@@ -32831,6 +33025,10 @@ public enum Operations {
                         public var covered_lines: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/executable_lines`.
                         public var executable_lines: Swift.Int
+                        /// `parallel`, `serial`, or empty when unknown.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/execution_mode`.
+                        public var execution_mode: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_branch`.
                         public var git_branch: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/git_commit_sha`.
@@ -32967,6 +33165,7 @@ public enum Operations {
                         ///   - coverage: Line coverage over the run's product files, in percent.
                         ///   - covered_lines:
                         ///   - executable_lines:
+                        ///   - execution_mode: `parallel`, `serial`, or empty when unknown.
                         ///   - git_branch:
                         ///   - git_commit_sha:
                         ///   - git_history: Where the run sits in the repository's history, as the client or the VCS provider recorded it.
@@ -32981,6 +33180,7 @@ public enum Operations {
                             coverage: Swift.Double,
                             covered_lines: Swift.Int,
                             executable_lines: Swift.Int,
+                            execution_mode: Swift.String? = nil,
                             git_branch: Swift.String,
                             git_commit_sha: Swift.String,
                             git_history: Operations.getTestRunCoverage.Output.Ok.Body.jsonPayload.git_historyPayload,
@@ -32995,6 +33195,7 @@ public enum Operations {
                             self.coverage = coverage
                             self.covered_lines = covered_lines
                             self.executable_lines = executable_lines
+                            self.execution_mode = execution_mode
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
                             self.git_history = git_history
@@ -33010,6 +33211,7 @@ public enum Operations {
                             case coverage
                             case covered_lines
                             case executable_lines
+                            case execution_mode
                             case git_branch
                             case git_commit_sha
                             case git_history

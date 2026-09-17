@@ -362,14 +362,16 @@ defmodule Tuist.Environment do
     window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",
     deepen_budget_seconds: "TUIST_GIT_HISTORY_DEEPEN_BUDGET_SECONDS",
     upload_batch_size: "TUIST_GIT_HISTORY_UPLOAD_BATCH_SIZE",
-    provider_page_budget: "TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET"
+    provider_page_budget: "TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET",
+    tracked_file_limit: "TUIST_GIT_HISTORY_TRACKED_FILE_LIMIT"
   }
 
   @doc """
   The server-wide Git history settings set through the environment, as a map
   of the keys `Tuist.GitHistory.settings/1` merges over its defaults. Only the
   variables that are set appear. `TUIST_GIT_HISTORY_PROVIDER_FALLBACK` is a
-  boolean; the others are positive integers.
+  boolean, `TUIST_GIT_HISTORY_TRACKED_FILE_GLOBS` a comma-separated list of
+  Git pathspec globs; the others are positive integers.
   """
   def git_history_defaults(environment \\ System.get_env()) when is_map(environment) do
     integers =
@@ -380,9 +382,22 @@ defmodule Tuist.Environment do
         end
       end)
 
-    case Map.get(environment, "TUIST_GIT_HISTORY_PROVIDER_FALLBACK") do
-      nil -> integers
-      value -> Map.put(integers, :provider_fallback, truthy?(value))
+    settings =
+      case Map.get(environment, "TUIST_GIT_HISTORY_PROVIDER_FALLBACK") do
+        nil -> integers
+        value -> Map.put(integers, :provider_fallback, truthy?(value))
+      end
+
+    case Map.get(environment, "TUIST_GIT_HISTORY_TRACKED_FILE_GLOBS") do
+      nil ->
+        settings
+
+      value ->
+        Map.put(
+          settings,
+          :tracked_file_globs,
+          value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+        )
     end
   end
 

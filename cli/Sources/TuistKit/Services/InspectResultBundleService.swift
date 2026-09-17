@@ -157,7 +157,13 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         // The server that receives a locally processed run has no Xcode to read the coverage
         // with, so the client reads it, through the same parser the server runs on a bundle.
+        // The execution modes were recorded into the bundle after the summary was parsed.
         var testSummary = testSummary
+        if let resultBundlePath {
+            testSummary = testSummary.applying(
+                executionModes: TestExecutionModes.read(fromResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
+            )
+        }
         var coverageUpload: XcodeCoverageUpload?
         var testRunId: String?
         if let resultBundlePath,
