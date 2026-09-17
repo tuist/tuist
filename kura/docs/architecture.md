@@ -170,7 +170,9 @@ Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src
 
 - the set of `known_peers` (peers that responded successfully),
 - a monotonically increasing **generation** that bumps whenever the membership topology changes,
-- and a short **settle window** after each generation change.
+- and a two-second **settle window** after each generation change.
+
+The settle window is what keeps a joining node from reporting ready before it has seen a sibling that came up a moment after it, which would have it serve cold instead of bootstrapping. Discovery resolves the peer DNS name afresh on every pass, so the lag the window covers is endpoint publication plus one pass. The loop passes every two seconds, except on a joining node whose view has not settled, which passes every half second: that way a sibling starting alongside it is seen within a pass, and the node's time to ready is set by the window rather than by the loop's cadence.
 
 `initial_discovery_completed` only flips once we have actually observed a successful peer status check (or there are no discovery targets at all). This avoids promoting a node to "ready" when the seed peers were transiently unreachable.
 

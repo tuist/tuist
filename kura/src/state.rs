@@ -31,7 +31,16 @@ use crate::{
     utils::TmpBudget,
 };
 
-const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
+// How long the membership view must stay unchanged before a joining node may
+// report ready. It exists so a sibling whose address or listener comes up a
+// moment after this node's is discovered, and bootstrapped from, rather than
+// missed. Discovery resolves the peer DNS name afresh on every pass (cluster
+// records are not cached), so the lag it covers is endpoint publication plus
+// one pass; while the view is unsettled a joining node passes every half
+// second, and two seconds is four unchanged passes.
+const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(2);
+const MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_secs(2);
+const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 pub struct AppState {
     pub config: Config,
@@ -363,6 +372,18 @@ impl ReadinessState {
         }
     }
 
+    /// The membership loop's pause before its next pass. A joining node whose
+    /// view has not settled passes every half second, so a sibling starting
+    /// alongside it is seen promptly and its readiness is not held back by the
+    /// loop's cadence; everything else keeps the steady two seconds.
+    fn poll_interval(&self, serving: bool, now: Instant) -> Duration {
+        if !serving && (!self.initial_discovery_completed || now < self.settle_until) {
+            JOINING_MEMBERSHIP_POLL_INTERVAL
+        } else {
+            MEMBERSHIP_POLL_INTERVAL
+        }
+    }
+
     fn snapshot(&self, now: Instant) -> ReadinessSnapshot {
         ReadinessSnapshot {
             generation: self.generation,
@@ -431,6 +452,14 @@ impl AppState {
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
         membership_update
+    }
+
+    pub async fn membership_poll_interval(&self) -> Duration {
+        let serving = self.runtime.is_serving();
+        self.readiness
+            .lock()
+            .await
+            .poll_interval(serving, Instant::now())
     }
 
     async fn readiness_snapshot(&self) -> ReadinessSnapshot {
@@ -686,6 +715,62 @@ mod tests {
         assert_eq!(
             topology_change.lost_peers,
             vec!["http://peer-b.kura.internal:7443".to_string()]
+        );
+    }
+
+    #[test]
+    fn readiness_settles_two_seconds_after_the_last_membership_change() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), true, now);
+        let sibling_seen = now + Duration::from_millis(500);
+        readiness.apply_membership(
+            BTreeSet::from(["eu-west".to_string()]),
+            BTreeSet::from(["http://sibling.kura.internal:7443".to_string()]),
+            true,
+            sibling_seen,
+        );
+
+        assert!(
+            !readiness
+                .snapshot(sibling_seen + Duration::from_millis(1_999))
+                .readiness_settled
+        );
+        assert!(
+            readiness
+                .snapshot(sibling_seen + Duration::from_secs(2))
+                .readiness_settled
+        );
+    }
+
+    #[test]
+    fn membership_polls_every_half_second_while_a_joining_view_is_unsettled() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        // Nothing observed yet: a sibling starting alongside this node is found
+        // on the next half-second pass rather than two seconds later.
+        assert_eq!(
+            readiness.poll_interval(false, now),
+            Duration::from_millis(500)
+        );
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), true, now);
+        assert_eq!(
+            readiness.poll_interval(false, now),
+            Duration::from_millis(500)
+        );
+
+        let settled = now + Duration::from_secs(2);
+        assert_eq!(
+            readiness.poll_interval(false, settled),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            readiness.poll_interval(true, now),
+            Duration::from_secs(2),
+            "a serving node has nothing to become ready for"
         );
     }
 
