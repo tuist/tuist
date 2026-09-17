@@ -5167,7 +5167,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_cache_endpoints_for_handle/1" do
+  describe "get_cache_resolution_for_handle/3 for earlier clients" do
     test "returns custom endpoints when account has them configured and enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -5179,7 +5179,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
@@ -5201,7 +5201,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
@@ -5216,7 +5216,7 @@ defmodule Tuist.AccountsTest do
       stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://node.acme.example:8080"]
@@ -5233,7 +5233,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5255,7 +5255,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
@@ -5279,7 +5279,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5304,7 +5304,7 @@ defmodule Tuist.AccountsTest do
       })
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
@@ -5326,7 +5326,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
@@ -5344,7 +5344,7 @@ defmodule Tuist.AccountsTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       refute resolution.provisioning
@@ -5365,7 +5365,7 @@ defmodule Tuist.AccountsTest do
       {:ok, account} = Accounts.update_account(account, %{region: :all})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
@@ -5381,7 +5381,7 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
@@ -5396,7 +5396,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :legacy)
 
       # Then
       refute resolution.provisioning
@@ -5413,7 +5413,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
       Demand.flush()
 
       # Then
@@ -5428,7 +5428,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      Accounts.get_cache_endpoints_for_handle(account.name)
+      Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
       Demand.flush()
 
       # Then
@@ -5448,7 +5448,7 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
@@ -5463,7 +5463,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5480,7 +5480,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5497,7 +5497,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5514,7 +5514,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5531,7 +5531,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5543,7 +5543,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+      endpoints = Accounts.get_cache_resolution_for_handle("nonexistent-account", :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5555,14 +5555,14 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+      endpoints = Accounts.get_cache_resolution_for_handle(nil, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
     end
   end
 
-  describe "get_cache_resolution_for_handle/3 for clients always routed to Kura" do
+  describe "get_cache_resolution_for_handle/3 for Kura clients" do
     test "returns the account's Kura endpoints over its custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -5574,7 +5574,7 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution == %{endpoints: ["https://kura-cache.example.com"], provisioning: false}
@@ -5592,12 +5592,12 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
 
       # When
-      kura_only = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
       kura = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      legacy_fallback = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
-      assert kura_only.endpoints == []
-      assert kura.endpoints == ["https://cache-us-east.tuist.dev"]
+      assert kura.endpoints == []
+      assert legacy_fallback.endpoints == ["https://cache-us-east.tuist.dev"]
     end
 
     test "returns custom endpoints for an account that has never routed through Kura" do
@@ -5613,7 +5613,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution.endpoints == ["https://cache1.example.com"]
@@ -5631,7 +5631,7 @@ defmodule Tuist.AccountsTest do
         CacheEndpoints.create_cache_endpoint(%{url: "https://cache-eu-central.tuist.dev", display_name: "EU"})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution.endpoints == []
@@ -5655,7 +5655,7 @@ defmodule Tuist.AccountsTest do
       })
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution == %{endpoints: [], provisioning: true}
@@ -5667,10 +5667,10 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> ["https://cache-us-east.tuist.dev"] end)
 
       # When / Then
-      assert Accounts.get_cache_resolution_for_handle("nonexistent-account", :kura_only) ==
+      assert Accounts.get_cache_resolution_for_handle("nonexistent-account", :kura) ==
                %{endpoints: [], provisioning: false}
 
-      assert Accounts.get_cache_resolution_for_handle(nil, :kura_only) == %{endpoints: [], provisioning: false}
+      assert Accounts.get_cache_resolution_for_handle(nil, :kura) == %{endpoints: [], provisioning: false}
     end
 
     test "returns the configured endpoints when self-hosted" do
@@ -5681,7 +5681,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_only)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
       assert resolution == %{endpoints: ["https://cache-self-hosted.example.com"], provisioning: false}

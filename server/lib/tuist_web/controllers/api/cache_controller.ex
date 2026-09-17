@@ -107,8 +107,8 @@ defmodule TuistWeb.API.CacheController do
   # The first CLI and Gradle plugin versions that no longer send the `kura` client
   # feature flag. They are always routed to Kura, and never to the legacy cache
   # nodes. A CLI built from source reports `x.y.z`.
-  @kura_only_minimum_cli_version Version.parse!("4.209.0-canary.23")
-  @kura_only_minimum_gradle_plugin_version Version.parse!("0.15.0")
+  @kura_minimum_cli_version Version.parse!("4.209.0-canary.23")
+  @kura_minimum_gradle_plugin_version Version.parse!("0.15.0")
 
   # Answers where the cache is, not whether the caller may use it. Clients hold
   # the answer for up to an hour, so a plan that lapses inside that window would
@@ -122,12 +122,12 @@ defmodule TuistWeb.API.CacheController do
       |> authorized_account_handle(conn)
       |> Accounts.get_cache_resolution_for_handle(technology, RemoteIp.attributed_origin(conn))
 
-    # `no-cache` while provisioning: `:kura_only` clients poll this endpoint until
-    # the instance serves, and an HTTP cache honoring the max-age would answer
-    # every poll with the same empty list.
+    # `no-cache` while provisioning: `:kura` clients poll this endpoint until the
+    # instance serves, and an HTTP cache honoring the max-age would answer every
+    # poll with the same empty list.
     cache_control =
       cond do
-        provisioning and technology == :kura_only -> "private, no-cache, max-age=#{@provisioning_cache_max_age}"
+        provisioning and technology == :kura -> "private, no-cache, max-age=#{@provisioning_cache_max_age}"
         provisioning -> "private, max-age=#{@provisioning_cache_max_age}"
         true -> "private, max-age=#{Kura.endpoint_freshness_seconds()}"
       end
@@ -139,22 +139,22 @@ defmodule TuistWeb.API.CacheController do
 
   defp technology(conn) do
     cond do
-      kura_only_client?(conn) -> :kura_only
-      Headers.get_client_feature_flag(conn, "kura") -> :kura
-      true -> :default
+      kura_client?(conn) -> :kura
+      Headers.get_client_feature_flag(conn, "kura") -> :kura_with_legacy_fallback
+      true -> :legacy
     end
   end
 
-  defp kura_only_client?(conn) do
+  defp kura_client?(conn) do
     cond do
       Headers.get_cli_version_string(conn) == "x.y.z" ->
         true
 
       cli_version = Headers.get_cli_version(conn) ->
-        Version.compare(cli_version, @kura_only_minimum_cli_version) != :lt
+        Version.compare(cli_version, @kura_minimum_cli_version) != :lt
 
       gradle_plugin_version = Headers.get_gradle_plugin_version(conn) ->
-        Version.compare(gradle_plugin_version, @kura_only_minimum_gradle_plugin_version) != :lt
+        Version.compare(gradle_plugin_version, @kura_minimum_gradle_plugin_version) != :lt
 
       true ->
         false
