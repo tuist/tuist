@@ -39,12 +39,15 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateDocumentUpload
   alias Atlas.MCP.Tools.CreateEmailAudience
   alias Atlas.MCP.Tools.CreateEmailSubscriber
+  alias Atlas.MCP.Tools.CreateEngineeringDomain
+  alias Atlas.MCP.Tools.CreateEngineeringProject
   alias Atlas.MCP.Tools.CreateFeatureInterest
   alias Atlas.MCP.Tools.CreateFinancing
   alias Atlas.MCP.Tools.CreateInsurancePolicy
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
+  alias Atlas.MCP.Tools.CreateProjectWebhook
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
@@ -53,8 +56,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteAsset
   alias Atlas.MCP.Tools.DeleteDataCenter
   alias Atlas.MCP.Tools.DeleteEmailAudience
+  alias Atlas.MCP.Tools.DeleteEngineeringDomain
+  alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeleteProjectWebhook
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
@@ -97,6 +103,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetContractTemplate
   alias Atlas.MCP.Tools.GetDataCenter
   alias Atlas.MCP.Tools.GetDocument
+  alias Atlas.MCP.Tools.GetDomainErrorDsn
   alias Atlas.MCP.Tools.GetEmailAudience
   alias Atlas.MCP.Tools.GetEngineeringDomain
   alias Atlas.MCP.Tools.GetEngineeringProject
@@ -112,6 +119,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetProjectErrorDsn
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
   alias Atlas.MCP.Tools.GetSupportThread
@@ -119,6 +127,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ImportFinancingSchedule
   alias Atlas.MCP.Tools.InstallAssetInDataCenter
   alias Atlas.MCP.Tools.LinkAssetToInsuranceClaim
+  alias Atlas.MCP.Tools.LinkProjectDomain
+  alias Atlas.MCP.Tools.LinkProjectRepository
   alias Atlas.MCP.Tools.ListAccountAttentionSuggestions
   alias Atlas.MCP.Tools.ListAccountContacts
   alias Atlas.MCP.Tools.ListAccountEvents
@@ -198,6 +208,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ReturnAsset
   alias Atlas.MCP.Tools.ReturnFinancing
   alias Atlas.MCP.Tools.ReviewGTMOpportunity
+  alias Atlas.MCP.Tools.RotateDomainErrorDsn
+  alias Atlas.MCP.Tools.RotateProjectErrorDsn
   alias Atlas.MCP.Tools.RunGTMSignalSearch
   alias Atlas.MCP.Tools.SaveMemory
   alias Atlas.MCP.Tools.SearchApolloOutreach
@@ -210,11 +222,15 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetFinancingLines
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
+  alias Atlas.MCP.Tools.UnlinkProjectDomain
+  alias Atlas.MCP.Tools.UnlinkProjectRepository
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
   alias Atlas.MCP.Tools.UpdateAccountTerm
   alias Atlas.MCP.Tools.UpdateContact
   alias Atlas.MCP.Tools.UpdateEmailSubscriber
+  alias Atlas.MCP.Tools.UpdateEngineeringDomain
+  alias Atlas.MCP.Tools.UpdateEngineeringProject
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
@@ -400,8 +416,24 @@ defmodule Atlas.MCP.Server do
   @static_tools [
     ListEngineeringProjects,
     GetEngineeringProject,
+    CreateEngineeringProject,
+    UpdateEngineeringProject,
+    DeleteEngineeringProject,
     ListEngineeringDomains,
     GetEngineeringDomain,
+    CreateEngineeringDomain,
+    UpdateEngineeringDomain,
+    DeleteEngineeringDomain,
+    LinkProjectDomain,
+    UnlinkProjectDomain,
+    LinkProjectRepository,
+    UnlinkProjectRepository,
+    GetProjectErrorDsn,
+    RotateProjectErrorDsn,
+    GetDomainErrorDsn,
+    RotateDomainErrorDsn,
+    CreateProjectWebhook,
+    DeleteProjectWebhook,
     ListErrorIssues,
     GetErrorIssue,
     ResolveErrorIssue,
