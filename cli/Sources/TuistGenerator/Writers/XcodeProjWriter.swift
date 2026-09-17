@@ -11,6 +11,32 @@ public protocol XcodeProjWriting {
     func write(workspace: WorkspaceDescriptor) async throws
 }
 
+/// Format used to serialize each `.xcodeproj` bundle to disk.
+///
+/// Mirrors `XcodeProj.ProjectFormat` at the `TuistGenerator` boundary so callers don't need to
+/// `import XcodeProj` just to opt into the JSON5 project format that Xcode 27 introduced.
+public enum XcodeProjectFormat: String, Sendable, Equatable {
+    case pbxproj
+    case xcproj
+}
+
+extension XcodeProjWriting {
+    /// Sets the given format on every project inside `workspace` before delegating to
+    /// `write(workspace:)`. `XcodeProj` is a class and `projectFormat` is a `var`, so mutating
+    /// each descriptor here is enough for the writer to dispatch to the right serializer.
+    public func write(workspace: WorkspaceDescriptor, projectFormat: XcodeProjectFormat) async throws {
+        let format: ProjectFormat
+        switch projectFormat {
+        case .pbxproj: format = .pbxproj
+        case .xcproj: format = .xcproj
+        }
+        for descriptor in workspace.projectDescriptors {
+            descriptor.xcodeProj.projectFormat = format
+        }
+        try await write(workspace: workspace)
+    }
+}
+
 // MARK: -
 
 public struct XcodeProjWriter: XcodeProjWriting {
