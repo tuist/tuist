@@ -846,10 +846,12 @@ kuraFleet:
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -857,11 +859,11 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
