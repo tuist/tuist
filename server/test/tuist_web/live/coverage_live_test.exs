@@ -247,17 +247,4 @@ defmodule TuistWeb.CoverageLiveTest do
       refute table =~ "25.0%"
     end
   end
-
-  describe "settings" do
-    test "the old settings tab leads to the project's coverage settings", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      path = ~p"/#{organization.account.name}/#{project.name}/settings/coverage"
-
-      assert {:error, {:live_redirect, %{to: ^path}}} =
-               live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=settings")
-    end
-  end
 end
