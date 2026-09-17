@@ -196,9 +196,11 @@ a month at the stack's measured rate.
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The
 local control-plane jobs use 30 seconds so a short control-plane interruption
 still produces enough samples to distinguish process, storage, and network
-pressure. Kura is the exception: its pods advertise a 65-second interval
-because the fleet exports a large per-node metric surface and its observed
-14-day DPM p95 was 1.052. This brings Kura below Grafana Cloud's included rate of one data
+pressure. Kura is the exception: annotation autodiscovery scrapes pods
+labelled `app.kubernetes.io/name=kura` every 65 seconds, because the fleet
+exports a large per-node metric surface and its observed 14-day DPM p95 was
+1.052. The interval lives in this chart's `extraDiscoveryRules` rather than in
+a pod annotation, so changing it does not restart the Kura fleet. This brings Kura below Grafana Cloud's included rate of one data
 point per minute per active series. The one-minute default remains in place for
 all other metrics, keeping enough resolution for the infrastructure dashboards
 and alerts. Keep other job-specific overrides at 60 seconds unless a

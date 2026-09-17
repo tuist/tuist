@@ -94,8 +94,6 @@ const (
 	manifestCacheMaxBytesEnvVar                 = "KURA_MANIFEST_CACHE_MAX_BYTES"
 	metadataStoreReadCacheBytesEnvVar           = "KURA_METADATA_STORE_READ_CACHE_BYTES"
 	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
-	metricsScrapeIntervalAnnotation             = "prometheus.io/scrape-interval"
-	kuraMetricsScrapeInterval                   = "65s"
 	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
 	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
 	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
@@ -3651,9 +3649,6 @@ func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVe
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"
 	annotations["prometheus.io/path"] = "/metrics"
-	if _, ok := annotations[metricsScrapeIntervalAnnotation]; !ok {
-		annotations[metricsScrapeIntervalAnnotation] = kuraMetricsScrapeInterval
-	}
 	if value, ok := egressClassPodAnnotation(instance); ok {
 		annotations[egressClassAnnotation] = value
 	}

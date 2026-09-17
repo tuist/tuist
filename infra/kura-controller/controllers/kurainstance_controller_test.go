@@ -512,9 +512,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Annotations["prometheus.io/path"]; got != "/metrics" {
 		t.Fatalf("expected Prometheus path annotation, got %q", got)
 	}
-	if got := sts.Spec.Template.Annotations[metricsScrapeIntervalAnnotation]; got != kuraMetricsScrapeInterval {
-		t.Fatalf("expected Kura metrics scrape interval annotation, got %q", got)
-	}
 	if got := sts.Spec.Template.Annotations[sharedSecretsRVAnnotation]; got != "12345" {
 		t.Fatalf("expected shared secrets resource version annotation, got %q", got)
 	}

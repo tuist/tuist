@@ -782,7 +782,17 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
-      metricsScrapeInterval: "prometheus.io/scrape-interval"
+    # Kura pods export a large per-node metric surface, so they scrape every
+    # 65 seconds instead of the global 60. Set here rather than as a pod
+    # annotation so changing it never restarts the Kura fleet. These rules run
+    # after the chart's own __scrape_interval__ default, so they override it.
+    extraDiscoveryRules: |
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        regex = "kura"
+        target_label = "__scrape_interval__"
+        replacement = "65s"
+      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
