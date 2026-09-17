@@ -6,6 +6,7 @@ import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.api.model.RefreshTokenBody
 import retrofit2.Retrofit
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 open class RefreshAuthTokenService(
     private val retrofitProvider: (URI) -> Retrofit
@@ -15,9 +16,17 @@ open class RefreshAuthTokenService(
         retrofitProvider = { httpClients.unauthenticatedRetrofit(it) }
     )
 
-    open fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
+    /**
+     * @param timeoutMs bounds the whole call; when it runs out the call fails with an
+     * [java.io.InterruptedIOException]. `null` keeps the client's own timeouts.
+     */
+    open fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long? = null): AuthenticationTokens {
         val api = retrofitProvider(serverURL).create(AuthenticationApi::class.java)
-        val response = api.refreshToken(RefreshTokenBody(refreshToken)).execute()
+        val call = api.refreshToken(RefreshTokenBody(refreshToken))
+        if (timeoutMs != null) {
+            call.timeout().timeout(timeoutMs, TimeUnit.MILLISECONDS)
+        }
+        val response = call.execute()
         if (!response.isSuccessful) {
             throw RuntimeException(
                 response.errorBody()?.string()

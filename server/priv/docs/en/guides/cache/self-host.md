@@ -64,7 +64,7 @@ KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 
 Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, so the server can still attach the node to the right account.
 
-If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, the page requires the `kura` feature flag and generating a self-hosted-node credential additionally requires an Enterprise plan.
+If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
 
 ## How clients reach your nodes {#routing}
 

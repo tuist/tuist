@@ -55,6 +55,7 @@ jobs:
     name: CLI Unit Tests
     runs-on: tuist-macos
     timeout-minutes: 120
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -95,6 +96,7 @@ jobs:
     name: App Tests
     runs-on: tuist-macos
     timeout-minutes: 60
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write

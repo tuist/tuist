@@ -916,7 +916,6 @@ struct LaunchAgentServiceTests {
 
     private static let programArguments = ["cache-proxy", "--url", "https://tuist.dev"]
     private static let environmentVariables = [
-        "TUIST_FEATURE_FLAG_KURA": "1",
         "TUIST_CAS_LOG": "/tmp/cas.log",
         "TUIST_CAS_PREFETCH": "keys",
         "TUIST_TOKEN": "token",
