@@ -436,8 +436,6 @@ attach_cache_image() {
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
   echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
-  # The CAS store is folded into this image; point the compiler at it (if enabled).
-  setup_cas_store
   return 0
 }
 
@@ -517,7 +515,7 @@ probe_cache_share() {
 
 # setup_cas_store points every xcodebuild in the job at the folded CAS store
 # inside the mounted cache image, when the host staged the cas-enabled marker.
-# Called after attach_cache_image (CACHE_MOUNT set); the store rides the one
+# Called after the attach-time prune (CACHE_MOUNT set); the store rides the one
 # image, so there is nothing to attach and nothing to detach separately — the
 # cache image's own quiesced detach + not-promotable-on-failed-detach gate cover
 # it. Absent marker / unwritable store => the compilation cache falls to the
@@ -978,6 +976,9 @@ wait_for_cache_ready() {
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
       prune_cas_stores attach
+      # After the prune, which can be what makes room in a full image for the
+      # store to be writable.
+      setup_cas_store
       return 0
     fi
     sleep 1
