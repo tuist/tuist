@@ -1323,9 +1323,9 @@ public class GraphTraverser: GraphTraversing {
         .lazy
         .compactMap { (dependency: GraphDependency) -> Path.AbsolutePath? in
             switch dependency {
-            // The directory containing an .xcframework can't resolve `@rpath/<Name>.framework/<Name>`, and
-            // Xcode already embeds the processed slice. Each binary-cached xcframework lives in its own
-            // directory, so emitting one run path per xcframework exceeds dyld's 256 LC_RPATH limit on large graphs.
+            // The directory containing an .xcframework can't resolve `@rpath/<Name>.framework/<Name>`; the test
+            // runner loads the processed slice from BUILT_PRODUCTS_DIR instead. Each binary-cached xcframework lives
+            // in its own directory, so one run path per xcframework exceeds dyld's 256 LC_RPATH limit on large graphs.
             case .xcframework: return nil
             case let .framework(path, _, _, _, _, _, _): return path
             case let .foreignBuildOutput(output): return output.path.extension == "xcframework" ? nil : output.path
