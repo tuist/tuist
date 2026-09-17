@@ -202,7 +202,8 @@ defmodule Tuist.Release do
   end
 
   @doc """
-  Compares the two ClickHouse servers and raises unless every table agrees.
+  Compares the two ClickHouse servers and raises unless every table and the
+  migration ledgers agree.
 
   This is the gate for the backfill and, once dual writes are on, for the
   ongoing parity between the two.
@@ -211,9 +212,19 @@ defmodule Tuist.Release do
     load_app()
 
     case Parity.compare() do
-      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
-        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas included")
+      {:ok,
+       %{
+         differing: [],
+         schema: %{missing_on_destination: [], differing_columns: []},
+         migrations: %{missing_on_destination: [], only_on_destination: []}
+       } = report} ->
+        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas and migration ledgers included")
         :ok
+
+      # Once the in-cluster server is primary, `migrate/0` runs every version
+      # missing from its ledger again, data migrations included.
+      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+        raise "ClickHouse schema_migrations drift: #{inspect(report.migrations)}"
 
       # Gated separately from the row comparison, and deliberately fatal. Until
       # the in-cluster server is primary a missing column costs a dropped

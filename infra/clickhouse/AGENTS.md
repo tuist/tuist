@@ -16,3 +16,4 @@ launcher in `infra/mise/tasks/clickhouse/migration.sh`.
 - Keep the fallback file aligned with the release reconciler and Helm-generated credential.
 - Run migration steps through the launcher, not the chart's `clickhouse.managed.migration` deploy hook.
 - Keep the launcher's step list aligned with the ClickHouse tasks in `Tuist.Release`.
+- Switch an environment's `clickhouse.mode` to `managed` only after the checks the runbook lists before step 7, in a deploy of its own.
