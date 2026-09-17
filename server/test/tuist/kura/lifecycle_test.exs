@@ -15,9 +15,11 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1581,6 +1583,25 @@ defmodule Tuist.Kura.LifecycleTest do
       assert {:ok, [_server]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
 
       assert reload(other_server).status == :archived
+    end
+
+    test "places a first instance near the request that asked for it, whichever node provisions it" do
+      # The request is recorded on the node that served it, and the job that
+      # provisions the instance can run on any node, where nothing that node
+      # buffered is visible.
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      stub(Environment, :kura_control_plane?, fn -> true end)
+      stub(Reconciler, :reconcile_server, fn _server -> :ok end)
+      account = account()
+
+      Accounts.get_cache_resolution_for_handle(account.name, :kura, {:ok, "DE"})
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: ProvisionOnDemandWorker)
+      :ets.delete_all_objects(Tuist.Kura.Origins)
+      :ets.delete_all_objects(Demand)
+
+      assert :ok = perform_job(ProvisionOnDemandWorker, args)
+
+      assert [%Server{region: "eu-west", status: :provisioning}] = servers_for(account)
     end
 
     test "provisions nothing with no runtime image tag configured" do
