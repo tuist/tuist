@@ -207,6 +207,13 @@ defmodule AtlasWeb.Router do
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
+      live "/engineering/projects", Engineering.ProjectsLive, :index
+      live "/engineering/projects/:id", Engineering.ProjectsLive, :show
+      live "/engineering/domains", Engineering.DomainsLive, :index
+      live "/engineering/domains/:id", Engineering.DomainsLive, :show
+      live "/engineering/errors", Engineering.ErrorsLive, :index
+      live "/engineering/errors/:id", Engineering.ErrorsLive, :show
+      live "/engineering/errors/:id/events/:event_id", Engineering.ErrorsLive, :event
     end
 
     live_session :executive_dashboard,
