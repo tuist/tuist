@@ -3466,26 +3466,20 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  (
-    increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
-    or
-    label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")
-  )
+  increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
   * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Pending period: the same as the live outbox rule it replaces (group
-  `Cache` evaluates every 5 minutes)
+- Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
-  **Kura shedding cache writes from the replication outbox** (see **Retired
-  rules**); preview it against the last 7 days for `kind="outbox"` and confirm
-  it fires on the same samples before deleting that rule.
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  Successor to **Kura shedding cache writes from the replication outbox** (see
+  **Retired rules**), and it keeps that rule's identifier.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
   least {{ $values.A.Value | printf "%.0f" }} cache writes at the
   {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
@@ -3505,8 +3499,9 @@ max by (cluster, region, pod, kind) (
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
-instead of one rule per limit. The `outbox` kind is the retired rule, query,
-threshold and `or` term unchanged; the other kinds ride along at the same bar.
+instead of one rule per limit. It began as the retired outbox rule generalised
+to every write-shed kind at the same bar; the `outbox` kind itself went away
+with push replication (see **Why the query no longer has an `or`**).
 
 #### Why a write shed is worse than a read shed
 
@@ -3530,22 +3525,17 @@ method label, and the routes serving both reads and writes cannot be split by
 route, so "writes attempted" is not expressible. A discrete loss makes the raw
 count meaningful on its own.
 
-#### Why the query has an `or`
+#### Why the query no longer has an `or`
 
-Until the 2026-08-31 fix the gRPC outbox gate recorded only
-`kura_memory_actions_total{action="grpc_write_rejected_outbox"}` and never
-touched the shed counter, as did the three REAPI persistence sites. That gap
-hid a very large number of remote-execution rejections on one pod (seven
-figures in 7 days) against a few dozen HTTP-path rejections in a day. The
-second term keeps the rule honest on pods still running an image from before
-that fix; it is safe to drop once the fix is fleet-wide. `max`, not `sum`, so
-the two terms do not double count once both are recorded, and `label_replace`
-files the fallback under the `outbox` kind so it lands on the same row.
-
-The shed counter legitimately exceeds the gate's own rejection count: a write
-admitted at the gate still loses when the remaining room is smaller than the
-target count or another write wins the race, and each persistence path
-records that shed itself.
+Through push replication the query also carried
+`or label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")`.
+Until the 2026-08-31 fix, a remote-execution write refused because the
+replication outbox was full was recorded only as that memory action and never
+reached the shed counter, so the second term filed those refusals under an
+`outbox` kind for pods still on older images. Removing push replication in
+kura@0.46 (#13185) deleted the outbox, its gate and the memory action, so the
+term matched nothing and was dropped. No write is refused for replication room
+any more.
 
 #### One rule keyed on kind
 
@@ -3606,7 +3596,6 @@ limit in the summary, which is what the on-call needs to pick the lever:
 
 ```promql
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
-max by (pod) (kura_outbox_messages)
 ```
 
 ### Kura replication outbox approaching its cap (retired)
@@ -6102,7 +6091,8 @@ on exactly the same samples at the same grain while the other write-shed
 kinds the old rule left uncovered ride along. Its reasoning (count not rate,
 the `or` term, the triage queries) moved into that section. Delete the old
 rule only after the new one has been previewed for `kind="outbox"` against
-the last 7 days and matches.
+the last 7 days and matches. The `outbox` kind and its `or` term were later
+dropped from that rule with push replication (kura@0.46).
 
 **Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
 2026-08-26) counted absolute failed scrapes:
