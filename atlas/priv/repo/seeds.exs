@@ -5395,3 +5395,90 @@ for attrs <- seed_notes do
       :ok
   end
 end
+
+# ---------------------------------------------------------------------------
+# Inference relay: seed a couple of upstream providers and profiles so the
+# /admin/inference pages have something to show without needing a real API
+# key configured.
+# ---------------------------------------------------------------------------
+
+alias Atlas.Inference
+alias Atlas.Inference.ModelBinding
+alias Atlas.Inference.Provider
+
+seed_providers = [
+  %{
+    key: "openai",
+    base_url: "https://api.openai.com/v1",
+    api_key: "sk-seed-openai-placeholder",
+    timeout: 300_000
+  },
+  %{
+    key: "fireworks",
+    base_url: "https://api.fireworks.ai/inference/v1",
+    api_key: "fw-seed-placeholder",
+    timeout: 300_000
+  }
+]
+
+for attrs <- seed_providers do
+  case Inference.get_provider_by_key(attrs.key) do
+    nil -> {:ok, _provider} = Inference.create_provider(attrs)
+    %Provider{} -> :ok
+  end
+end
+
+seed_profiles = [
+  %{
+    name: "atlas-inference",
+    description: "Default profile Atlas uses for its own inference calls.",
+    upstream_provider: "openai",
+    upstream_model: "gpt-4o-mini",
+    input_cost_per_million: Decimal.new("0.15"),
+    output_cost_per_million: Decimal.new("0.60"),
+    enabled: true,
+    atlas_inference: true
+  },
+  %{
+    name: "atlas-coding",
+    description: "Profile Atlas uses for coding assistants.",
+    upstream_provider: "fireworks",
+    upstream_model: "accounts/fireworks/models/kimi-k2p5",
+    input_cost_per_million: Decimal.new("0.60"),
+    output_cost_per_million: Decimal.new("2.50"),
+    enabled: true,
+    atlas_coding: true
+  },
+  %{
+    name: "atlas-embeddings",
+    description: "Profile Atlas uses for embeddings.",
+    upstream_provider: "openai",
+    upstream_model: "text-embedding-3-small",
+    input_cost_per_million: Decimal.new("0.02"),
+    output_cost_per_million: Decimal.new("0.00"),
+    enabled: true,
+    atlas_embedding: true
+  }
+]
+
+for attrs <- seed_profiles do
+  case Inference.get_model_binding_by_name(attrs.name) do
+    nil ->
+      {:ok, profile} = Inference.create_profile(attrs)
+      # Give each atlas role profile a persistent token so the token page
+      # renders end-to-end without an operator having to click through the UI
+      # right after seeding.
+      role =
+        cond do
+          profile.atlas_inference -> :inference
+          profile.atlas_coding -> :coding
+          profile.atlas_embedding -> :embedding
+          true -> nil
+        end
+
+      if role, do: {:ok, _} = Inference.ensure_atlas_token(profile, role)
+
+    %ModelBinding{} ->
+      :ok
+  end
+end
