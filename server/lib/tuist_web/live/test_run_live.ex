@@ -26,9 +26,9 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
-  alias Tuist.Tests.Coverage
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive

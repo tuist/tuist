@@ -306,7 +306,7 @@ defmodule TuistWeb.API.CoverageController do
       skipped: %Schema{
         type: :array,
         description:
-          "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record) or `not_instrumented`.",
+          "Changed files left out of the patch and why: `stale` (measured on another version of the file), `no_line_data`, `truncated` (diff too large to record), `not_instrumented` or `excluded` (matched by the project's excluded paths).",
         items: %Schema{
           type: :object,
           properties: %{path: %Schema{type: :string}, reason: %Schema{type: :string}},

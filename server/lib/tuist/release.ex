@@ -182,6 +182,31 @@ defmodule Tuist.Release do
   end
 
   @doc """
+  Enqueues the republication of every project's coverage totals with the
+  excluded paths in effect now (see `Tuist.Tests.Coverage.ExcludedPaths`). Run
+  it after changing `TUIST_COVERAGE_EXCLUDED_PATH_GLOBS` or deploying a release
+  that changes the default exclusions; projects with their own globs recompute
+  when those change. The server's workers process the jobs.
+  """
+  def recompute_coverage_totals do
+    load_app()
+
+    {:ok, count, _} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn repo ->
+        {:ok, jobs, _} =
+          Ecto.Migrator.with_repo(Tuist.ClickHouseRepo, fn _ ->
+            Tuist.Tests.Coverage.Workers.RecomputeTotalsWorker.jobs_for_all_projects()
+          end)
+
+        Enum.each(jobs, &repo.insert!/1)
+        length(jobs)
+      end)
+
+    Logger.info("Enqueued the coverage totals recompute of #{count} project(s)")
+    :ok
+  end
+
+  @doc """
   Copies existing ClickHouse rows onto the in-cluster server.
 
   Run explicitly rather than from a deploy hook: it moves the whole dataset,

@@ -249,6 +249,45 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.gaps == [%{path: "Sources/New.swift", executable_lines: 3}]
     end
 
+    test "leaves the excluded paths out of both sides and lists the changed ones as excluded", %{
+      project: project,
+      account: account
+    } do
+      pr =
+        pr_run(
+          project,
+          account,
+          base_files() ++ [file("Sources/API/Client.swift", "client1", ["Calculator"], [0, 0, 0, 0])],
+          %{
+            changed_files: [
+              %{path: "Sources/API/Client.swift", status: "added", git_blob_id: "client1", hunks: [%{start: 1, end: 4}]}
+            ]
+          }
+        )
+
+      # Excluding a file the baseline measured moves neither side's total.
+      {:ok, project} =
+        Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/API/**", "Sources/Format.swift"]})
+
+      comparison = Comparison.compare(project, pr)
+
+      assert {comparison.run.covered_lines, comparison.run.executable_lines} == {4, 6}
+      assert {comparison.baseline.covered_lines, comparison.baseline.executable_lines} == {4, 6}
+      assert comparison.total_delta == +0.0
+      assert Enum.map(comparison.targets, & &1.name) == ["Calculator"]
+      assert comparison.files == []
+
+      assert %{
+               status: :available,
+               executable_lines: 0,
+               files: [],
+               skipped: [%{path: "Sources/API/Client.swift", reason: :excluded}]
+             } =
+               comparison.patch
+
+      assert comparison.gaps == []
+    end
+
     test "leaves out of the patch the files it cannot map to the run's lines", %{project: project, account: account} do
       pr =
         pr_run(

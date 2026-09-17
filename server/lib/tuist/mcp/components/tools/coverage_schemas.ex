@@ -227,7 +227,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
             "skipped" => %{
               "type" => "array",
               "description" =>
-                "Changed files left out of the patch and why: stale, no_line_data, truncated or not_instrumented.",
+                "Changed files left out of the patch and why: stale, no_line_data, truncated, not_instrumented or excluded (matched by the project's excluded paths).",
               "items" => %{
                 "type" => "object",
                 "properties" => %{"path" => %{"type" => "string"}, "reason" => %{"type" => "string"}},

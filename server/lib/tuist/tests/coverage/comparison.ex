@@ -21,6 +21,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
     * **Gaps** are the changed files with executable lines in their hunks
       that no test executed.
 
+  Both sides leave out the paths the project excludes now
+  (`Tuist.Tests.Coverage.ExcludedPaths`): the baseline's totals are recomputed
+  from its files when they are still retained, so a change to the exclusions
+  never reads as coverage gained or lost. Changed files the exclusions match
+  are listed among the patch's skipped files as `excluded`.
+
   When no baseline can be resolved, the comparison says why rather than
   comparing against some other run.
   """
@@ -31,6 +37,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestRunChangedFile
 
@@ -66,7 +73,10 @@ defmodule Tuist.Tests.Coverage.Comparison do
   has it does not pay for it twice.
   """
   def compare(%Project{} = project, %Test{} = run, opts \\ []) do
-    summary = Keyword.get_lazy(opts, :run_summary, fn -> Coverage.run_summary(run.project_id, run.id) end)
+    excluded = ExcludedPaths.pattern_for_project(project)
+
+    summary =
+      Keyword.get_lazy(opts, :run_summary, fn -> Coverage.run_summary(run.project_id, run.id, excluded: excluded) end)
 
     if is_nil(summary) do
       nil
@@ -79,8 +89,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
 
       partial = summary.partial
 
-      run_files = Coverage.merged_files(run.project_id, run.id)
-      baseline_files = if baseline, do: Coverage.merged_files(run.project_id, baseline.test_run_id), else: []
+      run_files = Coverage.merged_files(run.project_id, run.id, excluded: excluded)
+
+      baseline_files =
+        if baseline, do: Coverage.merged_files(run.project_id, baseline.test_run_id, excluded: excluded), else: []
+
+      baseline = baseline && with_retained_totals(baseline, baseline_files)
 
       Map.merge(
         %{
@@ -110,6 +124,17 @@ defmodule Tuist.Tests.Coverage.Comparison do
     end
   end
 
+  # The published totals of a run predate any later change to the exclusions;
+  # its files, while retained, give the totals under the current ones.
+  defp with_retained_totals(baseline, []), do: baseline
+
+  defp with_retained_totals(baseline, files) do
+    Map.merge(baseline, %{
+      covered_lines: files |> Enum.map(& &1.covered_lines) |> Enum.sum(),
+      executable_lines: files |> Enum.map(& &1.executable_lines) |> Enum.sum()
+    })
+  end
+
   @doc """
   Patch coverage and gaps alone, for a run whose baseline is not needed:
   `%{patch: ..., gaps: [...]}`. `patch.status` is `:available` with the
@@ -117,7 +142,8 @@ defmodule Tuist.Tests.Coverage.Comparison do
   `:truncated`).
   """
   def patch(%Project{} = project, %Test{} = run, partial, run_files \\ nil) do
-    run_files = run_files || Coverage.merged_files(run.project_id, run.id)
+    excluded = ExcludedPaths.pattern_for_project(project)
+    run_files = run_files || Coverage.merged_files(run.project_id, run.id, excluded: excluded)
     changed = changed_files(run.project_id, run.id)
 
     cond do
@@ -128,19 +154,24 @@ defmodule Tuist.Tests.Coverage.Comparison do
         %{patch: %{status: :unavailable, reason: :no_history, detail: run.history_fallback_reason}, gaps: []}
 
       true ->
-        patch_from_changes(run, changed, run_files)
+        patch_from_changes(run, changed, run_files, excluded)
     end
   end
 
-  defp patch_from_changes(run, changed, run_files) do
+  defp patch_from_changes(run, changed, run_files, excluded_pattern) do
     files_by_path = Map.new(run_files, &{&1.path, &1})
+    excluded_regex = ExcludedPaths.compile(excluded_pattern)
 
-    {candidates, excluded} =
+    {excluded_by_project, changed} =
       changed
       |> Enum.reject(&(&1.status == "deleted"))
-      |> Enum.split_with(fn file -> not file.truncated and Map.has_key?(files_by_path, file.path) end)
+      |> Enum.split_with(&ExcludedPaths.excluded?(excluded_regex, &1.path))
 
-    lines_by_path = Coverage.line_counts(run.project_id, run.id, Enum.map(candidates, & &1.path))
+    {candidates, excluded} =
+      Enum.split_with(changed, fn file -> not file.truncated and Map.has_key?(files_by_path, file.path) end)
+
+    lines_by_path =
+      Coverage.line_counts(run.project_id, run.id, Enum.map(candidates, & &1.path), excluded: excluded_pattern)
 
     {files, skipped} =
       Enum.reduce(candidates, {[], []}, fn file, {files, skipped} ->
@@ -162,7 +193,8 @@ defmodule Tuist.Tests.Coverage.Comparison do
       skipped ++
         Enum.map(excluded, fn file ->
           %{path: file.path, reason: if(file.truncated, do: :truncated, else: :not_instrumented)}
-        end)
+        end) ++
+        Enum.map(excluded_by_project, &%{path: &1.path, reason: :excluded})
 
     files = files |> Enum.filter(&(&1.executable_lines > 0)) |> Enum.sort_by(&{&1.coverage, &1.path})
     covered = files |> Enum.map(& &1.covered_lines) |> Enum.sum()

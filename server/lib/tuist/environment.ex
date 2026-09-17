@@ -373,6 +373,30 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  The server-wide paths coverage leaves out of every figure, from
+  `TUIST_COVERAGE_EXCLUDED_PATH_GLOBS` as a comma-separated list of globs, or
+  nil when the variable is not set (see `Tuist.Tests.Coverage.ExcludedPaths`).
+  """
+  def coverage_excluded_path_globs(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_COVERAGE_EXCLUDED_PATH_GLOBS") do
+      nil -> nil
+      value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  @doc """
+  How many runs a coverage totals recompute handles per job, from
+  `TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE`; 500 by default.
+  """
+  def coverage_recompute_batch_size(environment \\ System.get_env()) when is_map(environment) do
+    parse_artifact_retention_days(
+      Map.get(environment, "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"),
+      "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"
+    ) ||
+      500
+  end
+
   @git_history_environment_variables %{
     window_days: "TUIST_GIT_HISTORY_WINDOW_DAYS",
     window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",

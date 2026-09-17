@@ -9,6 +9,8 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -18,8 +20,6 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
   alias Tuist.Tests.TestModuleRun
-  alias Tuist.Tests.Coverage
-  alias Tuist.Tests.CoverageRun
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 

@@ -62,8 +62,7 @@
 
   & [data-part="overview-section"],
   & [data-part="comparison-section"],
-  & [data-part="files"],
-  & [data-part="settings"] {
+  & [data-part="files"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -117,76 +116,6 @@
       font: var(--noora-font-body-small);
       text-align: right;
     }
-  }
-
-  & [data-part="settings-form"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-  }
-
-  & [data-part="settings-section"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-5);
-
-    & > [data-part="description"] {
-      margin: 0;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-medium);
-    }
-  }
-
-  & [data-part="settings-row"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-    max-width: 480px;
-
-    & > [data-part="settings-label"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-    }
-
-    & > [data-part="settings-help"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-small);
-    }
-
-    & > [data-part="settings-textarea"] {
-      box-shadow: var(--noora-border-light-default);
-      border: none;
-      border-radius: var(--noora-radius-medium);
-      background: var(--noora-surface-background-primary);
-      padding: var(--noora-spacing-3);
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-body-small);
-      font-family: var(--noora-font-family-mono, monospace);
-      resize: vertical;
-    }
-  }
-
-  & [data-part="retention"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--noora-spacing-5);
-    margin: 0;
-
-    & dt {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-small);
-    }
-
-    & dd {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-body-medium);
-    }
-  }
-
-  & [data-part="actions"] {
-    display: flex;
-    justify-content: flex-end;
   }
 
   & .noora-pagination-group {

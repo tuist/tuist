@@ -355,6 +355,23 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "coverage_excluded_path_globs/1" do
+    test "is nil unless the environment lists globs" do
+      assert Environment.coverage_excluded_path_globs(%{}) == nil
+
+      assert Environment.coverage_excluded_path_globs(%{
+               "TUIST_COVERAGE_EXCLUDED_PATH_GLOBS" => " **/Generated/**, ,Sources/API/Client.swift"
+             }) == ["**/Generated/**", "Sources/API/Client.swift"]
+    end
+  end
+
+  describe "coverage_recompute_batch_size/1" do
+    test "defaults to 500 and reads the environment" do
+      assert Environment.coverage_recompute_batch_size(%{}) == 500
+      assert Environment.coverage_recompute_batch_size(%{"TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE" => "50"}) == 50
+    end
+  end
+
   describe "coverage_retention_days/1" do
     test "keeps file detail for 90 days and run totals for a year by default" do
       assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}

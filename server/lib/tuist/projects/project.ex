@@ -63,6 +63,9 @@ defmodule Tuist.Projects.Project do
     field :coverage_gate_max_total_drop, :float
     field :coverage_patch_partial_runs, :boolean, default: false
     field :tracked_file_globs, {:array, :string}
+    # Coverage leaves these paths out of every figure; nil means the server defaults
+    # (see `Tuist.Tests.Coverage.ExcludedPaths`).
+    field :coverage_excluded_path_globs, {:array, :string}
 
     belongs_to :account, Account
 
@@ -128,7 +131,8 @@ defmodule Tuist.Projects.Project do
       :coverage_gate_min_patch_coverage,
       :coverage_gate_max_total_drop,
       :coverage_patch_partial_runs,
-      :tracked_file_globs
+      :tracked_file_globs,
+      :coverage_excluded_path_globs
     ])
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)

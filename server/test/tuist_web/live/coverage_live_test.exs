@@ -249,36 +249,15 @@ defmodule TuistWeb.CoverageLiveTest do
   end
 
   describe "settings" do
-    test "saves the gates and Git history settings", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=settings")
+    test "the old settings tab leads to the project's coverage settings", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      path = ~p"/#{organization.account.name}/#{project.name}/settings/coverage"
 
-      assert has_element?(lv, "#coverage-gates-enabled")
-      assert has_element?(lv, "[data-part='retention']", "90 days")
-
-      lv |> element("#coverage-gates-enabled") |> render_click()
-      lv |> element("#coverage-git-history-provider-fallback") |> render_click()
-
-      lv
-      |> form("#coverage-settings-form", %{
-        "min_patch_coverage" => "80",
-        "max_total_drop" => "1.5",
-        "git_history_window_days" => "120",
-        "git_history_window_commits" => "",
-        "tracked_file_globs" => "Fixtures/**\n\n  Package.resolved  \n"
-      })
-      |> render_submit()
-
-      project = Projects.get_project_by_id(project.id)
-
-      assert {project.coverage_gates_enabled, project.coverage_gate_min_patch_coverage,
-              project.coverage_gate_max_total_drop} ==
-               {true, 80.0, 1.5}
-
-      assert project.coverage_patch_partial_runs == false
-      assert {project.git_history_window_days, project.git_history_window_commits} == {120, nil}
-      assert project.git_history_provider_fallback == true
-      assert project.tracked_file_globs == ["Fixtures/**", "Package.resolved"]
+      assert {:error, {:live_redirect, %{to: ^path}}} =
+               live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=settings")
     end
   end
 end
