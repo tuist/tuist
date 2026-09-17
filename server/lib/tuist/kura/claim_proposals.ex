@@ -39,22 +39,6 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  The claim sizing measures an account against: what its governed instances
-  are pinned at, then the sized claim, then the plan's. The pinned value is
-  what the telemetry describes, and it outlives a change to the plan
-  constants, so a lowered default cannot make a running instance look smaller
-  than it is.
-  """
-  def measured_claim_size(%Account{id: account_id} = account) do
-    pinned =
-      [account_id]
-      |> pinned_claims()
-      |> Map.get(account_id)
-
-    pinned || PlacerClaims.claim_for(account) || PlacerClaims.plan_claim_size(account)
-  end
-
-  @doc """
   One page of the account's sizing decisions, newest first, returned with the
   Flop meta the pagination component reads.
   """
@@ -151,37 +135,8 @@ defmodule Tuist.Kura.ClaimProposals do
       placer_claims: placer_claims,
       open_proposals: open_proposals,
       last_applied_proposals: last_applied_proposals,
-      pinned_claims: pinned_claims(account_ids)
+      pinned_claims: PlacerClaims.pinned_claims(account_ids)
     }
-  end
-
-  # Largest, because a baseline under what an instance holds turns a proposed
-  # grow into a silent shrink of that instance's volume.
-  defp pinned_claims(account_ids) do
-    Server
-    |> where([server], server.account_id in ^account_ids)
-    |> where([server], server.region in ^governed_region_ids())
-    |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses())
-    |> where([server], not is_nil(server.storage_claim_size))
-    |> select([server], {server.account_id, server.storage_claim_size})
-    |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Map.new(fn {account_id, claims} -> {account_id, largest_claim(claims)} end)
-    |> Map.reject(fn {_account_id, claim} -> is_nil(claim) end)
-  end
-
-  defp largest_claim(claims) do
-    claims
-    |> Enum.flat_map(fn claim ->
-      case Regions.parse_storage_quantity(claim) do
-        {:ok, bytes} -> [{claim, bytes}]
-        :error -> []
-      end
-    end)
-    |> case do
-      [] -> nil
-      parsed -> parsed |> Enum.max_by(&elem(&1, 1)) |> elem(0)
-    end
   end
 
   defp converge_account(account, inputs, today, policy) do
@@ -189,9 +144,11 @@ defmodule Tuist.Kura.ClaimProposals do
     placer_claim = Map.get(inputs.placer_claims, account.id)
 
     current =
-      Map.get(inputs.pinned_claims, account.id) ||
-        (placer_claim && placer_claim.claim_size) ||
-        PlacerClaims.plan_claim_size(account)
+      PlacerClaims.resolve_claim_size(
+        account,
+        Map.get(inputs.pinned_claims, account.id),
+        placer_claim && placer_claim.claim_size
+      )
 
     context = %{
       plan: AccountPolicies.sizing_plan(account),

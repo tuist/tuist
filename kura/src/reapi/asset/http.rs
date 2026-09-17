@@ -349,6 +349,7 @@ impl AssetService {
                 &key,
                 "application/octet-stream",
                 StagedArtifactPath::new(&path, policy),
+                None,
             )
             .await
             .map_err(|_| Status::internal("failed to store downloaded asset"))?;

@@ -233,14 +233,14 @@ pub(super) struct ForegroundWaiter {
 pub(super) struct ResponseStreamWaiter {
     inner: Arc<MemoryControllerInner>,
     protocol: &'static str,
-    _queue: OwnedSemaphorePermit,
+    _queue: (OwnedSemaphorePermit, OwnedSemaphorePermit),
 }
 
 impl ResponseStreamWaiter {
     pub(super) fn new(
         inner: Arc<MemoryControllerInner>,
         protocol: &'static str,
-        queue: OwnedSemaphorePermit,
+        queue: (OwnedSemaphorePermit, OwnedSemaphorePermit),
     ) -> Self {
         inner.response_stream_waiters.fetch_add(1, Ordering::SeqCst);
         inner.metrics.add_response_stream_waiter(protocol);

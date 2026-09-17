@@ -794,7 +794,7 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
 
 struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     @Test(
-        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),
         .inTemporaryDirectory
     ) func xcodebuild_shard_with_local_test_products() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

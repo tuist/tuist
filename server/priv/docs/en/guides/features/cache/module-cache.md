@@ -29,6 +29,8 @@ tuist cache
 
 The command re-uses binaries to speed up the process.
 
+If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
+
 ### Configuration selection {#configuration-selection}
 
 When warming the cache without passing `--configuration`, Tuist selects the build configuration to use in the following order:

@@ -294,6 +294,13 @@ CACHE_INVENTORY_BEFORE=""
 # The post-job inventory, captured while the image is still mounted so the HEAD
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
+# SHA-256 of the settled image FILE — the bytes the upload sends, hashed after
+# the measuring re-attach has detached. The inventory digest above is a claim
+# about entry names and sizes; this is the claim about the bytes themselves,
+# verified by the object store at ingest (x-amz-checksum-sha256) and by every
+# converging host before it adopts the object as its master. Empty when hashing
+# failed, which just publishes a HEAD without a content digest (the status quo).
+CACHE_CONTENT_DIGEST=""
 # STATUS_SHARE is defined near the EXIT trap at the top of this script,
 # which reports the runner's exit code through it before this section is
 # ever reached.
@@ -429,8 +436,6 @@ attach_cache_image() {
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
   echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
-  # The CAS store is folded into this image; point the compiler at it (if enabled).
-  setup_cas_store
   return 0
 }
 
@@ -510,7 +515,7 @@ probe_cache_share() {
 
 # setup_cas_store points every xcodebuild in the job at the folded CAS store
 # inside the mounted cache image, when the host staged the cas-enabled marker.
-# Called after attach_cache_image (CACHE_MOUNT set); the store rides the one
+# Called after the attach-time prune (CACHE_MOUNT set); the store rides the one
 # image, so there is nothing to attach and nothing to detach separately — the
 # cache image's own quiesced detach + not-promotable-on-failed-detach gate cover
 # it. Absent marker / unwritable store => the compilation cache falls to the
@@ -588,6 +593,13 @@ setup_cas_store() {
   # ride. An older CLI ignores it and keeps its VM-local store, which is exactly
   # today's behaviour.
   export TUIST_COMPILATION_CACHE_CAS_PATH="${store}"
+  # On CI the CAS plugin makes every cache put wait for its upload, because the
+  # store usually goes away with the job. drain_cas_publications waits for the
+  # spools under this store at teardown, after the job has reported its result,
+  # so puts into a store inside it upload in the background. The plugin checks
+  # its own store against the path, so a job that points its compilation cache
+  # elsewhere, whose spool nothing drains, still waits.
+  export TUIST_CAS_DRAINED_STORE="${store}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
@@ -653,7 +665,7 @@ cas_spool_records() {
 # The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
 # that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
 # installs no launch agent and puts no tuist on PATH. Those jobs still write a
-# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
+# compilation cache — the compilers' own `builtin` lane, into this same volume — and
 # without a binary in the image they were exactly the jobs whose store nothing
 # could ever prune, which is the unbounded growth this path exists to stop. (The
 # drain is a legitimate no-op for them: no plugin means no spool.)
@@ -700,16 +712,16 @@ cas_proxy_client() {
 # detach, since the spool lives inside the image and the publisher needs to read
 # it.
 #
-# Skipped when the job failed: a non-zero rc never promotes (report_cache_dirty
-# and report_volume_head both gate on it), so there is no master to keep honest
-# and no reason to hold the slot.
+# It runs for a failed job too. A non-zero rc never promotes (report_cache_dirty
+# and report_volume_head both gate on it), so its verdict gates nothing there,
+# but setup_cas_store told the job's compiles not to wait for their uploads
+# because this wait would, and the next job's warm cache is made of those
+# uploads whether this one passed or not.
 #
 # Best-effort by nature, which is why it does not replace the plugin's read-side
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
 # reaching this.
 drain_cas_publications() {
-  local rc="${1:-1}"
-  [ "${rc}" = "0" ] || return 0
   [ -n "${CACHE_MOUNT}" ] || return 0
   local spools
   spools=$(cas_spool_dirs)
@@ -772,10 +784,10 @@ EOF
 }
 
 # cas_store_dirs lists the llcas STORES inside the mounted image. A store is a
-# directory holding `v1.N` generation dirs; the compiler picks the lane name
-# under COMPILATION_CACHE_CAS_PATH (`plugin` for ours, `generic` for Xcode's
-# builtin), so discover them by that shape rather than assume the set. Both need
-# bounding: the builtin lane never loads our plugin but writes to the same image.
+# directory holding `v1.N` generation dirs; Swift Build picks the lane name under
+# COMPILATION_CACHE_CAS_PATH (`plugin` for ours, otherwise `builtin` for the
+# compilers and `generic` for Swift Build itself), so discover them by that shape
+# rather than assume the set. All need bounding.
 cas_store_dirs() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
@@ -817,12 +829,11 @@ cas_store_dirs() {
 #     finishes here, so it cannot be the straggler that writes past
 #     capture_settled_inventory's measurement.
 #
-# The prune runs through the proxy binary rather than in this shell because llcas
-# rotates a store as its LAST handle closes, and the per-machine proxy holds one
-# open for its process lifetime. A prune driven from a handle of its own would
-# find the chain still live, collect nothing, and report success. `--prune` asks
-# the running proxy first for exactly that reason, and only prunes in-process for
-# a store no proxy holds (the builtin lane).
+# The prune runs through the proxy binary rather than in this shell because the
+# per-machine proxy holds its stores open, and only the holder can rotate a
+# store. `--prune` asks the running proxy first for exactly that reason, and
+# prunes a store no proxy holds itself, on its generation directories, which
+# works on a full volume.
 #
 # Best-effort: a store we could not prune costs the volume space, which
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
@@ -965,6 +976,9 @@ wait_for_cache_ready() {
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
       prune_cas_stores attach
+      # After the prune, which can be what makes room in a full image for the
+      # store to be writable.
+      setup_cas_store
       return 0
     fi
     sleep 1
@@ -1050,6 +1064,16 @@ capture_settled_inventory() {
     hdiutil detach "${CACHE_VERIFY_MOUNTPOINT}" -force -quiet 2>/dev/null || true
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 1
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache inventory digest=${CACHE_INVENTORY_AFTER}"
+  # Hash the image FILE only after the read-only attach is gone, so the digest
+  # names exactly the bytes the PUT will read. Nothing else can write between
+  # here and the upload: the job's mount is detached and the verify attach was
+  # read-only. openssl over shasum for throughput — this runs at teardown and,
+  # like the upload it protects, holds the VM slot for its duration. Best-effort:
+  # a hashing failure clears the digest and the promote proceeds unverified
+  # rather than losing the branch.
+  CACHE_CONTENT_DIGEST=$(/usr/bin/openssl dgst -sha256 -r "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}' | tr -cd 'a-f0-9')
+  [ "${#CACHE_CONTENT_DIGEST}" = "64" ] || CACHE_CONTENT_DIGEST=""
+  echo "$(date -u +%FT%TZ) dispatch-poll: settled cache image sha256=${CACHE_CONTENT_DIGEST:-unavailable}"
   return 0
 }
 
@@ -1095,13 +1119,21 @@ report_cache_dirty() {
 # this job's result. Best-effort: an absent block just means no convergence.
 stage_volume_head() {
   [ -d "${STATUS_SHARE}" ] || return 0
-  local gen digest download
+  local gen digest content_digest download
   gen=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/dispatch.json)
   digest=$(sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  # The HEAD's content digest (SHA-256 of the master object's bytes), staged for
+  # the host's convergence to verify the download against before adopting it.
+  # Absent on a HEAD promoted by a guest that predates the content hash; the
+  # host then skips the content check. (`"content_digest"` is matched literally,
+  # and the greedy `"digest"` match above cannot land inside it — that substring
+  # is preceded by an underscore, not a quote.)
+  content_digest=$(sed -n 's/.*"content_digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json | tr -cd 'a-f0-9')
+  [ "${#content_digest}" = "64" ] || content_digest=""
   download=$(sed -n 's/.*"download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
   [ -n "${download}" ] || return 0
-  printf '{"generation":%s,"digest":"%s","download_url":"%s"}' \
-    "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
+  printf '{"generation":%s,"digest":"%s","content_digest":"%s","download_url":"%s"}' \
+    "${gen:-0}" "${digest}" "${content_digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
 }
 
 # read_base_generation returns the HEAD generation this VM's branch was cloned
@@ -1219,7 +1251,7 @@ report_volume_head() {
   # stale) that can never catch up.
   unverifiable=$(read_unverifiable_head)
   node_name=$(read_node_name)
-  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
+  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"content_digest\":\"${CACHE_CONTENT_DIGEST}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
   if [ -n "${unverifiable}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: reporting HEAD ${unverifiable} as unverifiable on this host"
   fi
@@ -1253,6 +1285,12 @@ report_volume_head() {
     return 0
   fi
   upload_url=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${mint_body}" 2>/dev/null)
+  # The base64 checksum the server signed into the URL, echoed back so the PUT
+  # sends exactly the value the signature covers. Present only when the mint
+  # carried a content digest AND the storage provider signs upload headers; a
+  # server predating the field returns nothing and the PUT goes out bare.
+  local upload_checksum
+  upload_checksum=$(sed -n 's/.*"checksum_sha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${mint_body}" 2>/dev/null | tr -cd 'A-Za-z0-9+/=')
   rm -f "${mint_body}" 2>/dev/null || true
   if [ -z "${upload_url}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL (http=${mint_http:-000}); HEAD not advanced"
@@ -1274,9 +1312,21 @@ report_volume_head() {
   # the host cannot reclaim the slot until it finishes. Report the duration to the
   # host (volume-upload-ms) so we can watch how long uploads hold slots and keep
   # the volume sized so it stays fast. perl for ms precision (BSD date has no %N).
+  # When the mint signed a checksum into the URL, the PUT must carry it: the
+  # object store then hashes the received bytes and rejects a payload that does
+  # not reproduce the digest, so uploader-RAM or wire corruption fails HERE —
+  # loudly, before the HEAD bump — instead of becoming every host's master.
+  # (The guest's bash is 3.2 under `set -u`, where expanding an EMPTY array is
+  # an unbound-variable error — hence the ${arr[@]+...} guard on the expansion.)
+  local upload_checksum_args
+  upload_checksum_args=()
+  if [ -n "${upload_checksum}" ]; then
+    upload_checksum_args=(-H "x-amz-checksum-sha256: ${upload_checksum}")
+  fi
   local upload_start upload_end
   upload_start=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
+    ${upload_checksum_args[@]+"${upload_checksum_args[@]}"} \
     -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
     write_promote_result "error"
@@ -1673,18 +1723,18 @@ HOOK
       reclaim_cas_if_disabled
       # After the reclaim: a store that was just dropped has no spool left to
       # wait on, so a disabled-CAS teardown never pays for this gate.
-      if ! drain_cas_publications "${rc}"; then
+      if ! drain_cas_publications && [ "${rc}" = "0" ]; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
       #
-      # Gated on rc, like the drain and for the matching reason. A non-zero rc
-      # never promotes, so there is no image for this to shrink — and the drain
-      # was skipped too, so the spool may still owe the remote objects this
-      # would delete. Nothing inherits those associations (the branch is
-      # discarded), but "prune only what has been drained" is the invariant
+      # Gated on rc. A non-zero rc never promotes, so there is no image for this
+      # to shrink, and the drain's verdict gates nothing for a failed job, so
+      # the spool may still owe the remote objects this would delete. Nothing
+      # inherits those associations (the branch is discarded), but "prune only
+      # what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
       if [ "${rc}" = "0" ]; then

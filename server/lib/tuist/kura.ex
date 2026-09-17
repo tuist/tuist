@@ -331,9 +331,9 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The claim the account's instances are built at: its operator override when
-  it carries one, then the claim automatic sizing chose, then the claim its
-  plan gives it.
+  The claim the account's instances are built at: the largest claim its governed
+  instances are pinned at, then the claim automatic sizing chose, then the claim
+  its plan gives it.
   """
   defdelegate effective_storage_claim(account), to: PlacerClaims, as: :effective_claim_size
 
@@ -536,12 +536,12 @@ defmodule Tuist.Kura do
               proposal.status != :open ->
                 {:stale, proposal}
 
-              ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
+              PlacerClaims.effective_claim_size(account) != proposal.current_claim_size ->
                 {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
 
               true ->
-                :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
-                claim_size = PlacerClaims.effective_claim_size(account)
+                claim_size = proposal.recommended_claim_size
+                :ok = PlacerClaims.put(account, claim_size)
 
                 proposal
                 |> ClaimProposal.resolve_changeset(:applied, resolved_by)
@@ -904,9 +904,10 @@ defmodule Tuist.Kura do
   # The claim the instance's volumes are about to be created at. Resolved here,
   # at the one moment it can change, and carried on the row from then on: the
   # bare-metal regions cannot expand a claim, so an instance keeps what it was
-  # built with until the volumes are built again. A region that sizes every
-  # instance alike pins nothing and keeps rendering its own claim. See
-  # `Tuist.Kura.Server`.
+  # built with until the volumes are built again. It is the claim sizing
+  # measures the account at, so an instance added beside running ones matches
+  # them rather than the plan. A region that sizes every instance alike pins
+  # nothing and keeps rendering its own claim. See `Tuist.Kura.Server`.
   defp storage_claim(account, %Regions{} = region) do
     if Regions.storage_governed?(region) do
       %{storage_claim_size: PlacerClaims.effective_claim_size(account)}
@@ -1823,8 +1824,9 @@ defmodule Tuist.Kura do
 
   Teardown took the whole StatefulSet and its volumes with it, so this is also
   the one point in a served instance's life where its disk footprint can change:
-  the account's plan is read again and the returning instance is built at
-  whatever that plan is worth now.
+  the account's claim is resolved again, so the returning instance matches the
+  account's other instances, or takes its sized or plan claim when none of them
+  holds volumes.
   """
   def return_from_archive(server, image_tag, account \\ nil)
 
@@ -2021,10 +2023,10 @@ defmodule Tuist.Kura do
     end
   end
 
-  # The target carves its own volumes on the destination box, so it is built at
-  # the account's current claim rather than inheriting the source's. This is the
-  # path an instance whose plan changed while it was serving takes to the claim
-  # that plan is worth.
+  # The target carves its own volumes on the destination box, so its claim is
+  # resolved like any new instance's rather than copied from the source. The
+  # source still holds volumes and counts among the account's pins, so a move
+  # between boxes never builds the target below what the account runs at.
   defp insert_move_target(%Server{} = source, region, account, target_node) do
     attrs = %{
       account_id: source.account_id,

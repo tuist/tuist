@@ -269,15 +269,13 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). On: both AX42-1 are installed and
-  # Ready in the `clickhouse` pool, each with `/data` as XFS on its 2x512 GB
-  # mirror.
+  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
+  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
+  # Cloud receives nothing.
   #
-  # This is step 2 of the rollout plan, and it brings the server up empty and
-  # nothing more. The steps after it are the schema clone, then
-  # `shadowWrites.enabled`, then `migration` with the backfill in the
-  # background, then the read flag. Each is its own deploy, and each has a
-  # gate.
+  # Going back to `external` does not copy anything back: rows written since
+  # the switch exist only on the in-cluster server.
+  mode: managed
   managed:
     enabled: true
     # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
@@ -298,33 +296,10 @@ clickhouse:
         # not the pool label. The second box is joined, tainted and idle until
         # the two-replica work lands.
         nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
-    # Dual writes come before the backfill, not after it. From the moment this
-    # is on, every new row reaches both servers; the backfill then copies what
-    # was written before a stated cutoff. Doing it the other way round leaves
-    # the rows written between the copy finishing and the mirror starting on
-    # Cloud alone, with nothing later looking for them.
-    #
-    # Cloud stays the system of record. Nothing reads from the in-cluster
-    # server yet, so a mirrored write that fails costs a metric and not a
-    # request: inserts are handed to a bounded Task.Supervisor rather than
-    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
-    # cannot overtake the inserts it is meant to erase.
-    #
-    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
-    # settles with no `dropped` once the pods have started. A pod's shadow pool
-    # is not ready for the first seconds of its life, which is what the retry
-    # covers, and retrying is safe because every destination table is
-    # `Replicated*` and deduplicates identical insert blocks by checksum.
-    #
-    # Rollback: turn it off. Nothing has read from that server.
-    shadowWrites:
-      enabled: true
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does
-    # not resolve for it. It wrote the whole test family to Cloud and mirrored
-    # none of it, which parity reported as six tables holding zero rows on the
-    # destination.
+    # not resolve for it.
     #
     # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
     # created by this cluster's operator, and the wrong tag makes the operator
@@ -339,15 +314,6 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # Step 6a, the full parity gate, is disarmed. Its last run found one copied
-    # table differing from the system of record over the whole dataset:
-    # test_runs, with the same row count on both servers and a different
-    # duration sum. The repair closed every other table. Reads stay where they
-    # are until test_runs is explained.
-    migration:
-      enabled: false
-      name: parity
-      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -803,6 +769,11 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
     "27.0":
       autoscaling:
         enabled: true

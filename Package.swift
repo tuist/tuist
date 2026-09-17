@@ -156,12 +156,9 @@ var tuistHTTPDependencies: [Target.Dependency] = [
 var tuistCASDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistHTTP",
-    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
-    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
-    .product(name: "libzstd", package: "facebook.zstd"),
+    "TuistEnvironment",
+    "TuistLogging",
     mockableDependency,
-    pathDependency,
 ]
 var tuistREAPIDependencies: [Target.Dependency] = [
     "TuistLogging",
@@ -429,7 +426,6 @@ tuistServerDependencies.append(contentsOf: [
     xcodeGraphDependency,
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
-tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
 tuistConfigLoaderDependencies.append(contentsOf: [
     "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
     "ProjectDescription",
@@ -577,6 +573,7 @@ var targets: [Target] = [
     .testTarget(
         name: "RosalindTests",
         dependencies: [
+            "TuistTestSupport",
             "Rosalind",
             mockableDependency,
             .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
@@ -856,7 +853,7 @@ var targets: [Target] = [
         name: "TuistCAS",
         dependencies: tuistCASDependencies,
         path: "cli/Sources/TuistCAS",
-        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json", "AGENTS.md"],
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -999,8 +996,29 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistTestSupport",
+        dependencies: [
+            pathDependency,
+            .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
+        ],
+        path: "cli/Sources/TuistTestSupport",
+        exclude: ["AGENTS.md"],
+        linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
+    ),
+    .testTarget(
+        name: "TuistTestSupportTests",
+        dependencies: [
+            "TuistTestSupport",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistTestSupportTests"
+    ),
+    .target(
         name: "TuistTesting",
         dependencies: [
+            "TuistTestSupport",
             commandDependency,
             "TuistSupport",
             "TuistMacOSSDK",
@@ -1404,7 +1422,6 @@ targets.append(contentsOf: [
             commandDependency,
             xcodeGraphMapperDependency,
             anyCodableDependency,
-            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
             "Rosalind",
         ],
@@ -1642,6 +1659,7 @@ targets.append(contentsOf: [
             pathDependency,
             xcodeGraphDependency,
             "TuistHasher",
+            .product(name: "Crypto", package: "apple.swift-crypto"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
         ],
@@ -1905,7 +1923,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.16.0")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.1")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -1933,7 +1951,6 @@ let package = Package(
         .package(id: "apple.swift-protobuf", exact: "1.38.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
-        .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),

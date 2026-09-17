@@ -91,6 +91,9 @@ func execute(job assignment, buildsDir string) error {
 	if err != nil {
 		return err
 	}
+	if err := registerCacheAdapter(job); err != nil {
+		return err
+	}
 	provider := shell.NewProvider(command)
 	providers := executors.NewProviderRegistry(map[string]common.ExecutorProvider{"shell": provider})
 	client := network.NewGitLabClient(network.WithExecutorProviderFunc(providers.GetByName))
@@ -100,6 +103,7 @@ func execute(job assignment, buildsDir string) error {
 		RunnerSettings: common.RunnerSettings{
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
 			CacheDir: filepath.Join(buildsDir, ".gitlab-cache"),
+			Cache:    cacheConfig(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
