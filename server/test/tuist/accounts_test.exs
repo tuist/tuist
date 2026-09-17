@@ -2331,6 +2331,15 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "drops the hyphens a handle derived from the email would start or end with" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      unique = TuistTestSupport.Utilities.unique_integer()
+
+      {:ok, user} = Accounts.create_user("_edge.#{unique}_@tuist.dev", password: valid_user_password())
+
+      assert Accounts.get_account_from_user(user).name == "edge-#{unique}"
+    end
+
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)

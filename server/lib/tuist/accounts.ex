@@ -945,6 +945,7 @@ defmodule Tuist.Accounts do
          |> String.replace(".", "-")
          |> String.replace("_", "-")
          |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
