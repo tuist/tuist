@@ -8,6 +8,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PromExPlugin
@@ -174,6 +175,16 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: headroom}, %{region: @region}}
       assert headroom == pressure_line - 100
+    end
+
+    test "reports the cached reading placement acts on rather than measuring again" do
+      expect(Capacity, :admission_headroom_gib, fn %Regions{id: @region} -> 42 end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
     end
 
     test "reports zero when the region cannot be read, because admission then refuses every instance" do

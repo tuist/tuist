@@ -824,6 +824,51 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
+  describe "admission_headroom_gib/1" do
+    test "is the reading room_for?/2 places against, taken once a minute per region" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      {:ok, region} = Regions.fetch(@region)
+      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
+      memoize_key_value_store()
+
+      assert Capacity.admission_headroom_gib(region) == 85
+
+      # Two Enterprise instances are created inside the minute. Measured again,
+      # they would leave 21 GiB, too little for a third. Both readings keep the
+      # first measurement, so the metric reports what placement acted on.
+      instance(account(:enterprise), :provisioning)
+      instance(account(:enterprise), :provisioning)
+
+      assert Capacity.admission_headroom_gib(region) == 85
+      assert Capacity.room_for?(@region, :enterprise) == true
+    end
+
+    test "passes through a region admission cannot read or does not enforce" do
+      {:ok, region} = Regions.fetch(@region)
+      stub_pool([pool_box("box-1")])
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      assert Capacity.admission_headroom_gib(region) == nil
+
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+      assert Capacity.admission_headroom_gib(region) == :unbounded
+    end
+  end
+
+  # A key-value store that keeps the first value it computes per key, standing
+  # in for the minute-long cache within a single test.
+  defp memoize_key_value_store do
+    store = start_supervised!({Agent, fn -> %{} end})
+
+    stub(KeyValueStore, :get_or_update, fn key, _opts, func ->
+      case Agent.get(store, &Map.fetch(&1, key)) do
+        {:ok, value} -> value
+        :error -> tap(func.(), fn value -> Agent.update(store, &Map.put(&1, key, value)) end)
+      end
+    end)
+  end
+
   # `room_for?/2` reads each node of the pool and everything scheduled on it,
   # and admission reads the same region's Ready nodes and pods as a whole, so
   # shaping a region here means answering all four lists.
