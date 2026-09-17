@@ -327,6 +327,9 @@ public protocol GraphTraversing {
     /// as values
     func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>]
 
+    /// Propagates destinations from production consumers and additional roots with inferred effective destinations.
+    func externalTargetSupportedDestinations(including additionalRoots: Set<GraphTarget>) -> [GraphTarget: Set<Destination>]
+
     /// Given a target's project path and name, it returns its target dependencies that are external.
     /// - Parameters:
     ///   - path: Project path.

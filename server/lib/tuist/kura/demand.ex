@@ -12,7 +12,7 @@ defmodule Tuist.Kura.Demand do
 
   It is deliberately a proxy for cache traffic rather than a measure of it, and
   it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
+  `RunAtLoad`, so the CAS proxy resolves an endpoint on every login: an
   account whose agent is installed but idle keeps refreshing its clock without
   anyone building, and may never reach a full inactive window. In the other
   direction the CLI caches a resolved endpoint for an hour, so most requests
@@ -132,12 +132,22 @@ defmodule Tuist.Kura.Demand do
 
   Cache-endpoint resolution uses this to decide what to answer while no Kura
   instance is serving: a lifecycle-managed account falls back to the
-  Tuist-hosted default lane rather than to its own legacy custom endpoints,
-  because routing archived accounts at the custom-endpoint path would make
-  archival the thing that keeps that path alive.
+  Tuist-hosted default lane, or gets no endpoints for a client that is always
+  routed to Kura, rather than to its own legacy custom endpoints, because
+  routing archived accounts at the custom-endpoint path would make archival the
+  thing that keeps that path alive.
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))
+  end
+
+  @doc """
+  True when an instance of the account was reclaimed for never storing anything
+  and has not been returned since. Only cache demand recorded after that
+  archival returns it.
+  """
+  def unused_hold?(%Account{id: account_id}) do
+    Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id and l.drain_reason == :unused))
   end
 
   @doc """
@@ -289,29 +299,50 @@ defmodule Tuist.Kura.Demand do
   defp upsert_all(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    rows =
-      Enum.map(rows, fn row ->
-        row
-        |> Map.put(:id, UUIDv7.generate())
-        |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
-        |> Map.put(:inserted_at, now)
-        |> Map.put(:updated_at, now)
-      end)
+    Repo.transaction(fn ->
+      live_account_ids = lock_live_account_ids(Enum.map(rows, & &1.account_id))
 
-    {count, _} =
-      Repo.insert_all(AccountRegionLifecycle, rows,
-        conflict_target: [:account_id, :service_region],
-        on_conflict:
-          from(l in AccountRegionLifecycle,
-            update: [
-              set: [
-                last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
-                updated_at: fragment("EXCLUDED.updated_at")
+      rows =
+        rows
+        |> Enum.filter(&MapSet.member?(live_account_ids, &1.account_id))
+        |> Enum.map(fn row ->
+          row
+          |> Map.put(:id, UUIDv7.generate())
+          |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
+          |> Map.put(:inserted_at, now)
+          |> Map.put(:updated_at, now)
+        end)
+
+      {count, _} =
+        Repo.insert_all(AccountRegionLifecycle, rows,
+          conflict_target: [:account_id, :service_region],
+          on_conflict:
+            from(l in AccountRegionLifecycle,
+              update: [
+                set: [
+                  last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                  updated_at: fragment("EXCLUDED.updated_at")
+                ]
               ]
-            ]
-          )
-      )
+            )
+        )
 
-    {:ok, count}
+      count
+    end)
+  end
+
+  # An account deleted between resolving its region and this insert would fail
+  # the foreign key and crash the buffer, dropping every other account's
+  # buffered demand with it. The key-share lock holds off a concurrent delete
+  # until the insert commits; an already-deleted account is simply skipped.
+  defp lock_live_account_ids(account_ids) do
+    from(a in Account,
+      where: a.id in ^Enum.uniq(account_ids),
+      order_by: a.id,
+      select: a.id,
+      lock: "FOR KEY SHARE"
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 end

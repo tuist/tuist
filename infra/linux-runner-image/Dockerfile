@@ -123,7 +123,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.336.0
+ARG RUNNER_VERSION=2.337.0
 ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
@@ -240,11 +240,11 @@ RUN apt-get update \
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.36.1
+ARG KUBECTL_VERSION=1.37.0
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.2.0
+ARG HELM_VERSION=4.3.0
 # renovate: datasource=github-releases depName=cli/cli
-ARG GH_VERSION=2.97.0
+ARG GH_VERSION=2.100.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \

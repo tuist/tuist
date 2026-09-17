@@ -928,3 +928,89 @@ nil (mail simply degrades) rather than overriding with "".
   value: {{ . | quote }}
 {{- end }}
 {{- end -}}
+
+{{- /*
+The in-cluster ClickHouse's users configuration: the `default` profile and the
+`default` user. A named template because the StatefulSet hashes it into its
+`checksum/config` annotation as well as the Secret rendering it, and the
+Secret is mounted with `subPath`, which Kubernetes never refreshes, so a
+profile change reaches the server only through a restart.
+*/}}
+{{- define "tuist.clickhouseManagedUsersXml" -}}
+<clickhouse>
+  <profiles>
+    <default>
+      <!--
+        Three settings that only matter inside a `Replicated` database,
+        and each of which is load-bearing for the Cloud schema clone.
+
+        `allow_only_replicated_engine` is the guard. Without it a CREATE
+        that somehow reaches this database with a plain `MergeTree`
+        engine succeeds and produces a table whose data lives on one
+        replica only, which is invisible until a second replica exists
+        and disagrees. With it, that CREATE fails outright. ClickHouse
+        Cloud defaults this to 1 for the same reason.
+
+        `allow_replicated_engine_arguments = 2` accepts the explicit
+        Keeper path and replica arguments carried by DDL cloned from
+        Cloud and substitutes the server defaults instead of honouring
+        them. Cloud emits `('/clickhouse/tables/{uuid}/{shard}',
+        '{replica}', ...)`, which is the same path this server would
+        choose anyway; mode 1 would accept and honour it, and mode 0
+        would reject the clone outright.
+
+        `allow_heavy_create` permits `CREATE MATERIALIZED VIEW ...
+        POPULATE`, which 14 of the ingest migrations use. It is off by
+        default because such a statement holds the distributed DDL queue
+        for as long as the backfill runs. That is acceptable here: the
+        statements run during migration, not against live traffic.
+      -->
+      <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>
+      <database_replicated_allow_replicated_engine_arguments>2</database_replicated_allow_replicated_engine_arguments>
+      <database_replicated_allow_heavy_create>1</database_replicated_allow_heavy_create>
+
+      <!--
+        ClickHouse Cloud's settings, which the application's queries are
+        written against. Cloud runs with `compatibility = 24.12`, which
+        keeps the defaults of every setting that changed after that release,
+        so a newer server without it answers some queries differently.
+
+        The rest are what Cloud sets on top of that and the application
+        depends on. The HTTP limits apply to how the driver sends a query:
+        each parameter is a form field, and this server's defaults of 1,000
+        fields and 131,072 bytes per field reject requests Cloud serves, as
+        CLI authentication on canary did. Date parsing accepts the formats
+        Cloud accepts. Large GROUP BY and ORDER BY spill to disk at 4 GiB,
+        because `compatibility` turns off the ratio that would otherwise
+        decide it. A read the client abandoned stops running. ALTERs return
+        without waiting for their mutations, and tables and partitions up to
+        1 TB can be dropped, so migrations behave as they do on Cloud.
+      -->
+      <compatibility>24.12</compatibility>
+      <http_max_fields>1000000</http_max_fields>
+      <http_max_field_name_size>131072</http_max_field_name_size>
+      <http_max_field_value_size>13107200</http_max_field_value_size>
+      <http_max_request_header_size>0</http_max_request_header_size>
+      <date_time_input_format>best_effort</date_time_input_format>
+      <max_bytes_before_external_group_by>4294967296</max_bytes_before_external_group_by>
+      <max_bytes_before_external_sort>4294967296</max_bytes_before_external_sort>
+      <cancel_http_readonly_queries_on_client_close>1</cancel_http_readonly_queries_on_client_close>
+      <alter_sync>0</alter_sync>
+      <replication_alter_partitions_sync>0</replication_alter_partitions_sync>
+      <max_table_size_to_drop>1000000000000</max_table_size_to_drop>
+      <max_partition_size_to_drop>1000000000000</max_partition_size_to_drop>
+    </default>
+  </profiles>
+  <users>
+    <default>
+      <password>{{ .password }}</password>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <access_management>1</access_management>
+    </default>
+  </users>
+</clickhouse>
+{{- end }}

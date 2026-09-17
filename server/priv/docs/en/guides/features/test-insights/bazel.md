@@ -19,7 +19,10 @@ Run Bazel tests through Tuist to feed the same test dashboards used by every oth
 tuist bazel test -- //app:tests
 ```
 
-Arguments after `--` are forwarded to `bazel test`. Use `--path` to select the project and working directory, and `--bazel` to select a different executable such as `bazelisk`. Ordinary `bazel test` still runs your tests, but does not report individual cases to Tuist and does not enforce quarantine policies.
+Arguments after `--` are forwarded to `bazel test`. Use `--path` to select the project and working directory, and `--bazel` to select a different executable such as `bazelisk`. Ordinary `bazel test` still reports test results, but does not fetch or enforce Tuist quarantine policies.
+
+> [!NOTE]
+> The `tuist bazel test` wrapper is only required for <.localized_link href="/guides/features/test-insights/flaky-tests/bazel">quarantined tests</.localized_link>. Per-case reporting for regular test runs is set up by `tuist bazel setup` in `.bazelrc.tuist`, so a plain `bazel test` reports individual cases too.
 
 ## What is tracked {#what-is-tracked}
 

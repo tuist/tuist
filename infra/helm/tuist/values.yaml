@@ -484,6 +484,17 @@ server:
   turnstile:
     enabled: false
     secretsFrom: eso
+  # Second Turnstile-backed gate: interstitial challenge in front of public
+  # project dashboards (see #13205). Uses the same Turnstile keys as
+  # `server.turnstile`; this switch just decides whether the plug/live-hook
+  # pair enforces the check. Layered defence in depth on top of
+  # Cloudflare Super Bot Fight Mode at the edge — SBFM's
+  # `managed_challenge` still lets a chunk of definitely-automated traffic
+  # through, so browser sessions get gated at the app layer too.
+  # `Environment.public_page_challenge_required?/0` additionally requires
+  # `hosted: true`; leave that in sync per env.
+  publicPageChallenge:
+    enabled: false
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and
@@ -1316,6 +1327,14 @@ xcresultProcessor:
       # bump `replicaCount` and enable the PDB.
       maxSurge: 0
       maxUnavailable: 1
+  # Grace period sized for an in-flight xcresult parse plus the final
+  # ingestion buffer drain. `Tuist.Tests.Workers.ProcessXcresultWorker`
+  # jobs typically run 30s–3min but can stretch on outsized archives;
+  # ingestion buffers use `shutdown: :infinity` and rely on this value
+  # as their outer wall, retrying their final flush until it lands or
+  # kubelet SIGKILLs the pod. 300s covers the parse tail and gives the
+  # buffer room to survive a slow ClickHouse.
+  terminationGracePeriodSeconds: 300
 
 # macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #
@@ -2293,11 +2312,13 @@ runnersFleet:
   # expands. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
+    - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
@@ -2553,7 +2574,7 @@ buildersFleet:
   # into the runner-image guest matches the one running on the
   # host that bakes it. Renovate-tracked: bump both pins together.
   # renovate: datasource=github-releases depName=actions/runner
-  ghRunnerVersion: "2.336.0"
+  ghRunnerVersion: "2.337.0"
   # Override the auto-derived Secret name (default:
   # `<fleetName>-gh-app`). Self-hosters who manage the Secret
   # out-of-band point at their own name here. The Secret has three

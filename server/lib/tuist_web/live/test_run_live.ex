@@ -18,6 +18,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -26,6 +27,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
@@ -61,6 +63,11 @@ defmodule TuistWeb.TestRunLive do
     end
 
     slug = Projects.get_project_slug_from_id(project.id)
+
+    socket =
+      socket
+      |> assign(:coverage_enabled, FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account))
+      |> assign_coverage_summary(run)
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
@@ -154,6 +161,28 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_stress_gate(socket, run) do
     assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
+  end
+
+  attr :covered, :integer, required: true
+  attr :executable, :integer, required: true
+
+  defp coverage_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="text">
+      <div data-part="coverage-cell">
+        <.progress_bar value={@covered} max={max(@executable, 1)} />
+        <span data-part="percentage">{XcodeCoverage.percentage(@covered, @executable)}%</span>
+      </div>
+    </div>
+    """
+  end
+
+  @doc false
+  def coverage_line_ranges(ranges) do
+    Enum.map_join(ranges, ", ", fn
+      {line, line} -> Integer.to_string(line)
+      {first, last} -> "#{first}–#{last}"
+    end)
   end
 
   @doc false
@@ -323,6 +352,13 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, reload_run_state(socket)}
   end
 
+  # The account/project PubSub topic carries broadcasts from siblings (Xcode
+  # builds, command events, ...). Ignore anything unrelated to this test run
+  # rather than crashing the LiveView.
+  def handle_info(_event, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("refresh_test_run", _params, socket) do
     {:noreply, reload_run_state(socket)}
   end
@@ -436,6 +472,12 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
+  defp assign_coverage_summary(%{assigns: %{coverage_enabled: true}} = socket, run) do
+    assign(socket, :coverage_summary, XcodeCoverage.run_summary(run.project_id, run.id))
+  end
+
+  defp assign_coverage_summary(socket, _run), do: assign(socket, :coverage_summary, nil)
+
   defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
     case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
@@ -446,6 +488,7 @@ defmodule TuistWeb.TestRunLive do
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign_coverage_summary(refreshed_run)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
@@ -611,6 +654,39 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failed_test_case_runs, meta, params)
+  end
+
+  defp assign_tab_data(%{assigns: %{coverage_enabled: false}} = socket, "coverage", params) do
+    assign_tab_data(socket, "overview", params)
+  end
+
+  defp assign_tab_data(socket, "coverage", params) do
+    run = socket.assigns.run
+    page = Query.bounded_page(params["coverage-page"])
+    selected_path = params["coverage-file"]
+
+    [targets, {files, files_count}, file] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> XcodeCoverage.targets_for_run(run.project_id, run.id) end,
+        fn -> XcodeCoverage.list_files(run.project_id, run.id, page, @table_page_size) end,
+        fn -> selected_path && XcodeCoverage.file_detail(run.project_id, run.id, selected_path) end
+      ])
+
+    socket
+    |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
+    |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, &1.path)))
+    |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
+    |> assign(:coverage_file, file)
+    |> assign(
+      :coverage_file_functions,
+      if(file,
+        do: file.functions |> Enum.with_index() |> Enum.map(fn {function, index} -> Map.put(function, :id, index) end),
+        else: []
+      )
+    )
+    |> assign_selective_testing_defaults()
+    |> assign_binary_cache_defaults()
+    |> assign_param_defaults(params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do

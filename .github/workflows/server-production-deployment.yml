@@ -87,6 +87,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     # release:check only needs the git-cliff + jq installed below, but `mise run`
@@ -466,7 +467,7 @@ jobs:
           # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
           # target, which can't cross-compile. compile-args adds the cross --config on the macOS
           # x86_64 leg and is empty for the native legs.
-          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
           STAGE_DIR="$(mktemp -d)"
           cp bazel-bin/kura "$STAGE_DIR/kura"
@@ -1083,7 +1084,7 @@ jobs:
         # when you bump the first entry in
         # infra/runner-image/profiles.json, bump this too.
         env:
-          XCODE_VERSION: "26.6"
+          XCODE_VERSION: "27.0"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
@@ -2124,7 +2125,7 @@ jobs:
     name: Acceptance Tests
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     # A degraded remote cache can force a correct cold build, which must still
     # have enough time to complete before production promotion.
     timeout-minutes: 45

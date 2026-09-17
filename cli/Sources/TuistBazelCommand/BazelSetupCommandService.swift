@@ -108,6 +108,9 @@ private struct BazelrcImportEditor {
             }
         }
 
+        if let preferenceIndex = lines.firstIndex(where: hasDownloaderPreference) {
+            insertionIndex = min(insertionIndex, preferenceIndex)
+        }
         lines.insert(importLine, at: insertionIndex)
         var result = lines.joined(separator: newline)
         if !result.hasSuffix(newline) {
@@ -120,10 +123,24 @@ private struct BazelrcImportEditor {
         guard let directive = line.split(whereSeparator: \.isWhitespace).first else { return false }
         return directive == "try-import" || directive == "import"
     }
+
+    private func hasDownloaderPreference(_ line: String) -> Bool {
+        let configuration = line.split(separator: "#", maxSplits: 1).first ?? ""
+        return configuration.split(whereSeparator: \.isWhitespace).contains { token in
+            [
+                "--experimental_remote_downloader",
+                "--experimental_remote_downloader_local_fallback",
+                "--noexperimental_remote_downloader_local_fallback",
+            ].contains { option in
+                token == Substring(option) || token.hasPrefix("\(option)=")
+            }
+        }
+    }
 }
 
 private struct BazelSetupConfiguration {
-    let endpoint: GRPCEndpoint
+    /// `nil` while the account has no cache endpoint serving.
+    let endpoint: GRPCEndpoint?
     let accountHandle: String
     let projectHandle: String
     let fullHandle: String
@@ -141,7 +158,7 @@ public struct BazelSetupCommandService {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
@@ -159,6 +176,7 @@ public struct BazelSetupCommandService {
     public func run(
         directory: String?,
         buildInsights: Bool = true,
+        remoteDownloader: Bool = true,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
@@ -167,19 +185,25 @@ public struct BazelSetupCommandService {
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
-        let credentialHelperPath = try await createCredentialHelperScriptIfNeeded(
-            directoryPath: canonicalDirectoryPath,
-            bazelrcDirectoryPath: bazelrcDirectoryPath,
-            fullHandle: setupConfiguration.fullHandle
-        )
         let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
-        let bazelrcContent = BazelrcFile.render(
-            endpoint: setupConfiguration.endpoint,
-            accountHandle: setupConfiguration.accountHandle,
-            projectHandle: setupConfiguration.projectHandle,
-            credentialHelperPath: credentialHelperPath,
-            buildInsights: buildInsights
-        )
+        let bazelrcContent: String
+        if let endpoint = setupConfiguration.endpoint {
+            let credentialHelperPath = try await createCredentialHelperScriptIfNeeded(
+                directoryPath: canonicalDirectoryPath,
+                bazelrcDirectoryPath: bazelrcDirectoryPath,
+                fullHandle: setupConfiguration.fullHandle
+            )
+            bazelrcContent = BazelrcFile.render(
+                endpoint: endpoint,
+                accountHandle: setupConfiguration.accountHandle,
+                projectHandle: setupConfiguration.projectHandle,
+                credentialHelperPath: credentialHelperPath,
+                buildInsights: buildInsights,
+                remoteDownloader: remoteDownloader
+            )
+        } else {
+            bazelrcContent = BazelrcFile.renderWithoutRemoteCache()
+        }
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
 
         let bazelrcImportResult =
@@ -194,7 +218,8 @@ public struct BazelSetupCommandService {
         showSuccess(
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
-            buildInsights: buildInsights
+            buildInsights: buildInsights,
+            remoteCacheConfigured: setupConfiguration.endpoint != nil
         )
     }
 
@@ -208,7 +233,14 @@ public struct BazelSetupCommandService {
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
-        let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        guard let cacheURL = try await cacheURL(serverURL: serverURL, accountHandle: accountHandle) else {
+            return BazelSetupConfiguration(
+                endpoint: nil,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                fullHandle: fullHandle
+            )
+        }
         guard let host = cacheURL.host else {
             throw BazelSetupCommandServiceError.invalidCacheEndpoint(cacheURL.absoluteString)
         }
@@ -228,23 +260,56 @@ public struct BazelSetupCommandService {
         )
     }
 
+    /// The account's cache endpoint, or `nil` when it has none serving right now.
+    ///
+    /// Setup still succeeds then, writing a `.bazelrc.tuist` without remote settings: Bazel fails a
+    /// build whose remote cache it cannot reach, so naming no endpoint is what keeps builds running,
+    /// and it replaces a file that names one that is gone. Bazel never asks the credential helper
+    /// about a remote it was not given, so nothing picks the endpoint up until setup runs again.
+    private func cacheURL(serverURL: URL, accountHandle: String) async throws -> URL? {
+        do {
+            return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        } catch let error as CacheURLStoreError where error.isTransientAbsence {
+            let rerun: TerminalText = "Run \(.command("tuist bazel setup")) again in a few minutes to enable them."
+            let warning: WarningAlert = switch error {
+            case .endpointBeingPrepared:
+                .alert(
+                    "The remote cache is still being prepared.",
+                    takeaway: "Bazel builds run without the Tuist remote cache and build insights until it is ready. \(rerun)"
+                )
+            case .noReachableEndpoints:
+                .alert(
+                    "The remote cache is temporarily unavailable.",
+                    takeaway: "Bazel builds run without the Tuist remote cache and build insights. \(rerun)"
+                )
+            case .noEndpointsAvailable, .invalidURL:
+                .alert(
+                    "No remote cache endpoint is available.",
+                    takeaway: "Bazel builds run without the Tuist remote cache and build insights."
+                )
+            }
+            AlertController.current.warning(warning)
+            return nil
+        }
+    }
+
     private func showSuccess(
         bazelrcPath: AbsolutePath,
         bazelrcImportResult: BazelrcImportResult,
-        buildInsights: Bool
+        buildInsights: Bool,
+        remoteCacheConfigured: Bool
     ) {
-        AlertController.current.success(
-            .alert(
-                "Generated \(bazelrcPath.pathString)",
-                takeaways: [
-                    bazelrcImportTakeaway(
-                        result: bazelrcImportResult,
-                        buildInsights: buildInsights
-                    ),
-                    "Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")",
-                ]
-            )
-        )
+        var takeaways = [
+            bazelrcImportTakeaway(
+                result: bazelrcImportResult,
+                buildInsights: buildInsights
+            ),
+        ]
+        if remoteCacheConfigured {
+            takeaways
+                .append("Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")")
+        }
+        AlertController.current.success(.alert("Generated \(bazelrcPath.pathString)", takeaways: takeaways))
     }
 
     private func bazelrcImportTakeaway(

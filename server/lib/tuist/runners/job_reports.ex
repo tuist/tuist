@@ -12,6 +12,14 @@ defmodule Tuist.Runners.JobReports do
 
   @archive_delay_seconds 300
 
+  @doc "Whether a job has not completed yet."
+  def running?(workflow_job_id) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      %WorkflowJob{completed_at: %DateTime{}} -> false
+      _ -> true
+    end
+  end
+
   @doc """
   Whether a job is still accepting log lines.
 

@@ -45,6 +45,7 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:

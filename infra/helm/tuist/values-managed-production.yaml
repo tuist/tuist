@@ -73,6 +73,15 @@ server:
   turnstile:
     enabled: true
 
+  # Interstitial Turnstile challenge in front of public project dashboards.
+  # Defence in depth on top of Cloudflare Super Bot Fight Mode at the edge
+  # (bot-management.yaml sets `sbfm_definitely_automated: managed_challenge`);
+  # SBFM still lets a real chunk of automated traffic through, so browser
+  # sessions get gated at the app layer too before they can touch the
+  # ClickHouse-backed dashboards. See PR #13205.
+  publicPageChallenge:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 
@@ -131,6 +140,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -832,10 +846,12 @@ kuraFleet:
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -843,11 +859,11 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
@@ -887,7 +903,7 @@ vultrFleets:
   # region out of service without touching the box.
   us-central:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
@@ -988,7 +1004,11 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    replicas: 2
+    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
+    # an admission line of 1303 (85% of allocatable), so Admission refused every
+    # storage claim growth here — and a claim is account-scoped, so that refusal
+    # also blocked the regions the same accounts run in that did have room.
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1005,7 +1025,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1077,11 +1097,13 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Six boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
-    # chart's 1 vCPU / 4 GB slot size, so 192 in total. Slots and threads are 1:1
+    # Ten boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 320 in total. Slots and threads are 1:1
     # on this shape, so there is no oversubscription headroom to absorb a burst;
-    # capacity grows by box count rather than by packing slots tighter.
-    replicas: 6
+    # capacity grows by box count rather than by packing slots tighter. A box
+    # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
+    # concurrent 16 vCPU jobs.
+    replicas: 10
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -1549,10 +1571,12 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1573,6 +1597,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 14
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1718,7 +1747,22 @@ runnersFleetLinux:
     # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
     # shape), so memory reservation is what runs out on this fleet while
     # CPU does not. This rung is bought for memory and priced for it.
-    - { vcpus: 16, memoryGb: 64 }
+    #
+    # Warm floor 1, unlike every other long-tail shape. This Pod needs a
+    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
+    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # to be manufactured by draining a host. The drain cannot converge
+    # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
+    # queues behind run a p50 of 28m, so the reservation expires and the
+    # node then rests for `reservationCooldown`. Production 2026-09-11
+    # spent 36 minutes queued that way with the fleet at 88% committed
+    # and the account 96 GB under its own limit. Holding one Pod costs
+    # the same 66.5 GiB continuously and removes both the cold start and
+    # the drain, against ~4 jobs/day at a 46-minute median.
+    - vcpus: 16
+      memoryGb: 64
+      autoscaling:
+        minWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

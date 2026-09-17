@@ -171,6 +171,19 @@
                 .called(0)
         }
 
+        @Test(.inTemporaryDirectory) func run_fails_listing_the_targets_that_failed_to_upload() async throws {
+            let failure = CacheUploadFailure(
+                item: CacheStorableItem(name: "Fixtures", hash: "fixtures-hash"),
+                reason: "request timed out"
+            )
+
+            let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+                try await run(noUpload: false, storeError: CacheUploadError(failures: [failure]))
+            }
+
+            #expect(error?.errorDescription?.contains("  - Fixtures (fixtures-hash): request timed out") == true)
+        }
+
         @Test(.inTemporaryDirectory) func run_passesRequestedConfigurationToContentHasher() async throws {
             try await run(noUpload: false, configuration: "Release")
         }
@@ -383,7 +396,8 @@
             configuration: String? = nil,
             scratchDirectory: AbsolutePath? = nil,
             schemes: [Scheme] = [],
-            foreignBuild: ForeignBuild? = nil
+            foreignBuild: ForeignBuild? = nil,
+            storeError: Error? = nil
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
@@ -448,9 +462,15 @@
                     options: .value(config.project.generatedProject?.generationOptions)
                 )
                 .willReturn((temporaryDirectory, graph, MapperEnvironment()))
-            given(cacheStorage)
-                .store(.any, cacheCategory: .value(.binaries))
-                .willReturn([])
+            if let storeError {
+                given(cacheStorage)
+                    .store(.any, cacheCategory: .value(.binaries))
+                    .willThrow(storeError)
+            } else {
+                given(cacheStorage)
+                    .store(.any, cacheCategory: .value(.binaries))
+                    .willReturn([])
+            }
             given(localCacheStorage)
                 .store(.any, cacheCategory: .value(.binaries))
                 .willReturn([])

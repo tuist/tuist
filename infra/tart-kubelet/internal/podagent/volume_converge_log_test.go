@@ -1,6 +1,9 @@
 package podagent
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -139,6 +142,87 @@ func TestConvergeMasterReportsAHeadItCannotVerify(t *testing.T) {
 				t.Fatalf("staged the wrong digest: %q", staged)
 			case !tc.wantStaged && err == nil:
 				t.Fatalf("staged %q from a local measurement failure", staged)
+			}
+		})
+	}
+}
+
+// The content digest is the end-to-end byte check: the promoting guest hashed
+// the settled image file, so a downloaded object that does not reproduce that
+// hash — a bit flipped in the store, on the wire, or in RAM — must not become
+// this host's master, and the disproof is staged for the guest to report just
+// like an inventory mismatch. The inventory digest cannot catch this class:
+// it hashes entry names and sizes, not file contents.
+func TestConvergeMasterVerifiesTheContentDigest(t *testing.T) {
+	served := []byte("the-bytes-the-promoting-guest-hashed")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(served)
+	}))
+	defer srv.Close()
+
+	// What the fake backend measures as the inventory digest (sha1 of the
+	// bytes), and the real content hash of the bytes as served.
+	inventory := sha1.Sum(served)
+	content := sha256.Sum256(served)
+	treeDigest := hex.EncodeToString(inventory[:])
+
+	for _, tc := range []struct {
+		name          string
+		contentDigest string
+		wantAdopted   bool
+		wantStaged    bool
+	}{
+		{
+			// Bit-for-bit match, and the inventory agrees: adopt.
+			name:          "content digest matches",
+			contentDigest: hex.EncodeToString(content[:]),
+			wantAdopted:   true,
+		},
+		{
+			// The object does not reproduce the digest the HEAD advertises —
+			// proof about the object, so it is staged for retirement under the
+			// HEAD's TREE digest (the identity the server retires by).
+			name:          "content digest does not match",
+			contentDigest: strings.Repeat("0", 64),
+			wantStaged:    true,
+		},
+		{
+			// A HEAD promoted by a guest that predates the content hash: the
+			// check is skipped and the inventory check still decides — which
+			// passes here, so the master is adopted (the status quo).
+			name:        "no content digest on the HEAD",
+			wantAdopted: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := newTestManager(t, 100)
+			statusDir := t.TempDir()
+			stageHead(t, statusDir, volumeHead{
+				Generation:    4,
+				Digest:        treeDigest,
+				ContentDigest: tc.contentDigest,
+				DownloadURL:   srv.URL,
+			})
+			r := &Reconciler{
+				Volumes:                  m,
+				ConvergeHeadWaitInterval: time.Millisecond,
+				ConvergeHeadWaitAttempts: 2,
+			}
+
+			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+
+			if masterExists(m, "42") != tc.wantAdopted {
+				t.Fatalf("master adopted = %v, want %v", masterExists(m, "42"), tc.wantAdopted)
+			}
+
+			staged, err := os.ReadFile(filepath.Join(statusDir, unverifiableHeadFile))
+			switch {
+			case tc.wantStaged && err != nil:
+				t.Fatalf("no unverifiable-HEAD report staged for the guest: %v", err)
+			case tc.wantStaged && string(staged) != treeDigest:
+				t.Fatalf("staged %q, want the HEAD's tree digest %q", staged, treeDigest)
+			case !tc.wantStaged && err == nil:
+				t.Fatalf("staged %q from a verifiable HEAD", staged)
 			}
 		})
 	}

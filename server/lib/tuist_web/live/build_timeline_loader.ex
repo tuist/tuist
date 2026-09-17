@@ -29,6 +29,20 @@ defmodule TuistWeb.BuildTimelineLoader do
     end
   end
 
+  def select_tab(socket, tab, build) do
+    available = available?(build)
+    processing = match?(%Builds.Build{status: "processing"}, build)
+    tab = if tab == "timeline" and not available and not processing, do: "overview", else: tab
+    socket |> assign(:timeline_available, available) |> assign(:selected_tab, tab)
+  end
+
+  def available?(%Builds.Build{} = build) do
+    Enum.any?(build.machine_metrics, &is_number(&1.offset_ms)) or Builds.Steps.available?(build)
+  end
+
+  def available?(%Gradle.Build{} = build), do: Gradle.Timeline.available?(build)
+  def available?(%Bazel.Invocation{} = invocation), do: Bazel.Timeline.available?(invocation)
+
   def bootstrap(%Builds.Build{} = build) do
     metrics =
       Enum.map(

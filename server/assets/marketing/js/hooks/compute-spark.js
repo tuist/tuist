@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Compute illustration — the "ignition" animation, looped:
  *   1. pulse    — a purple line travels the lead line from the left into the
@@ -79,7 +80,9 @@ export const ComputeSpark = {
 
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Full-scene canvas cleared every frame at 60fps; DPR 2 instead of 3
+      // more than halves the pixels touched per frame on phones.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.h = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.w * dpr;
@@ -111,10 +114,21 @@ export const ComputeSpark = {
       }
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.phaseStart = null;
+      this.nextFlowAt = null;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();

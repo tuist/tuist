@@ -1,4 +1,5 @@
 mod admission;
+mod asset;
 pub(crate) mod bep;
 pub(crate) mod chunking;
 mod protobuf_shape;

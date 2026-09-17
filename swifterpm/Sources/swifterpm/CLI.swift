@@ -622,6 +622,7 @@ enum CLIRunner {
             try await PackageResolver.pruneStalePinsIfNeeded(
                 packageDir: package,
                 scratchDir: scratch,
+                cacheRoot: cacheRoot,
                 disableSandbox: cli.disableSandbox
             )
         }

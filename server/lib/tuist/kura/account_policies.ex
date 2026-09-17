@@ -117,6 +117,24 @@ defmodule Tuist.Kura.AccountPolicies do
   end
 
   @doc """
+  `resolve/1`, placing an account its own traffic has not located yet nearest
+  `origin_hint` rather than in the default region.
+
+  The project-creation seed's question
+  (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`): the account has no
+  counted traffic, but the request that created its project was located. The
+  hint only orders the regions first placement chooses among. Any counted
+  origin outranks it, and it is not evidence: it records no spill and counts no
+  unmet preference, so the fast first-placement correction stays open for an
+  account whose builds run somewhere else. The seed records the region it
+  chose as a guess (`PlacerRegion.guess?/1`), so the resolutions that follow
+  without the hint land there too.
+  """
+  def resolve_with_origin_hint(%Account{} = account, origin_hint) do
+    resolve(account, %{default_lookups() | origin_hint: fn _account -> origin_hint end})
+  end
+
+  @doc """
   Whether the account resolves to a service region at all.
 
   The request path's question: an endpoint answer for an account with no
@@ -139,6 +157,7 @@ defmodule Tuist.Kura.AccountPolicies do
       live_region: &current_live_service_region/1,
       placer_region: &PlacerRegions.primary_region/1,
       origin: &majority_origin/1,
+      origin_hint: fn _account -> nil end,
       room: &Capacity.room_for?/2
     }
   end
@@ -165,6 +184,7 @@ defmodule Tuist.Kura.AccountPolicies do
          live_region: fn _account -> Map.get(live_regions, id) end,
          placer_region: fn _account -> Map.get(placer_regions, id) end,
          origin: fn _account -> Map.get(origins, id) end,
+         origin_hint: fn _account -> nil end,
          room: &Capacity.room_for?/2
        })}
     end)
@@ -419,7 +439,10 @@ defmodule Tuist.Kura.AccountPolicies do
   # account has no instance yet, which is the only time this runs.
   defp from_origin(account, plan, placeable, lookups) do
     origin = lookups.origin.(account)
-    preferred = OriginMap.preferred(origin, placeable)
+    # A hint orders the choice like an origin but is not evidence, so the unmet
+    # preference and the spill below stay keyed on `origin` alone.
+    ordering = origin || lookups.origin_hint.(account)
+    preferred = OriginMap.preferred(ordering, placeable)
 
     # Only an account we can locate can be served further away than it should
     # be. An unattributed one expresses no preference, so there is nothing here
@@ -430,7 +453,7 @@ defmodule Tuist.Kura.AccountPolicies do
       if preferred != wanted, do: Telemetry.placement_preference_unmet(origin, wanted, preferred)
     end
 
-    case OriginMap.preferred(origin, with_room(placeable, account, lookups)) do
+    case OriginMap.preferred(ordering, with_room(placeable, account, lookups)) do
       nil -> preferred
       ^preferred -> preferred
       spilled -> spill(account, plan, origin, placeable, preferred, spilled)

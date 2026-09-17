@@ -28,6 +28,31 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
     end
   end
 
+  describe "handle_event/1 for invoice.finalized" do
+    defp invoice_event(type, invoice_id) do
+      %Stripe.Event{type: type, data: %{object: %Stripe.Invoice{id: invoice_id}}}
+    end
+
+    # A renewal carrying standing prepaid minutes is finalized about an hour
+    # after the period opens, however late it is later paid.
+    test "enqueues the grant when an invoice is finalized" do
+      invoice_id = "in_#{System.unique_integer([:positive])}"
+
+      assert :ok = BillingController.handle_event(invoice_event("invoice.finalized", invoice_id))
+
+      assert_enqueued(worker: CreateRunnerPrepaidGrantWorker, args: %{invoice_id: invoice_id})
+    end
+
+    test "does not enqueue a second grant when the finalized invoice is paid" do
+      invoice_id = "in_#{System.unique_integer([:positive])}"
+
+      assert :ok = BillingController.handle_event(invoice_event("invoice.finalized", invoice_id))
+      assert :ok = BillingController.handle_event(invoice_event("invoice.paid", invoice_id))
+
+      assert [_one] = all_enqueued(worker: CreateRunnerPrepaidGrantWorker)
+    end
+  end
+
   describe "handle_event/1 for invoice.paid" do
     defp invoice_paid do
       %Stripe.Event{

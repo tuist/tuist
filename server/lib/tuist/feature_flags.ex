@@ -25,6 +25,19 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether Xcode code coverage is ingested, processed and shown for the given
+  account. Canary and production require an explicit `:xcode_coverage`
+  FunWithFlags toggle for the account while the feature is in early access, so
+  its data model and API can still change. Development, test, and staging
+  default to enabled.
+  """
+  def xcode_coverage_enabled?(nil), do: false
+
+  def xcode_coverage_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+  end
+
+  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited
@@ -55,34 +68,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's Kura nodes replicate by pulling from their peers
-  instead of pushing through the outbox (kura/docs/replication-design.md
-  §5.2). Per account so one mesh can be flipped and watched before the rest:
-  the provisioner renders it into every managed instance's spec and the mesh
-  view publishes it, so managed pods and enrolled self-hosted nodes flip
-  together. Off by default; enabled per actor via /ops/flags.
+  Whether anonymous entry to a public-project or public-account
+  dashboard has to solve a Cloudflare Turnstile challenge before the
+  LiveView mounts. Shape mirrors `turnstile_enabled?`: the env-var
+  toggle `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` decides where the gate
+  is armed at all, and `:public_page_challenge_kill_switch` is a
+  flag-flippable emergency off with no deploy required. Off by default
+  everywhere so a rollout is one env-var change per environment.
   """
-  def kura_replication_pull_enabled?(account) do
-    FunWithFlags.enabled?(:kura_replication_pull, for: account)
-  end
-
-  @doc """
-  Whether the marketing site should render the redesigned version instead of
-  the legacy one. The whole redesign launches behind a single boolean flag
-  (`:new_marketing`) that is flipped for everyone at once — marketing traffic
-  is mostly anonymous. The redesign can be previewed before the flip by
-  enabling the flag for a specific user (actor gate), which is what the
-  optional `user` serves. Callers should go through
-  `TuistWeb.Marketing.Design` rather than checking this flag directly.
-  """
-  def new_marketing_enabled?(user \\ nil)
-
-  def new_marketing_enabled?(nil) do
-    FunWithFlags.enabled?(:new_marketing)
-  end
-
-  def new_marketing_enabled?(user) do
-    FunWithFlags.enabled?(:new_marketing, for: user)
+  def public_page_challenge_enabled? do
+    Environment.public_page_challenge_required?() and
+      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

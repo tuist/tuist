@@ -13,6 +13,7 @@ defmodule Tuist do
       # -----
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
+      Marketing.BazelShowcase,
       Marketing.Blog,
       Marketing.Blog.CoverArtwork,
       Marketing.Content,
@@ -120,6 +121,7 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
+      Tests.XcodeCoverage,
       Tests.TestRunStressCandidate,
       Shards,
       Shards.Analytics,
@@ -162,6 +164,7 @@ defmodule Tuist do
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
       VCS.GitHubAppInstallation,
+      VCS.RemoteURL,
       Alerts,
       Alerts.Alert,
       Alerts.AlertRule,
@@ -198,6 +201,7 @@ defmodule Tuist do
       ClickHouseFlop,
       ClickHouseTimeSeries,
       Telemetry.QueryErrorContext,
+      Repo.PromExPlugin,
       OpsClickHouseRepo,
       Markdown,
       Cldr,
@@ -213,6 +217,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
+      OAuth.Google,
       OAuth.Introspection,
       OAuth2.SSOClient,
       OAuth2.SSRFGuard,
@@ -244,6 +249,7 @@ defmodule Tuist do
       Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
       Runners.GitLab,
+      Runners.GitLab.Cache,
       Runners.GitLab.Connection,
       Runners.GitLab.Job,
       Runners.GitLab.LogParser,

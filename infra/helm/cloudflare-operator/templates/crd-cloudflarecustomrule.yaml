@@ -41,13 +41,32 @@ spec:
                   message: "either spec.adopt.ruleId or spec.createNewRule=true must be set"
                 - rule: "!has(oldSelf.adopt) || (has(self.adopt) && self.adopt.ruleId == oldSelf.adopt.ruleId)"
                   message: "spec.adopt is immutable once set"
+                - rule: "self.action != 'skip' || (has(self.actionParameters) && has(self.actionParameters.phases) && size(self.actionParameters.phases) > 0)"
+                  message: "spec.actionParameters.phases is required when spec.action is 'skip'"
+                - rule: "self.action == 'skip' || !has(self.actionParameters)"
+                  message: "spec.actionParameters is only allowed when spec.action is 'skip'"
               properties:
                 zoneId: {type: string}
                 description: {type: string}
                 expression: {type: string}
                 action:
                   type: string
-                  enum: [block, managed_challenge, js_challenge, log]
+                  # `skip` is a Cloudflare Custom-Rule action that bypasses one
+                  # or more downstream phases for the matched request. Phases
+                  # to skip are declared in spec.actionParameters.phases; see
+                  # https://developers.cloudflare.com/waf/custom-rules/skip/.
+                  enum: [block, managed_challenge, js_challenge, log, skip]
+                actionParameters:
+                  type: object
+                  properties:
+                    # Cloudflare phases the skip action should bypass, e.g.
+                    # `http_request_sbfm` to exempt matched paths from Super
+                    # Bot Fight Mode. Order does not matter to Cloudflare.
+                    phases:
+                      type: array
+                      items:
+                        type: string
+                      minItems: 1
                 enabled: {type: boolean, default: true}
                 mode:
                   type: string

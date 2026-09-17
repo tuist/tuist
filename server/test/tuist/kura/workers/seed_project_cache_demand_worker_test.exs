@@ -6,12 +6,15 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.PlacerRegion
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Kura.Telemetry
   alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
@@ -122,6 +125,19 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert %{} = Demand.get(account.id, region)
     end
 
+    test "provisions in the region nearest where the project was created" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "FR"})
+
+      assert %{service_region: "eu-west"} = Demand.get(account.id, "eu-west")
+      assert Demand.get(account.id, @region) == nil
+
+      assert :ok = Lifecycle.reconcile()
+      assert [%Server{status: :provisioning, region: "eu-west"}] = servers_for(account)
+    end
+
     test "does nothing for an account that already has a live instance" do
       account = account()
       {:ok, _} = Demand.upsert(account.id, @region, ago(30))
@@ -150,7 +166,12 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
   end
 
   describe "capacity" do
-    test "declines to seed into a region over its pressure line, and records the refusal" do
+    setup do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      :ok
+    end
+
+    test "declines to seed into a region under capacity pressure, and records the refusal" do
       stub_region_nodes([{@region, [@node_allocatable_bytes]}])
       stub_region_pods(List.duplicate(reserved_pod(50), 100))
 
@@ -176,7 +197,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert Demand.get(account.id, @region) == nil
     end
 
-    test "seeds while the region is under its pressure line" do
+    test "seeds while the region has room for a new instance of any plan" do
       stub_region_nodes([{@region, [@node_allocatable_bytes]}])
       stub_region_pods([reserved_pod(50)])
 
@@ -186,19 +207,27 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
 
       assert %{} = Demand.get(account.id, @region)
     end
+
+    test "records no placement when it declines a hinted seed" do
+      stub_region_nodes([{@region, [@node_allocatable_bytes]}])
+      stub_region_pods(List.duplicate(reserved_pod(50), 100))
+
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "US-VA"})
+
+      assert Demand.get(account.id, @region) == nil
+      assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+    end
   end
 
   describe "what the seeded instance must not trigger" do
-    test "is not archived while it is younger than a full inactive window" do
+    test "is not archived for inactivity while it is younger than a full inactive window" do
       account = account()
       assert :ok = seed(account)
       assert :ok = Lifecycle.reconcile()
 
       [server] = servers_for(account)
-      # Well past any probation-length window, and past the demand-tracking
-      # grace period, but nowhere near the inactive window the identity rule
-      # measures. An instance seeded here has moved no bytes by construction,
-      # so a rule keyed on that would take it here.
       age_to(server, Demand.get(account.id, @region), 20)
 
       assert :ok = Lifecycle.sweep()
@@ -219,6 +248,42 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert [%Server{status: :drain_pending}] = servers_for(account)
     end
 
+    test "is not seeded again once it was archived for going unused" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      handler = attach_seed_declined_handler()
+
+      account = account()
+      assert :ok = seed(account)
+      assert :ok = Lifecycle.reconcile()
+
+      [server] = servers_for(account)
+      age_to(server, Demand.get(account.id, @region), 8)
+
+      for days <- 0..8 do
+        Repo.insert!(%StorageRollup{
+          account_id: account.id,
+          region: @region,
+          date: Date.add(Date.utc_today(), -days),
+          snapshot_count: 96,
+          max_occupancy_percent: 0,
+          max_live_segment_bytes: 0
+        })
+      end
+
+      assert :ok = Lifecycle.sweep()
+      assert [%Server{status: :drain_pending}] = servers_for(account)
+
+      archive_drained(account)
+      assert [%Server{status: :archived}] = servers_for(account)
+
+      assert :ok = seed(account)
+      assert :ok = Lifecycle.reconcile()
+
+      assert [%Server{status: :archived}] = servers_for(account)
+      assert_received {^handler, %{count: 1}, %{reason: "unused", region: @region}}
+    end
+
     test "leaves placement undecided so the first-placement guess stays correctable" do
       account = account()
 
@@ -226,6 +291,18 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert :ok = Lifecycle.reconcile()
 
       assert Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id)) == []
+    end
+
+    test "records a hinted seed as a guess, so the first-placement correction stays open" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      account = account()
+
+      assert :ok = perform_job(SeedProjectCacheDemandWorker, %{"account_id" => account.id, "origin" => "FR"})
+
+      assert [%PlacerRegion{role: :primary, region: "eu-west"} = placer_region] =
+               Repo.all(from(p in PlacerRegion, where: p.account_id == ^account.id))
+
+      assert PlacerRegion.guess?(placer_region)
     end
   end
 
@@ -236,6 +313,25 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
 
     lifecycle
     |> Ecto.Changeset.change(%{inserted_at: ago(days), updated_at: ago(days), last_cache_demand_at: ago(days)})
+    |> Repo.update!()
+  end
+
+  defp archive_drained(account) do
+    drain_started_at =
+      DateTime.utc_now()
+      |> DateTime.add(-Kura.drain_seconds() - 60, :second)
+      |> DateTime.truncate(:second)
+
+    account.id
+    |> Demand.get(@region)
+    |> Ecto.Changeset.change(%{drain_started_at: drain_started_at})
+    |> Repo.update!()
+
+    assert :ok = Lifecycle.reconcile()
+
+    account.id
+    |> Demand.get(@region)
+    |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
     |> Repo.update!()
   end
 

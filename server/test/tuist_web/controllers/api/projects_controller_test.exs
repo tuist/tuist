@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -43,6 +44,29 @@ defmodule TuistWeb.API.ProjectsControllerTest do
              }
 
       assert response["token"] == ""
+    end
+
+    test "seeds the account's cache from where the project was created", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("x-forwarded-for", "203.0.113.10, 173.245.48.10")
+        |> put_req_header("cf-ipcountry", "FR")
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", full_handle: "#{user.account.name}/my-project")
+
+      # Then
+      assert json_response(conn, :ok)
+
+      assert_enqueued(
+        worker: SeedProjectCacheDemandWorker,
+        args: %{"account_id" => user.account.id, "origin" => "FR"}
+      )
     end
 
     test "returns newly created personal project using just project_name", %{

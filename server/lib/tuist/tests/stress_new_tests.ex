@@ -20,7 +20,6 @@ defmodule Tuist.Tests.StressNewTests do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseBranchPresence
@@ -295,7 +294,7 @@ defmodule Tuist.Tests.StressNewTests do
       end)
 
     if rows != [] do
-      IngestRepo.insert_all(TestRunStressCandidate, rows)
+      TestRunStressCandidate.Buffer.insert_all(rows)
     end
 
     :ok

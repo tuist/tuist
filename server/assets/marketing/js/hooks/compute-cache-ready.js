@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * "Cache-ready by default" scene animation, looped rounds:
  *   1. charge  — 1-3 random tiles light purple in persistent volume A
@@ -142,10 +143,21 @@ export const ComputeCacheReady = {
       }
       this.advance(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.phaseStart = null;
+      this.nextAmbientAt = null;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();

@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Compute hero background — the blueprint mosaic: a gap-free tiling of
  * 40/80/120/160px squares on a 40px lattice, each square carrying a 10px
@@ -148,7 +149,16 @@ export const ComputeHeroGrid = {
       this.update(now);
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.lastTick = -1;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   // A dot's position along the wave's axis, 0..1 from the bottom-left
@@ -180,6 +190,7 @@ export const ComputeHeroGrid = {
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();

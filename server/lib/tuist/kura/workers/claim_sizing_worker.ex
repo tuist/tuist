@@ -16,10 +16,14 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     ]
 
   alias Tuist.Kura
+  alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.ClaimSizing
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageTelemetry
+  alias Tuist.Kura.Telemetry
+
+  require Logger
 
   # A rate, not a per-pass count, so cadence changes cannot multiply it.
   @max_automatic_applies_per_hour 5
@@ -31,18 +35,11 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   # enough to survive the worker itself being down for a day.
   @ingest_lookback_days 2
 
-  # Past the longest policy window no rollup can change a verdict, so there is
-  # nothing to gain from recomputing one. Derived from the policy rather than
+  # No rollup older than the days a verdict reads can change it, so there is
+  # nothing to gain from recomputing one. Asked of the policy rather than
   # restated here, so shortening a window cannot leave this scanning a range
   # nothing reads, nor lengthening one leave it too narrow to feed a verdict.
-  defp refresh_horizon_days do
-    policy = ClaimSizing.default_policy()
-
-    policy.grow_windows
-    |> Enum.map(& &1.window_days)
-    |> Enum.max()
-    |> max(policy.shrink_window_days)
-  end
+  defp refresh_horizon_days, do: ClaimSizing.lookback_days()
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -78,9 +75,38 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
       budget when budget > 0 ->
         budget
         |> ClaimProposals.open_proposals()
-        |> Enum.each(&Kura.apply_claim_proposal(&1, "automatic"))
+        |> Enum.each(&apply_proposal/1)
 
       _exhausted ->
+        :ok
+    end
+  end
+
+  # A refusal is the only signal that sizing has stopped moving: the proposal
+  # stays open and every later pass retries it, so a dropped error reads exactly
+  # like an account nothing has proposed for. A capacity refusal names the region
+  # that refused, which is not necessarily the proposal's.
+  defp apply_proposal(%ClaimProposal{} = proposal) do
+    case Kura.apply_claim_proposal(proposal, "automatic") do
+      {:ok, _outcome} ->
+        :ok
+
+      {:error, {region, reason}} ->
+        Telemetry.claim_apply_refused(region, reason)
+
+        Logger.warning(
+          "[Kura.ClaimSizing] #{region} refused #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size}: #{inspect(reason)}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.ClaimSizing] could not apply #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size}: #{inspect(reason)}"
+        )
+
         :ok
     end
   end

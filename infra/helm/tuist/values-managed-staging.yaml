@@ -82,6 +82,12 @@ server:
   turnstile:
     enabled: true
 
+  # Mirrors production so staging exercises the public-dashboard challenge
+  # in the earliest cascade rung. See values-managed-production.yaml and
+  # PR #13205 for context.
+  publicPageChallenge:
+    enabled: true
+
   replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
@@ -143,6 +149,8 @@ server:
       # backfilled demand, which is not a concern here.
       value: "1"
     - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_UNUSED_DAYS
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
@@ -234,6 +242,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEIyLlKoN51ecz7e39epNp"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -730,7 +743,9 @@ ovhFleets:
 # BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
 # cluster. Staging only; the rack itself does not exist yet.
 #
-# At 1 since 2026-09-09, when the box first joined as a Node.
+# At 1 from 2026-09-09, when the box first joined as a Node. At 0 since
+# 2026-09-16: ber1-proto-01 stopped answering SSH, was quarantined after eight
+# bootstrap failures, and its unavailable Machine timed out every staging deploy.
 #
 # The count is load-bearing beyond capacity. A Machine with nowhere to land sits
 # on NoAvailableHost forever, leaving the MachineDeployment below spec, and a
@@ -763,10 +778,11 @@ rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
-  # replicas intentionally omitted, exactly as the rack will omit it: it
-  # defaults to the declared host count, so inventory is the fleet and adding a
-  # host scales it. Pinning it here would have been a prototype-ism with no
-  # cause, since the default is already 1.
+  # The rack omits replicas: it defaults to the declared host count, so
+  # inventory is the fleet and adding a host scales it. This pin keeps the
+  # prototype declared while it is offline; remove it, and clear the host's
+  # status.quarantined, once the box answers SSH again.
+  replicas: 0
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
@@ -990,10 +1006,12 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1014,6 +1032,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

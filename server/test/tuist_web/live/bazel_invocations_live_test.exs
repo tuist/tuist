@@ -42,7 +42,76 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
-  test "timeline shows retained coverage and downloads metadata separately from the shared hook", %{
+  test "empty invocations hide Timeline and direct links open Overview until a profile is published", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    attributes =
+      project
+      |> invocation_attributes("no-timeline", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+      |> Map.reject(fn {key, _} -> String.starts_with?(Atom.to_string(key), "build_timeline_") end)
+
+    Bazel.create_invocations([attributes])
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/no-timeline"
+
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    assert has_element?(lv, "[data-part=tabs] a[data-selected]", "Overview")
+
+    assert :ok = Bazel.ProfileUpload.stage(project, "no-timeline", "bad gzip")
+    render_patch(lv, path <> "?tab=timeline")
+    refute has_element?(lv, "#build-timeline")
+
+    assert {:discard, :invalid_profile} =
+             Bazel.Workers.ProcessProfileWorker.perform(%Oban.Job{
+               args: %{"project_id" => project.id, "invocation_id" => "no-timeline"}
+             })
+
+    render_patch(lv, path <> "?tab=timeline")
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+
+    assert :ok =
+             Bazel.Profile.ingest(
+               project,
+               "no-timeline",
+               :zlib.gzip(
+                 JSON.encode!(%{
+                   otherData: %{build_id: "no-timeline"},
+                   traceEvents: [%{ph: "X", name: "Compile", ts: 0, dur: 1000}]
+                 })
+               )
+             )
+
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+  end
+
+  test "retained summary spans alone do not expose Timeline or a fallback notice", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    Bazel.create_invocations([
+      invocation_attributes(project, "summary-only", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/summary-only"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "[data-part=tabs] a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    assert has_element?(lv, "[data-part=tabs] a[data-selected]", "Overview")
+  end
+
+  test "profile timeline downloads metadata separately from the shared hook", %{
     conn: conn,
     project: project,
     organization: organization
@@ -50,6 +119,18 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     Bazel.create_invocations([
       invocation_attributes(project, "timeline", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
     ])
+
+    assert :ok =
+             Bazel.Profile.ingest(
+               project,
+               "timeline",
+               :zlib.gzip(
+                 JSON.encode!(%{
+                   otherData: %{build_id: "timeline"},
+                   traceEvents: [%{ph: "X", name: "Compile", ts: 0, dur: 1000}]
+                 })
+               )
+             )
 
     path = "/#{organization.account.name}/#{project.name}/builds/invocations/timeline"
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
@@ -60,7 +141,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(lv, "[data-part=legend] button[data-kind=fetch]", "Fetching")
     assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Analysis/setup")
     refute has_element?(lv, "[data-part=legend] button[data-kind=transform]")
-    assert has_element?(lv, "[data-part=timeline-coverage]", "trace profile is not available yet")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
     tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=tabs] a") |> Enum.map(&Floki.text/1)
     assert tabs == ["Overview", "Timeline", "Bazel Cache"]
     [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
@@ -412,7 +493,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "[data-part='tabs']", "Bazel Cache")
     refute has_element?(live_view, "[data-part='tabs']", "Command")
     refute has_element?(live_view, "[data-part='tabs']", "Logs")
-    assert has_element?(live_view, "#bazel-invocation", "Timeline")
+    refute has_element?(live_view, "#bazel-invocation", "Timeline")
     refute has_element?(live_view, "#bazel-invocation", "Critical path")
     refute has_element?(live_view, "[data-part='actions']", "Download logs")
     assert has_element?(live_view, "#bazel-invocation-command", "bazel build //App:App")

@@ -7,7 +7,6 @@ use std::{
 
 use axum::{
     Router,
-    body::Body,
     http::{Request, StatusCode},
 };
 use hyper::{body::Incoming, service::service_fn};
@@ -347,7 +346,7 @@ where
         let router = router.clone();
         async move {
             router
-                .oneshot(request.map(Body::new))
+                .oneshot(crate::utils::guard_incoming_request(request))
                 .await
                 .map_err(std::io::Error::other)
         }
@@ -892,6 +891,7 @@ async fn serve_accelerated(
                     range.length,
                     range.content_range(artifact_size).as_deref(),
                     Some(etag.as_str()),
+                    file.content_sha256.as_deref(),
                     &response_request_id,
                     keep_alive,
                 )?;
@@ -1417,6 +1417,7 @@ fn write_headers(
     content_length: u64,
     content_range: Option<&str>,
     etag: Option<&str>,
+    content_sha256: Option<&str>,
     request_id: &str,
     keep_alive: bool,
 ) -> std::io::Result<()> {
@@ -1434,6 +1435,13 @@ fn write_headers(
     // `If-Range` so a resume can be refused when the artifact moved on.
     if let Some(etag) = etag {
         write!(stream, "etag: {etag}\r\n")?;
+    }
+    // The uploader's digest of the WHOLE object, on partial responses too. Only
+    // hex is written, since these header lines go to the socket unescaped.
+    if let Some(content_sha256) =
+        content_sha256.filter(|value| value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        write!(stream, "tuist-checksum-sha256: {content_sha256}\r\n")?;
     }
     stream.write_all(b"\r\n")
 }
@@ -1994,6 +2002,7 @@ mod tests {
             size,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
@@ -2196,6 +2205,7 @@ mod tests {
             size: 8,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
@@ -2296,6 +2306,7 @@ mod tests {
             size: 10,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let crate::artifact::range::RangeOutcome::Partial(range) =
             crate::artifact::range::resolve_range(Some("bytes=6-"), file.size)
@@ -2385,6 +2396,7 @@ mod tests {
             size: 10,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
@@ -2467,6 +2479,7 @@ mod tests {
             size,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let memory = MemoryController::new(metrics, 100, 200);
 
@@ -2506,6 +2519,7 @@ mod tests {
             size,
             content_type: "application/octet-stream".into(),
             version_ms: 1,
+            content_sha256: None,
         };
         let memory = MemoryController::new(metrics, 100, 200);
         memory.observe(100);

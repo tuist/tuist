@@ -10,7 +10,7 @@ use opentelemetry::{
     propagation::{Extractor, Injector},
     trace::{TraceContextExt, TracerProvider as _},
 };
-use opentelemetry_otlp::{Protocol, WithExportConfig};
+use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{
     Resource,
     propagation::TraceContextPropagator,
@@ -258,17 +258,48 @@ fn build_span_exporter(endpoint: &str) -> Result<opentelemetry_otlp::SpanExporte
         OtlpTraceProtocol::Grpc => opentelemetry_otlp::SpanExporter::builder()
             .with_tonic()
             .with_endpoint(exporter.endpoint)
-            .with_timeout(Duration::from_secs(3))
+            .with_timeout(export_timeout())
             .build()
             .map_err(|error| format!("failed to build OTLP gRPC exporter: {error}")),
         OtlpTraceProtocol::HttpBinary => opentelemetry_otlp::SpanExporter::builder()
             .with_http()
+            .with_http_client(build_otlp_http_client()?)
             .with_endpoint(exporter.endpoint)
             .with_protocol(Protocol::HttpBinary)
-            .with_timeout(Duration::from_secs(3))
+            .with_timeout(export_timeout())
             .build()
             .map_err(|error| format!("failed to build OTLP HTTP exporter: {error}")),
     }
+}
+
+fn export_timeout() -> Duration {
+    Duration::from_secs(crate::control_plane_http::REQUEST_TIMEOUT_SECS)
+}
+
+// The exporter crate's default client sets only a total timeout, so DNS, TCP,
+// TLS and the batch upload share one budget. A remote region can spend more
+// than a second resolving Kubernetes search domains, which then leaves too
+// little of it for the upload and fails the export. Give connection setup the
+// same dedicated budget the control-plane client gets.
+//
+// The client has to be blocking: the batch processor drives exports with
+// `futures_executor::block_on` on its own thread, which has no Tokio reactor to
+// drive an asynchronous client's I/O. Building it off-runtime is what the
+// exporter crate does internally, and is required because `reqwest::blocking`
+// panics when constructed inside one.
+fn build_otlp_http_client() -> Result<reqwest::blocking::Client, String> {
+    std::thread::spawn(|| otlp_http_client_builder().build())
+        .join()
+        .map_err(|_| "OTLP HTTP client builder thread panicked".to_string())?
+        .map_err(|error| format!("failed to build OTLP HTTP client: {error}"))
+}
+
+fn otlp_http_client_builder() -> reqwest::blocking::ClientBuilder {
+    reqwest::blocking::Client::builder()
+        .connect_timeout(Duration::from_secs(
+            crate::control_plane_http::CONNECT_TIMEOUT_SECS,
+        ))
+        .timeout(export_timeout())
 }
 
 fn otlp_trace_exporter_config(endpoint: &str) -> Result<OtlpTraceExporterConfig, String> {
@@ -376,9 +407,54 @@ fn should_warn_about_parent_context_error(error: &SetParentError) -> bool {
 mod tests {
     use tracing_opentelemetry::SetParentError;
 
-    use super::{
-        OtlpTraceProtocol, otlp_trace_exporter_config, should_warn_about_parent_context_error,
+    use std::{
+        net::SocketAddr,
+        sync::Arc,
+        time::{Duration, Instant},
     };
+
+    use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+
+    use super::{
+        OtlpTraceProtocol, export_timeout, otlp_http_client_builder, otlp_trace_exporter_config,
+        should_warn_about_parent_context_error,
+    };
+
+    struct StalledResolver;
+
+    impl Resolve for StalledResolver {
+        fn resolve(&self, _: Name) -> Resolving {
+            Box::pin(async move {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                let address: SocketAddr = "127.0.0.1:1".parse().unwrap();
+                Ok(Box::new(std::iter::once(address)) as Addrs)
+            })
+        }
+    }
+
+    // The exporter crate's default client leaves connection setup sharing the
+    // export deadline, so a slow resolve consumes the budget the upload needs.
+    #[test]
+    fn stalled_dns_fails_the_export_on_the_connect_budget() {
+        let client = otlp_http_client_builder()
+            .no_proxy()
+            .dns_resolver(Arc::new(StalledResolver))
+            .build()
+            .expect("expected the OTLP HTTP client to build");
+
+        let started = Instant::now();
+        let error = client
+            .post("http://collector.test:4318/v1/traces")
+            .send()
+            .expect_err("expected the stalled resolve to time out");
+
+        assert!(error.is_timeout());
+        assert!(
+            started.elapsed()
+                >= Duration::from_secs(crate::control_plane_http::CONNECT_TIMEOUT_SECS)
+        );
+        assert!(started.elapsed() < export_timeout());
+    }
 
     #[test]
     fn otlp_trace_exporter_config_uses_http_for_signal_paths() {

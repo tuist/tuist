@@ -1,75 +1,59 @@
 /**
  * PricingPlanSelect Hook
  *
- * Drives the pricing page's tab/mobile plan picker — a hand-rolled Noora
- * dropdown (the real component teleports its label/menu through LiveView
- * portals, which never mount on this dead-rendered page).
- *
- * Open state lives in `data-state` on the trigger, which Noora's dropdown
- * CSS keys on for the menu and the chevron indicator. Picking a plan swaps
- * the `.active` column in the comparison table, writes the plan name into
- * the trigger label, and closes the menu.
+ * Drives the pricing page's tab/mobile plan picker — a Noora button group
+ * with one item per plan. Picking a plan marks that item selected and swaps
+ * the `.active` plan everywhere it's rendered: the comparison table's
+ * columns (collapsed to a single plan column below the desktop breakpoint,
+ * see pricing.css) and the header-row mirror inside the sticky picker box.
  */
 export const PricingPlanSelect = {
   mounted() {
-    this.trigger = this.el.querySelector('[data-part="trigger"]');
-    this.content = this.el.querySelector('[data-part="content"]');
-    this.indicator = this.el.querySelector('[data-part="indicator"]');
-    this.label = this.el.querySelector('[data-part="label"] > span');
-    this.items = Array.from(this.el.querySelectorAll('[data-part="item"]'));
-
-    if (!this.trigger || !this.content || !this.label) {
-      console.error("Pricing plan select: missing trigger, content, or label element");
+    this.items = Array.from(this.el.querySelectorAll("[data-plan-option]"));
+    if (!this.items.length) {
+      console.error("Pricing plan select: no plan options found");
       return;
     }
-
-    this.onTriggerClick = (e) => {
-      e.preventDefault();
-      this.setOpen(this.trigger.getAttribute("data-state") !== "open");
+    this.onClick = (e) => {
+      const item = e.target.closest("[data-plan-option]");
+      if (!item || !this.el.contains(item)) return;
+      this.select(item.getAttribute("data-plan-option"));
     };
+    this.el.addEventListener("click", this.onClick);
 
-    this.onDocumentClick = (e) => {
-      // Close on any click that lands outside the trigger and the menu
-      // itself — including on the phone tray's scrim, whose click target
-      // is the positioner (the ::before pseudo-element belongs to it).
-      if (this.trigger.contains(e.target) || this.content.contains(e.target)) return;
-      this.setOpen(false);
-    };
-
-    this.onKeydown = (e) => {
-      if (e.key === "Escape") this.setOpen(false);
-    };
-
-    this.trigger.addEventListener("click", this.onTriggerClick);
-    document.addEventListener("click", this.onDocumentClick);
-    document.addEventListener("keydown", this.onKeydown);
-
-    this.items.forEach((item, index) => {
-      item.addEventListener("click", () => this.select(item, index));
-    });
+    // Sticky offsets, written as custom properties on the compare section:
+    // the picker box pins under the navbar, whose height is measured (the
+    // --sticky-top token predates this navbar), and lets go one row before
+    // the table ends — the closing CTA row's height, measured too, since it
+    // depends on the button and the viewport (see pricing.css).
+    const compare = this.el.closest('[data-part="compare"]');
+    const navbar = document.getElementById("marketing-navbar");
+    const lastRow = compare?.querySelector('[data-part="table"] > [data-part="body"] > tr:last-child');
+    if (compare && "ResizeObserver" in window) {
+      const measure = () => {
+        if (navbar) compare.style.setProperty("--pricing-sticky-top", `${navbar.offsetHeight}px`);
+        if (lastRow) compare.style.setProperty("--pricing-last-row-height", `${lastRow.offsetHeight}px`);
+      };
+      this.observer = new ResizeObserver(measure);
+      if (navbar) this.observer.observe(navbar);
+      if (lastRow) this.observer.observe(lastRow);
+      measure();
+    }
   },
 
-  setOpen(open) {
-    const state = open ? "open" : "closed";
-    // Noora's CSS keys the positioner off the trigger, the menu box off
-    // the content element, and the chevron swap off the indicator — zag
-    // stamps data-state on all three.
-    this.trigger.setAttribute("data-state", state);
-    this.content.setAttribute("data-state", state);
-    if (this.indicator) this.indicator.setAttribute("data-state", state);
-    this.trigger.setAttribute("aria-expanded", open ? "true" : "false");
-  },
-
-  select(item, index) {
+  select(index) {
+    for (const item of this.items) {
+      const selected = item.getAttribute("data-plan-option") === index;
+      item.toggleAttribute("data-selected", selected);
+      item.setAttribute("aria-pressed", selected ? "true" : "false");
+    }
     document.querySelectorAll("[data-plan-index]").forEach((cell) => {
-      cell.classList.toggle("active", cell.getAttribute("data-plan-index") === String(index));
+      cell.classList.toggle("active", cell.getAttribute("data-plan-index") === index);
     });
-    this.label.textContent = item.getAttribute("data-label");
-    this.setOpen(false);
   },
 
   destroyed() {
-    document.removeEventListener("click", this.onDocumentClick);
-    document.removeEventListener("keydown", this.onKeydown);
+    this.el.removeEventListener("click", this.onClick);
+    if (this.observer) this.observer.disconnect();
   },
 };

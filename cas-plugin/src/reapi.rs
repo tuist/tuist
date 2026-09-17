@@ -364,6 +364,35 @@ pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     }
 }
 
+/// A served blob whose bytes do not hash to its digest is reported as data loss
+/// with no bytes, which the read paths treat like an absent blob: the compiler
+/// recompiles instead of restoring bytes that name a different object.
+fn verified_blob_outcome((digest, code, bytes): BlobOutcome) -> BlobOutcome {
+    if code != 0 || digest.as_ref() == Some(&blob_digest(&bytes)) {
+        return (digest, code, bytes);
+    }
+    crate::log_line(&format!(
+        "batch_read: {} failed its integrity check; treating it as absent",
+        digest
+            .as_ref()
+            .map_or("a response without a digest", |digest| digest.hash.as_str())
+    ));
+    (digest, tonic::Code::DataLoss as i32, Vec::new())
+}
+
+/// Inlined bytes that do not hash to their digest are dropped, so the entry is
+/// read through `batch_read` like one the server did not inline.
+fn verified_inline_contents(contents: Vec<u8>, blob: &reapi::Digest) -> Option<Vec<u8>> {
+    if blob_digest(&contents) == *blob {
+        return Some(contents);
+    }
+    crate::log_line(&format!(
+        "get_action: inlined {} failed its integrity check; reading it again",
+        blob.hash
+    ));
+    None
+}
+
 fn action_digest(key: &[u8]) -> reapi::Digest {
     reapi::Digest {
         hash: hex(&Sha256::digest(key)),
@@ -412,6 +441,25 @@ pub struct Remote {
     // flat because publishing is healthy from one that is flat because almost
     // nothing was published.
     shed_writes: AtomicU64,
+}
+
+const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+const REACHABILITY_ATTEMPTS: usize = 2;
+const REACHABILITY_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// A request body holding one gRPC message frame.
+struct OneFrame(Option<hyper::body::Bytes>);
+
+impl hyper::body::Body for OneFrame {
+    type Data = hyper::body::Bytes;
+    type Error = std::convert::Infallible;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+        std::task::Poll::Ready(self.0.take().map(|data| Ok(hyper::body::Frame::data(data))))
+    }
 }
 
 fn retryable(status: &tonic::Status) -> bool {
@@ -971,10 +1019,15 @@ impl Remote {
                         .output_files
                         .into_iter()
                         .filter_map(|file| {
+                            let llcas_digest = unhex(&file.path)?;
+                            let blob = file.digest?;
+                            let contents = (!file.contents.is_empty())
+                                .then_some(file.contents)
+                                .and_then(|contents| verified_inline_contents(contents, &blob));
                             Some(ManifestEntry {
-                                llcas_digest: unhex(&file.path)?,
-                                contents: (!file.contents.is_empty()).then_some(file.contents),
-                                blob: file.digest?,
+                                llcas_digest,
+                                contents,
+                                blob,
                             })
                         })
                         .collect();
@@ -1022,13 +1075,22 @@ impl Remote {
             )))
         });
         match response {
-            Ok(response) => Ok(response
-                .into_inner()
-                .output_files
-                .into_iter()
-                .next()
-                .map(|file| file.contents)
-                .filter(|contents| !contents.is_empty())),
+            Ok(response) => {
+                let Some(file) = response.into_inner().output_files.into_iter().next() else {
+                    return Ok(None);
+                };
+                if file.contents.is_empty() {
+                    return Ok(None);
+                }
+                if file
+                    .digest
+                    .as_ref()
+                    .is_some_and(|digest| blob_digest(&file.contents) != *digest)
+                {
+                    return Err("get_snapshot: payload failed its integrity check".into());
+                }
+                Ok(Some(file.contents))
+            }
             Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
             Err(status) => {
                 note_payment_required(&status);
@@ -1079,7 +1141,7 @@ impl Remote {
             || !blobs.iter().any(chunk_eligible)
             || !self.supports_chunking()
         {
-            return self.batch_read_once(blobs);
+            return self.batch_read_verified(blobs);
         }
         let mut outcomes = Vec::new();
         // Release verified results before starting the next working batch, so
@@ -1098,10 +1160,10 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<Vec<BlobOutcome>, String> {
         let Some(cache) = self.chunk_cache.get() else {
-            return self.batch_read_once(blobs);
+            return self.batch_read_verified(blobs);
         };
         if !blobs.iter().any(chunk_eligible) || !self.supports_chunking() {
-            return self.batch_read_once(blobs);
+            return self.batch_read_verified(blobs);
         }
         let (large, mut whole): (Vec<_>, Vec<_>) = blobs.iter().cloned().partition(chunk_eligible);
         let client = self
@@ -1299,6 +1361,17 @@ impl Remote {
             outcomes.push(outcome);
         }
         Ok(outcomes)
+    }
+
+    /// `batch_read_once` for callers that restore the bytes as they are. The
+    /// chunked read path checks every piece it assembles itself, so only the
+    /// whole-blob reads it does not take go through here.
+    fn batch_read_verified(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
+        Ok(self
+            .batch_read_once(blobs)?
+            .into_iter()
+            .map(verified_blob_outcome)
+            .collect())
     }
 
     /// One `BatchReadBlobs` pass: fetches `blobs` in size-bounded chunks
@@ -1534,6 +1607,64 @@ impl Remote {
                 .collect(),
             false,
         )
+    }
+
+    /// Whether a gRPC server at the endpoint answers a `GetCapabilities` call.
+    ///
+    /// Sent as a raw HTTP/2 request because a tonic `Status` does not say who
+    /// produced it: a refused connection and a server's own `UNAVAILABLE`
+    /// arrive identically. Any HTTP 200 response is an answer, whatever
+    /// `grpc-status` it carries. A connection or protocol failure, a non-200
+    /// response, or no response within the timeout is not.
+    pub fn reachable(&self) -> bool {
+        let Ok(channel) = self.channel() else {
+            return false;
+        };
+        (0..REACHABILITY_ATTEMPTS).any(|_| self.answers_capabilities(channel.clone()))
+    }
+
+    fn answers_capabilities(&self, mut channel: Channel) -> bool {
+        use prost::Message as _;
+        use tonic::codegen::{http, Service};
+
+        let message = reapi::GetCapabilitiesRequest {
+            instance_name: self.config.instance.clone(),
+        }
+        .encode_to_vec();
+        let mut frame = Vec::with_capacity(5 + message.len());
+        frame.push(0);
+        frame.extend_from_slice(&(message.len() as u32).to_be_bytes());
+        frame.extend_from_slice(&message);
+
+        let Ok(mut request) = http::Request::post(CAPABILITIES_PATH)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers")
+            .body(tonic::body::Body::new(OneFrame(Some(
+                hyper::body::Bytes::from(frame),
+            ))))
+        else {
+            return false;
+        };
+        let (metadata, _, ()) = self.authed(()).into_parts();
+        request.headers_mut().extend(metadata.into_headers());
+
+        runtime().block_on(async move {
+            let exchange = async {
+                if std::future::poll_fn(|cx| channel.poll_ready(cx))
+                    .await
+                    .is_err()
+                {
+                    return false;
+                }
+                matches!(
+                    channel.call(request).await,
+                    Ok(response) if response.status() == http::StatusCode::OK
+                )
+            };
+            tokio::time::timeout(REACHABILITY_TIMEOUT, exchange)
+                .await
+                .unwrap_or(false)
+        })
     }
 
     // Only enable the algorithm/parameters this implementation understands. A

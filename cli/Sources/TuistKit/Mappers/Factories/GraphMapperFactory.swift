@@ -337,10 +337,6 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 preserveGraphBeforeFocus: !cacheSources.isEmpty
             )
 
-            // Insert scheme generation mapper after ExternalProjectsPlatformNarrowerGraphMapper so it sees narrowed destinations
-            let narrowerIndex = mappers.firstIndex(where: { $0 is ExternalProjectsPlatformNarrowerGraphMapper }) ?? 0
-            mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: narrowerIndex + 1)
-
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
                 decider: CacheProfileTargetReplacementDecider(
@@ -353,6 +349,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             )
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())
+            // Runs after the cache replacement so the schemes also build the cache hits kept as source.
+            mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 
