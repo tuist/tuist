@@ -234,6 +234,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  Lookups the volume answers never read Kura; the job's own CAS plugin and
+  proxy keep those entries alive in Kura (`cas-plugin/AGENTS.md`, keep-alive),
+  so a job pinned to an older CLI keeps none alive.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit

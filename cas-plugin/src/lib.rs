@@ -15,6 +15,7 @@
 
 pub mod analytics;
 pub mod endpoint;
+pub mod keep_alive;
 pub mod proxy;
 pub mod proxy_failure;
 pub mod proxy_proto;
@@ -344,6 +345,97 @@ struct CasState {
     stats_mat_store: OpStats,
     stats_mat_store_bytes: AtomicU64,
     stats_local_put_ms: AtomicU64,
+    local_hits: LocalHits,
+}
+
+/// Action keys this handle answered from its local store, reported to the proxy
+/// off the lookup path so kura keeps their entries alive (see `keep_alive`).
+#[derive(Default)]
+struct LocalHits {
+    pending: Mutex<Vec<Vec<u8>>>,
+    // Set when a proxy does not accept a report, as an older one does not.
+    unsupported: Arc<AtomicBool>,
+}
+
+struct LocalHitsReport {
+    client: ProxyClient,
+    cas_path: String,
+    instance: String,
+    keys: Vec<Vec<u8>>,
+    unsupported: Arc<AtomicBool>,
+}
+
+/// Reports waiting for the process's reporter thread. Past this the proxy is not
+/// keeping up, and later reports are dropped.
+const LOCAL_HITS_MAX_QUEUED: usize = 64;
+
+fn note_local_hit(state: &CasState, key: &[u8]) {
+    let hits = &state.local_hits;
+    if hits.unsupported.load(Ordering::Relaxed) {
+        return;
+    }
+    let batch = {
+        let mut pending = hits.pending.lock().unwrap();
+        pending.push(key.to_vec());
+        if pending.len() < proxy_proto::LOCAL_HITS_BATCH {
+            return;
+        }
+        std::mem::replace(&mut *pending, Vec::with_capacity(proxy_proto::LOCAL_HITS_BATCH))
+    };
+    queue_local_hits(state, batch);
+}
+
+type LocalHitsQueue = (Mutex<std::collections::VecDeque<LocalHitsReport>>, std::sync::Condvar);
+
+/// The process's one reporter thread, started on first use. LLVM loads CAS
+/// plugins as permanent libraries, so it may outlive every handle.
+fn local_hits_reporter() -> Option<&'static LocalHitsQueue> {
+    static QUEUE: OnceLock<LocalHitsQueue> = OnceLock::new();
+    static STARTED: OnceLock<bool> = OnceLock::new();
+    let queue: &'static LocalHitsQueue = QUEUE.get_or_init(Default::default);
+    let started = STARTED.get_or_init(|| {
+        std::thread::Builder::new()
+            .name("tuist-cas-local-hits".into())
+            .spawn(move || loop {
+                let report = {
+                    let mut waiting = queue.0.lock().unwrap();
+                    loop {
+                        match waiting.pop_front() {
+                            Some(report) => break report,
+                            None => waiting = queue.1.wait(waiting).unwrap(),
+                        }
+                    }
+                };
+                if report.unsupported.load(Ordering::Relaxed) {
+                    continue;
+                }
+                if report.client.report_local_hits(&report.cas_path, &report.instance, &report.keys).is_err() {
+                    report.unsupported.store(true, Ordering::Relaxed);
+                }
+            })
+            .is_ok()
+    });
+    started.then_some(queue)
+}
+
+fn queue_local_hits(state: &CasState, keys: Vec<Vec<u8>>) {
+    let Some((queue, ready)) = local_hits_reporter() else { return };
+    let mut waiting = queue.lock().unwrap();
+    if waiting.len() >= LOCAL_HITS_MAX_QUEUED {
+        return;
+    }
+    waiting.push_back(LocalHitsReport {
+        client: ProxyClient { socket_path: state.proxy.socket_path.clone() },
+        cas_path: state
+            .cas_dir
+            .as_ref()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        instance: state.proxy_instance.clone(),
+        keys,
+        unsupported: state.local_hits.unsupported.clone(),
+    });
+    ready.notify_one();
 }
 
 /// Process CPU (user+system) in milliseconds, for attributing wall-time gaps
@@ -603,6 +695,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_mat_store: OpStats::default(),
         stats_mat_store_bytes: AtomicU64::new(0),
         stats_local_put_ms: AtomicU64::new(0),
+        local_hits: LocalHits::default(),
     }));
     state_ptr as llcas_cas_t
 }
@@ -679,6 +772,10 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
                 state.stats_mat_store_bytes.load(Ordering::Relaxed),
                 state.stats_local_put_ms.load(Ordering::Relaxed),
             ));
+        }
+        let tail = std::mem::take(&mut *state.local_hits.pending.lock().unwrap());
+        if !tail.is_empty() && !state.local_hits.unsupported.load(Ordering::Relaxed) {
+            queue_local_hits(state, tail);
         }
         (state.up.llcas_cas_dispose)(state.cas);
     }
@@ -1201,6 +1298,9 @@ unsafe fn actioncache_get_impl(
 ) -> llcas_lookup_result_t {
     let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
     let result = verified_local_get(state, key_digest, globally, p_value, error);
+    if result == LLCAS_LOOKUP_RESULT_SUCCESS {
+        note_local_hit(state, key);
+    }
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }

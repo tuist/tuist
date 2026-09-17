@@ -46,6 +46,11 @@
 //! status 0 = it is still owed and the proxy finishes it in the background,
 //! status 2 = the proxy could not run it (an older proxy answers `bad op`, and
 //! the caller falls back to PUBLISH). See `Proxy::publish_and_wait`.
+//! LOCAL_HITS (op 9): payload = (u8 key_len | action key)*. Action keys this
+//! process answered from its local store. status 1 = accepted (the proxy keeps
+//! them alive on the remote in the background), status 2 = not accepted (an
+//! older proxy answers `bad op`, and the plugin stops reporting for that
+//! handle). See `crate::keep_alive`.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -99,6 +104,11 @@ pub const OP_PREPARE_ACTION: u8 = 7;
 /// proxy that predates it answers `bad op`, and the plugin then sends an
 /// ordinary PUBLISH.
 pub const OP_PUBLISH_WAIT: u8 = 8;
+/// Report action keys answered from the local store, so kura keeps the entries
+/// alive. Additive like OP_DRAIN: a proxy that predates it answers `bad op`.
+pub const OP_LOCAL_HITS: u8 = 9;
+
+pub const LOCAL_HITS_BATCH: usize = 256;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -187,6 +197,8 @@ const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
 /// How much longer than its wait budget a PUBLISH_WAIT client reads, so the
 /// proxy's answer at the end of the budget arrives before the read times out.
 const PUBLISH_WAIT_READ_GRACE: Duration = Duration::from_secs(5);
+
+const LOCAL_HITS_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How long a prune may take before the caller stops waiting. A prune that has
 /// something to collect costs a few hundred ms (measured 300-500 ms), but it
@@ -420,6 +432,68 @@ impl ProxyClient {
     }
 }
 
+impl ProxyClient {
+    /// `Err` is a proxy that did not accept the report (nothing listening, or
+    /// one too old to know the op).
+    pub fn report_local_hits(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        keys: &[Vec<u8>],
+    ) -> Result<(), String> {
+        for payload in encode_local_hits(keys) {
+            let mut stream = self
+                .connect_with_read_timeout(LOCAL_HITS_READ_TIMEOUT)
+                .map_err(|e| format!("proxy connect: {e}"))?;
+            write_request(
+                &mut stream,
+                &Request {
+                    version: PROTOCOL_VERSION,
+                    op: OP_LOCAL_HITS,
+                    cas_path: cas_path.to_string(),
+                    instance: instance.to_string(),
+                    payload,
+                },
+            )
+            .map_err(|e| format!("proxy send: {e}"))?;
+            let (status, body) =
+                read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+            if status != STATUS_HIT {
+                return Err(format!("proxy local hits: {}", String::from_utf8_lossy(&body)));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Packs keys into payloads within the frame's u16 length, leaving out any key
+/// longer than its u8 length prefix.
+pub fn encode_local_hits(keys: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut payloads = Vec::new();
+    let mut payload = Vec::new();
+    for key in keys.iter().filter(|key| key.len() <= u8::MAX as usize) {
+        if payload.len() + 1 + key.len() > u16::MAX as usize {
+            payloads.push(std::mem::take(&mut payload));
+        }
+        payload.push(key.len() as u8);
+        payload.extend_from_slice(key);
+    }
+    if !payload.is_empty() {
+        payloads.push(payload);
+    }
+    payloads
+}
+
+pub fn decode_local_hits(mut payload: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut keys = Vec::new();
+    while let Some((&len, rest)) = payload.split_first() {
+        let (key, rest) = rest.split_at_checked(len as usize)?;
+        keys.push(key);
+        payload = rest;
+    }
+    Some(keys)
+}
+
 fn publish_wait_payload(record_path: &str, budget: Duration) -> Vec<u8> {
     let millis = u32::try_from(budget.as_millis()).unwrap_or(u32::MAX);
     let mut payload = Vec::with_capacity(4 + record_path.len());
@@ -525,6 +599,45 @@ mod tests {
             u64::from_be_bytes(read.payload.try_into().unwrap()),
             5_368_709_120
         );
+    }
+
+    #[test]
+    fn local_hits_split_across_frames_and_decode_back() {
+        let keys: Vec<Vec<u8>> = (0..2_000u32)
+            .map(|index| {
+                let mut key = vec![0u8; 65];
+                key[..4].copy_from_slice(&index.to_be_bytes());
+                key
+            })
+            .collect();
+        let payloads = encode_local_hits(&keys);
+        assert!(payloads.len() > 1, "2,000 keys of 65 bytes do not fit one u16 frame");
+        assert!(payloads.iter().all(|payload| payload.len() <= u16::MAX as usize));
+
+        let decoded: Vec<Vec<u8>> = payloads
+            .iter()
+            .flat_map(|payload| decode_local_hits(payload).expect("well-formed payload"))
+            .map(<[u8]>::to_vec)
+            .collect();
+        assert_eq!(decoded, keys);
+
+        // A socketpair buffers less than a full frame.
+        let small = encode_local_hits(&keys[..10]).remove(0);
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_LOCAL_HITS,
+            cas_path: "/Volumes/cache/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: small.clone(),
+        });
+        assert_eq!(read.op, OP_LOCAL_HITS);
+        assert_eq!(read.payload, small);
+    }
+
+    #[test]
+    fn a_local_hits_payload_that_ends_inside_a_key_is_rejected() {
+        assert_eq!(decode_local_hits(&[3, 1, 2]), None);
+        assert_eq!(decode_local_hits(&[]), Some(Vec::new()));
     }
 
     #[test]

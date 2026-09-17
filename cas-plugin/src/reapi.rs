@@ -145,7 +145,14 @@ const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 /// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
 /// keeping the retry policy in one place. The caller maps success and terminal
 /// errors (e.g. NotFound) at the call site.
-fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+fn retry_call<T>(op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+    retry_call_if(op, retryable)
+}
+
+fn retry_call_if<T>(
+    mut op: impl FnMut() -> Result<T, tonic::Status>,
+    should_retry: impl Fn(&tonic::Status) -> bool,
+) -> Result<T, tonic::Status> {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
         if attempt > 1 {
@@ -153,7 +160,7 @@ fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, 
         }
         match op() {
             Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) if should_retry(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
             Err(status) => return Err(status),
         }
     }
@@ -356,6 +363,9 @@ pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
 /// only entries written after it (a delta), so a long-lived proxy refreshes
 /// without refetching the world.
 const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+
+pub const KEEP_ALIVE_ACTION_KEY: &[u8] = b"tuist-actioncache-keep-alive/v1";
+const KEEP_ALIVE_HINT: &str = "tuist-keep-alive:";
 
 pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     reapi::Digest {
@@ -1042,6 +1052,50 @@ impl Remote {
         })();
         self.get_stats.record(started.elapsed());
         result
+    }
+
+    /// A decline under memory pressure is not retried: the caller backs off.
+    pub fn keep_alive(&self, actions: &[crate::keep_alive::ActionDigest]) -> crate::keep_alive::Answer {
+        use crate::keep_alive::Answer;
+        let result = (|| {
+            let mut client = self.ac_client().map_err(tonic::Status::unavailable)?;
+            let request = reapi::GetActionResultRequest {
+                instance_name: self.config.instance.clone(),
+                action_digest: Some(action_digest(KEEP_ALIVE_ACTION_KEY)),
+                inline_output_files: actions
+                    .iter()
+                    .map(|action| format!("{KEEP_ALIVE_HINT}{}/{}", hex(&action.hash), action.size))
+                    .collect(),
+                ..Default::default()
+            };
+            retry_call_if(
+                || runtime().block_on(client.get_action_result(self.authed(request.clone()))),
+                |status| status.code() != tonic::Code::ResourceExhausted && retryable(status),
+            )
+        })();
+        match result {
+            Ok(response) => {
+                let summary = String::from_utf8_lossy(&response.get_ref().stdout_raw).into_owned();
+                let count = |name: &str| {
+                    summary
+                        .split_whitespace()
+                        .find_map(|field| field.strip_prefix(name)?.strip_prefix('=')?.parse().ok())
+                        .unwrap_or(0)
+                };
+                Answer::Kept {
+                    found: count("found"),
+                    missing: count("missing"),
+                    evicted: count("evicted"),
+                }
+            }
+            Err(status) if status.code() == tonic::Code::NotFound => Answer::Unsupported,
+            Err(status) if status.code() == tonic::Code::ResourceExhausted => Answer::Declined,
+            Err(status) => {
+                note_payment_required(&status);
+                crate::log_line(&format!("keep_alive: {status}"));
+                Answer::Failed
+            }
+        }
     }
 
     /// Fetches the instance's action-cache snapshot: kura answers the reserved

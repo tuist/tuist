@@ -237,6 +237,7 @@ fn main() {
         proxy.refresh_endpoint();
         proxy.refresh_snapshots();
         proxy.refresh_view_keys();
+        proxy.flush_keep_alives();
         let stats = proxy.stats_line();
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));

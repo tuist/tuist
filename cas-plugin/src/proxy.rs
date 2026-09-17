@@ -16,11 +16,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
+use crate::keep_alive::{ActionDigest, KeepAlive};
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    parse_publish_wait_payload, read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT,
-    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE,
-    STATUS_ERROR, STATUS_HIT, STATUS_MISS,
+    decode_local_hits, parse_publish_wait_payload, read_request, write_response, Request,
+    OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_LOCAL_HITS, OP_PREPARE_ACTION, OP_PRUNE,
+    OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE, STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
 use crate::token::TokenProvider;
@@ -2007,6 +2008,10 @@ pub struct Proxy {
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
+
+    // Items are instance names.
+    keep_alive: KeepAlive,
+    keep_alive_sender: Prefetcher,
 }
 
 impl Proxy {
@@ -2064,6 +2069,8 @@ impl Proxy {
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
             analytics,
+            keep_alive: KeepAlive::default(),
+            keep_alive_sender: Prefetcher::new(),
         }));
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
@@ -2080,7 +2087,41 @@ impl Proxy {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
+        proxy.keep_alive_sender.configure(1, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.send_keep_alives(&String::from_utf8_lossy(&item));
+        });
         proxy
+    }
+
+    /// Not counted as unprimed when unroutable: that count is how a misconfigured
+    /// build is found.
+    fn note_local_hits(&self, cas_path: &str, declared: &str, keys: &[&[u8]]) {
+        let Some(instance) = self.resolve_instance(cas_path, declared) else {
+            return;
+        };
+        let actions = keys.iter().map(|key| ActionDigest::of(key));
+        if self.keep_alive.note(&instance, actions, Instant::now()) {
+            self.keep_alive_sender.enqueue(instance.into_bytes());
+        }
+    }
+
+    fn send_keep_alives(&self, instance: &str) {
+        while let Some(batch) = self.keep_alive.take_batch(instance, Instant::now()) {
+            let answer = self.remote_for(instance).keep_alive(&batch);
+            self.keep_alive.settle(instance, batch, answer, Instant::now());
+            if !matches!(answer, crate::keep_alive::Answer::Kept { .. }) {
+                return;
+            }
+        }
+    }
+
+    /// Picks up reports that arrived while a send was finishing, and declined
+    /// batches whose backoff has passed.
+    pub fn flush_keep_alives(&self) {
+        for instance in self.keep_alive.due(Instant::now()) {
+            self.keep_alive_sender.enqueue(instance.into_bytes());
+        }
     }
 
     /// The REAPI client for an instance, created and cached on first use.
@@ -2182,10 +2223,10 @@ impl Proxy {
             instance
         };
         // Every caller of this is real build traffic (a resolve, a demand fetch,
-        // a publish), and nothing else reaches it — the startup prefetch does
-        // not. So this is the seam where "a project is being built on this
-        // machine" is known, which is what bounds trunk ingestion (see
-        // `instance_active`).
+        // a publish, a local-hits report), and nothing else reaches it — the
+        // startup prefetch does not. So this is the seam where "a project is
+        // being built on this machine" is known, which is what bounds trunk
+        // ingestion (see `instance_active`).
         if let Some(instance) = &instance {
             // `insert` reports the transition, and the guard is dropped before
             // the hook: what it kicks off takes locks of its own.
@@ -5072,6 +5113,20 @@ impl Proxy {
             parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
                 remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
         }
+        let keep_alive = self.keep_alive.stats();
+        if keep_alive != Default::default() {
+            parts.push(format!(
+                "keep_alive: sent={} found={} missing={} evicted={} declined={} unsupported={} failed={} dropped={}",
+                keep_alive.sent,
+                keep_alive.found,
+                keep_alive.missing,
+                keep_alive.evicted,
+                keep_alive.declined,
+                keep_alive.unsupported,
+                keep_alive.failed,
+                keep_alive.dropped,
+            ));
+        }
         parts.join(" | ")
     }
 
@@ -5177,6 +5232,13 @@ impl Proxy {
                     ));
                     write_response(&mut stream, STATUS_MISS, owed.to_string().as_bytes())
                 }
+            }
+            OP_LOCAL_HITS => {
+                let Some(keys) = decode_local_hits(&request.payload) else {
+                    return write_response(&mut stream, STATUS_ERROR, b"malformed local hits");
+                };
+                self.note_local_hits(&request.cas_path, &request.instance, &keys);
+                write_response(&mut stream, STATUS_HIT, &[])
             }
             OP_INVALIDATE => {
                 // A prune emptied this path's on-disk CAS in place; drop our marks
