@@ -577,6 +577,17 @@
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
 
+  & [data-part="occurrences-empty"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 220px;
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    text-align: center;
+  }
+
   & [data-part="request"] {
     display: flex;
     flex-direction: column;
