@@ -96,6 +96,46 @@ data:
         </node>
       </zookeeper>
     </clickhouse>
+  # What replicas need from each other beyond the tables themselves.
+  #
+  # `interserver_http_host` is the address a replica registers in Keeper for
+  # its peers to fetch parts from. The default is the pod's name under the
+  # StatefulSet's governing Service, which resolves only when that Service is
+  # headless, and this one is not; `serviceName` cannot change on a live
+  # StatefulSet. So each replica gets a Service of its own, and registers that.
+  #
+  # The credentials make a part fetch present the same secret on both ends.
+  # Without them anything in the cluster can read raw table data off 9009.
+  #
+  # Access entities live in Keeper rather than on each replica's disk, so the
+  # ops role and user `Tuist.Release.migrate` creates through the Service exist
+  # on every replica, not only the one the statement reached. The default
+  # `local_directory` storage is dropped rather than kept alongside: an entity
+  # left there satisfies `CREATE ... IF NOT EXISTS` on its own replica and is
+  # never written to Keeper.
+  #
+  # The cost is that the server cannot start while Keeper is unreachable: the
+  # replicated storage connects while access control is set up and the server
+  # exits if it cannot, so a replica restarted during a Keeper outage restarts
+  # until Keeper is back. A replica already running keeps serving the entities
+  # it has through the outage.
+  replication.xml: |
+    <clickhouse>
+      <interserver_http_port>9009</interserver_http_port>
+      <interserver_http_host from_env="INTERSERVER_HTTP_HOST"></interserver_http_host>
+      <interserver_http_credentials>
+        <user>interserver</user>
+        <password from_env="INTERSERVER_HTTP_PASSWORD"></password>
+      </interserver_http_credentials>
+      <user_directories replace="replace">
+        <users_xml>
+          <path>users.xml</path>
+        </users_xml>
+        <replicated>
+          <zookeeper_path>/clickhouse/access/</zookeeper_path>
+        </replicated>
+      </user_directories>
+    </clickhouse>
   settings.xml: |
     <clickhouse>
       <logger>
@@ -138,6 +178,10 @@ an environment whose ClickHouse is reachable only from inside the cluster.
 {{- $existingPassword = index $existing.data "password" | b64dec }}
 {{- end }}
 {{- $password := $m.password | default $existingPassword | default (randAlphaNum 40) }}
+{{- $interserverPassword := randAlphaNum 40 }}
+{{- if and $existing $existing.data (index $existing.data "interserver-password") }}
+{{- $interserverPassword = index $existing.data "interserver-password" | b64dec }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -158,6 +202,9 @@ stringData:
   # is only how the host is reached.
   url-tailnet: {{ printf "http://default:%s@%s:8123/%s" $password (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname) $m.database | quote }}
 {{- end }}
+  # What replicas present to each other when fetching parts. Generated and
+  # preserved like the password; nothing outside the server reads it.
+  interserver-password: {{ $interserverPassword | quote }}
   # Mounted into users.d with `subPath`, so ClickHouse reads it at startup only.
   users.xml: |
     {{- include "tuist.clickhouseManagedUsersXml" (dict "password" $password) | nindent 4 }}
@@ -201,18 +248,21 @@ data:
       </prometheus>
     </clickhouse>
 {{- if $m.persistence.localVolume.enabled }}
-{{- if not $m.persistence.localVolume.nodeName }}
-{{- fail "clickhouse.managed.persistence.localVolume.nodeName is required: without it the volume binds on the pool label, and on a pool with more than one node the ClickHouse pod can be scheduled onto a host that does not hold the data." }}
+{{- $nodeNames := $m.persistence.localVolume.nodeNames | default list }}
+{{- if ne (len $nodeNames) (int $m.replicas) }}
+{{- fail (printf "clickhouse.managed.persistence.localVolume.nodeNames needs one node per replica, in ordinal order: %d replica(s), %d node(s). Without a volume of its own a replica stays Pending." (int $m.replicas) (len $nodeNames)) }}
 {{- end }}
----
+{{- if ne (len (uniq $nodeNames)) (len $nodeNames) }}
+{{- fail "clickhouse.managed.persistence.localVolume.nodeNames lists a node twice. Two replicas on one host share its disk and fail together, which is the failure a second replica exists to survive." }}
+{{- end }}
 {{- /*
-A `local` PersistentVolume rather than the local-path provisioner the Kura
-fleet runs. There is one volume on one node here, and the provisioner's value
-is per-account dynamic carving plus XFS project quotas, neither of which
-applies: ClickHouse wants one directory and bounds its own disk use through
-retention. A static volume also fails visibly. If the node is gone the claim
-stays Pending, instead of a provisioner quietly carving a directory somewhere
-else.
+A `local` PersistentVolume per replica rather than the local-path provisioner
+the Kura fleet runs. Each replica has one directory on one node, and the
+provisioner's value is per-account dynamic carving plus XFS project quotas,
+neither of which applies: ClickHouse wants one directory and bounds its own
+disk use through retention. A static volume also fails visibly. If the node is
+gone the claim stays Pending, instead of a provisioner quietly carving a
+directory somewhere else.
 
 Node affinity binds on a single node's `kubernetes.io/hostname`, not on the
 pool label. The pool label was safe only while a pool held one node; with two,
@@ -220,18 +270,28 @@ one volume whose affinity admits both lets the scheduler place the pod on the
 node that does not hold the data, and ClickHouse starts on an empty directory
 under a replica identity Keeper already knows.
 
+Each volume is reserved for its ordinal's claim through `claimRef`, so replica
+`i` always lands on `nodeNames[i]`. Without it the first claim to bind takes
+whichever volume the scheduler reaches first.
+
+The first volume keeps the name it had before there was more than one: it is
+bound to live data, and renaming it would orphan that binding.
+
 The data does not survive replacing the box: reinstalling a Robot host wipes
-`/data`, and the replica refills from its peer. On a single-replica
-environment there is no peer, so a node replacement means re-running the
-schema bootstrap and backfill, and updating `persistence.localVolume.nodeName`
-in the same change.
+`/data`. The replica's registration in Keeper outlives it, so it has to be
+dropped there (`SYSTEM DROP DATABASE REPLICA` and `SYSTEM DROP REPLICA` on a
+surviving replica) before the pod can rejoin and refill from its peer. On a
+single-replica environment there is no peer, and a replacement means re-running
+the schema bootstrap and backfill.
 */}}
+{{- range $i, $nodeName := $nodeNames }}
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ $chName }}-data
+  name: {{ if eq $i 0 }}{{ $chName }}-data{{ else }}{{ $chName }}-data-{{ $i }}{{ end }}
   labels:
-    {{- include "tuist.labels" . | nindent 4 }}
+    {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: clickhouse
   annotations:
     # Never delete this with the release. A StatefulSet's PVC is created by
@@ -253,6 +313,9 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: {{ $m.persistence.storageClassName }}
+  claimRef:
+    namespace: {{ $.Release.Namespace }}
+    name: data-{{ $chName }}-{{ $i }}
   local:
     path: {{ $m.persistence.localVolume.path }}
   nodeAffinity:
@@ -262,7 +325,8 @@ spec:
             - key: kubernetes.io/hostname
               operator: In
               values:
-                - {{ $m.persistence.localVolume.nodeName }}
+                - {{ $nodeName }}
+{{- end }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -281,75 +345,39 @@ volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
 allowVolumeExpansion: false
 {{- end }}
----
 {{- /*
-Creates the application database on the in-cluster server.
+A Service per replica, which is the address the replica registers in Keeper
+for its peers (`interserver_http_host` in `replication.xml`). Part fetches go
+to 9009; 9000 is there for the replicated database's own cluster, whose
+addresses are the same host on the native port.
 
-This cannot be done by the release task that clones the schema into it. A
-ClickHouse connection names its database when it opens, so a repository
-configured for `tuist` cannot connect at all until `tuist` exists: the
-failure is at connect time, before any statement runs, and no amount of
-`CREATE DATABASE IF NOT EXISTS` from that repository can break the cycle.
-
-So the server's own database is part of standing up the server, the same way
-the embedded mode has always created its database with a small Job. It uses
-the ClickHouse image and its own credentials rather than the release image,
-so it needs nothing from the application.
-
-`Replicated` is the engine because that is what makes DDL reach every replica
-without each migration carrying `ON CLUSTER`, and it is required even at one
-replica since the table engines write their metadata to Keeper regardless.
+Not-ready endpoints are published on purpose. Readiness here means "caught up
+enough to serve queries", and a replica that is behind is exactly the one its
+peer may need to fetch from: after both restart, each can hold parts the
+other lacks, and hiding them would leave both waiting on the other.
 */}}
-apiVersion: batch/v1
-kind: Job
+{{- range $i := until (int $m.replicas) }}
+---
+apiVersion: v1
+kind: Service
 metadata:
-  name: {{ $chName }}-init
+  name: {{ $chName }}-{{ $i }}
   labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: clickhouse-init
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    # Ahead of the migration Job at weight 5, which is the thing that needs
-    # the database to exist.
-    helm.sh/hook-weight: "1"
-    helm.sh/hook-delete-policy: before-hook-creation
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
 spec:
-  backoffLimit: 10
-  template:
-    metadata:
-      labels:
-        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-init") | nindent 8 }}
-    spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: init
-          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
-          imagePullPolicy: {{ $m.image.pullPolicy }}
-          env:
-            - name: CLICKHOUSE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $chSecretName }}
-                  key: password
-          command:
-            - /bin/bash
-            - -ec
-            - |
-              # The server answers /ping before it is ready for DDL on a cold
-              # start, and this Job races the StatefulSet's own rollout.
-              until clickhouse-client --host {{ $chName }} --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1" >/dev/null 2>&1; do
-                echo "waiting for {{ $chName }}"
-                sleep 3
-              done
-              clickhouse-client --host {{ $chName }} --password "$CLICKHOUSE_PASSWORD" --query \
-                "CREATE DATABASE IF NOT EXISTS {{ $m.database }} ENGINE = Replicated('/clickhouse/databases/{{ $m.database }}', '{shard}', '{replica}')"
-              echo "database {{ $m.database }} ready"
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              memory: 512Mi
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse") | nindent 4 }}
+    statefulset.kubernetes.io/pod-name: {{ $chName }}-{{ $i }}
+  ports:
+    - name: interserver
+      port: 9009
+      targetPort: 9009
+    - name: native
+      port: 9000
+      targetPort: 9000
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -571,6 +599,13 @@ spec:
         # the pod. ClickHouse reloads some of these itself, but not the
         # profile settings that gate the replicated-engine guard.
         #
+        # `replicas` and `persistence` are omitted because neither reaches the
+        # server's configuration either: the count is the StatefulSet's, the
+        # volumes are their own objects, and the one part of `persistence` a
+        # pod reads, the path, is rendered into the pod spec directly. Hashing
+        # them restarted every running replica whenever one was added, right
+        # as the new one finished catching up from them.
+        #
         # `migration` and `shadowWrites` are omitted because neither reaches
         # this server's configuration. `migration` selects a step and its
         # cutoff, and `shadowWrites` is read by the application's env. Hashing
@@ -588,8 +623,10 @@ spec:
         #
         # The users configuration is hashed as well. Its Secret is mounted with
         # `subPath`, which Kubernetes never refreshes, so a profile change would
-        # otherwise sit unread until something else restarted the pod.
-        checksum/config: {{ printf "%s|%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password)) | sha256sum | trunc 32 }}
+        # otherwise sit unread until something else restarted the pod. The
+        # interserver password reaches the server through env, which is read
+        # only at startup too.
+        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "migration" "shadowWrites" "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password)) $interserverPassword | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}
@@ -624,18 +661,45 @@ spec:
               containerPort: 8123
             - name: native
               containerPort: 9000
+            - name: interserver
+              containerPort: 9009
             - name: metrics
               containerPort: {{ $m.metricsPort }}
-{{- if $m.backup.enabled }}
-          # Read by `backups.xml` through `from_env`, so the backup disk's
-          # credentials live in one Secret rather than being copied into the
-          # server's configuration.
-          #
-          # Which Secret that is depends on `managedSecrets`, hence the helper:
-          # app-secrets carries those keys either way, but they are empty
-          # strings when External Secrets owns the real ones, and an empty key
-          # signs a request that object storage answers with 403.
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # This replica's own Service, which `replication.xml` registers in
+            # Keeper as the address its peers fetch parts from.
+            - name: INTERSERVER_HTTP_HOST
+              value: "$(POD_NAME).$(POD_NAMESPACE).svc"
+            - name: INTERSERVER_HTTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $chSecretName }}
+                  key: interserver-password
+            # For the postStart hook's client. Not `CLICKHOUSE_PASSWORD`: the
+            # image's entrypoint reads that one and replaces the `default` user
+            # configured in users.d with one of its own.
+            - name: TUIST_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $chSecretName }}
+                  key: password
+{{- if $m.backup.enabled }}
+            # Read by `backups.xml` through `from_env`, so the backup disk's
+            # credentials live in one Secret rather than being copied into the
+            # server's configuration.
+            #
+            # Which Secret that is depends on `managedSecrets`, hence the
+            # helper: app-secrets carries those keys either way, but they are
+            # empty strings when External Secrets owns the real ones, and an
+            # empty key signs a request that object storage answers with 403.
             - name: BACKUP_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -657,6 +721,9 @@ spec:
               mountPath: /etc/clickhouse-server/config.d/tuist-keeper.xml
               subPath: keeper-client.xml
             - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-replication.xml
+              subPath: replication.xml
+            - name: config
               mountPath: /etc/clickhouse-server/config.d/tuist-settings.xml
               subPath: settings.xml
             - name: credentials
@@ -667,12 +734,76 @@ spec:
               mountPath: /etc/clickhouse-server/config.d/tuist-backups.xml
               subPath: backups.xml
 {{- end }}
+          # Creates the application database on this replica, before the pod
+          # can become ready.
+          #
+          # This cannot be done by the release task that clones the schema. A
+          # ClickHouse connection names its database when it opens, so a
+          # repository configured for `tuist` cannot connect at all until
+          # `tuist` exists, and no `CREATE DATABASE IF NOT EXISTS` from that
+          # repository can break the cycle. Nor by a Job: the database is a
+          # per-replica object, and a Job reaches whichever replica the
+          # Service picks, while the replica it missed would join the Service
+          # with no database at all.
+          #
+          # `Replicated` is the engine because that is what makes DDL reach
+          # every replica without each migration carrying `ON CLUSTER`, and it
+          # is required even at one replica since the table engines write their
+          # metadata to Keeper regardless.
+          #
+          # A replica that already has the database is only restarting, and
+          # returns at once: its tables are already here, and whatever it
+          # missed while it was down, `/replicas_status` holds it back for.
+          # One that does not is new: it creates the database, which registers it
+          # with its peers, then waits for two things before readiness is
+          # evaluated at all. Every table the database holds has to exist
+          # here, which `SYNC DATABASE REPLICA` waits for. And every one of
+          # them has to have copied its peer's list of parts to fetch, which
+          # happens shortly after the table starts: until then the replica
+          # looks caught up to `/replicas_status` while holding no data.
+          #
+          # Bounded, because probes do not run while this does: a server that
+          # never answers is restarted rather than left waiting.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    deadline=$((SECONDS + 900))
+                    q() { clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD" "$@"; }
+                    retry() {
+                      until "$@"; do
+                        if [ "$SECONDS" -ge "$deadline" ]; then
+                          echo "gave up waiting for: $*" >&2
+                          exit 1
+                        fi
+                        sleep 3
+                      done
+                    }
+                    all_cloned() {
+                      test "$(q --query "SELECT count() FROM system.replicas WHERE database = '{{ $m.database }}' AND log_pointer = 0 AND log_max_index > 0")" = 0
+                    }
+                    retry q --query "SELECT 1" > /dev/null
+                    if [ "$(q --query "EXISTS DATABASE {{ $m.database }}")" = 1 ]; then
+                      exit 0
+                    fi
+                    retry q --query "CREATE DATABASE IF NOT EXISTS {{ $m.database }} ENGINE = Replicated('/clickhouse/databases/{{ $m.database }}', '{shard}', '{replica}')"
+                    retry q --receive_timeout=300 --query "SYSTEM SYNC DATABASE REPLICA {{ $m.database }}"
+                    retry all_cloned
+          # Ready once this replica is within five minutes of its most
+          # up-to-date peer (`min_relative_delay_to_close`), so one still
+          # copying history takes no queries. A replica on its own, or two
+          # that lag together because Keeper is unreachable, stay ready: the
+          # delay is relative, and a read-only table does not count against it.
           readinessProbe:
             httpGet:
-              path: /ping
+              path: /replicas_status
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
           # ClickHouse opens its store, replaying write-ahead logs, before it
           # binds the port that answers /ping. A cold start after an unclean
           # shutdown spends that time here rather than failing readiness.
