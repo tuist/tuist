@@ -557,15 +557,49 @@ defmodule Tuist.Billing do
       |> List.wrap()
       |> Enum.map(&%{price: &1})
 
-    # Enterprise is negotiated per-deal; start the subscription with 0 seats
-    # so sales can fill in the actual quantity on Stripe without us guessing.
     flat_prices =
-      available_prices["enterprise"]["flat_monthly"]
-      |> List.wrap()
-      |> Enum.take(1)
-      |> Enum.map(&%{price: &1, quantity: 0})
+      case available_prices["enterprise"]["flat_monthly"] |> List.wrap() do
+        [] ->
+          []
+
+        [price_id] ->
+          [%{price: price_id, quantity: 0}]
+
+        candidates ->
+          # Stripe pins a customer's subscriptions to a single currency, so
+          # an EUR-priced enterprise item on a USD-pinned customer is
+          # rejected ("All items must have pricing in the same currency").
+          # Pick the configured price whose currency matches the customer's.
+          [%{price: pick_price_for_customer(candidates, account.customer_id), quantity: 0}]
+      end
 
     usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
+  end
+
+  defp pick_price_for_customer(prices, customer_id) do
+    case customer_currency(customer_id) do
+      nil ->
+        hd(prices)
+
+      currency ->
+        Enum.find(prices, hd(prices), &price_currency_matches?(&1, currency))
+    end
+  end
+
+  defp price_currency_matches?(price_id, currency) do
+    case Stripe.Price.retrieve(price_id) do
+      {:ok, %{currency: c}} when is_binary(c) -> String.downcase(c) == currency
+      _ -> false
+    end
+  end
+
+  defp customer_currency(nil), do: nil
+
+  defp customer_currency(customer_id) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, %{currency: currency}} when is_binary(currency) -> String.downcase(currency)
+      _ -> nil
+    end
   end
 
   # An account on a runner trial carries no runner item, which is what
