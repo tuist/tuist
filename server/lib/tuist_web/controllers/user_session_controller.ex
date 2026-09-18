@@ -76,7 +76,7 @@ defmodule TuistWeb.UserSessionController do
         _ -> nil
       end
 
-    if is_binary(email), do: String.trim(email), else: nil
+    if is_binary(email), do: String.trim(email)
   end
 
   defp do_create(conn, params, info) do
