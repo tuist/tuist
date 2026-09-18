@@ -94,3 +94,6 @@ config :sentry, dsn: nil
 
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
+
+# Pages subdomain plug uses this host suffix. Tests hit `<slug>.atlas.tuist.dev`.
+config :atlas, AtlasWeb.Plugs.PagesSubdomain, host_suffix: "atlas.tuist.dev"

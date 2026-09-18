@@ -6,16 +6,25 @@ defmodule AtlasWeb.Endpoint do
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
   alias AtlasWeb.Plugs.CacheRawBody
+  alias AtlasWeb.Plugs.PagesSubdomain
   alias Phoenix.Ecto.CheckRepoStatus
   alias Phoenix.LiveDashboard.RequestLogger
   alias Phoenix.LiveView.Socket
 
-  @session_options [
-    store: :cookie,
-    key: "_atlas_key",
-    signing_salt: "CygkhSXj",
-    same_site: "Lax"
-  ]
+  @session_cookie_domain Application.compile_env(:atlas, :session_cookie_domain)
+
+  @session_options (
+                     base = [
+                       store: :cookie,
+                       key: "_atlas_key",
+                       signing_salt: "CygkhSXj",
+                       same_site: "Lax"
+                     ]
+
+                     if @session_cookie_domain,
+                       do: Keyword.put(base, :domain, @session_cookie_domain),
+                       else: base
+                   )
 
   socket "/live", Socket,
     websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
@@ -63,5 +72,6 @@ defmodule AtlasWeb.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
   plug Plug.Session, @session_options
+  plug PagesSubdomain
   plug AtlasWeb.Router
 end
