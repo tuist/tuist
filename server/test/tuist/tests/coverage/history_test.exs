@@ -111,9 +111,39 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # its whole history.
       assert Enum.map(History.branch_history(project, "main").commits, & &1.git_commit_sha) == ["c", "b", "a"]
 
-      # A branch already merged adds nothing of its own; cutting it would
-      # leave an empty list, so its walk stands.
-      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == ["b", "a"]
+      # A branch the default one already contains has no divergence left in
+      # the graph, so it holds the commits its runs were labelled with — none
+      # here, and `b` once a run says so.
+      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == []
+
+      run(project, account, %{git_commit_sha: "b", git_branch: "merged"}, [1, 1, 1, 0])
+
+      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == ["b"]
+    end
+
+    test "read a fast-forwarded branch as what ran on it", %{project: project, account: account} do
+      # `feature` is built on `a` and `main` is fast-forwarded onto it, so both
+      # branches end at the same commit and the graph holds no merge commit.
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("f1", ["a"], 1),
+          CoverageFixtures.commit("f2", ["f1"], 2)
+        ],
+        branch_heads: [{"main", "f2"}, {"feature", "f2"}]
+      )
+
+      run(project, account, %{git_commit_sha: "a"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "f1", git_branch: "feature"}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "f2", git_branch: "feature"}, [1, 1, 1, 0])
+
+      # The commits are `main`'s history now, and they say so.
+      assert Enum.map(History.branch_history(project, "main").commits, & &1.git_commit_sha) == ["f2", "f1", "a"]
+
+      # They were measured on the branch, so they stay with it too, without
+      # dragging `main`'s history along.
+      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
     end
 
     test "narrow the points to one scheme's own totals", %{project: project, account: account} do

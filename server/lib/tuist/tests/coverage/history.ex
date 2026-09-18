@@ -52,7 +52,9 @@ defmodule Tuist.Tests.Coverage.History do
   graph's (`:graph`) or, without a recorded head, the runs' time (`:time`).
   A branch other than the project's default one holds only the commits it
   added: the walk is cut at its merge base with the default branch, whose own
-  history is read by selecting it.
+  history is read by selecting it. A branch the default one already contains
+  (fast-forwarded, or merged and left in place) has no merge base of its own
+  to cut at, so it holds the commits its runs were labelled with.
 
   `since` and `until` bound the measurements considered (`NaiveDateTime`);
   `limit` caps the commits walked (the newest), 200 by default. Each commit
@@ -90,7 +92,7 @@ defmodule Tuist.Tests.Coverage.History do
       end)
       |> chain()
       |> with_changes()
-      |> own_commits(project, branch, ordered_by, repository_id)
+      |> own_commits(project, branch, ordered_by, repository_id, opts)
 
     %{commits: commits, ordered_by: ordered_by}
   end
@@ -100,24 +102,45 @@ defmodule Tuist.Tests.Coverage.History do
   # history belongs to that branch and is read by selecting it. Chaining and
   # each commit's change are settled before the cut, so the oldest commit
   # kept still compares with the commit the branch left.
-  defp own_commits(commits, _project, _branch, :time, _repository_id), do: commits
-  defp own_commits([], _project, _branch, _ordered_by, _repository_id), do: []
-  defp own_commits(commits, _project, _branch, _ordered_by, nil), do: commits
+  defp own_commits(commits, _project, _branch, :time, _repository_id, _opts), do: commits
+  defp own_commits([], _project, _branch, _ordered_by, _repository_id, _opts), do: []
+  defp own_commits(commits, _project, _branch, _ordered_by, nil, _opts), do: commits
 
-  defp own_commits(commits, %Project{default_branch: branch}, branch, _ordered_by, _repository_id), do: commits
+  defp own_commits(commits, %Project{default_branch: branch}, branch, _ordered_by, _repository_id, _opts), do: commits
 
-  defp own_commits(commits, project, _branch, _ordered_by, repository_id) do
+  defp own_commits(commits, project, branch, _ordered_by, repository_id, opts) do
     head = commits |> hd() |> Map.fetch!(:git_commit_sha)
+    default_head = GitHistory.branch_head(repository_id, project.default_branch)
+    base = default_head && GitHistory.merge_base(repository_id, head, default_head)
 
-    with default_head when not is_nil(default_head) <-
-           GitHistory.branch_head(repository_id, project.default_branch),
-         base when base not in [nil, head] <- GitHistory.merge_base(repository_id, head, default_head) do
-      Enum.take_while(commits, &(&1.git_commit_sha != base))
-    else
-      # Without a default branch to compare with, or once the branch has been
-      # merged into it and adds nothing of its own, the whole walk stands.
-      _ -> commits
+    cond do
+      # Nothing to cut against: no default branch head, or no common commit.
+      is_nil(base) ->
+        commits
+
+      # The branch diverges from the default one: its own commits are those
+      # above the commit they share.
+      base != head ->
+        Enum.take_while(commits, &(&1.git_commit_sha != base))
+
+      # The branch is contained in the default one — fast-forwarded, or merged
+      # and not deleted — so the graph no longer says which commits were its
+      # own. What ran on it does: the commits its runs were labelled with,
+      # kept in the graph's order.
+      true ->
+        labelled = labelled_shas(project.id, branch, opts)
+        Enum.filter(commits, &MapSet.member?(labelled, &1.git_commit_sha))
     end
+  end
+
+  defp labelled_shas(project_id, branch, opts) do
+    from(t in subquery(runs_query(project_id, opts)),
+      where: t.git_branch == ^branch and t.git_commit_sha != "",
+      distinct: true,
+      select: t.git_commit_sha
+    )
+    |> ClickHouseRepo.all()
+    |> MapSet.new()
   end
 
   # Oldest first for the chaining rule, then back to newest first.
