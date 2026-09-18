@@ -1484,6 +1484,47 @@ func TestCacheImageSplit(t *testing.T) {
 	}
 }
 
+// The guest divides one budget between the two caches by what each holds, so the
+// host stages that budget: the image less the room a job grows into. The fixed
+// split stays staged beside it for runner images older than the division, which
+// roll out separately from tart-kubelet.
+func TestWriteCacheBudgetStagesOneBudgetForBothCaches(t *testing.T) {
+	const gib = uint64(1024 * 1024 * 1024)
+	dir := t.TempDir()
+
+	writeCacheBudget(dir, 30, 14)
+
+	read := func(name string) uint64 {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		got, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+		if err != nil {
+			t.Fatalf("%s %q is not a byte count: %v", name, raw, err)
+		}
+		return got
+	}
+	if got := read(sharedCacheBudgetFile); got != 24*gib {
+		t.Fatalf("shared budget = %d; want 24 GiB, the 30 GiB image less its 6 GiB of room", got)
+	}
+	if got := read(cacheBudgetFile); got != 10*gib {
+		t.Fatalf("fixed binary budget = %d; want 10 GiB for runner images that read it", got)
+	}
+}
+
+// With the compilation cache off, the binary cache has the budget to itself, which
+// is what the fixed split gives it too.
+func TestCacheImageBudgetIsWhatTheFixedSplitHandsOut(t *testing.T) {
+	for _, tc := range []struct{ capGiB, casGiB int }{{30, 14}, {28, 16}, {20, 0}, {5, 1}, {100, 20}} {
+		binaryBytes, casBytes := cacheImageSplit(tc.capGiB, tc.casGiB)
+		if budget := cacheImageBudget(tc.capGiB); binaryBytes+casBytes != budget {
+			t.Fatalf("cap%d cas%d: budget %d; the fixed split hands out %d", tc.capGiB, tc.casGiB, budget, binaryBytes+casBytes)
+		}
+	}
+}
+
 func TestWriteNodeName(t *testing.T) {
 	dir := t.TempDir()
 

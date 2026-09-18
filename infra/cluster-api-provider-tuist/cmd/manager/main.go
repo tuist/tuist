@@ -257,10 +257,10 @@ func main() {
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
 			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) allowance (GiB) within each per-account cache image, passed "+
-			"to tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
-			"share of the master cap; the binary cache gets the rest minus a reserve. The compiler is given all of "+
-			"it as COMPILATION_CACHE_LIMIT_SIZE, which already covers both generations a store keeps. 0 (default) "+
+		"Xcode compilation cache (CAS) share (GiB) of each per-account cache image, passed to tart-kubelet's "+
+			"--cache-volume-cas-gib. > 0 folds the CAS into the image as a subdir. The CAS and the binary cache "+
+			"share the master cap less a reserve, which the guest divides by what each holds; this value is the "+
+			"CAS's share of the fixed split that runner images older than that division apply. 0 (default) "+
 			"leaves the compilation cache VM-local. Only "+
 			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")

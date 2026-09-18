@@ -127,9 +127,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
   contents to the guest user and so retires any host/guest uid reconciliation),
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
-  (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
-  budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`/Users/runner/.tuist-cache-volume`), divides the budget the host stages for
+  both caches between them by use (`set_cache_limits`, described with the
+  compilation cache below) and exports the binary cache's limit as
+  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU prune and download admission, reads
+  the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
   The host also stages its Kubernetes `node-name` there at VM create, which the
@@ -242,6 +244,31 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  **The two caches share one budget.** The host stages `cache-budget-bytes`:
+  the image less a reserve of max(2 GiB, 20% of the cap), 24 GiB at a 30 GiB
+  cap, and the reserve is the room a job grows into before anything prunes.
+  `set_cache_limits` divides it between `tuist/` and `CompilationCache.noindex/`
+  by their allocated `du` sizes, with the rule the stores are divided by
+  (`split_by_use`, below) and a 2 GiB floor per cache
+  (`CACHE_SPLIT_FLOOR_BYTES`). The floor matters for the binary cache, which the
+  CLI holds to its limit for the whole job (a download that does not fit is
+  rebuilt from source), so a cache that holds nothing yet next to a busy one
+  still gets 2 GiB and doubles from there; two caches that each hold under a
+  quarter of the budget split it evenly. It runs twice: at attach, before the
+  attach prune, and at teardown, before the teardown prune, because the binary
+  cache may have grown to its attach-time share during the job and nothing
+  prunes it at teardown. Neither cache is handed room the other still holds
+  (`within_room`): the compilation cache's limit is capped at the budget less
+  what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
+  after the attach prune, capped at the budget less what the store holds once
+  pruned, since a prune cannot collect a store's last generation. The two
+  limits therefore never add up to more than the budget. A cache that stops
+  being used gives its space back only as fast as its own pruner collects it:
+  the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
+  host whose tart-kubelet predates `cache-budget-bytes` stages only the fixed
+  split (`cache-max-bytes`, and the `cas-enabled` figure), and
+  `set_cache_limits` applies that as is, so the two components roll out in
+  either order.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit
@@ -255,13 +282,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   generation dirs under the store's `lock` without opening it, so it works on a
   full volume and on stores the compilers or another Xcode wrote. Every lane is
   swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
-  discovered by their `v1.N` generation dirs, and the staged allowance is SPLIT
-  between them: the marker budgets the CAS as a whole while llcas only takes a
+  discovered by their `v1.N` generation dirs, and the compilation cache's limit
+  is SPLIT between them: it budgets the CAS as a whole while llcas only takes a
   per-generation bound per store, so handing each the full figure would let a
   multi-lane job occupy a multiple of the CAS the image was sized for. The split
-  is by use (`cas_store_budgets`): a store whose need, twice its allocated size
-  and at least 256 MiB, is under an even share gets that need, and the stores
-  that need more split the rest. An even split gave the few-KB `generic` store,
+  is by use (`cas_store_budgets` over `split_by_use`): a store whose need, twice
+  its allocated size and at least 256 MiB, is under an even share gets that
+  need, and the stores that need more split the rest. An even split gave the few-KB `generic` store,
   present on every volume, half the budget and capped `plugin` at half of what
   the host staged. Teardown is the only place that can count the
   lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
@@ -277,10 +304,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
   (verified both ways — same digest when reversed). Taking the baseline first
   makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. The guest is staged the whole
-  `casGib` allowance: llcas and the prune rotate a store once its primary passes
-  half the limit, so the limit already covers the primary and the demoted
-  upstream, which is the warm cache. `setup_cas_store` also exports
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. The compiler is
+  given the compilation cache's whole limit, not half: llcas and the prune
+  rotate a store once its primary passes half the limit, so the limit already
+  covers the primary and the demoted upstream, which is the warm cache.
+  `setup_cas_store` also exports
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed

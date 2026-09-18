@@ -1181,16 +1181,22 @@ macosFleet:
     # what it holds. A master created at a smaller cap is grown to this one when
     # the host next installs it, at its account's next promote or convergence.
     #
-    # Inside the image the caches prune to fixed limits: casGib for the
-    # compilation cache, and for the binary cache the cap less casGib and a
-    # reserve of max(2 GiB, 20% of the cap). At 30 / 14 that is 14 GiB for the
-    # compilation cache, 10 GiB for the binary cache and 6 GiB of room a job
-    # always starts with before anything prunes. casGib is staged to the guest
-    # whole as COMPILATION_CACHE_LIMIT_SIZE: llcas and the teardown prune rotate
-    # a store once its primary passes half of it, so it already covers both
-    # generations. The guest is fail-safe: a store it cannot write falls back to
-    # a VM-local cold compilation cache, so a bad budget costs warmth, not the
-    # job.
+    # Inside the image the two caches share one budget, the cap less a
+    # reserve of max(2 GiB, 20% of the cap): 24 GiB at 30, and 6 GiB of room a
+    # job always starts with before anything prunes. The guest divides the
+    # budget by what each cache holds, at attach and again at teardown, so an
+    # account that barely uses one cache leaves its share to the other, and a
+    # cache that holds nothing yet keeps 2 GiB to grow from. The compiler is
+    # given the compilation cache's limit whole as COMPILATION_CACHE_LIMIT_SIZE:
+    # llcas and the teardown prune rotate a store once its primary passes half
+    # of it, so it already covers both generations. The guest is fail-safe: a
+    # store it cannot write falls back to a VM-local cold compilation cache, so
+    # a bad budget costs warmth, not the job.
+    #
+    # casGib turns the compilation cache on. It also sets the fixed split that
+    # runner images older than the division by use still apply, 14 GiB for the
+    # compilation cache and 10 GiB for the binary cache, because tart-kubelet
+    # and the runner image roll out separately.
     #
     # The cap is bounded by admission and the evictor, not by taste. Admission
     # reserves the cap for every branch running a job, and a branch is reserved
