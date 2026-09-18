@@ -220,6 +220,7 @@
           }
         />
         <.widget
+          :if={diff?(@comparison)}
           id="widget-patch"
           title={dgettext("dashboard_tests", "Patch coverage")}
           description={
@@ -252,6 +253,7 @@
           }
         />
         <.widget
+          :if={diff?(@comparison)}
           id="widget-gaps"
           title={dgettext("dashboard_tests", "Untested changed files")}
           description={
@@ -261,6 +263,32 @@
             )
           }
           value={format_number(length(@comparison.gaps))}
+        />
+        <.widget
+          :if={not diff?(@comparison)}
+          id="widget-covered-lines"
+          title={dgettext("dashboard_tests", "Covered lines")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "%{covered} of %{executable} executable lines ran at least once.",
+              covered: format_number((@summary && @summary.covered_lines) || 0),
+              executable: format_number((@summary && @summary.executable_lines) || 0)
+            )
+          }
+          value={format_number((@summary && @summary.covered_lines) || 0)}
+        />
+        <.widget
+          :if={not diff?(@comparison)}
+          id="widget-files-without-data"
+          title={dgettext("dashboard_tests", "Files without coverage data")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Source files Git tracks at that commit that no scheme compiled, so they are missing from the total."
+            )
+          }
+          value={format_number((@summary && @summary.unmeasured_files_count) || 0)}
         />
       </div>
     </.card_section>

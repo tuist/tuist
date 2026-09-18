@@ -100,6 +100,9 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "#widget-change", "-50.0%")
       assert has_element?(lv, "#widget-patch", "0.0%")
       assert has_element?(lv, "#widget-gaps", "2")
+      # A pull request has a diff, so it is judged on it rather than read as a whole.
+      refute has_element?(lv, "#widget-covered-lines")
+      refute has_element?(lv, "#widget-files-without-data")
       refute has_element?(lv, "#coverage-no-baseline")
       assert has_element?(lv, "#coverage-incomplete")
 
@@ -190,6 +193,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       # The default branch is what the others are measured against, so it has
       # no distance of its own.
       refute has_element?(lv, "#widget-against-default")
+      # A push to a branch has no diff to judge, so the page reads the commit
+      # as a whole instead of showing an empty patch.
+      refute has_element?(lv, "#widget-patch")
+      refute has_element?(lv, "#widget-gaps")
+      assert has_element?(lv, "#widget-covered-lines")
+      assert has_element?(lv, "#widget-files-without-data")
 
       render_hook(lv, "coverage_period_changed", %{
         "preset" => "last-7-days",

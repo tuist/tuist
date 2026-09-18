@@ -328,6 +328,15 @@ defmodule TuistWeb.CoverageDetailLive do
   def change_description(_subject, _project, _comparison),
     do: dgettext("dashboard_tests", "Difference of the total against the baseline commit.")
 
+  @doc """
+  Whether the head has a diff to be judged on. Changed files come from the
+  diff against a base branch, which a pull request has and a push to a branch
+  does not, so without one the page reads the commit as a whole instead of
+  showing a patch nobody can compute.
+  """
+  def diff?(%{patch: %{status: :unavailable, reason: :no_history}}), do: false
+  def diff?(_comparison), do: true
+
   @doc "What the page's title calls its subject."
   def subject_title(%{kind: :commit, name: name}), do: dgettext("dashboard_tests", "Commit %{name}", name: name)
 
