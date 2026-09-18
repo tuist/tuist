@@ -794,6 +794,51 @@ cas_store_dirs() {
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
+# cas_generations prints a store's generations newest first, one
+# "v1.<n> <KiB allocated>" line each: the primary, then the upstream reads go
+# through, then anything older a prune has yet to collect.
+cas_generations() {
+  local generation
+  for generation in "$1"/v1.*; do
+    [ -d "${generation}" ] || continue
+    printf '%s %s\n' "${generation##*/}" "$(du -sk "${generation}" 2>/dev/null | awk '{print $1}')"
+  done | sort -t. -k2,2nr
+}
+
+# CAS_PRIMARIES_AT_ATTACH is each store's primary as this job found it once the
+# attach prune had run, one "<store><TAB>v1.<n> <KiB>" line per store, so teardown
+# can tell how much the job grew it.
+CAS_PRIMARIES_AT_ATTACH=""
+
+record_cas_primaries() {
+  local store tab
+  tab=$(printf '\t')
+  CAS_PRIMARIES_AT_ATTACH=$(cas_store_dirs | while IFS= read -r store; do
+    [ -n "${store}" ] && printf '%s%s%s\n' "${store}" "${tab}" "$(cas_generations "${store}" | head -1)"
+  done)
+}
+
+# report_cas_generations logs each store's primary beside the upstream reads go
+# through, as this job leaves them and before the teardown prune changes either,
+# with the primary it found at attach. A load that resolves in the upstream copies
+# its graph into the primary, so a job that starts on a fresh primary and ends
+# with one nearly as large as the upstream has copied most of it: the lines say
+# how much of an upstream the next job actually reuses.
+report_cas_generations() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local store generations primary upstream attached
+  while IFS= read -r store; do
+    [ -n "${store}" ] || continue
+    generations=$(cas_generations "${store}")
+    primary=$(printf '%s\n' "${generations}" | sed -n 1p)
+    upstream=$(printf '%s\n' "${generations}" | sed -n 2p)
+    attached=$(printf '%s\n' "${CAS_PRIMARIES_AT_ATTACH}" | awk -F '\t' -v store="${store}" '$1 == store { print $2 }')
+    echo "$(date -u +%FT%TZ) dispatch-poll: CAS store generations (teardown): ${store} (KiB: primary ${primary:-none}, at attach ${attached:-none}; upstream ${upstream:-none})"
+  done <<EOF
+$(cas_store_dirs)
+EOF
+}
+
 # CAS_STORE_BUDGET_FLOOR_BYTES is the least a small store is budgeted, so a store
 # a job starts writing to can grow before its next prune gives it more.
 CAS_STORE_BUDGET_FLOOR_BYTES=$((256 * 1024 * 1024))
@@ -1029,6 +1074,8 @@ wait_for_cache_ready() {
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
       prune_cas_stores attach
+      # What the job starts from, after the prune: teardown reports the growth.
+      record_cas_primaries
       # After the prune, which can be what makes room in a full image for the
       # store to be writable.
       setup_cas_store
@@ -1817,6 +1864,7 @@ HOOK
       # what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
+      report_cas_generations
       if [ "${rc}" = "0" ]; then
         prune_cas_stores teardown
       fi
