@@ -141,6 +141,25 @@ public enum PackageType {
 
 // MARK: - PackageInfo Mapper
 
+/// The dependencies that the products of the resolved Swift packages map to.
+public struct ResolvedExternalDependencies: Equatable, Sendable {
+    /// Product dependencies keyed by product name. `.external(name:)` dependencies resolve against them.
+    public let products: [String: [ProjectDescription.TargetDependency]]
+
+    /// Product dependencies keyed by lowercased package reference and then by product name. Product dependencies that name
+    /// their package resolve against them. A package is referenced by its identity and, unless another package shares them,
+    /// by its manifest name and the name part of its registry identity.
+    public let packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+
+    public init(
+        products: [String: [ProjectDescription.TargetDependency]],
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+    ) {
+        self.products = products
+        self.packageProducts = packageProducts
+    }
+}
+
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
 @Mockable
 public protocol PackageInfoMapping {
@@ -154,7 +173,7 @@ public protocol PackageInfoMapping {
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]],
         packageSettings: TuistCore.PackageSettings
-    ) async throws -> [String: [ProjectDescription.TargetDependency]]
+    ) async throws -> ResolvedExternalDependencies
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
     /// - Returns: Mapped project
@@ -164,6 +183,7 @@ public protocol PackageInfoMapping {
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
@@ -174,7 +194,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
-    private static let bundleIdentifierSeparators = CharacterSet(charactersIn: " _/+")
+    private static let bundleIdentifierSeparators = CharacterSet(charactersIn: " /+")
     private static let bundleIdentifierAllowedCharacters =
         CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-."))
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
@@ -205,7 +225,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]],
         packageSettings: TuistCore.PackageSettings
-    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
+    ) async throws -> ResolvedExternalDependencies {
         var targetDependencyToFramework: [String: Path] = [:]
         let derivedXCFrameworksPath = path.appending(
             components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
@@ -248,49 +268,62 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        var externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
-            .reduce(into: [:]) { result, packageInfo in
-                let moduleAliases = packageModuleAliases[packageInfo.value.name]
-                for product in packageInfo.value.products {
-                    let productName = moduleAliases?[product.name] ?? product.name
-                    if case .plugin = product.type {
-                        result[productName] = []
-                        continue
-                    }
+        // Packages are iterated in a stable order so that a product name vended by several packages always resolves to the
+        // same package.
+        let sortedPackageInfos = packageInfos.sorted(by: { $0.key < $1.key })
+        var externalDependencies: [String: [ProjectDescription.TargetDependency]] = [:]
+        var packageProducts: [String: [String: [ProjectDescription.TargetDependency]]] = [:]
+        for packageInfo in sortedPackageInfos {
+            let moduleAliases = packageModuleAliases[packageInfo.value.name]
+            var products: [String: [ProjectDescription.TargetDependency]] = [:]
+            for product in packageInfo.value.products {
+                let productName = moduleAliases?[product.name] ?? product.name
+                if case .plugin = product.type {
+                    products[productName] = []
+                    continue
+                }
 
-                    result[productName] = try product.targets.flatMap { target in
-                        try ResolvedDependency.fromTarget(
-                            name: moduleAliases?[target] ?? target,
-                            targetDependencyToFramework: targetDependencyToFramework,
-                            condition: nil
-                        )
-                        .map {
-                            switch $0 {
-                            case let .xcframework(path, condition):
-                                return .xcframework(
-                                    path: path,
-                                    expectedSignature: packageSettings.expectedSignatures[target]
-                                        .map(ProjectDescription.XCFrameworkSignature.from),
-                                    condition: condition
-                                )
-                            case let .target(name, condition):
-                                let name = moduleAliases?[name] ?? name
-                                return .project(
-                                    target: name,
-                                    path: .path(packageToFolder[packageInfo.key]!.pathString),
-                                    condition: condition
-                                )
-                            case .externalTarget:
-                                throw PackageInfoMapperError.unknownProductTarget(
-                                    package: packageInfo.key,
-                                    product: product.name,
-                                    target: target
-                                )
-                            }
+                products[productName] = try product.targets.flatMap { target in
+                    try ResolvedDependency.fromTarget(
+                        name: moduleAliases?[target] ?? target,
+                        targetDependencyToFramework: targetDependencyToFramework,
+                        condition: nil
+                    )
+                    .map {
+                        switch $0 {
+                        case let .xcframework(path, condition):
+                            return .xcframework(
+                                path: path,
+                                expectedSignature: packageSettings.expectedSignatures[target]
+                                    .map(ProjectDescription.XCFrameworkSignature.from),
+                                condition: condition
+                            )
+                        case let .target(name, condition):
+                            let name = moduleAliases?[name] ?? name
+                            return .project(
+                                target: name,
+                                path: .path(packageToFolder[packageInfo.key]!.pathString),
+                                condition: condition
+                            )
+                        case .externalTarget:
+                            throw PackageInfoMapperError.unknownProductTarget(
+                                package: packageInfo.key,
+                                product: product.name,
+                                target: target
+                            )
                         }
                     }
                 }
             }
+            externalDependencies.merge(products, uniquingKeysWith: { _, new in new })
+            packageProducts[packageInfo.key.lowercased()] = products
+        }
+        for (alias, identity) in Self.packageReferenceAliases(packageInfos: sortedPackageInfos)
+            where packageProducts[alias] == nil
+        {
+            packageProducts[alias] = packageProducts[identity]
+        }
+
         // Include dependencies added as binary targets
         let packageName = (packagePath ?? path.parentDirectory).basename.lowercased()
         let remoteXcframeworksPath = path.appending(components: [
@@ -310,7 +343,22 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 .map(ProjectDescription.XCFrameworkSignature.from)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
-        return externalDependencies
+        return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
+    }
+
+    /// Maps the manifest name and the name part of a registry identity of each package to its lowercased identity, skipping
+    /// the ones that several packages share.
+    private static func packageReferenceAliases(packageInfos: [(key: String, value: PackageInfo)]) -> [String: String] {
+        let identitiesByAlias = packageInfos.reduce(into: [String: Set<String>]()) { result, packageInfo in
+            let identity = packageInfo.key.lowercased()
+            result[packageInfo.value.name.lowercased(), default: []].insert(identity)
+            if let scopeSeparator = identity.firstIndex(of: ".") {
+                result[String(identity[identity.index(after: scopeSeparator)...]), default: []].insert(identity)
+            }
+        }
+        return identitiesByAlias.compactMapValues { identities in
+            identities.count == 1 ? identities.first : nil
+        }
     }
 
     /// There are certain Swift Package targets that need to run on macOS. Examples of these are Swift Macros.
@@ -368,6 +416,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
@@ -428,6 +477,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
+                    packageProducts: packageProducts,
                     packageTraits: packageInfo.traits ?? [],
                     enabledTraits: enabledTraits,
                     prebuiltEligibleTargets: prebuiltEligibleTargets
@@ -723,6 +773,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
         packageTraits: [PackageTrait],
         enabledTraits: Set<String>,
         prebuiltEligibleTargets: Set<String>
@@ -944,26 +995,25 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         targetPrebuilts.append(prebuilt)
                         continue
                     }
-                    if let dependency = try await mapDependency(
+                    dependencies.append(contentsOf: try await mapDependency(
                         name: name,
                         targetPackage: package,
                         sourceTargetName: target.name,
                         packageInfo: packageInfo,
                         packageType: packageType,
                         packageSettings: packageSettings,
+                        packageProducts: packageProducts,
                         condition: condition,
                         moduleAliases: moduleAliases,
                         dependencyModuleAliases: &dependencyModuleAliases,
                         enabledTraits: enabledTraits
-                    ) {
-                        dependencies.append(dependency)
-                    }
+                    ))
                 case let .byName(name: name, condition: condition),
                      let .target(
                          name: name,
                          condition: condition
                      ):
-                    if let dependency = try await mapDependency(
+                    dependencies.append(contentsOf: try await mapDependency(
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
@@ -972,9 +1022,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         moduleAliases: packageModuleAliases[packageInfo.name],
                         dependencyModuleAliases: &dependencyModuleAliases,
                         enabledTraits: enabledTraits
-                    ) {
-                        dependencies.append(dependency)
-                    }
+                    ))
                 }
             }
             dependencies = linkerDependencies + dependencies
@@ -1323,24 +1371,32 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]] = [:],
         condition: PackageInfo.PackageConditionDescription?,
         moduleAliases: [String: String]?,
         dependencyModuleAliases: inout [String: String],
         enabledTraits: Set<String>
-    ) async throws -> ProjectDescription.TargetDependency? {
+    ) async throws -> [ProjectDescription.TargetDependency] {
         // If the condition has traits, check if any of them are enabled
         // If none are enabled, skip this dependency
         if let traits = condition?.traits, !traits.isEmpty {
             let hasEnabledTrait = traits.contains { enabledTraits.contains($0) }
             if !hasEnabledTrait {
-                return nil
+                return []
             }
         }
         let platformCondition: ProjectDescription.PlatformCondition?
         do {
             platformCondition = try ProjectDescription.PlatformCondition.from(condition)
         } catch {
-            return nil
+            return []
+        }
+        // Product names are only unique within a package, so a product dependency that names its package resolves against that
+        // package's products.
+        if let targetPackage, moduleAliases?[name] == nil,
+           let productDependencies = packageProducts[targetPackage.lowercased()]?[name]
+        {
+            return productDependencies.map { $0.withCondition(platformCondition) }
         }
         // If this is a .product dependency that explicitly references a different package
         // and the dependency name matches the source target name with no module alias
@@ -1350,7 +1406,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
            let sourceTargetName, sourceTargetName == name,
            moduleAliases?[name].map({ $0 == sourceTargetName }) != false
         {
-            return .external(name: name, condition: platformCondition)
+            return [.external(name: name, condition: platformCondition)]
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
@@ -1369,26 +1425,26 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     artifactPath: artifactPath,
                     derivedXCFrameworksPath: derivedXCFrameworksPath
                 )
-                return .xcframework(
+                return [.xcframework(
                     path: dependencyPath,
                     expectedSignature: packageSettings.expectedSignatures[target.name]
                         .map(ProjectDescription.XCFrameworkSignature.from),
                     status: .required,
                     condition: platformCondition
-                )
+                )]
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
-                return .target(name: PackageInfoMapper.sanitize(targetName: aliasedName), condition: platformCondition)
+                return [.target(name: PackageInfoMapper.sanitize(targetName: aliasedName), condition: platformCondition)]
             } else {
-                return .target(name: PackageInfoMapper.sanitize(targetName: name), condition: platformCondition)
+                return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: platformCondition)]
             }
         } else {
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
-                return .external(name: aliasedName, condition: platformCondition)
+                return [.external(name: aliasedName, condition: platformCondition)]
             } else {
-                return .external(name: name, condition: platformCondition)
+                return [.external(name: name, condition: platformCondition)]
             }
         }
     }
@@ -2134,6 +2190,29 @@ extension ProjectDescription.ResourceFileElements {
 }
 
 extension ProjectDescription.TargetDependency {
+    fileprivate func withCondition(_ condition: ProjectDescription.PlatformCondition?) -> Self {
+        switch self {
+        case let .target(name, status, _):
+            return .target(name: name, status: status, condition: condition)
+        case .macro, .xctest:
+            return self
+        case let .project(target, path, status, _):
+            return .project(target: target, path: path, status: status, condition: condition)
+        case let .framework(path, status, _):
+            return .framework(path: path, status: status, condition: condition)
+        case let .library(path, publicHeaders, swiftModuleMap, _):
+            return .library(path: path, publicHeaders: publicHeaders, swiftModuleMap: swiftModuleMap, condition: condition)
+        case let .package(product, type, _):
+            return .package(product: product, type: type, condition: condition)
+        case let .sdk(name, type, status, _):
+            return .sdk(name: name, type: type, status: status, condition: condition)
+        case let .xcframework(path, expectedSignature, status, _):
+            return .xcframework(path: path, expectedSignature: expectedSignature, status: status, condition: condition)
+        case let .external(name, _):
+            return .external(name: name, condition: condition)
+        }
+    }
+
     fileprivate static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],

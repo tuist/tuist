@@ -1,0 +1,97 @@
+#admin-users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="summary"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="users-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & #admin-users-table {
+    & [data-part="cell"][data-type="text_and_description"] [data-part="icon"]:has(.noora-avatar) {
+      padding: 0;
+      box-shadow: none;
+    }
+
+    & [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+    }
+
+    & [data-part="actions-cell"] {
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+
+    & .noora-modal [data-part="body"] {
+      min-width: unset;
+    }
+
+    & [data-part="manage-role-modal"] {
+      & > [data-part="trigger"] {
+        display: none;
+      }
+
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
+      }
+
+      & [data-part="role-management"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9)
+          var(--noora-spacing-2);
+        width: min(303px, 100%);
+      }
+
+      & [data-part="role-management"] > .noora-dropdown {
+        width: 100%;
+      }
+
+      & [data-part="role-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  @media (max-width: 960px) {
+    & > [data-part="header"] {
+      flex-direction: column;
+    }
+  }
+}

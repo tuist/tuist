@@ -220,6 +220,7 @@ defmodule Tuist.Accounts.Account do
   defp validate_handle(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters")
+    |> validate_format(:name, ~r/^[a-zA-Z0-9](?:.*[a-zA-Z0-9])?$/s, message: "must start and end with a letter or number")
     |> validate_length(:name, min: 1, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")

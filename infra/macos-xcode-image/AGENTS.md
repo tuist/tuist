@@ -28,6 +28,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 | 26.5            | `:26-5`            | `/Applications/Xcode_26.5.app`       | _(none — already major-minor)_ |
 | 26.4.1          | `:26-4-1`          | `/Applications/Xcode_26.4.1.app`     | `Xcode_26.4.app` → `Xcode_26.4.1.app` |
 | 26.3            | `:26-3`            | `/Applications/Xcode_26.3.app`       | _(none — already major-minor)_ |
+| 26.1.1          | `:26-1-1`          | `/Applications/Xcode_26.1.1.app`     | `Xcode_26.1.app` → `Xcode_26.1.1.app` |
 | 26.0.1          | `:26-0-1`          | `/Applications/Xcode_26.0.1.app`     | `Xcode_26.0.app` → `Xcode_26.0.1.app` |
 
 When `xcode_version` carries a patch component (three-segment
@@ -80,7 +81,12 @@ thin runtime on top — ~2 min instead of ~30.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
   `xcodebuild -downloadAllPlatforms`.
 - The Metal compiler toolchain from
-  `xcodebuild -downloadComponent MetalToolchain`.
+  `xcodebuild -downloadComponent MetalToolchain -buildVersion <build>`,
+  where `<build>` is the toolchain Apple's downloadable index
+  (`index2.dvtdownloadableindex`, `xcodeToOtherDownloadablesMappings`)
+  maps the Xcode build to. Apple publishes some toolchains under a
+  different build than the Xcode's own (26.4.1: 17E202 to 17E188), and
+  a plain `-downloadComponent` then fails with `Failed fetching catalog`.
 - Dev tools via brew: `xcodes`, `xcbeautify`, `swiftformat`,
   `swiftlint`, `swiftgen`, `licenseplist`, `mint`, `carthage`,
   `fastlane`, `cocoapods`, `libimobiledevice`, `ideviceinstaller`,
@@ -192,24 +198,27 @@ gets the same toolchain.
 ```
 gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.3
+gh workflow run macos-xcode-image.yml -f xcode_version=26.1.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.0.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
 gh workflow run macos-xcode-image.yml -f xcode_version=26.6
 gh workflow run macos-xcode-image.yml -f xcode_version=27.0
 ```
 
-Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.0.1 → `:26-0-1`,
+Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.1.1 → `:26-1-1`, 26.0.1 → `:26-0-1`,
 26.5 → `:26-5`, 26.6 → `:26-6`, 27.0 → `:27-0`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
+- `:27-2-beta` (channel `:27-2-beta`)
 - `:27-0`
 - `:26-6`
 - `:26-5`
 - `:26-4-1`
 - `:26-3`
+- `:26-1-1`
 - `:26-0-1`
 
 Exact tags are immutable: a patch bump from Apple (26.4.1 to

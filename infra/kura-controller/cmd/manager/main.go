@@ -83,7 +83,14 @@ func main() {
 		}
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), managerOptions)
+	restConfig := ctrl.GetConfigOrDie()
+	// Concurrent reconciles each make a few uncached apiserver calls (the status
+	// write, unstructured DNSEndpoint and Certificate reads), which the
+	// controller-runtime default of 20 QPS would throttle into a queue of its own.
+	restConfig.QPS = 100
+	restConfig.Burst = 200
+
+	mgr, err := ctrl.NewManager(restConfig, managerOptions)
 	if err != nil {
 		setupLog.Error(err, "create manager")
 		os.Exit(1)

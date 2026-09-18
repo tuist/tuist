@@ -27,6 +27,43 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
     end
 
+    test "carries the content digest on every path that writes the row, absence included" do
+      account = account_fixture()
+      volume = VolumeHeads.reserved_tuist_cache()
+
+      # Establish, fast-forward, and retirement all publish a NEW object, so
+      # each write must record that object's content digest — and a promote
+      # that reports none must CLEAR the previous value, or hosts would verify
+      # the new object against the old object's hash and decline forever.
+      assert {:ok, 1} =
+               VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0, volume,
+                 content_digest: String.duplicate("1", 64)
+               )
+
+      assert %{content_digest: content_digest} = VolumeHeads.get_head(account.id)
+      assert content_digest == String.duplicate("1", 64)
+
+      assert {:ok, 2} =
+               VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1, volume,
+                 content_digest: String.duplicate("2", 64)
+               )
+
+      assert %{content_digest: content_digest} = VolumeHeads.get_head(account.id)
+      assert content_digest == String.duplicate("2", 64)
+
+      assert {:ok, 3} =
+               VolumeHeads.bump_head(account.id, "mac-03", "digest-c", 0, volume,
+                 unverifiable_digest: "digest-b",
+                 content_digest: String.duplicate("3", 64)
+               )
+
+      assert %{content_digest: content_digest} = VolumeHeads.get_head(account.id)
+      assert content_digest == String.duplicate("3", 64)
+
+      assert {:ok, 4} = VolumeHeads.bump_head(account.id, "mac-04", "digest-d", 3, volume)
+      assert %{content_digest: nil} = VolumeHeads.get_head(account.id)
+    end
+
     test "records the publishing host on every path that writes the row" do
       account = account_fixture()
 

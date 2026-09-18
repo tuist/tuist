@@ -7,11 +7,15 @@ defmodule Tuist.Kura.PromExPlugin do
   reclaimed bytes, archive cancellations, refused provisions, and the accounts
   refused a service region before they reach any transition at all.
 
-  Four polled gauges cover what a transition cannot see:
+  Five polled gauges cover what a transition cannot see:
 
     * per-region occupancy — the forecast enforced warm quota against what is
       installed. This is the number that decides whether another machine is
       needed, and whether the Air pressure rule is active at all.
+    * per-region admission headroom: the gibibytes `Tuist.Kura.Admission` can
+      still place, as the minute-old reading placement acts on. Occupancy alone
+      cannot give it, because admission also counts rows the cluster has not
+      observed yet.
     * hit-rate recovery — the cache hit ratio of account-regions that returned
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
@@ -51,6 +55,12 @@ defmodule Tuist.Kura.PromExPlugin do
 
   @metric_prefix [:tuist, :kura, :lifecycle]
   @poll_rate to_timeout(minute: 1)
+
+  # The percentile is taken over a day of deployments, and a day's percentile
+  # does not move within a minute. Polled slower so every server pod is not
+  # running that scan on the minute.
+  @readiness_poll_rate to_timeout(minute: 5)
+  @readiness_window_seconds 24 * 60 * 60
 
   # A cold return's time-to-ready spans a provision plus a rollout, so the
   # buckets run from a fast reschedule to well past a slow image pull.
@@ -103,6 +113,14 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:region, :reason]
           ),
           counter(
+            @metric_prefix ++ [:provision_refused, :count],
+            event_name: Telemetry.event_name_provision_refused(),
+            description:
+              "Provisions and cold returns capacity admission refused. The account keeps asking, " <>
+                "so a full region reads as a steady rate.",
+            tags: [:plan, :region, :reason, :cold_return]
+          ),
+          counter(
             @metric_prefix ++ [:archive_cancelled, :count],
             event_name: Telemetry.event_name_archive_cancelled(),
             description: "Archivals cancelled because cache demand returned mid-drain.",
@@ -141,7 +159,7 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_seed_declined(),
             description:
               "Accounts not seeded an instance ahead of their first cache request, because the " <>
-                "region they resolve to is over its pressure line or their last instance was " <>
+                "region they resolve to is under capacity pressure or their last instance was " <>
                 "reclaimed for never storing anything. They are still provisioned on first use.",
             tags: [:plan, :region, :reason]
           ),
@@ -209,6 +227,22 @@ defmodule Tuist.Kura.PromExPlugin do
         ]
       ),
       Polling.build(
+        :tuist_kura_admission_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_admission_headroom_telemetry_event, []},
+        [
+          last_value(
+            [:tuist, :kura, :capacity, :admission_headroom, :gibibytes],
+            event_name: [:tuist, :kura, :capacity, :admission],
+            measurement: :headroom_gib,
+            description:
+              "Disk capacity admission can still place in the region: the pressure line less the larger " <>
+                "of the observed and desired reservations. An instance whose reservation exceeds it is refused.",
+            tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
         :tuist_kura_recovery_polling_metrics,
         @poll_rate,
         {__MODULE__, :execute_hit_rate_recovery_telemetry_event, []},
@@ -226,6 +260,31 @@ defmodule Tuist.Kura.PromExPlugin do
             measurement: :steady_hit_rate,
             description: "Cache hit ratio of account-regions that did not recently return, for comparison.",
             tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_kura_new_instance_readiness_polling_metrics,
+        @readiness_poll_rate,
+        {__MODULE__, :execute_new_instance_readiness_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:new_instance_time_to_ready, :p90_seconds],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :p90_seconds,
+            description:
+              "90th percentile of how long the new instances that started serving in the last day " <>
+                "took, from the deployment that brought one up to its endpoint answering. First " <>
+                "provisions and cold returns only, so a fleet rollout does not move it.",
+            unit: :second
+          ),
+          last_value(
+            @metric_prefix ++ [:new_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :count,
+            description:
+              "New instances that started serving in the last day, which is how many samples the " <>
+                "percentile above is taken over."
           )
         ]
       ),
@@ -278,6 +337,43 @@ defmodule Tuist.Kura.PromExPlugin do
         %{region: region_id}
       )
     end)
+  end
+
+  @doc false
+  def execute_admission_headroom_telemetry_event do
+    Enum.each(lifecycle_regions(), fn %Regions{id: region_id} = region ->
+      case Capacity.admission_headroom_gib(region) do
+        :unbounded ->
+          :ok
+
+        # Admission refuses every instance in a region it cannot read, so an
+        # unreadable region has no headroom.
+        headroom ->
+          :telemetry.execute(
+            [:tuist, :kura, :capacity, :admission],
+            %{headroom_gib: headroom || 0},
+            %{region: region_id}
+          )
+      end
+    end)
+  end
+
+  @doc false
+  def execute_new_instance_readiness_telemetry_event do
+    case Kura.new_instance_readiness(@readiness_window_seconds) do
+      # No new instance in the window leaves the series stale rather than
+      # reporting a percentile of nothing: a fleet that provisioned nothing has
+      # no speed to report, and a zero would read as instant.
+      %{count: 0} ->
+        :ok
+
+      %{count: count, p90_seconds: p90_seconds} ->
+        :telemetry.execute(
+          [:tuist, :kura, :lifecycle, :new_instance_readiness],
+          %{count: count, p90_seconds: p90_seconds},
+          %{}
+        )
+    end
   end
 
   @doc false

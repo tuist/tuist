@@ -16,7 +16,7 @@ func TestConnectivityDiagnosticsNeverAddReadinessDependencies(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: "kura-selected"}}
 	for _, environment := range []string{"production", "staging", "canary"} {
 		for _, selected := range []bool{false, true} {
-			template := podTemplate(instance, "", environment, "", false, false)
+			template := podTemplate(instance, "", environment, "", false, false, false)
 			before := template.DeepCopy()
 			r := &KuraInstanceReconciler{Environment: environment}
 			if selected {
@@ -47,7 +47,7 @@ func TestConnectivityDiagnosticsOwnTheReservedProfileSetting(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: "kura-selected"}}
 	instance.Spec.ExtraEnv = []corev1.EnvVar{{Name: connectivityProfileEnv, Value: "staging"}, {Name: connectivityProfileEnv, Value: "canary"}}
 	for _, name := range []string{"", "kura", "*", instance.Name} {
-		template := podTemplate(instance, "", "production", "", false, false)
+		template := podTemplate(instance, "", "production", "", false, false, false)
 		r := &KuraInstanceReconciler{Environment: "production", ConnectivityDiagnosticsInstances: []string{name}}
 		r.configureConnectivityDiagnostics(instance, &template)
 		count := 0

@@ -78,7 +78,7 @@ defmodule Tuist.Runners.VolumeHeads do
 
   def bump_head(account_id, node_name, tree_digest, 0, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" do
-    case establish_first_head(account_id, node_name, tree_digest, volume_name) do
+    case establish_first_head(account_id, node_name, tree_digest, volume_name, opts[:content_digest]) do
       :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
       accepted -> accepted
     end
@@ -87,7 +87,7 @@ defmodule Tuist.Runners.VolumeHeads do
   def bump_head(account_id, node_name, tree_digest, base_generation, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" and is_integer(base_generation) and
              base_generation > 0 do
-    case fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name) do
+    case fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name, opts[:content_digest]) do
       :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
       accepted -> accepted
     end
@@ -99,7 +99,7 @@ defmodule Tuist.Runners.VolumeHeads do
   # Cold job: establish generation 1 iff no HEAD exists. A conflict (a HEAD is
   # already there) means the cold job built on nothing while the fleet moved on,
   # and must not clobber an existing lineage on its own.
-  defp establish_first_head(account_id, node_name, tree_digest, volume_name) do
+  defp establish_first_head(account_id, node_name, tree_digest, volume_name, content_digest) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     {count, _} =
@@ -111,6 +111,7 @@ defmodule Tuist.Runners.VolumeHeads do
             volume_name: volume_name,
             node_name: node_name,
             tree_digest: tree_digest,
+            content_digest: content_digest,
             generation: 1,
             inserted_at: now,
             updated_at: now
@@ -155,6 +156,7 @@ defmodule Tuist.Runners.VolumeHeads do
           set: [
             generation: generation + 1,
             tree_digest: tree_digest,
+            content_digest: opts[:content_digest],
             node_name: node_name,
             updated_at: now
           ]
@@ -188,7 +190,10 @@ defmodule Tuist.Runners.VolumeHeads do
   defp retires_head?(_head, _unverifiable_digest), do: false
 
   # Warm job: advance the HEAD only if it is still at the base the job built on.
-  defp fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name) do
+  # content_digest is always written, nil included: it describes the object this
+  # promote uploaded, so a stale value from the previous HEAD must never survive
+  # a bump that publishes a different object.
+  defp fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name, content_digest) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     {count, _} =
@@ -199,16 +204,17 @@ defmodule Tuist.Runners.VolumeHeads do
               h.generation == ^base_generation
         ),
         inc: [generation: 1],
-        set: [tree_digest: tree_digest, node_name: node_name, updated_at: now]
+        set: [tree_digest: tree_digest, content_digest: content_digest, node_name: node_name, updated_at: now]
       )
 
     if count == 1, do: {:ok, base_generation + 1}, else: :conflict
   end
 
   @doc """
-  The account's current HEAD as `%{generation, tree_digest}`, or `nil` when the
-  account has never promoted a volume (the host materializes cold and its first
-  successful job establishes the HEAD).
+  The account's current HEAD as `%{generation, tree_digest, content_digest}`,
+  or `nil` when the account has never promoted a volume (the host materializes
+  cold and its first successful job establishes the HEAD). `content_digest` is
+  nil for a HEAD promoted by a runner image that predates the content hash.
   """
   def get_head(account_id, volume_name \\ @reserved_tuist_cache)
 
@@ -216,7 +222,7 @@ defmodule Tuist.Runners.VolumeHeads do
     Repo.one(
       from(h in VolumeHead,
         where: h.account_id == ^account_id and h.volume_name == ^volume_name,
-        select: %{generation: h.generation, tree_digest: h.tree_digest}
+        select: %{generation: h.generation, tree_digest: h.tree_digest, content_digest: h.content_digest}
       )
     )
   end

@@ -14,36 +14,59 @@ public protocol CacheURLStoring: Sendable {
     func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL]
 }
 
+/// Whether resolving an endpoint waits for a cache instance the server is preparing.
+public enum CacheProvisioningWait: Equatable, Sendable {
+    /// Answer with what the server has now. For callers on a request path, or restarted until
+    /// they succeed, where blocking would stall the work that is waiting on them.
+    case none
+    /// Ask the server again until an endpoint serves or `Duration` of wall-clock time has passed.
+    case upTo(Duration)
+
+    /// For commands a person or a CI job runs. An account's instance is prepared on demand,
+    /// typically in seconds, so such a run is better served by waiting for it than by falling
+    /// back to the local cache straight away.
+    public static let forInteractiveCommands: CacheProvisioningWait = .upTo(.seconds(30))
+}
+
 public struct CacheURLStore: CacheURLStoring {
     private let cachedValueStore: CachedValueStoring
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let endpointLatencyService: EndpointLatencyServicing
+    private let provisioningWait: CacheProvisioningWait
+    private let provisioningPollInterval: Duration
     private let localCache: NSCache<NSString, NSString>
 
-    public init() {
+    public init(provisioningWait: CacheProvisioningWait = .none) {
         self.init(
             cachedValueStore: CachedValueStore(backend: .inSystemProcess),
-            getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
+            provisioningWait: provisioningWait
         )
     }
 
-    public init(cachedValueStore: CachedValueStoring) {
+    public init(
+        cachedValueStore: CachedValueStoring,
+        provisioningWait: CacheProvisioningWait = .none
+    ) {
         self.init(
             cachedValueStore: cachedValueStore,
             getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
+            endpointLatencyService: EndpointLatencyService(),
+            provisioningWait: provisioningWait
         )
     }
 
     init(
         cachedValueStore: CachedValueStoring,
         getCacheEndpointsService: GetCacheEndpointsServicing,
-        endpointLatencyService: EndpointLatencyServicing
+        endpointLatencyService: EndpointLatencyServicing,
+        provisioningWait: CacheProvisioningWait = .none,
+        provisioningPollInterval: Duration = .milliseconds(250)
     ) {
         self.cachedValueStore = cachedValueStore
         self.getCacheEndpointsService = getCacheEndpointsService
         self.endpointLatencyService = endpointLatencyService
+        self.provisioningWait = provisioningWait
+        self.provisioningPollInterval = provisioningPollInterval
         localCache = NSCache<NSString, NSString>()
     }
 
@@ -56,8 +79,9 @@ public struct CacheURLStore: CacheURLStoring {
             return url
         }
 
-        let key =
-            "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(currentCacheEndpointKeySuffix())"
+        // Not the `cache_url_` names earlier releases stored their answers under:
+        // those can still hold endpoints the server no longer routes clients to.
+        let key = "cache_endpoint_\(serverURL.absoluteString)_\(accountHandle ?? "global")"
         let nsKey = key as NSString
 
         if let cachedURLString = localCache.object(forKey: nsKey) as? String {
@@ -123,14 +147,11 @@ public struct CacheURLStore: CacheURLStoring {
     {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
-        let resolution = try await getCacheEndpointsService.getCacheEndpoints(
-            serverURL: serverURL,
-            accountHandle: accountHandle
-        )
+        let resolution = try await resolutionWaitingForProvisioning(serverURL: serverURL, accountHandle: accountHandle)
         let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
-            throw CacheURLStoreError.noEndpointsAvailable
+            throw resolution.provisioning ? CacheURLStoreError.endpointBeingPrepared : CacheURLStoreError.noEndpointsAvailable
         }
 
         if endpoints.count == 1 {
@@ -174,6 +195,83 @@ public struct CacheURLStore: CacheURLStoring {
         return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
     }
 
+    /// The server's answer, asked again every `provisioningPollInterval` while it has no endpoint
+    /// and is preparing an instance, until the `provisioningWait` budget has elapsed.
+    ///
+    /// The budget is wall-clock time from the first answer: requests count against it as much as
+    /// the pauses between them, and neither a pause nor a request is allowed to run past it, so a
+    /// slow server cannot stretch the wait before the caller falls back.
+    private func resolutionWaitingForProvisioning(serverURL: URL, accountHandle: String?) async throws
+        -> CacheEndpointsResolution
+    {
+        var resolution = try await getCacheEndpointsService.getCacheEndpoints(
+            serverURL: serverURL,
+            accountHandle: accountHandle
+        )
+        guard Self.isBeingPrepared(resolution), case let .upTo(budget) = provisioningWait,
+              budget > .zero, provisioningPollInterval > .zero
+        else { return resolution }
+
+        Logger.current.notice(
+            "The remote cache is being prepared. Waiting up to \(budget.components.seconds) seconds for it to be ready."
+        )
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: budget)
+        while Self.isBeingPrepared(resolution) {
+            let untilDeadline = clock.now.duration(to: deadline)
+            guard untilDeadline > .zero else { break }
+            try await Task.sleep(for: min(provisioningPollInterval, untilDeadline))
+
+            let remaining = clock.now.duration(to: deadline)
+            guard remaining > .zero,
+                  let next = try await fetchResolution(serverURL: serverURL, accountHandle: accountHandle, within: remaining)
+            else { break }
+            resolution = next
+        }
+        return resolution
+    }
+
+    private static func isBeingPrepared(_ resolution: CacheEndpointsResolution) -> Bool {
+        resolution.endpoints.isEmpty && resolution.provisioning
+    }
+
+    /// The server's answer, or `nil` when it does not arrive within `timeout`.
+    ///
+    /// The request and the timer run in tasks of their own, so giving up on the request does not
+    /// wait for it to end. A task group would: cancelling the request does not end every wait it
+    /// can be in, such as the one for a token refresh another request started.
+    private func fetchResolution(serverURL: URL, accountHandle: String?, within timeout: Duration) async throws
+        -> CacheEndpointsResolution?
+    {
+        let getCacheEndpointsService = getCacheEndpointsService
+        let (outcomes, continuation) = AsyncThrowingStream<CacheEndpointsResolution?, any Error>.makeStream()
+        let request = Task {
+            do {
+                let resolution = try await getCacheEndpointsService.getCacheEndpoints(
+                    serverURL: serverURL,
+                    accountHandle: accountHandle
+                )
+                continuation.yield(resolution)
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        let timer = Task {
+            try await Task.sleep(for: timeout)
+            continuation.yield(nil)
+        }
+        defer {
+            request.cancel()
+            timer.cancel()
+        }
+
+        for try await outcome in outcomes {
+            return outcome
+        }
+        try Task.checkCancellation()
+        return nil
+    }
+
     /// A failed probe is retried once before the endpoint counts as unreachable,
     /// so a single bad response from a serving endpoint does not hand the
     /// selection to a farther one.
@@ -198,18 +296,11 @@ public struct CacheURLStore: CacheURLStoring {
 
         return Date().addingTimeInterval(maxAge)
     }
-
-    private func currentCacheEndpointKeySuffix() -> String {
-        if ClientFeatureFlags.contains("kura") {
-            "kura"
-        } else {
-            "default"
-        }
-    }
 }
 
 public enum CacheURLStoreError: LocalizedError, Equatable {
     case noEndpointsAvailable
+    case endpointBeingPrepared
     case noReachableEndpoints
     case invalidURL(String)
 
@@ -228,7 +319,7 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     /// no amount of waiting corrects, so it stays fatal.
     public var isTransientAbsence: Bool {
         switch self {
-        case .noEndpointsAvailable, .noReachableEndpoints:
+        case .noEndpointsAvailable, .endpointBeingPrepared, .noReachableEndpoints:
             true
         case .invalidURL:
             false
@@ -239,6 +330,8 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
         switch self {
         case .noEndpointsAvailable:
             return "No cache endpoints are available."
+        case .endpointBeingPrepared:
+            return "The remote cache is being prepared and has no endpoint yet."
         case .noReachableEndpoints:
             return "None of the cache endpoints are reachable."
         case let .invalidURL(url):

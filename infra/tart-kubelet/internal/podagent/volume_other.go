@@ -18,6 +18,7 @@ func (unsupportedVolumeBackend) clonePath(string, string) error   { return errUn
 func (unsupportedVolumeBackend) freeBytes(string) (uint64, error) { return 0, errUnsupported }
 func (unsupportedVolumeBackend) isMounted(string) (bool, error)   { return false, errUnsupported }
 func (unsupportedVolumeBackend) createImage(string, int) error    { return errUnsupported }
+func (unsupportedVolumeBackend) growImage(string, int) error      { return errUnsupported }
 
 func (unsupportedVolumeBackend) imageInventoryDigest(string) (string, error) {
 	return "", errUnsupported

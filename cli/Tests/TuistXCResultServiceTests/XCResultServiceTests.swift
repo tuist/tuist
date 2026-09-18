@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistTestSupport
 import XCResultParser
 @testable import TuistXCResultService
 
@@ -226,8 +227,7 @@ struct XCResultServiceTests {
 
     private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let source = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/\(name)"))
+        let source = TestPaths.fixturesDirectory.appending(component: name)
         let destination = temporaryDirectory.appending(component: name)
 
         try await FileSystem().copy(source, to: destination)

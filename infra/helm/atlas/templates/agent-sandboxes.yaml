@@ -1,0 +1,48 @@
+{{- if .Values.agentSandboxes.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.agentSandboxes.namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+    atlas.tuist.dev/workload: coding-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.agentSandboxes.serviceAccountName }}
+  namespace: {{ .Values.agentSandboxes.namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "atlas.fullname" . }}-condukt-sandbox
+  namespace: {{ .Values.agentSandboxes.namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "create", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "atlas.fullname" . }}-condukt-sandbox
+  namespace: {{ .Values.agentSandboxes.namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "atlas.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "atlas.fullname" . }}-condukt-sandbox
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

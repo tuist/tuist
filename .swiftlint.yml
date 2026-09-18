@@ -37,5 +37,4 @@ function_body_length:
 excluded:
   - cli/Sources/TuistServer/OpenAPI
   - cli/Sources/TuistCache/OpenAPI
-  - cli/Sources/TuistCAS/Generated
   - cli/Sources/Rosalind/Proto/Generated

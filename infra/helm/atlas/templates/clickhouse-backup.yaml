@@ -1,0 +1,92 @@
+{{- if and .Values.clickhouse.enabled .Values.clickhouse.backup.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "atlas.clickhouseName" . }}-backup-config
+  labels:
+    {{- include "atlas.clickhouseLabels" . | nindent 4 }}
+data:
+  config.yml: |
+    general:
+      remote_storage: s3
+      max_file_size: 1073741824
+      log_level: info
+    clickhouse:
+      host: {{ include "atlas.clickhouseName" . }}
+      port: {{ .Values.clickhouse.service.nativePort }}
+      username: {{ .Values.clickhouse.username | quote }}
+      database: {{ .Values.clickhouse.database | quote }}
+    s3:
+      bucket: {{ .Values.clickhouse.backup.s3.bucket | quote }}
+      path: {{ .Values.clickhouse.backup.s3.path | quote }}
+      region: {{ .Values.clickhouse.backup.s3.region | quote }}
+      {{- with .Values.clickhouse.backup.s3.endpoint }}
+      endpoint: {{ . | quote }}
+      force_path_style: true
+      {{- end }}
+      acl: private
+      disable_ssl: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "atlas.clickhouseName" . }}-backup
+  labels:
+    {{- include "atlas.clickhouseLabels" . | nindent 4 }}
+spec:
+  # Daily. Retention is enforced by an S3 lifecycle rule on the bucket
+  # (30 days) so this CronJob only creates new snapshots.
+  schedule: {{ .Values.clickhouse.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.clickhouse.backup.activeDeadlineSeconds }}
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "atlas.clickhouseLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: clickhouse-backup
+              image: "{{ .Values.clickhouse.backup.image.repository }}:{{ .Values.clickhouse.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.clickhouse.backup.image.pullPolicy }}
+              args:
+                - /bin/sh
+                - -euc
+                - |
+                  BACKUP_NAME="atlas-$(date +%Y%m%dT%H%M%SZ)"
+                  clickhouse-backup create "$BACKUP_NAME"
+                  clickhouse-backup upload "$BACKUP_NAME"
+                  clickhouse-backup delete local "$BACKUP_NAME"
+              env:
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "atlas.appSecretName" . }}
+                      key: SECRET_KEY_BASE
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.clickhouse.backup.credentialsSecretName | quote }}
+                      key: ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.clickhouse.backup.credentialsSecretName | quote }}
+                      key: SECRET_ACCESS_KEY
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/clickhouse-backup
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.clickhouse.backup.resources | nindent 16 }}
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "atlas.clickhouseName" . }}-backup-config
+{{- end }}

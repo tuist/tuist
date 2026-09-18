@@ -1,5 +1,5 @@
 {
-  "originHash" : "35f256b8622f6281dabecf6a903d83abd72ca78312a72756cfb896303215cb27",
+  "originHash" : "18e9ea039f71b2de37db0d9738d818cc172d2583b0fc62df11e2fe031c3e44ef",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -68,7 +68,7 @@
       "identity" : "apple.swift-collections",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-collections.git",
+      "originalLocation" : "https://github.com/apple/swift-collections",
       "state" : {
         "version" : "1.2.1"
       }
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types",
+      "originalLocation" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "version" : "1.8.0"
       }
@@ -202,9 +202,18 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system.git",
+      "originalLocation" : "https://github.com/apple/swift-system",
       "state" : {
         "version" : "1.8.1"
+      }
+    },
+    {
+      "identity" : "apple.xcode-project-format",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/apple/xcode-project-format.git",
+      "state" : {
+        "version" : "0.1.0"
       }
     },
     {
@@ -255,14 +264,6 @@
       "location" : "",
       "state" : {
         "version" : "0.4.5"
-      }
-    },
-    {
-      "identity" : "facebook.zstd",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.5.7"
       }
     },
     {
@@ -450,7 +451,6 @@
       "identity" : "p-x9.MachOKit",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/p-x9/MachOKit",
       "state" : {
         "version" : "0.52.2"
       }
@@ -504,7 +504,6 @@
       "identity" : "pointfreeco.swift-snapshot-testing",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/pointfreeco/swift-snapshot-testing",
       "state" : {
         "version" : "1.19.4"
       }
@@ -616,7 +615,7 @@
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "version" : "603.0.2"
       }
@@ -659,7 +658,6 @@
       "identity" : "tuist.Command",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/Command.git",
       "state" : {
         "version" : "0.14.11"
       }
@@ -668,9 +666,8 @@
       "identity" : "tuist.FileSystem",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "version" : "0.19.0"
+        "version" : "0.19.1"
       }
     },
     {
@@ -693,7 +690,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/Path.git",
+      "originalLocation" : "https://github.com/tuist/Path",
       "state" : {
         "version" : "0.3.8"
       }
@@ -711,7 +708,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.16.0"
+        "version" : "9.17.1"
       }
     },
     {

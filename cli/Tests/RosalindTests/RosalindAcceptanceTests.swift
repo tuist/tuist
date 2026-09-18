@@ -5,6 +5,7 @@ import Path
 import Rosalind
 import SnapshotTesting
 import Testing
+import TuistTestSupport
 
 struct RosalindAcceptanceTests {
     private let fileSystem = FileSystem()
@@ -21,7 +22,7 @@ struct RosalindAcceptanceTests {
                     )
 
                 // Then
-                assertSnapshot(
+                assertRepositorySnapshot(
                     of: got,
                     as: .rosalind()
                 )
@@ -37,7 +38,7 @@ struct RosalindAcceptanceTests {
                     )
 
                 // Then
-                assertSnapshot(
+                assertRepositorySnapshot(
                     of: got,
                     as: .rosalind()
                 )
@@ -53,7 +54,7 @@ struct RosalindAcceptanceTests {
                     )
 
                 // Then
-                assertSnapshot(
+                assertRepositorySnapshot(
                     of: got,
                     as: .rosalind()
                 )
@@ -69,7 +70,7 @@ struct RosalindAcceptanceTests {
                     )
 
                 // Then
-                assertSnapshot(
+                assertRepositorySnapshot(
                     of: got,
                     as: .rosalind()
                 )
@@ -95,7 +96,7 @@ struct RosalindAcceptanceTests {
             #expect(try #require(got.downloadSize) > 0)
             #expect(got.installSize > 0)
 
-            assertSnapshot(
+            assertRepositorySnapshot(
                 of: AppBundleReport(
                     bundleId: got.bundleId,
                     name: got.name,
@@ -129,8 +130,7 @@ struct RosalindAcceptanceTests {
         callback: (AbsolutePath, AbsolutePath) async throws -> Void
     ) async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            let sourceFixtureDirectory = try AbsolutePath(validating: "\(#file)").parentDirectory.parentDirectory
-                .appending(components: "Fixtures", "Rosalind")
+            let sourceFixtureDirectory = try TestPaths.fixturesDirectory.appending(component: "Rosalind")
                 .appending(try RelativePath(validating: fixturePath))
             let targetFixtureDirectory = temporaryDirectory.appending(component: sourceFixtureDirectory.basename)
             try await fileSystem.copy(sourceFixtureDirectory, to: targetFixtureDirectory)

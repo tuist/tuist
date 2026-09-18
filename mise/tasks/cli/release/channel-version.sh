@@ -10,6 +10,8 @@ set -euo pipefail
 #   rc-new            cli-rc.yml        cut next minor: X.Y.0-rc.1 (+ branch to create)
 #   rc      <branch>  cli-rc.yml        iterate X.Y.0-rc.(N+1) on a release branch
 #   promote <branch>  cli-promote.yml   promote X.Y.0 stable from a release branch
+#   promote           cli-promote.yml   promote the newest cut line not yet stable
+#                                       (should_publish=false when there is none)
 #
 # The "cut lines" that anchor the scheme are the stable tags (X.Y.Z) and the RC
 # tags (X.Y.0-rc.N). Canary tags are deliberately NOT counted: they track the
@@ -70,6 +72,21 @@ next_target_minor() {
   printf '%s.%s' "${line%.*}" "$(( ${line#*.} + 1 ))"
 }
 
+# The newest cut line not yet promoted: the highest "X.Y" with an RC tag, when it
+# is above the latest stable minor. Empty when that line already shipped. Older
+# unpromoted lines are never picked, since promoting one would move "Latest" back.
+pending_rc_line() {
+  local stable rc
+  stable=$(stable_tags | sed -E 's/^([0-9]+\.[0-9]+)\..*/\1/' | sort -V | tail -n1)
+  rc=$(
+    git tag -l | { grep -E '^[0-9]+\.[0-9]+\.0-rc\.[0-9]+$' || true; } \
+      | sed -E 's/^([0-9]+\.[0-9]+)\..*/\1/' | sort -V | tail -n1
+  )
+  if [[ -n "$rc" && "$rc" != "$stable" && "$(printf '%s\n%s\n' "$stable" "$rc" | sort -V | tail -n1)" == "$rc" ]]; then
+    printf '%s' "$rc"
+  fi
+}
+
 # Validate a releases/<major>.<minor>.x branch and echo its "X.Y" line.
 line_from_branch() {
   [[ "$1" =~ ^releases/([0-9]+\.[0-9]+)\.x$ ]] ||
@@ -112,6 +129,17 @@ case "$CHANNEL" in
     ;;
 
   promote)
+    if [[ -z "$BRANCH" ]]; then
+      line="$(pending_rc_line)"
+      if [[ -z "$line" ]]; then
+        echo "::notice::No release candidate is waiting for promotion; nothing to promote."
+        emit should_publish false
+        exit 0
+      fi
+      BRANCH="releases/${line}.x"
+      SHA=$(git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" | cut -f1) ||
+        die "${line}.0 has a release candidate but its branch ${BRANCH} does not exist."
+    fi
     target="$(line_from_branch "$BRANCH").0"
     tag_exists "$target" && die "${target} has already been promoted to stable."
     n=$(highest_prerelease_n "$target" rc)
@@ -123,6 +151,8 @@ case "$CHANNEL" in
     [[ "$rc_commit" == "$SHA" ]] ||
       die "Branch HEAD (${SHA}) is ahead of the latest RC ${target}-rc.${n} (${rc_commit}). Cut a new RC with the 'rc' channel and let it soak before promoting."
     emit version "$target"
+    emit branch "$BRANCH"
+    emit should_publish true
     ;;
 
   *)

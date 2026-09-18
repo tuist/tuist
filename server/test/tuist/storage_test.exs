@@ -285,6 +285,35 @@ defmodule Tuist.StorageTest do
   end
 
   describe "generate_upload_url/2" do
+    test "signs the requested headers into the URL so the object store verifies the upload" do
+      url = "https://tuist.io/upload-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      expires_in = 60
+      config = %{test: :config}
+      signed_headers = [{"x-amz-checksum-sha256", "Zm9vYmFy"}]
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
+                                          :put,
+                                          ^bucket_name,
+                                          ^object_key,
+                                          [
+                                            query_params: [],
+                                            expires_in: ^expires_in,
+                                            headers: ^signed_headers
+                                          ] ->
+        {:ok, url}
+      end)
+
+      assert Storage.generate_upload_url(object_key, :test,
+               expires_in: expires_in,
+               signed_headers: signed_headers
+             ) == url
+    end
+
     test "generates the upload URL using the ExAws.S3 module and sends the right telemetry event" do
       # Given
       event_name =
@@ -654,6 +683,45 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key, range: 0..1}}
 
       assert is_number(duration)
+    end
+  end
+
+  describe "multipart_abort/3" do
+    test "aborts the upload in the bucket" do
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> %{test: :config} end)
+      expect(ExAws.S3, :abort_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, %{}} end)
+
+      assert Storage.multipart_abort(object_key, upload_id, :test) == :ok
+    end
+
+    test "treats an upload that no longer exists as aborted" do
+      stub(Environment, :s3_bucket_name, fn -> "bucket" end)
+      stub(ExAws.Config, :new, fn :s3 -> %{} end)
+      expect(ExAws, :request, fn _operation, _opts -> {:error, {:http_error, 404, %{body: "NoSuchUpload"}}} end)
+
+      assert Storage.multipart_abort("key", "upload", :test) == :ok
+    end
+
+    test "returns other storage errors" do
+      stub(Environment, :s3_bucket_name, fn -> "bucket" end)
+      stub(ExAws.Config, :new, fn :s3 -> %{} end)
+      expect(ExAws, :request, fn _operation, _opts -> {:error, {:http_error, 500, %{}}} end)
+
+      assert Storage.multipart_abort("key", "upload", :test) == {:error, {:http_error, 500, %{}}}
+    end
+
+    test "is a no-op on Azure Blob, which discards uncommitted blocks itself" do
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      reject(&ExAws.request/2)
+
+      assert Storage.multipart_abort("key", "upload", :test) == :ok
     end
   end
 

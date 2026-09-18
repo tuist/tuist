@@ -47,7 +47,7 @@ enum BazelrcFile {
         projectHandle: String,
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
-        remoteDownloader: Bool = false,
+        remoteDownloader: Bool = true,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
@@ -76,6 +76,12 @@ enum BazelrcFile {
         \(buildEventServiceConfiguration)
 
         """
+    }
+
+    /// The file while the account has no cache endpoint serving. It configures nothing, because Bazel
+    /// fails a build whose remote cache it cannot reach.
+    static func renderWithoutRemoteCache() -> String {
+        "# No Tuist remote cache endpoint is serving this project yet. Run `tuist bazel setup` again to configure it.\n"
     }
 
     /// The endpoint URL the file names, or `nil` when it names none.

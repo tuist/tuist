@@ -11,4 +11,4 @@ image:
   # this line and only this line. Editing the marker (or removing it)
   # stops the automation for this pin.
   # https://fluxcd.io/flux/components/image/imageupdateautomations/#update-strategy
-  tag: sha-1789466906-b3ca44f47656 # {"$imagepolicy": "flux-system:cloudflare-operator:tag"}
+  tag: sha-1789645544-ead11e6f8509 # {"$imagepolicy": "flux-system:cloudflare-operator:tag"}

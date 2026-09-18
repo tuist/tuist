@@ -19,7 +19,7 @@ runtime — no service, sudo entry, or auto-login targets it.
 
 Because the base images provision as `admin` and jobs run as
 `runner`, anything the base installs under `admin` has to be
-handed over explicitly. Two things are:
+handed over explicitly. Three things are:
 
 - `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
   install` from a workflow step failed its writability audit
@@ -33,6 +33,12 @@ handed over explicitly. Two things are:
   copied over. Without it the login shell the LaunchAgent (and
   every step shell under it) runs resolves no brew shellenv, no
   rbenv, no node.
+- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
+  `admin` is not usable by `runner`, so the image downloads it again
+  as `runner`, with the same explicit `-buildVersion` the base uses
+  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
+  the toolchain was added to them have none, and this download is
+  what installs it.
 
 When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
@@ -163,7 +169,28 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `volume-head-unverifiable` in the `status` share and the guest relays it as
   `unverifiable_digest` with BOTH promote requests, which is what lets the server
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
-  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
+  or the pre-flight would 409 the only promote that can unwedge the account.
+  Between the inventory and the content hash, a successful job whose image changed
+  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
+  and none in the image file, so without `hdiutil compact` a master costs the host
+  the most it ever held. It leaves the capacity alone. Shrinking the capacity
+  instead was measured and dropped: it moves every live block past the new end
+  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
+  rewrites the file, which is why it sits before the content hash and after the
+  inventory, which it does not change.
+  Alongside the inventory digest, `capture_content_digest` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches and after the
+  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  bit flipped INSIDE a cached file sails through it, and the content digest is the
+  end-to-end byte claim. It rides both promote requests; the mint response echoes
+  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
+  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
+  signature covers it), the object store verifies the payload at ingest, and the
+  converging host verifies the download against the HEAD row's digest before
+  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
+  mismatch). All of it is optional per hop, so images and servers roll
+  independently: no digest, no echoed checksum, or a HEAD row without one just
+  degrades to the pre-hash behaviour. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,
@@ -202,7 +229,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   gate. (It works because the store is on the block-device image, not the
   virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
   the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable), creates
   the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
@@ -223,13 +250,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
   CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
   days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and a
-  prune alongside it collects nothing while reporting success. Both lanes are
-  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
-  generation dirs, and the staged allowance is SPLIT between them: the marker
-  budgets the CAS as a whole while llcas only takes a per-generation bound per
-  store, so handing each the full figure would let a two-lane job occupy twice
-  the CAS the image was sized for. Teardown is the only place that can count the
+  because the per-machine proxy holds a handle per path for its lifetime and
+  only the holder can rotate a store. A store no proxy holds is pruned on its
+  generation dirs under the store's `lock` without opening it, so it works on a
+  full volume and on stores the compilers or another Xcode wrote. Every lane is
+  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
+  discovered by their `v1.N` generation dirs, and the staged allowance is SPLIT
+  between them: the marker budgets the CAS as a whole while llcas only takes a
+  per-generation bound per store, so handing each the full figure would let a
+  multi-lane job occupy a multiple of the CAS the image was sized for. The split
+  is by use (`cas_store_budgets`): a store whose need, twice its allocated size
+  and at least 256 MiB, is under an even share gets that need, and the stores
+  that need more split the rest. An even split gave the few-KB `generic` store,
+  present on every volume, half the budget and capped `plugin` at half of what
+  the host staged. Teardown is the only place that can count the
   lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
   The teardown pass (second, after the drain) bounds what the FLEET inherits: the
   image is measured and promoted right after it. The attach pass bounds what THIS
@@ -250,7 +284,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it.
+  on the VM's boot volume and died with it. It exports
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
+  put wait for its upload, because off a runner the store goes away with the job,
+  and `drain_cas_publications` does that wait at teardown for spools under this
+  directory, after the job has reported its result. The plugin uploads in the
+  background only when its own store is inside that path, so a job whose xcconfig
+  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
+  so does every job whose store is VM-local.
   The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
   teardown (the prune is second, and in that order deliberately: a prune deletes
   objects, and deleting one the spool still owed would strand the association
@@ -266,10 +307,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   can be found — a record is deleted only by a publication that SUCCEEDED, so an
   empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
   because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it is skipped on a failed job
-  (which never promotes) and is a no-op for a job that never published, which
-  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
-  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  detach because the spool is inside the image; it runs on a failed job too,
+  whose uploads the next job still needs even though its verdict gates nothing
+  (a failed job never promotes), and is a no-op for a job that never published,
+  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
+  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
   `mark_cache_not_promotable`: the account keeps its previous master and loses
   this job's warm set, which is the same trade every other teardown that cannot
   reach a safe state already makes. It cannot be complete — a host that panics or
@@ -308,7 +350,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   that `tuist setup cache` installed (it matches the proxy actually running,
   which is what a drain must talk to) and falls back to this one. It exists
   because a plain `xcodebuild` workflow never runs Tuist, so it installs no
-  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
+  cas-proxy at all — and those jobs still write the compilers' `builtin` CAS
   lane into the volume, so without a binary here nothing on the machine could
   ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
   no CAS daemon of its own.
@@ -437,8 +479,14 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.0", "26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // newest first
+["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
+
+Beta entries follow the `<major>.<minor>-beta` shape (matching the
+mirror + base image tags `xcode-xips:27.2-beta`,
+`macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
+resolves to a runner pool sized by
+`runnersFleet.xcodeOverrides["27.2-beta"]`.
 
 `check-releases` reads this into the `runner-image-matrix` output and
 `runner-image-build`'s `matrix` expands it via `fromJSON`. Because the

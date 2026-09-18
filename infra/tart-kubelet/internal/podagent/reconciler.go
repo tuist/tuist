@@ -567,8 +567,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// label (maybeMaterializeVolume), so one account's cache can never reach a
 	// VM that runs another account's job. Done here — after the adoption
 	// early-return above — so a restart-adopted VM doesn't get a stray branch.
-	// A declined admission or a disabled feature leaves att.Attached false and
-	// the VM boots on the cold path.
+	// A disabled feature or an unmounted runner-cache root leaves att.Attached
+	// false and the VM boots on the cold path. Admission runs later, when the
+	// branch is materialized for a job.
 	sharedDirs := []string{"env:" + envDir + ":ro"}
 	att, err := r.allocateVolumeBranch(vmName)
 	if err != nil {

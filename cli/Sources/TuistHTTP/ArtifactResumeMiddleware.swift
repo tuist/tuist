@@ -84,7 +84,7 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
         // The representation the bytes below belong to. Without it a resumed
         // response cannot be told apart from a different artifact's tail, so
         // there is no safe way to append and the transfer is left to fail.
-        guard let validator = response.headerFields[.eTag] else {
+        guard let initialValidator = response.headerFields[.eTag] else {
             return (response, responseBody)
         }
 
@@ -97,6 +97,13 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
         var collected = Data()
         var pending: HTTPBody? = responseBody
         var attempt = 0
+        // The response the collected bytes belong to, and the validator naming
+        // it. A restart replaces both: the caller must read the headers of the
+        // representation it actually receives (an integrity digest describes one
+        // representation, not whichever one came first), and a later resume must
+        // ask for the tail of the restarted representation.
+        var bodyResponse = response
+        var validator: String? = initialValidator
 
         while let stream = pending {
             pending = nil
@@ -128,14 +135,16 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
                 break
             }
 
-            guard attempt < maximumResumeAttempts, !collected.isEmpty else { throw failure }
+            guard attempt < maximumResumeAttempts, !collected.isEmpty, let currentValidator = validator else {
+                throw failure
+            }
             attempt += 1
             Logger.current.debug(
                 "Artifact download for \(request.path ?? "") stopped after \(collected.count) bytes: \(failure.localizedDescription), resuming (\(attempt)/\(maximumResumeAttempts))..."
             )
             guard let resumed = try await resume(
                 from: collected.count,
-                validator: validator,
+                validator: currentValidator,
                 request: request,
                 baseURL: baseURL,
                 next: next
@@ -145,19 +154,22 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
             switch resumed {
             case let .partial(body):
                 pending = body
-            case let .whole(body, length):
+            case let .whole(body, restarted):
                 // The server ignored the range and started over, so the bytes
                 // already held describe nothing. Anything else would splice the
-                // artifact's head onto its own head. The promise moves with the
-                // response, since a restart may be serving a different artifact
-                // than the one this download began with.
+                // artifact's head onto its own head. The promise, the validator
+                // and the headers handed back all move with the response, since a
+                // restart may be serving a different artifact than the one this
+                // download began with.
                 collected = Data()
-                expected = length
+                expected = restarted.headerFields[.contentLength].flatMap(Int.init)
+                validator = restarted.headerFields[.eTag]
+                bodyResponse = restarted
                 pending = body
             }
         }
 
-        return (response, HTTPBody(collected))
+        return (bodyResponse, HTTPBody(collected))
     }
 
     // MARK: - Private
@@ -166,10 +178,10 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
         /// A `206` whose `Content-Range` starts exactly where the transfer
         /// stopped, so its bytes append to what is already held.
         case partial(HTTPBody)
-        /// A `200`, carrying the length it promises: either the server does not
+        /// A `200`, with the response it arrived on: either the server does not
         /// honour ranges on this route, or it refused the range because the
         /// artifact moved on.
-        case whole(HTTPBody, expectedLength: Int?)
+        case whole(HTTPBody, response: HTTPResponse)
     }
 
     /// The error for a transfer that ended below the length its response
@@ -220,7 +232,7 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
             }
             return .partial(body)
         case 200:
-            return .whole(body, expectedLength: response.headerFields[.contentLength].flatMap(Int.init))
+            return .whole(body, response: response)
         default:
             return nil
         }
