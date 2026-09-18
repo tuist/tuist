@@ -43,6 +43,18 @@ spec:
   serial: {{ . | quote }}
   {{- end }}
   address: {{ required (printf "rackFleet.hosts[%s].address is required; there is nothing to dial without it" $hostName) $host.address | quote }}
+  {{- /* The subnet routers the address is dialled through, admitted by the
+  host's SSH ingress guard. Required because without them a host that loses
+  its own tailnet device can only be recovered from its console: the guard
+  drops the router's LAN address, and a rack host has no public path.
+  `empty` rather than `required`: `required` only rejects nil and "", and the
+  values default is an empty list. */}}
+  {{- $sshIngressAllowCIDRs := $host.sshIngressAllowCIDRs | default $.Values.rackFleet.sshIngressAllowCIDRs }}
+  {{- if empty $sshIngressAllowCIDRs }}
+  {{- fail (printf "rackFleet.sshIngressAllowCIDRs (or rackFleet.hosts[%s].sshIngressAllowCIDRs) is required: list the LAN address of every subnet router that advertises the host's address, as a /32" $hostName) }}
+  {{- end }}
+  sshIngressAllowCIDRs:
+    {{- toYaml $sshIngressAllowCIDRs | nindent 4 }}
   sshUser: {{ $host.sshUser | default $.Values.rackFleet.sshUser | default "tuist" }}
   {{- if $host.unclaimable }}
   unclaimable: true

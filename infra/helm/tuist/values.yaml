@@ -1615,6 +1615,16 @@ rackFleet:
   # account, not a provider-issued one.
   sshUser: tuist
 
+  # The LAN address of every subnet router that advertises the hosts'
+  # addresses, as /32s. Required when enabled. A router forwards the operator's
+  # dial with SNAT, so this is the source each host sees, and the host's SSH
+  # ingress guard admits it on top of macosFleet.sshIngressAllowCIDRs. Without
+  # it the guard drops the router, and a host that loses its own tailnet device
+  # is reachable only from its console. Give each router a DHCP reservation,
+  # and list both routers of an HA pair. A host can override it with its own
+  # `sshIngressAllowCIDRs`.
+  sshIngressAllowCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Nothing here is workload config: see `machine` below for that.
@@ -1629,6 +1639,8 @@ rackFleet:
   #                             # stops and replaces tailscaled, which over a
   #                             # host-transported session drops the tunnel it
   #                             # is riding.
+  #     sshIngressAllowCIDRs:   # optional; replaces the rackFleet default for a
+  #       - 192.168.0.2/32      # host behind a different router
   #     site: ber1
   #     rack: r1
   #     shelf: s3

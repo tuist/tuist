@@ -784,6 +784,13 @@ rackFleet:
   # prototype declared while it is offline; remove it, and clear the host's
   # status.quarantined, once the box answers SSH again.
   replicas: 0
+  # FORCED (no service node): the subnet router is an operator laptop on the
+  # same home LAN, and this is its address there. The rack's service nodes
+  # replace it, one entry each. It needs a DHCP reservation for the same reason
+  # the host's address does: if it changes, the host's SSH guard drops the
+  # router again until this is updated.
+  sshIngressAllowCIDRs:
+    - 192.168.0.223/32
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
