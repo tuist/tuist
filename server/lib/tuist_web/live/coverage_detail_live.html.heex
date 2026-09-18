@@ -355,53 +355,26 @@
     </.card_section>
   </.card>
 
-  <%!-- Rises and falls --%>
-  <.card
+  <%!-- Where coverage stands and moved --%>
+  <.targets_coverage_card
     :if={@tab == "overview"}
-    title={dgettext("dashboard_tests", "Where coverage moved")}
-    icon="chart_dots"
-    data-part="movements"
-  >
-    <.card_section :if={is_nil(@comparison.baseline)} data-part="movements-empty">
-      <div data-part="empty">
-        {dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
-          reason: reason_label(@comparison.baseline_reason)
-        )}
-      </div>
-    </.card_section>
-    <div :if={@comparison.baseline} data-part="movements-sections">
-      <.movement_section
-        id="target-rises"
-        title={dgettext("dashboard_tests", "Targets that rose most")}
-        rows={@target_rises}
-        empty={dgettext("dashboard_tests", "No target rose.")}
-        label={dgettext("dashboard_tests", "Target")}
-      />
-      <.movement_section
-        id="target-falls"
-        title={dgettext("dashboard_tests", "Targets that fell most")}
-        rows={@target_falls}
-        empty={dgettext("dashboard_tests", "No target fell.")}
-        label={dgettext("dashboard_tests", "Target")}
-      />
-    </div>
-    <div :if={@comparison.baseline} data-part="movements-sections">
-      <.movement_section
-        id="file-rises"
-        title={dgettext("dashboard_tests", "Files that rose most")}
-        rows={@file_rises}
-        empty={dgettext("dashboard_tests", "No file rose.")}
-        label={dgettext("dashboard_tests", "File")}
-      />
-      <.movement_section
-        id="file-falls"
-        title={dgettext("dashboard_tests", "Files that fell most")}
-        rows={@file_falls}
-        empty={dgettext("dashboard_tests", "No file fell.")}
-        label={dgettext("dashboard_tests", "File")}
-      />
-    </div>
-  </.card>
+    rises={@target_rises}
+    falls={@target_falls}
+    baseline={@comparison.baseline}
+    baseline_reason={@comparison.baseline_reason}
+    href={"?#{@uri.query |> Query.put("tab", "targets") |> Query.drop("page")}"}
+  />
+  <.files_coverage_card
+    :if={@tab == "overview"}
+    rises={@file_rises}
+    falls={@file_falls}
+    least_covered={@least_covered_files}
+    unmeasured={@unmeasured_files}
+    unmeasured_count={(@summary && @summary.unmeasured_files_count) || 0}
+    baseline={@comparison.baseline}
+    baseline_reason={@comparison.baseline_reason}
+    href={"?#{@uri.query |> Query.put("tab", "files") |> Query.drop("page")}"}
+  />
 
   <%!-- Coverage gates --%>
   <.card
