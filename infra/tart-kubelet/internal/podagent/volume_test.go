@@ -1592,8 +1592,9 @@ func TestCacheMasterNodeLabels(t *testing.T) {
 		t.Fatalf("CacheMasterNodeLabels: %v", err)
 	}
 	want := map[string]string{
-		"tuist.dev/cache-master-42": "true",
-		"tuist.dev/cache-master-7":  "true",
+		"tuist.dev/cache-master-42":              "true",
+		"tuist.dev/cache-master-7":               "true",
+		"tuist.dev/cache-volumes-per-repository": "true",
 	}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("labels = %v; want %v", labels, want)
@@ -1622,7 +1623,7 @@ func TestCacheMasterNodeLabelsDropsEvictedAccount(t *testing.T) {
 	// Only the surviving master is advertised. This is the case the server's
 	// old dispatch-history model could not see at all: the accounts still ran
 	// here most recently, but their masters are gone.
-	want := map[string]string{"tuist.dev/cache-master-9": "true"}
+	want := map[string]string{"tuist.dev/cache-master-9": "true", "tuist.dev/cache-volumes-per-repository": "true"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("labels after eviction = %v; want %v", labels, want)
 	}
@@ -1653,7 +1654,7 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	if _, ok := labels["tuist.dev/cache-master-42"]; !ok {
 		t.Fatalf("account 42 should be advertised: %v", labels)
 	}
-	if len(labels) != 1 {
+	if _, ok := labels["tuist.dev/cache-master-not-an-account"]; ok || len(labels) != 2 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
 	}
 }

@@ -1146,6 +1146,11 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 // the server stamped them on the pod. The longest name is 54 characters.
 const cacheMasterNodeLabelPrefix = "tuist.dev/cache-master-"
 
+// repositoryVolumesNodeLabel tells the server this host reads the Pod's volume
+// label, so it may stamp a repository volume on jobs dispatched here. A host
+// without it gets ReservedTuistCacheVolume.
+const repositoryVolumesNodeLabel = "tuist.dev/cache-volumes-per-repository"
+
 func cacheMasterNodeLabel(key masterKey) string {
 	if key.volume == ReservedTuistCacheVolume {
 		return cacheMasterNodeLabelPrefix + key.account
@@ -1182,6 +1187,7 @@ func (m *VolumeManager) CacheMasterNodeLabels() (map[string]string, error) {
 		return nil, err
 	}
 
+	labels[repositoryVolumesNodeLabel] = "true"
 	for _, master := range masters {
 		// A directory name that is not an account id or a volume cannot have come
 		// from Materialize. Skip it rather than emit a label that might be

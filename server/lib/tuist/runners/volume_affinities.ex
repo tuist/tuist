@@ -51,6 +51,7 @@ defmodule Tuist.Runners.VolumeAffinities do
   require Logger
 
   @cache_master_label_prefix "tuist.dev/cache-master-"
+  @repository_volumes_label "tuist.dev/cache-volumes-per-repository"
 
   # A node advertises on a 30s heartbeat and masters change on the order of a
   # job, so a few seconds of staleness costs at most one cold materialize. This
@@ -67,27 +68,33 @@ defmodule Tuist.Runners.VolumeAffinities do
   plain oldest-queued work, which is also what every host does before the
   advertising build of tart-kubelet reaches it.
   """
-  def resident_masters(node_name)
+  def resident_masters(node_name), do: node_cache_volumes(node_name).masters
 
-  def resident_masters(node_name) when is_binary(node_name) and node_name != "" do
+  @doc """
+  Whether `node_name`'s tart-kubelet reads the Pod's cache volume label. A job
+  dispatched to a host that does not must stay on the account's `tuist-cache`
+  volume, which is the only one that host materializes and promotes.
+  """
+  def repository_volumes?(node_name), do: node_cache_volumes(node_name).repository_volumes?
+
+  defp node_cache_volumes(node_name) when is_binary(node_name) and node_name != "" do
     KeyValueStore.get_or_update(
-      [:runner_volume_residency, node_name],
+      [:runner_node_cache_volumes, node_name],
       [ttl: @residency_cache_ttl],
-      fn -> fetch_resident_masters(node_name) end
+      fn -> fetch_node_cache_volumes(node_name) end
     )
   end
 
-  def resident_masters(_node_name), do: MapSet.new()
+  defp node_cache_volumes(_node_name), do: no_cache_volumes()
 
-  defp fetch_resident_masters(node_name) do
+  defp fetch_node_cache_volumes(node_name) do
     case K8sClient.get_node(node_name) do
       {:ok, node} ->
-        node
-        |> get_in(["metadata", "labels"])
-        |> masters_from_labels()
+        labels = get_in(node, ["metadata", "labels"]) || %{}
+        %{masters: masters_from_labels(labels), repository_volumes?: labels[@repository_volumes_label] == "true"}
 
       {:error, _reason} ->
-        MapSet.new()
+        no_cache_volumes()
     end
   rescue
     # A Node read is an optimization input, not a correctness gate, and this
@@ -102,8 +109,10 @@ defmodule Tuist.Runners.VolumeAffinities do
         reason: Exception.message(e)
       )
 
-      MapSet.new()
+      no_cache_volumes()
   end
+
+  defp no_cache_volumes, do: %{masters: MapSet.new(), repository_volumes?: false}
 
   defp masters_from_labels(labels) when is_map(labels) do
     for {key, "true"} <- labels,

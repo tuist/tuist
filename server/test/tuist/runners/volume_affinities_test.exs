@@ -91,6 +91,27 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
     end
   end
 
+  describe "repository_volumes?/1" do
+    test "is true for a host that advertises repository volumes" do
+      stub(K8sClient, :get_node, fn "mac-01" ->
+        node_with_masters([42], %{"tuist.dev/cache-volumes-per-repository" => "true"})
+      end)
+
+      assert VolumeAffinities.repository_volumes?("mac-01")
+    end
+
+    test "is false for a host that does not, or cannot be read" do
+      stub(K8sClient, :get_node, fn
+        "mac-01" -> node_with_masters([42])
+        "mac-02" -> {:error, :not_found}
+      end)
+
+      refute VolumeAffinities.repository_volumes?("mac-01")
+      refute VolumeAffinities.repository_volumes?("mac-02")
+      refute VolumeAffinities.repository_volumes?(nil)
+    end
+  end
+
   describe "select_candidate/3" do
     setup do
       %{account: 4242, other: 7777}

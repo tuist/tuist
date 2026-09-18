@@ -214,6 +214,7 @@ func TestCacheMasterNodeLabelsAdvertiseEveryVolume(t *testing.T) {
 		"tuist.dev/cache-master-42":                                 "true",
 		"tuist.dev/cache-master-42." + repoVolumeA:                  "true",
 		"tuist.dev/cache-master-9223372036854775807." + repoVolumeB: "true",
+		"tuist.dev/cache-volumes-per-repository":                    "true",
 	}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("labels = %v; want %v", labels, want)
@@ -222,6 +223,18 @@ func TestCacheMasterNodeLabelsAdvertiseEveryVolume(t *testing.T) {
 		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
 			t.Fatalf("label key %q is not a valid Kubernetes label key: %v", key, errs)
 		}
+	}
+}
+
+func TestCacheMasterNodeLabelsAdvertiseRepositoryVolumesWithNoMasters(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	if !reflect.DeepEqual(labels, map[string]string{"tuist.dev/cache-volumes-per-repository": "true"}) {
+		t.Fatalf("labels = %v; a host with cache volumes on must advertise repository volumes before it holds a master", labels)
 	}
 }
 

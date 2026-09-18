@@ -1180,7 +1180,7 @@ defmodule Tuist.Runners do
           # host is told to skip materialize/promote via the untrusted label.
           trusted = job_trusted?(candidate, account)
           assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
-          volume_name = VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
+          volume_name = cache_volume_name(fleet_name, node_name, candidate)
 
           # Stamp the account label (the host's cache-materialize trigger) only
           # now that dispatch has fully committed — stamping it before the commit
@@ -1352,6 +1352,14 @@ defmodule Tuist.Runners do
     labels = %{@account_label => Integer.to_string(account.id), @cache_volume_label => volume_name}
     labels = if trusted, do: labels, else: Map.put(labels, @cache_untrusted_label, "true")
     patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
+  end
+
+  defp cache_volume_name(fleet_name, node_name, candidate) do
+    if volume_affinity_enabled?(fleet_name) and VolumeAffinities.repository_volumes?(node_name) do
+      VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
+    else
+      VolumeHeads.reserved_tuist_cache()
+    end
   end
 
   # A job is trusted only when its workflow run's head repository is the base

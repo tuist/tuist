@@ -241,6 +241,19 @@ defmodule Tuist.RunnersTest do
       }
     end
 
+    # A macOS host whose tart-kubelet advertises, or does not advertise, that it
+    # reads the Pod's cache volume label.
+    defp stub_mac_node(node_name, repository_volumes: repository_volumes) do
+      labels =
+        if repository_volumes,
+          do: %{"tuist.dev/cache-volumes-per-repository" => "true"},
+          else: %{"tuist.dev/runtime" => "tart"}
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      stub(K8sClient, :get_node, fn ^node_name -> {:ok, %{"metadata" => %{"labels" => labels}}} end)
+    end
+
     # Stub every collaborator `dispatch_for_sa/2` touches except the
     # JIT mint, whose `labels` the caller asserts on. The PG-backed
     # `RunnerSessions.open/1` and `Accounts.get_account_by_id/1` run
@@ -473,7 +486,8 @@ defmodule Tuist.RunnersTest do
       assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", tree, 0, volume, content_digest: content)
 
       candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
-      stub_dispatch_path(account, candidate, self())
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+      stub_mac_node("mac-07", repository_volumes: true)
       stub(CacheGrant, :mint, fn _account_id -> nil end)
 
       key = "runner-volume-masters/#{account.id}/#{volume}/#{tree}-#{content}.image"
@@ -492,7 +506,8 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default", repository: "Acme/CLI")
       test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid)
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+      stub_mac_node("mac-07", repository_volumes: true)
       stub(CacheGrant, :mint, fn _account_id -> nil end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
@@ -514,7 +529,8 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default", repository: "")
       test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid)
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+      stub_mac_node("mac-07", repository_volumes: true)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
         send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
@@ -522,6 +538,32 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
+    end
+
+    test "keeps a job on the account volume when its host does not read volume labels" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", tree, 0, "tuist-cache")
+
+      candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+      stub_mac_node("mac-07", repository_volumes: false)
+      stub(CacheGrant, :mint, fn _account_id -> nil end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{tree}.image"
+      url = "https://bucket.fly.storage.tigris.dev/#{key}?X-Amz-Signature=abc"
+      expect(Tuist.Storage, :generate_download_url, fn ^key, _actor, _opts -> url end)
+
+      assert {:ok, %{volume_head: %{generation: 1, download_url: ^url}}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
       assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
     end
 
