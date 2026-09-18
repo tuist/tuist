@@ -19,32 +19,11 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs overview" do
-    test "renders intent-specific starting paths", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+    test "renders the Install Tuist and Get started calls to action", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
 
-      assert has_element?(
-               lv,
-               ~s(a#docs-optimization-path[href="/en/docs/guides/get-started/optimization"]),
-               "Optimize"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-observability-path[href="/en/docs/guides/get-started/observability"]),
-               "Observe"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-runners-path[href="/en/docs/guides/get-started/tuist-runners"]),
-               "Run"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-ask-path[href="/en/docs/guides/get-started/ask"]),
-               "Ask"
-             )
+      assert html =~ ~s(href="/en/docs/guides/install-tuist")
+      assert html =~ ~s(href="/en/docs/guides/get-started")
     end
 
     test "routes the generic cache card to the cache overview", %{conn: conn} do
@@ -57,11 +36,10 @@ defmodule TuistWeb.DocsLiveTest do
              )
     end
 
-    test "positions Tuist as build infrastructure for Xcode and Gradle", %{conn: conn} do
+    test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
-      assert has_element?(lv, "#what-do-you-want-to-do", "What do you want to do?")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
     end
 
