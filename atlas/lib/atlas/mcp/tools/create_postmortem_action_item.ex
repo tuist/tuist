@@ -33,7 +33,6 @@ defmodule Atlas.MCP.Tools.CreatePostmortemActionItem do
     }
 
   alias Atlas.Engineering.Postmortems
-  alias Atlas.Engineering.Postmortems.ActionItem
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.PostmortemSerializers
 

@@ -37,7 +37,6 @@ defmodule Atlas.MCP.Tools.UpdatePostmortemActionItem do
     }
 
   alias Atlas.Engineering.Postmortems
-  alias Atlas.Engineering.Postmortems.ActionItem
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.PostmortemSerializers
 
