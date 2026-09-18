@@ -3,75 +3,138 @@ defmodule Atlas.TuistOverviewTest do
 
   alias Atlas.TuistOverview
 
-  describe "stats/1" do
-    test "returns {:error, :not_configured} for every stat when the Tuist server is not configured" do
-      stats =
-        TuistOverview.stats(
+  @range {~D[2026-09-01], ~D[2026-09-30]}
+
+  describe "measure/2" do
+    test "returns {:error, :not_configured} for every metric when the Tuist server is not configured" do
+      measurements =
+        TuistOverview.measure(@range,
           configured?: fn -> false end,
           pg_query: fn _sql, _opts -> flunk("pg proxy should not be called") end,
           ch_query: fn _sql, _opts -> flunk("clickhouse proxy should not be called") end
         )
 
-      for key <- [:users, :organizations, :projects, :jobs, :cache_operations] do
-        assert Map.fetch!(stats, key) == {:error, :not_configured}
+      for metric <- TuistOverview.metrics() do
+        assert Map.fetch!(measurements, metric) == {:error, :not_configured}
       end
     end
 
-    test "returns per-stat counts pulled from the read-only proxies" do
-      pg_responses = %{
-        "users" => 42,
-        "organizations" => 7,
-        "projects" => 128,
-        "runner_jobs" => 3500
-      }
-
+    test "returns cumulative totals + daily series for postgres-backed metrics" do
       pg_query = fn sql, _opts ->
-        table = Enum.find(Map.keys(pg_responses), &String.contains?(sql, " #{&1}"))
-        {:ok, %{"rows" => [%{"c" => Map.fetch!(pg_responses, table)}]}}
+        if String.contains?(sql, "FROM users") do
+          {:ok,
+           %{
+             "rows" => [
+               %{
+                 "total_now" => 1000,
+                 "total_before_previous" => 800,
+                 "total_before_current" => 900,
+                 "daily_new" => [
+                   %{"day" => "2026-08-15", "c" => 10},
+                   %{"day" => "2026-09-01", "c" => 5},
+                   %{"day" => "2026-09-15", "c" => 20}
+                 ]
+               }
+             ]
+           }}
+        else
+          {:ok,
+           %{
+             "rows" => [
+               %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
+             ]
+           }}
+        end
       end
 
-      ch_query = fn sql, _opts ->
-        assert sql =~ "cache_events"
-        assert sql =~ "reapi_cache_events"
-        assert sql =~ "gradle_cache_events"
-        {:ok, %{"rows" => [%{"c" => 9_876_543}]}}
-      end
+      ch_query = fn _sql, _opts -> {:ok, %{"rows" => []}} end
 
-      stats =
-        TuistOverview.stats(configured?: fn -> true end, pg_query: pg_query, ch_query: ch_query)
+      measurements =
+        TuistOverview.measure(@range,
+          configured?: fn -> true end,
+          pg_query: pg_query,
+          ch_query: ch_query
+        )
 
-      assert stats.users == {:ok, 42}
-      assert stats.organizations == {:ok, 7}
-      assert stats.projects == {:ok, 128}
-      assert stats.jobs == {:ok, 3500}
-      assert stats.cache_operations == {:ok, 9_876_543}
+      assert {:ok, users} = measurements.users
+      assert users.total == 1000
+      # September series starts at total_before_current (900) and adds new
+      # rows on each day (5 on the 1st, 20 on the 15th), staying flat between.
+      assert List.first(users.series) == {~D[2026-09-01], 905}
+      day_14 = Enum.find_value(users.series, fn {d, v} -> if d == ~D[2026-09-14], do: v end)
+      assert day_14 == 905
+      day_15 = Enum.find_value(users.series, fn {d, v} -> if d == ~D[2026-09-15], do: v end)
+      assert day_15 == 925
+      # Previous-period delta is total_now vs. total_before_current.
+      assert users.previous_value == 900
+      assert users.delta_pct == Float.round((1000 - 900) / 900 * 100.0, 1)
     end
 
-    test "reports {:error, reason} for a single failing query without blanking the rest" do
-      pg_query = fn
-        "SELECT count(*) AS c FROM users", _opts -> {:error, :timeout}
-        _sql, _opts -> {:ok, %{"rows" => [%{"c" => 1}]}}
+    test "returns per-day event counts and previous-period totals for clickhouse-backed metrics" do
+      ch_query = fn sql, opts ->
+        cond do
+          String.contains?(sql, "runner_jobs") ->
+            # First call: previous period; second call: current period.
+            params = opts[:params]
+            start_ts = params["start_ts"]
+
+            rows =
+              if String.starts_with?(start_ts, "2026-09-") do
+                [%{"day" => "2026-09-15", "c" => 100}, %{"day" => "2026-09-20", "c" => 50}]
+              else
+                [%{"day" => "2026-08-05", "c" => 30}]
+              end
+
+            {:ok, %{"rows" => rows}}
+
+          String.contains?(sql, "cache_events") ->
+            {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "500"}]}}
+        end
       end
 
-      ch_query = fn _sql, _opts -> {:ok, %{"rows" => [%{"c" => 2}]}} end
+      pg_query = fn _sql, _opts ->
+        {:ok,
+         %{
+           "rows" => [%{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}]
+         }}
+      end
 
-      stats =
-        TuistOverview.stats(configured?: fn -> true end, pg_query: pg_query, ch_query: ch_query)
+      measurements =
+        TuistOverview.measure(@range,
+          configured?: fn -> true end,
+          pg_query: pg_query,
+          ch_query: ch_query
+        )
 
-      assert stats.users == {:error, :timeout}
-      assert stats.organizations == {:ok, 1}
-      assert stats.cache_operations == {:ok, 2}
+      assert {:ok, jobs} = measurements.jobs
+      assert jobs.total == 150
+      assert jobs.previous_value == 30
+      # Series is padded to every day inside the window.
+      assert length(jobs.series) == Date.diff(elem(@range, 1), elem(@range, 0)) + 1
+
+      assert {:ok, cache} = measurements.cache_operations
+      assert cache.total == 500
     end
 
-    test "parses stringified counts returned by the proxies" do
-      pg_query = fn _sql, _opts -> {:ok, %{"rows" => [%{"c" => "10"}]}} end
-      ch_query = fn _sql, _opts -> {:ok, %{"rows" => [%{"c" => "20"}]}} end
+    test "in dev, returns deterministic sample data when the Tuist server is not configured" do
+      previous_env = Application.get_env(:atlas, :env)
+      Application.put_env(:atlas, :env, :dev)
 
-      stats =
-        TuistOverview.stats(configured?: fn -> true end, pg_query: pg_query, ch_query: ch_query)
+      try do
+        measurements =
+          TuistOverview.measure(@range,
+            configured?: fn -> false end,
+            pg_query: fn _sql, _opts -> flunk("pg proxy should not be called") end,
+            ch_query: fn _sql, _opts -> flunk("clickhouse proxy should not be called") end
+          )
 
-      assert stats.users == {:ok, 10}
-      assert stats.cache_operations == {:ok, 20}
+        for metric <- TuistOverview.metrics() do
+          assert {:ok, %{series: [_ | _], total: total}} = Map.fetch!(measurements, metric)
+          assert total > 0
+        end
+      after
+        Application.put_env(:atlas, :env, previous_env)
+      end
     end
   end
 end
