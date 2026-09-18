@@ -413,7 +413,7 @@ defmodule Atlas.Engineering.Errors do
 
   def list_project_keys(project_id) do
     ProjectKey
-    |> where([key], key.project_id == ^project_id)
+    |> where([key], key.project_id == ^project_id and is_nil(key.domain_id))
     |> order_by([key], asc: key.inserted_at)
     |> Repo.all()
   end
@@ -490,13 +490,14 @@ defmodule Atlas.Engineering.Errors do
   def rotate_project_key(%Project{id: id}) do
     existing_public_keys =
       ProjectKey
-      |> where([k], k.project_id == ^id)
+      |> where([k], k.project_id == ^id and is_nil(k.domain_id))
       |> select([k], k.public_key)
       |> Repo.all()
 
     result =
       Repo.transaction(fn ->
-        {_deleted, _} = Repo.delete_all(from(k in ProjectKey, where: k.project_id == ^id))
+        {_deleted, _} =
+          Repo.delete_all(from(k in ProjectKey, where: k.project_id == ^id and is_nil(k.domain_id)))
 
         case create_project_key(id, %{"name" => "default"}) do
           {:ok, key} -> key
@@ -992,7 +993,7 @@ defmodule Atlas.Engineering.Errors do
 
     %{
       id: issue.id,
-      url: String.trim_trailing(AtlasWeb.Endpoint.url(), "/") <> "/errors/#{issue.id}",
+      url: String.trim_trailing(AtlasWeb.Endpoint.url(), "/") <> "/engineering/errors/#{issue.id}",
       project_id: issue.project_id,
       project_name: project && project.name,
       fingerprint: issue.fingerprint,
