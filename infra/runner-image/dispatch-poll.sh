@@ -1165,11 +1165,11 @@ RUNNER_DIAG_DIR=/Users/runner/actions-runner/_diag
 # (succeeded, failed, canceled, ...), or "unknown" when the agent left no
 # verdict. `$1` names the agent: github, buildkite or gitlab.
 #
-# This, and not the agent's exit status, is what gates promotion, because no
-# agent here exits non-zero for a job that failed or was cancelled. `run.sh`
-# maps every Listener exit code except a restart to 0, the Buildkite agent
-# exits 0 after `--disconnect-after-job`, and the GitLab executor exits 0 for
-# job outcomes by design.
+# This, and not the runner's exit status, is what gates promotion. `run.sh`
+# maps every Listener exit code except a restart to 0, and the GitLab executor
+# exits 0 for job outcomes by design, so neither exit says how the job ended.
+# The Buildkite agent's exit does, but only for failures, and only because it
+# is started with `--reflect-exit-status`; buildkite_job_result combines the two.
 #
 # GitHub records its verdict in the Listener's own trace, as `finish job request
 # for job <id> with result: <Result>`. The Listener writes that line on both of
@@ -1196,6 +1196,23 @@ read_job_result() {
   esac
   result=$(printf '%s' "${result}" | tr -cd 'A-Za-z' | tr '[:upper:]' '[:lower:]' | cut -c1-32)
   printf '%s' "${result:-unknown}"
+}
+
+# buildkite_job_result prints the Buildkite job's result from the pre-exit
+# hook's verdict and the agent's exit status (`$1`), which
+# `--reflect-exit-status` makes the job's final status. The hook alone is not
+# enough: the executor settles that status after the global pre-exit hook runs,
+# so an automatic artifact upload that fails, or a repository or plugin pre-exit
+# hook that fails, turns a job the hook saw pass into a failure. The status
+# alone is not enough either: it does not mark a cancel, and a job whose command
+# exits 0 after being cancelled reads as a pass.
+buildkite_job_result() {
+  local result
+  result=$(read_job_result buildkite)
+  if [ "${result}" = "succeeded" ] && [ "${1}" != "0" ]; then
+    result=failed
+  fi
+  printf '%s' "${result}"
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -1764,11 +1781,23 @@ HOOK
           --build-path /Users/runner/work \
           --enable-job-log-tmpfile \
           --job-log-path /var/log/tuist-runner \
-          --disconnect-after-job &
+          --disconnect-after-job \
+          --reflect-exit-status &
         runner_pid=$!
         wait "${runner_pid}"
-        rc=$?
-        JOB_RESULT=$(read_job_result buildkite)
+        agent_rc=$?
+        JOB_RESULT=$(buildkite_job_result "${agent_rc}")
+        # `--reflect-exit-status` exits the agent with a failed job's status, but
+        # the runners-controller reads a non-zero runner exit as a runner death
+        # and not as a job outcome. A verdict from the hook proves the job ran, so
+        # its status stays out of the exit; without one, the agent's own status
+        # (a rejected acquisition, or a job that never reached its hooks) is
+        # still reported.
+        rc=0
+        if [ "${JOB_RESULT}" = "unknown" ]; then
+          rc="${agent_rc}"
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
       else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!

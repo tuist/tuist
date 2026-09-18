@@ -52,10 +52,11 @@ CHUNK_LINES=5000
 #
 # The agent runs pre-exit hooks global first, then the repository's, then
 # the plugins', so this hook cannot see a failure raised only by one of
-# those; such a job is reported here as passing. Buildkite's own verdict is
-# out of reach for a stack: the Stacks API exposes a job's state but not its
-# exit status, and the REST API would need a token far broader than the
-# cluster token this integration asks for.
+# those; such a job is reported here as passing, and so is one whose
+# automatic artifact upload failed, which sets neither variable. Buildkite's
+# own verdict is out of reach for a stack: the Stacks API exposes a job's
+# state but not its exit status, and the REST API would need a token far
+# broader than the cluster token this integration asks for.
 exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
 if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
    && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then
@@ -72,11 +73,12 @@ case "${exit_status}" in
     ;;
 esac
 
-# The machine's own teardown reads this to decide whether the job's cache
-# volume may be promoted: the agent exits zero whatever the job did, so its
-# exit status says nothing about the job. Written ahead of the credential
-# check, since a job that cannot report its outcome to Tuist still ended one
-# way or the other.
+# The macOS teardown reads this, together with the agent's final exit
+# status, to decide whether the job's cache volume may be promoted. This is
+# its only record of a cancel and its proof that the job ran; the exit status
+# covers the failures above that this hook cannot see. Written ahead of the
+# credential check, since a job that cannot report its outcome to Tuist still
+# ended one way or the other.
 if [ "${BUILDKITE_BUILD_CANCELLING:-false}" = "true" ]; then
   job_result=canceled
 elif [ "${exit_status}" = "0" ]; then
