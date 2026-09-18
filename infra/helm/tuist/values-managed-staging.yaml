@@ -70,6 +70,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-staging` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
@@ -873,11 +885,13 @@ macosFleet:
   runnerCacheVolume:
     gib: 40
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
-    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
-    # unusable store falls back to a VM-local cold compilation cache, never
-    # fails the job), so a bad budget costs warmth, not the build.
+    # masterCapGib 28 is the sparse per-master ceiling. The two caches share
+    # 22.4 GiB of it (the cap less a 20% reserve), divided by use in the
+    # guest. casGib turns the CAS on and sets the fixed split older runner
+    # images apply: 16 GiB for the CAS, 6.4 GiB for the binary cache. The
+    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # compilation cache, never fails the job), so a bad budget costs warmth,
+    # not the build.
     masterCapGib: 28
     casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix

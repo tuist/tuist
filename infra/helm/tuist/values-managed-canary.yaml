@@ -53,6 +53,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-canary` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
@@ -717,7 +729,8 @@ macosFleet:
   # unwritable share for a local cold cache instead of exporting a broken
   # root. Production has run on that path (gib: 80) since; canary tracks it
   # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
-  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
+  # gives the two caches 22.4 GiB to share by use, with a 5.6 GiB reserve.
+  # casGib 16 sets the fixed split older runner images apply.
   runnerCacheVolume:
     gib: 80
     masterCapGib: 28

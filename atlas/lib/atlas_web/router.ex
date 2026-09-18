@@ -158,6 +158,10 @@ defmodule AtlasWeb.Router do
     get "/email/subscriptions/confirm/:token", GTMSubscriptionController, :confirm
     get "/email/subscriptions/unsubscribe/:token", GTMSubscriptionController, :unsubscribe
     get "/support/chat/verify/:token", SupportChatVerificationController, :confirm
+
+    live_session :public_postmortem, layout: false do
+      live "/p/postmortems/:share_token", PostmortemLive.Public
+    end
   end
 
   scope "/", AtlasWeb do
@@ -221,6 +225,14 @@ defmodule AtlasWeb.Router do
       live "/engineering/errors", ErrorsLive.Index, :index
       live "/engineering/errors/:id", ErrorsLive.Show, :show
       live "/engineering/errors/:id/events/:event_id", ErrorsLive.Event, :event
+      live "/engineering/postmortems", PostmortemLive.Index
+      live "/engineering/postmortems/new", PostmortemLive.Form, :new
+      live "/engineering/postmortems/:number", PostmortemLive.Show
+      live "/engineering/postmortems/:number/edit", PostmortemLive.Form, :edit
+      live "/engineering/specs", SpecLive.Index
+      live "/engineering/specs/new", SpecLive.Form, :new
+      live "/engineering/specs/:number", SpecLive.Show
+      live "/engineering/specs/:number/edit", SpecLive.Form, :edit
     end
 
     live_session :executive_dashboard,

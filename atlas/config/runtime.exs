@@ -555,6 +555,14 @@ slack_agent_identities =
       end
   end
 
+# Fallback Slack channel for engineering-errors alerts posted by
+# `Atlas.Engineering.Errors.IssueCoalescer` and `Atlas.Engineering.Errors.DropAlerter`.
+# Used when a project has no explicit `slack_alert_channel` set. Defaults to
+# `#errors` in the Tuist company workspace.
+default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
+
+config :atlas, :default_alert_slack_channel, default_alert_slack_channel
+
 # Slack app credentials. Atlas keeps one company Slack app. The signing
 # secret is app-wide; the bot token can be captured through the install
 # flow and persisted in `slack_installations`.

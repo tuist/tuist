@@ -72,13 +72,14 @@ tailscaleDeviceReaper:
   # boot, so a dead registration can never be reused and is pure garbage. The
   # xcresult-processor Tart VMs boot from an image with no persisted tailscaled
   # state: each boot means a new node key, and a new node key always means a new
-  # device -- the hostname has nothing to do with it. Two devices sharing a
-  # hostname AND a tag are visible on the tailnet today, which is what that
-  # looks like in practice.
+  # device -- the hostname has nothing to do with it.
   #
-  # This tier is what keeps the tailnet under the plan's included allowance.
-  # Releases add roughly 10-15 devices a week, so parking them behind the 7-day
-  # default would leave a week of debris standing at all times.
+  # A backstop: these VMs join ephemeral through the OAuth client, and Tailscale
+  # deletes an ephemeral device within an hour of it going away, long before
+  # this window. It catches a join that is not ephemeral, such as a pre-auth key
+  # created without it (tailscale-up.sh passes one through unchanged). Every
+  # image release then leaves its VMs behind, and the 7-day default would keep
+  # a week of them standing.
   #
   # An empty hostnamePattern disables the short window (everything falls back to
   # graceHours) rather than matching every device.
@@ -695,6 +696,13 @@ server:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
+      # Overridable field names inside the per-env 1Password items. The
+      # chart's default field layout is described in
+      # templates/server-config-external-secrets.yaml; override here to
+      # point ESO at a sibling field on the same 1P item (e.g. to send
+      # errors to a different ingest without touching every other secret).
+      fields:
+        sentryDsn: dsn
   # Stripe price IDs, keyed plan -> category -> [price ids], plus a top-level
   # `runners` map from meter event name -> price id. Not secrets (just
   # identifiers), so they live here rather than 1Password; the chart JSON-encodes
@@ -1804,14 +1812,13 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
-    # Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) folded into each
-    # per-account cache image: the CAS gets this share of masterCapGib, the
-    # binary cache the rest minus a reserve. Size it for what the store should
-    # OCCUPY — the compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE,
-    # which bounds one generation of a store that keeps two (the primary plus
-    # the demoted upstream that is still the warm cache). 0 (default) leaves the
-    # compilation cache VM-local (dies with the VM); the binary cache is
-    # unaffected.
+    # Turns on the Xcode compilation cache (CAS) folded into each per-account
+    # cache image (> 0). The CAS and the binary cache share masterCapGib less a
+    # reserve of max(2 GiB, 20% of the cap), which the guest divides by what
+    # each holds. This value is the CAS's share of the fixed split that runner
+    # images older than that division apply, the binary cache getting the rest.
+    # 0 (default) leaves the compilation cache VM-local (dies with the VM); the
+    # binary cache is unaffected.
     casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
