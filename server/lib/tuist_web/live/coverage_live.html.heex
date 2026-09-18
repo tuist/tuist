@@ -425,29 +425,6 @@
         <:right_icon :if={@branch == branch}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
-    <.dropdown
-      id="coverage-scheme-dropdown"
-      label={@scheme || dgettext("dashboard_tests", "Any")}
-      secondary_text={"#{scheme_label(@selected_project)}:"}
-    >
-      <.dropdown_item
-        value="any"
-        label={dgettext("dashboard_tests", "Any")}
-        patch={"?#{Query.drop(@uri.query, "scheme")}"}
-        data-selected={is_nil(@scheme)}
-      >
-        <:right_icon :if={is_nil(@scheme)}><.check /></:right_icon>
-      </.dropdown_item>
-      <.dropdown_item
-        :for={scheme <- @schemes}
-        value={scheme}
-        label={scheme}
-        patch={"?#{Query.put(@uri.query, "scheme", scheme)}"}
-        data-selected={@scheme == scheme}
-      >
-        <:right_icon :if={@scheme == scheme}><.check /></:right_icon>
-      </.dropdown_item>
-    </.dropdown>
     <.date_picker
       id="coverage-date-range-picker"
       name="coverage-date-range"
@@ -504,21 +481,12 @@
           id="widget-coverage"
           title={dgettext("dashboard_tests", "Code coverage")}
           description={
-            if @scheme,
-              do:
-                dgettext(
-                  "dashboard_tests",
-                  "Share of executable lines %{scheme} covered at the latest measured commit of %{branch}.",
-                  scheme: @scheme,
-                  branch: @branch
-                ),
-              else:
-                dgettext(
-                  "dashboard_tests",
-                  "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}.",
-                  branch: @branch,
-                  sha: short_sha(@latest.git_commit_sha)
-                )
+            dgettext(
+              "dashboard_tests",
+              "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it.",
+              branch: @branch,
+              sha: short_sha(@latest.git_commit_sha)
+            )
           }
           value={"#{@latest.coverage}%"}
           legend_color="primary"
