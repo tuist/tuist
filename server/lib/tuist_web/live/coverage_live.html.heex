@@ -1,8 +1,5 @@
 <div id="coverage">
-  <div data-part="header">
-    <h1 data-part="title">
-      {dgettext("dashboard_tests", "Code Coverage of %{branch}", branch: @branch)}
-    </h1>
+  <div data-part="filters">
     <.button
       label={dgettext("dashboard_tests", "Other branches")}
       variant="secondary"
@@ -11,9 +8,6 @@
     >
       <:icon_right><.icon name="arrow_right" /></:icon_right>
     </.button>
-  </div>
-
-  <div data-part="filters">
     <.date_picker
       id="coverage-date-range-picker"
       name="coverage-date-range"
@@ -64,6 +58,16 @@
     icon="chart_arcs"
     data-part="analytics"
   >
+    <:actions>
+      <.button
+        label={dgettext("dashboard_tests", "View more")}
+        variant="secondary"
+        size="medium"
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}"
+        }
+      />
+    </:actions>
     <div data-part="analytics-content">
       <div :if={@latest} data-part="widgets">
         <.widget
