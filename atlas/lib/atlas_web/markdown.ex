@@ -47,7 +47,9 @@ defmodule AtlasWeb.Markdown do
 
   def content(assigns) do
     assigns =
-      assign(assigns, :blocks,
+      assign(
+        assigns,
+        :blocks,
         component_blocks(assigns.body, assigns.id,
           heading_offset: assigns.heading_offset,
           strip_leading_h1: assigns.strip_leading_h1

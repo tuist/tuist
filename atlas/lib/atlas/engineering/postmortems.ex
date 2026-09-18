@@ -548,19 +548,19 @@ defmodule Atlas.Engineering.Postmortems do
         domain_ids = values |> List.wrap() |> Enum.reject(&(&1 in [nil, ""]))
         domains = Repo.all(from domain in Domain, where: domain.id in ^domain_ids)
 
-        if length(domains) != length(Enum.uniq(domain_ids)) do
+        if length(domains) == length(Enum.uniq(domain_ids)) do
+          postmortem
+          |> Repo.preload(:domains)
+          |> Changeset.change()
+          |> Changeset.put_assoc(:domains, domains)
+          |> Repo.update()
+        else
           {:error,
            Changeset.add_error(
              Changeset.change(postmortem),
              :domain_ids,
              "contains unknown domains"
            )}
-        else
-          postmortem
-          |> Repo.preload(:domains)
-          |> Changeset.change()
-          |> Changeset.put_assoc(:domains, domains)
-          |> Repo.update()
         end
     end
   end
