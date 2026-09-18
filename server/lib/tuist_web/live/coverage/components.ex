@@ -221,14 +221,20 @@ defmodule TuistWeb.Coverage.Components do
       <.table :if={@rows != []} id={"coverage-#{@id}-table"} rows={@rows}>
         <:col :let={row} label={@label}>
           <%!-- The directory is left to the full listing: a highlight is a
-               name, its coverage and how far it moved, in half a card. --%>
-          <.text_cell
-            label={Path.basename(row.name)}
-            sublabel={if row.coverage, do: "#{row.coverage}%"}
-          />
+               name and where its coverage went, in half a card. --%>
+          <.text_cell label={Path.basename(row.name)} />
         </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-          <.change_cell delta={row.delta} />
+        <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+          <div data-part="cell" data-type="badge">
+            <span data-part="label">{if row.coverage, do: "#{row.coverage}%", else: "—"}</span>
+            <.badge
+              :if={row.delta}
+              style="light-fill"
+              size="large"
+              color={change_color({:delta, row.delta})}
+              label={"#{signed(row.delta)} pp"}
+            />
+          </div>
         </:col>
       </.table>
       <div :if={@rows == []} data-part="empty">{@empty}</div>
