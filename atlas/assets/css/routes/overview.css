@@ -3,31 +3,6 @@
   flex-direction: column;
   gap: var(--noora-spacing-6);
 
-  & > [data-part="header"] {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--noora-spacing-5);
-    align-items: flex-start;
-  }
-
-  & > [data-part="header"] > [data-part="text"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-  }
-
-  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
-    margin: 0;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-  }
-
-  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-medium);
-    max-width: 60rem;
-  }
-
   & [data-part="overview-actions"] {
     display: flex;
     align-items: center;
@@ -57,6 +32,13 @@
     @media (max-width: 480px) {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* At the 5-column density the trend row is tight; keep the badge and its
+     label on the same line so widgets are visually uniform. The badge is
+     unbreakable already; only the label needs guarding. */
+  & [data-part="widgets"] [data-part="trend-label"] {
+    white-space: nowrap;
   }
 
   & [data-part="chart"] {

@@ -67,7 +67,6 @@ defmodule AtlasWeb.OverviewLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
 
     assert has_element?(view, "#overview")
-    assert has_element?(view, "#overview > [data-part='header'] [data-part='title']", "Overview")
     assert has_element?(view, "#overview-widget-users [data-part='value']", "1,234")
     assert has_element?(view, "#overview-widget-organizations [data-part='value']", "56")
     assert has_element?(view, "#overview-widget-projects [data-part='value']", "789")
@@ -75,7 +74,7 @@ defmodule AtlasWeb.OverviewLiveTest do
     assert has_element?(view, "#overview-widget-cache-operations [data-part='value']", "12,345,678")
     # Users is the default selected widget.
     assert has_element?(view, "#overview-chart-users")
-    assert has_element?(view, "#overview-range-dropdown")
+    assert has_element?(view, "#overview-date-range-picker")
   end
 
   test "clicking a widget swaps in that metric's chart", %{conn: conn} do
