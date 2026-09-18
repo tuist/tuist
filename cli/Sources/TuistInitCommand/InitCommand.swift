@@ -22,23 +22,23 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     var path: String?
 
     @Option(
-        name: .long,
+        name: [.customLong("build-system"), .customLong("workflow")],
         help:
-        "The workflow to run non-interactively. One of 'generated' (create a Tuist-generated Xcode project), 'xcode' (integrate an existing Xcode project or workspace), 'gradle' (integrate a Gradle project), or 'bazel' (integrate a Bazel workspace). When set, all remaining prompts are answered from the other flags."
+        "The build system to integrate with, non-interactively. One of 'xcode' (integrate an existing Xcode project or workspace), 'generated-xcode' (create a Tuist-generated Xcode project), 'gradle' (integrate a Gradle project), or 'bazel' (integrate a Bazel workspace). When set, all remaining prompts are answered from the other flags. `--workflow` is accepted as an alias."
     )
-    var workflow: String?
+    var buildSystem: String?
 
     @Option(
         name: .long,
         help:
-        "The project name. For 'generated' this is the directory name and the server project handle. For 'xcode' and 'gradle' this is the server project handle."
+        "The project name. Also the server project handle. Defaults to the current directory name."
     )
     var name: String?
 
     @Option(
         name: .long,
         help:
-        "The platform for a 'generated' project. One of 'ios', 'macos', 'tvos', 'watchos'."
+        "The platform for a 'generated-xcode' project. One of 'ios', 'macos', 'tvos', 'watchos'."
     )
     var platform: String?
 
@@ -90,16 +90,25 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
             return try? JSONDecoder().decode(InitPromptAnswers.self, from: jsonData)
         }
 
-        // Otherwise, compose from the ergonomic flags. `--workflow` opts in — if
-        // it isn't set, everything falls back to the interactive prompter and
-        // the other flags are ignored.
-        guard let workflow else { return nil }
+        // Otherwise, compose from the ergonomic flags. `--build-system` opts in.
+        // If it isn't set, the interactive prompter drives everything, and the
+        // other non-interactive flags are meaningless — raise instead of
+        // silently ignoring them so misconfigured invocations don't run.
+        guard let buildSystem else {
+            let leftover = nonInteractiveFlagsWithoutBuildSystem()
+            if !leftover.isEmpty {
+                throw ValidationError(
+                    "--build-system is required when \(leftover.joined(separator: ", ")) is passed. Pick one of: xcode, generated-xcode, gradle, bazel."
+                )
+            }
+            return nil
+        }
 
         if account != nil, createOrganization != nil {
             throw ValidationError("--account and --create-organization are mutually exclusive.")
         }
 
-        let workflowType = try resolvedWorkflowType(from: workflow)
+        let workflowType = try resolvedWorkflowType(from: buildSystem)
 
         if server, account == nil, createOrganization == nil {
             throw ValidationError(
@@ -107,15 +116,18 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
             )
         }
 
+        guard let projectName = name else {
+            throw ValidationError(
+                "--name is required when --build-system is set. Pass the server project handle to use."
+            )
+        }
+
         switch workflowType {
         #if os(macOS)
             case .createGeneratedProject:
-                guard name != nil else {
-                    throw ValidationError("--name is required for --workflow generated.")
-                }
                 guard platform != nil else {
                     throw ValidationError(
-                        "--platform is required for --workflow generated. One of: ios, macos, tvos, watchos."
+                        "--platform is required for --build-system generated-xcode. One of: ios, macos, tvos, watchos."
                     )
                 }
             case .connectProjectOrSwiftPackage:
@@ -133,7 +145,7 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
             } else if let account {
                 // The `case let .userAccount(handle), let .organization(handle)`
                 // path in the service returns `handle` for both, so which case
-                // we pick here doesn't affect behavior — `.organization` is the
+                // we pick here doesn't affect behavior; `.organization` is the
                 // safer default since the service doesn't verify membership.
                 .organization(account)
             } else {
@@ -144,18 +156,32 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
             workflowType: workflowType,
             integrateWithServer: server,
             generatedProjectPlatform: platform ?? "",
-            generatedProjectName: name ?? "",
+            generatedProjectName: projectName,
             accountType: accountType,
             newOrganizationAccountHandle: createOrganization ?? ""
         )
     }
 
-    private func resolvedWorkflowType(from workflow: String) throws
+    private func nonInteractiveFlagsWithoutBuildSystem() -> [String] {
+        var flags: [String] = []
+        if name != nil { flags.append("--name") }
+        if platform != nil { flags.append("--platform") }
+        if account != nil { flags.append("--account") }
+        if createOrganization != nil { flags.append("--create-organization") }
+        // `server` is a flag with a default, not an optional; only report it
+        // when the user explicitly opted out.
+        if !server { flags.append("--no-server") }
+        return flags
+    }
+
+    private func resolvedWorkflowType(from buildSystem: String) throws
         -> InitPromptingWorkflowType
     {
-        switch workflow.lowercased() {
+        switch buildSystem.lowercased() {
         #if os(macOS)
-            case "generated":
+            // Accept both the new "generated-xcode" spelling and the previous
+            // "generated" alias so early copies of the flag keep working.
+            case "generated-xcode", "generated":
                 return .createGeneratedProject
             case "xcode":
                 return .connectProjectOrSwiftPackage(name)
@@ -167,11 +193,11 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
         default:
             #if os(macOS)
                 throw ValidationError(
-                    "Unknown --workflow '\(workflow)'. Expected one of: generated, xcode, gradle, bazel."
+                    "Unknown --build-system '\(buildSystem)'. Expected one of: xcode, generated-xcode, gradle, bazel."
                 )
             #else
                 throw ValidationError(
-                    "Unknown --workflow '\(workflow)'. Expected one of: gradle, bazel."
+                    "Unknown --build-system '\(buildSystem)'. Expected one of: gradle, bazel."
                 )
             #endif
         }

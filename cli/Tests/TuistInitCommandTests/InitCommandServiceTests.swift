@@ -168,8 +168,8 @@ struct InitCommandServiceTests {
                         answers: .init(
                             workflowType: .createGeneratedProject,
                             integrateWithServer: false,
-                            generatedProjectPlatform: "",
-                            generatedProjectName: "",
+                            generatedProjectPlatform: "ios",
+                            generatedProjectName: "Test",
                             accountType: .organization(""),
                             newOrganizationAccountHandle: ""
                         )
@@ -283,7 +283,7 @@ struct InitCommandServiceTests {
                             workflowType: .connectProjectOrSwiftPackage(projectName),
                             integrateWithServer: false,
                             generatedProjectPlatform: "",
-                            generatedProjectName: "",
+                            generatedProjectName: projectName,
                             accountType: .organization(""),
                             newOrganizationAccountHandle: ""
                         )
