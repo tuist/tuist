@@ -38,6 +38,7 @@ import "../css/routes/domains.css"
 import "../css/routes/errors.css"
 import "../css/routes/postmortems.css"
 import "../css/routes/postmortem_public.css"
+import "../css/routes/specs.css"
 
 import "phoenix_html"
 import {Socket} from "phoenix"

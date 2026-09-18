@@ -89,20 +89,19 @@ defmodule Atlas.TuistOverviewTest do
 
           String.contains?(sql, "reapi_cache_events") ->
             {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "300"}]}}
+
+          String.contains?(sql, "FROM command_events") ->
+            {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "200"}]}}
         end
       end
 
-      pg_query = fn sql, _opts ->
-        if String.contains?(sql, "FROM cache_events") do
-          {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "200"}]}}
-        else
-          {:ok,
-           %{
-             "rows" => [
-               %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
-             ]
-           }}
-        end
+      pg_query = fn _sql, _opts ->
+        {:ok,
+         %{
+           "rows" => [
+             %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
+           ]
+         }}
       end
 
       measurements =

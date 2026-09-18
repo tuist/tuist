@@ -200,6 +200,12 @@
           navigate={~p"/engineering/postmortems"}
           selected={String.starts_with?(@current_path, "/engineering/postmortems")}
         />
+        <.sidebar_item
+          label={gettext("Specs")}
+          icon="schema"
+          navigate={~p"/engineering/specs"}
+          selected={String.starts_with?(@current_path, "/engineering/specs")}
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Atlas.Users.executive?(@current_user)}
