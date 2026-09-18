@@ -67,18 +67,17 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  Open proposals, growths first and then oldest first, capped at `limit`.
-  What the automatic mode drains; the cap bounds how much a sweep may resize
-  in one pass so a miscalibrated threshold cannot rebuild the fleet in one
-  night. A growth waiting leaves an account shedding content it needs, while
-  a shrink waiting only holds disk, so a month's shrinks landing on the same
-  day cannot hold growth back for hours.
+  Open proposals, growths first and then oldest first: the order the automatic
+  mode tries them in. A growth waiting leaves an account shedding content it
+  needs, while a shrink waiting only holds disk, so a month's shrinks landing
+  on the same day cannot hold growth back for hours. How many it may apply is
+  the worker's budget to bound, not this list's length: a proposal the cluster
+  refuses stays open at the head of it.
   """
-  def open_proposals(limit) do
+  def open_proposals do
     ClaimProposal
     |> where([proposal], proposal.status == :open)
     |> order_by([proposal], asc: fragment("? <> 'grow'", proposal.direction), asc: proposal.inserted_at)
-    |> limit(^limit)
     |> Repo.all()
   end
 

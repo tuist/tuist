@@ -298,8 +298,18 @@ defmodule Tuist.Kura.ClaimSizing do
       rollup.max_occupancy_percent < policy.shrink_occupancy_percent
   end
 
+  # A live day only adds evictions and raises its peak, so today's row that has
+  # already evicted or filled past the line contradicts the shrink however
+  # early in the day it is.
+  defp shrink_standing(nil, _policy), do: :breaks
+
   defp shrink_standing(rollup, policy) do
-    if rollup != nil and shrink_day?(rollup, policy), do: :qualifies, else: :breaks
+    cond do
+      shrink_day?(rollup, policy) -> :qualifies
+      rollup.eviction_count > 0 -> :contradicts
+      (rollup.max_occupancy_percent || 0) >= policy.shrink_occupancy_percent -> :contradicts
+      true -> :breaks
+    end
   end
 
   # Every day of the window kept what it shed past the threshold, or shed
@@ -321,17 +331,32 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
+  # Today's row that has already shed content younger than the threshold
+  # contradicts the shrink. Its median can still rise before the day ends, but
+  # vetoing costs a shrink a day at most, while passing over it would discard
+  # the only reading against it. One that has shed nothing young yet, or has
+  # not sent its first snapshot, has measured nothing and is passed over.
+  defp retention_standing(nil, _threshold_seconds), do: :breaks
+
   defp retention_standing(rollup, threshold_seconds) do
-    if rollup != nil and retention_day?(rollup, threshold_seconds), do: :qualifies, else: :breaks
+    cond do
+      shed_young?(rollup, threshold_seconds) -> :contradicts
+      retention_day?(rollup) -> :qualifies
+      true -> :breaks
+    end
   end
 
-  # A day without snapshots breaks the window here too. Unlike growth, no day
-  # is passed over: a day that shed content younger than the threshold is the
-  # evidence against shrinking, however idle the days around it were.
-  defp retention_day?(rollup, threshold_seconds) do
-    rollup.snapshot_count > 0 and
-      (rollup.eviction_count == 0 or
-         (rollup.median_shed_age_seconds != nil and rollup.median_shed_age_seconds >= threshold_seconds))
+  defp shed_young?(rollup, threshold_seconds) do
+    rollup.eviction_count > 0 and rollup.median_shed_age_seconds != nil and
+      rollup.median_shed_age_seconds < threshold_seconds
+  end
+
+  # A day without snapshots breaks the window here too. Unlike growth, no
+  # earlier day is passed over: one that shed content younger than the
+  # threshold is the evidence against shrinking, however idle the days around
+  # it were.
+  defp retention_day?(rollup) do
+    rollup.snapshot_count > 0 and (rollup.eviction_count == 0 or rollup.median_shed_age_seconds != nil)
   end
 
   # Idle time can only lengthen a shed age, so a day under the threshold
@@ -407,14 +432,16 @@ defmodule Tuist.Kura.ClaimSizing do
   end
 
   # Walks back from today. Today's row is live, so it counts when it qualifies
-  # and is passed over when it does not: the hour the sweep runs never breaks
-  # a streak. Every earlier day passed over spends one of `passable_days`.
+  # and is passed over when it has not measured enough to: the hour the sweep
+  # runs never breaks a streak. One that already contradicts the verdict ends
+  # it. Every earlier day passed over spends one of `passable_days`.
   defp qualifying_window(by_date, today, window_days, passable_days, standing) do
     rollup = Map.get(by_date, today)
     yesterday = Date.add(today, -1)
 
     case standing.(rollup) do
       :qualifies -> collect_window(by_date, yesterday, window_days - 1, passable_days, standing, [rollup])
+      :contradicts -> nil
       _standing -> collect_window(by_date, yesterday, window_days, passable_days, standing, [])
     end
   end
