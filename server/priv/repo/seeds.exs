@@ -5763,7 +5763,8 @@ IO.puts("  - kura usage events: #{length(kura_events)}")
 # coverage, and the per-commit totals every coverage surface reads.
 #
 # What this seeds, all inside the page's default 30-day window:
-#   - `main`, a commit a day, measured by the `App` and `Networking` schemes
+#   - `main`, a commit a day, measured by the `App` and `Networking` schemes;
+#     its two newest commits by four, so the schemes column has some to fold
 #   - a commit nobody measured, and one measured by a single scheme, so the
 #     history shows a gap and a commit that stays off the trend
 #   - a merged pull request's branch and the merge commit on `main`
@@ -5927,9 +5928,21 @@ coverage_file = fn {path, target, lines}, sha, drift ->
   }
 end
 
+# Schemes added late in the month that re-measure targets the first two
+# already cover: the union is unchanged, the commit just has more runs.
+coverage_extra_scheme_targets = %{
+  "DesignSystem" => ["DesignSystem"],
+  "AppIntegration" => ["App", "Networking"]
+}
+
 coverage_files_for_scheme = fn scheme, sha, drift ->
   coverage_sources
-  |> Enum.filter(fn {_path, target, _lines} -> Map.fetch!(coverage_scheme_of, target) == scheme end)
+  |> Enum.filter(fn {_path, target, _lines} ->
+    case coverage_extra_scheme_targets do
+      %{^scheme => targets} -> target in targets
+      _ -> Map.fetch!(coverage_scheme_of, target) == scheme
+    end
+  end)
   |> Enum.map(&coverage_file.(&1, sha, drift))
 end
 
@@ -6020,7 +6033,7 @@ coverage_main_tail =
         committed_at: coverage_at.(days_ago, 11),
         branch: "main",
         drift: 0.105 + (index - 23) * 0.005,
-        schemes: [{"App", false}, {"Networking", false}],
+        schemes: [{"App", false}, {"Networking", false}, {"DesignSystem", false}, {"AppIntegration", false}],
         # The newest commit's pipeline has not signalled yet: measured, pending.
         signal: signal,
         measured: true,
