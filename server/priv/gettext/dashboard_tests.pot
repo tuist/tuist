@@ -2533,22 +2533,6 @@ msgstr ""
 msgid "Coverage gates"
 msgstr ""
 
-#: lib/tuist_web/live/coverage/components.ex:202
-#, elixir-autogen, elixir-format
-msgid "Every file Git knows at this commit was measured."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_live.html.heex:115
-#, elixir-autogen, elixir-format
-msgid "Files Git knows at that commit that no scheme compiled, so nothing measured them."
-msgstr ""
-
-#: lib/tuist_web/live/coverage/components.ex:186
-#: lib/tuist_web/live/coverage_detail_live.html.heex:669
-#, elixir-autogen, elixir-format
-msgid "Files nothing measured"
-msgstr ""
-
 #: lib/tuist_web/live/coverage_detail_live.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Gate"
@@ -2624,11 +2608,6 @@ msgstr ""
 msgid "This commit"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:113
-#, elixir-autogen, elixir-format
-msgid "Unmeasured files"
-msgstr ""
-
 #: lib/tuist_web/live/coverage/components.ex:459
 #, elixir-autogen, elixir-format
 msgid "at least %{threshold}%"
@@ -2685,11 +2664,6 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Compared only when both measured the same schemes, each as fully."
-msgstr ""
-
-#: lib/tuist_web/live/coverage_detail_live.html.heex:685
-#, elixir-autogen, elixir-format
-msgid "Every file Git knows at this commit was measured"
 msgstr ""
 
 #: lib/tuist_web/live/coverage/components.ex:158
@@ -2831,4 +2805,26 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Run"
+msgstr ""
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:686
+#, elixir-autogen, elixir-format
+msgid "Every file Git tracks at this commit has coverage data"
+msgstr ""
+
+#: lib/tuist_web/live/coverage/components.ex:202
+#, elixir-autogen, elixir-format
+msgid "Every file Git tracks at this commit has coverage data."
+msgstr ""
+
+#: lib/tuist_web/live/coverage/components.ex:186
+#: lib/tuist_web/live/coverage_detail_live.html.heex:669
+#: lib/tuist_web/live/coverage_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Files without coverage data"
+msgstr ""
+
+#: lib/tuist_web/live/coverage_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Source files Git tracks at that commit that no scheme compiled, so they are missing from the total."
 msgstr ""

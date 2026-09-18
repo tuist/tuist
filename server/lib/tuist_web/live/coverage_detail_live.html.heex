@@ -666,7 +666,7 @@
       />
     </.card>
     <.card
-      title={dgettext("dashboard_tests", "Files nothing measured")}
+      title={dgettext("dashboard_tests", "Files without coverage data")}
       icon="file"
       data-part="unmeasured-card"
     >
@@ -682,7 +682,9 @@
       </.card_section>
       <.coverage_empty
         :if={@unmeasured_files == []}
-        title={dgettext("dashboard_tests", "Every file Git knows at this commit was measured")}
+        title={
+          dgettext("dashboard_tests", "Every file Git tracks at this commit has coverage data")
+        }
         image="table"
         data-part="empty-unmeasured"
       />
