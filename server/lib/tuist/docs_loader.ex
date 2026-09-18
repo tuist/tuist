@@ -36,7 +36,11 @@ defmodule Tuist.Docs.Loader do
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
   @code_group_regex ~r/^(?<indent>[ \t]*):::[ \t]*code-group[ \t]*\n(?<content>.*?)^\k<indent>:::[ \t]*$/ms
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-  @bold_title_regex ~r/\A\s*<p><strong>(.*?)<\/strong><\/p>\s*/s
+  # Tempered inner group so the title capture stops at the first `</strong>`
+  # even under the `s` flag. Without tempering, `.*?` can back off past a
+  # `</strong>` at end of paragraph one and match a `</strong>` in a later
+  # paragraph, swallowing intermediate markup into the title.
+  @bold_title_regex ~r/\A\s*<p><strong>((?:(?!<\/strong>).)*?)<\/strong><\/p>\s*/s
   @code_content_regex ~r/(<code[^>]*>)(.*?)(<\/code>)/s
 
   @github_alert_type_to_status %{
