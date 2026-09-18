@@ -95,6 +95,12 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # Default Slack channel for engineering error-issue alerts (new issue and
+  # regression transitions from the issue coalescer, plus drop alerts).
+  # Matches Hive prod's HIVE_ALERTS_SLACK_CHANNEL_ID so the alert stream
+  # stays on the same channel after the port. Projects can override per
+  # project via their slack_alert_channel setting.
+  ATLAS_DEFAULT_ALERT_SLACK_CHANNEL: "C061VCZC2V8"
   # Document page embeddings. In local mode Atlas.LLMs.LocalTransport
   # routes the /embeddings call in-process to the profile marked
   # atlas_embedding: true. The profile's upstream model emits native
