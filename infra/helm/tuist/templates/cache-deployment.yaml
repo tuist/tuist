@@ -10,6 +10,17 @@ metadata:
     app.kubernetes.io/component: cache
 spec:
   replicas: {{ .Values.cache.replicaCount }}
+  # The cache pod owns two ReadWriteOnce PVCs (`cache-pvcs.yaml`), so a
+  # rolling update that briefly runs the old and new pods side by side
+  # fails with a Multi-Attach error the moment the new pod tries to
+  # bind those volumes. The upgrade then sits pending until Helm's
+  # progress deadline expires and rolls the release back. Recreate
+  # terminates the old pod before scheduling the new one, which frees
+  # the volumes cleanly. The cache is a single-replica stateful
+  # service, so trading a few seconds of downtime per deploy for a
+  # rollout that actually completes is the right shape.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "tuist.componentLabels" (dict "root" . "component" "cache") | nindent 6 }}
