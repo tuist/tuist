@@ -6,6 +6,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.Coverage.Commits
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -20,7 +21,7 @@ defmodule TuistWeb.CoverageLiveTest do
     )
   end
 
-  defp pr_run(project, organization, files, attrs \\ %{}) do
+  defp pr_run(project, organization, files, attrs) do
     CoverageFixtures.run_with_coverage(
       project,
       organization.account,
@@ -54,8 +55,8 @@ defmodule TuistWeb.CoverageLiveTest do
     )
   end
 
-  describe "overview" do
-    test "shows the default branch's latest chained commit and its trend over the period", %{
+  describe "analytics" do
+    test "shows the latest chained commit of the branch, its trend and its gaps", %{
       conn: conn,
       organization: organization,
       project: project
@@ -70,10 +71,10 @@ defmodule TuistWeb.CoverageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
       assert has_element?(lv, "#widget-coverage", "75.0%")
-      assert has_element?(lv, "#widget-coverage-baseline", "b")
+      assert has_element?(lv, "#widget-coverage-covered-lines", "3")
+      assert has_element?(lv, "#widget-coverage-executable-lines", "4")
+      assert has_element?(lv, "#widget-coverage-unmeasured-files", "0")
       assert has_element?(lv, "#coverage-chart")
-      assert has_element?(lv, "#coverage-points-table", "a")
-      refute has_element?(lv, "#coverage-points-table", "c")
     end
 
     test "shows the empty state without a measured commit and hides the page without the flag", %{
@@ -82,7 +83,8 @@ defmodule TuistWeb.CoverageLiveTest do
       project: project
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
-      assert has_element?(lv, "[data-part='empty-overview']")
+      assert has_element?(lv, "[data-part='empty-analytics']")
+      assert has_element?(lv, "[data-part='empty-refs']")
 
       stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
 
@@ -92,23 +94,7 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
-  describe "branches and history" do
-    test "lists every branch's head commit against the default branch", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
-      main_run(project, organization, "f", [file("Sources/A.swift", [1, 1, 1, 0])], %{git_branch: "feature"})
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=branches")
-
-      table = lv |> element("#coverage-branches-table") |> render()
-      assert table =~ "feature"
-      assert table =~ "+25.0 pp"
-      assert table =~ "main"
-    end
-
+  describe "commits" do
     test "lists the branch's commits from the graph, unmeasured ones included", %{
       conn: conn,
       organization: organization,
@@ -118,12 +104,85 @@ defmodule TuistWeb.CoverageLiveTest do
       main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
       main_run(project, organization, "c", [file("Sources/A.swift", [1, 1, 1, 0])])
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=history")
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      table = lv |> element("#coverage-history-table") |> render()
+      table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "Not measured"
       assert table =~ "+50.0 pp"
-      refute has_element?(lv, "#coverage-history-time-order")
+      refute has_element?(lv, "#coverage-commits-time-order")
+      assert has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/c']")
+    end
+
+    test "says when the commits could only be ordered by when they were measured", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "#coverage-commits-time-order")
+    end
+  end
+
+  describe "coverage gaps" do
+    test "lists the least covered files and the files nothing measured", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      CoverageFixtures.seed_listing(organization.account, "b", [
+        "Sources/A.swift",
+        "Sources/B.swift",
+        "Sources/Untested.swift"
+      ])
+
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0]), file("Sources/B.swift", [1, 1])])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      files = lv |> element("#coverage-gap-files-table") |> render()
+      assert files =~ "A.swift"
+      assert files =~ "50.0%"
+
+      unmeasured = lv |> element("#coverage-unmeasured-files-table") |> render()
+      assert unmeasured =~ "Untested.swift"
+      refute unmeasured =~ "B.swift"
+      assert has_element?(lv, "#widget-coverage-unmeasured-files", "1")
+    end
+  end
+
+  describe "branches and pull requests" do
+    test "lists both against the default branch and narrows them by search", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
+      main_run(project, organization, "f", [file("Sources/A.swift", [1, 1, 1, 0])], %{git_branch: "feature"})
+
+      pr_run(project, organization, [file("Sources/A.swift", [1, 1, 1, 1])], %{
+        git_commit_sha: "r",
+        pull_request_number: 21
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      table = lv |> element("#coverage-refs-table") |> render()
+      assert table =~ "feature"
+      assert table =~ "+25.0 pp"
+      assert table =~ "main"
+      assert table =~ "#21"
+      assert table =~ "Pull request"
+      assert has_element?(lv, "#coverage-refs-table a[href*='/tests/coverage/pull-requests/21']")
+
+      lv |> form("#coverage-refs-filter-form", search: "#21") |> render_change()
+
+      table = lv |> element("#coverage-refs-table") |> render()
+      assert table =~ "#21"
+      refute table =~ ~s(id="branch-feature")
+      refute table =~ ~s(id="branch-main")
     end
   end
 
@@ -206,11 +265,39 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#widget-pr-coverage", "50.0%")
       assert has_element?(lv, "#coverage-incomplete")
 
-      Tuist.Tests.Coverage.Commits.signal_complete(project, "p")
+      Commits.signal_complete(project, "p")
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
       refute has_element?(lv, "#coverage-incomplete")
       assert lv |> element("[data-part='pull-request'] [data-part='subtitle']") |> render() =~ "Complete"
+    end
+
+    test "shows what the gates decided, and that they wait for the completion signal", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          coverage_gates_enabled: true,
+          coverage_gate_min_patch_coverage: 80.0,
+          coverage_gate_max_total_drop: 1.0
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
+
+      assert lv |> element("[data-part='verdict']") |> render() =~ "Pending"
+      assert lv |> element("[data-part='verdict']") |> render() =~ "tuist coverage complete"
+
+      gates = lv |> element("#coverage-gates-table") |> render()
+      assert gates =~ "Minimum patch coverage"
+      assert gates =~ "Maximum total drop"
+      assert gates =~ "Failed"
+
+      Commits.signal_complete(project, "p")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
+      assert lv |> element("[data-part='verdict']") |> render() =~ "Failed"
     end
 
     test "says why there is no baseline", %{conn: conn, organization: organization, project: project} do
@@ -240,44 +327,6 @@ defmodule TuistWeb.CoverageLiveTest do
       assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/nothing")
       end
-    end
-  end
-
-  describe "files and runs" do
-    test "lists the least covered files and the targets at the latest commit", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0]), file("Sources/B.swift", [1, 1])])
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=files")
-
-      assert has_element?(lv, "#coverage-targets-table", "Calculator")
-      files = lv |> element("#coverage-files-table") |> render()
-      assert files =~ "Sources/A.swift"
-      assert files =~ "Sources/B.swift"
-    end
-
-    test "lists the runs with coverage, narrowed by kind", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
-      main_run(project, organization, "c", [file("Sources/A.swift", [1, 0, 0, 0])], %{partial: true, scheme: "Partial"})
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=runs")
-      table = lv |> element("#coverage-runs-table") |> render()
-      assert table =~ "50.0%"
-      assert table =~ "25.0%"
-
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=runs&coverage=full")
-
-      table = lv |> element("#coverage-runs-table") |> render()
-      assert table =~ "50.0%"
-      refute table =~ "25.0%"
     end
   end
 end

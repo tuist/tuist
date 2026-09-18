@@ -36,20 +36,29 @@ defmodule Tuist.GitHistory.Completion do
       {merge_base, notes} = compare_and_record(connection, run, base_branch, head, budget, provider, notes)
       notes = backfill_graph(connection, run, merge_base, settings, budget, provider, notes)
 
-      Tests.update_test_history(run, %{
-        git_repository_id: repository_id,
-        base_branch: base_branch,
-        merge_base_sha: merge_base || run.merge_base_sha || "",
-        is_pull_request: run.is_pull_request == true or pull_request_number != nil,
-        pull_request_number: pull_request_number || run.pull_request_number || 0,
-        git_object_format: object_format(run, head),
-        history_source: if(run.history_source == "client", do: "mixed", else: "provider"),
-        history_fallback_reason: Enum.join(notes, "; ")
-      })
+      Tests.update_test_history(
+        run,
+        history_attrs(run, head, base_branch, merge_base, pull_request_number, notes)
+      )
     else
       {:error, reason} ->
         Tests.update_test_history(run, %{history_fallback_reason: "provider: #{format(reason)}"})
     end
+  end
+
+  # What the run's history reads as once the provider filled in what it could:
+  # whatever the client sent is kept, and the source says who supplied it.
+  defp history_attrs(run, head, base_branch, merge_base, pull_request_number, notes) do
+    %{
+      git_repository_id: run.git_repository_id,
+      base_branch: base_branch,
+      merge_base_sha: merge_base || run.merge_base_sha || "",
+      is_pull_request: run.is_pull_request == true or pull_request_number != nil,
+      pull_request_number: pull_request_number || run.pull_request_number || 0,
+      git_object_format: object_format(run, head),
+      history_source: if(run.history_source == "client", do: "mixed", else: "provider"),
+      history_fallback_reason: Enum.join(notes, "; ")
+    }
   end
 
   # The repository the run named, else the connected one: the provider only

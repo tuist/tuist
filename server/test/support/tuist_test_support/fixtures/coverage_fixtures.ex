@@ -38,6 +38,24 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   end
 
   @doc """
+  Stores a commit's file listing in the account's fixture repository, as the
+  CLI uploads it from a clean checkout: what the unmeasured files are read
+  against.
+  """
+  def seed_listing(account, sha, paths) do
+    repository_id = repository_id(account)
+
+    GitHistory.record_listing(
+      repository_id,
+      sha,
+      Enum.map(paths, &%{path: &1, git_blob_id: "blob-" <> &1, mode: 0o100644}),
+      files_count: length(paths)
+    )
+
+    repository_id
+  end
+
+  @doc """
   A covered source file for an `xcode_coverage` block: `counts` are the
   execution counts of lines 1..n.
   """

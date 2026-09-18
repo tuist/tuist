@@ -36,7 +36,8 @@
     }
   }
 
-  & [data-part="filters"] {
+  & > [data-part="page"] > [data-part="filters"],
+  & > [data-part="pull-request"] > [data-part="filters"] {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -60,17 +61,113 @@
     }
   }
 
-  & [data-part="overview-section"],
-  & [data-part="comparison-section"],
-  & [data-part="files"] {
+  & [data-part="analytics-widgets-section"],
+  & [data-part="commits-section"],
+  & [data-part="refs-section"],
+  & [data-part="gates-section"],
+  & [data-part="comparison-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
   }
 
+  & > [data-part="page"] > [data-part="analytics"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="gaps-sections"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    & > [data-part="gaps-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+
+    & > [data-part="gaps-section"]:first-child {
+      border-right: 1px solid var(--noora-surface-border-primary);
+    }
+
+    @media (max-width: 768px) {
+      & {
+        grid-template-columns: 1fr;
+      }
+
+      & > [data-part="gaps-section"]:first-child {
+        border-right: none;
+      }
+    }
+  }
+
+  & [data-part="gaps-section"] > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    }
+
+    & > [data-part="count"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="link"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  & [data-part="verdict"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="empty"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="refs-section"] > [data-part="filters"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & > form {
+      flex-grow: 1;
+      max-width: 320px;
+    }
+  }
+
+  & [data-part="refs-table"] {
+    display: flex;
+    flex-direction: column;
+  }
+
   & .noora-chart {
-    height: 240px;
     padding: var(--noora-spacing-3);
+    height: 240px;
   }
 
   & .noora-card {

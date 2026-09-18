@@ -1,10 +1,12 @@
 defmodule TuistWeb.CoverageLive do
   @moduledoc """
-  The project's Code Coverage page, commit by commit: the default branch's
-  coverage over time from its chained commits, every branch's head, a
-  branch's history with the unmeasured commits in place, the least covered
-  files and targets at the latest commit, the runs that gathered coverage,
-  and one commit (or a pull request's head commit) against its baseline.
+  The project's Code Coverage page, commit by commit: a branch's coverage
+  over time from its chained commits, the commits behind it with the
+  unmeasured ones in place, where the coverage is thinnest at its latest
+  commit, and every branch and pull request that gathered coverage. Each
+  row leads to one commit's page, which compares it with its baseline and,
+  when the project has gates, says how they were decided.
+
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
   """
@@ -12,20 +14,22 @@ defmodule TuistWeb.CoverageLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.TestLabels
 
   alias Tuist.FeatureFlags
-  alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
+  alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(overview branches history files runs)
   @page_size 20
+  # How many rows the cards that only point somewhere else hold.
+  @preview_size 5
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !FeatureFlags.xcode_coverage_enabled?(account) do
@@ -62,14 +66,11 @@ defmodule TuistWeb.CoverageLive do
       case socket.assigns.live_action do
         :pull_request -> assign_pull_request(socket, params["pull_request_number"], query)
         :commit -> assign_commit_page(socket, params["git_commit_sha"], query)
-        _ -> socket |> assign(:tab, tab(query["tab"])) |> assign_tab(query)
+        _ -> assign_page(socket, query)
       end
 
     {:noreply, socket}
   end
-
-  defp tab(value) when value in @tabs, do: value
-  defp tab(_value), do: "overview"
 
   defp blank_to_nil(value) when value in [nil, ""], do: nil
   defp blank_to_nil(value), do: value
@@ -92,6 +93,20 @@ defmodule TuistWeb.CoverageLive do
     {:noreply, push_patch(socket, to: "?" <> Query.drop(query, "page"))}
   end
 
+  def handle_event(
+        "search-refs",
+        %{"search" => search},
+        %{assigns: %{selected_account: account, selected_project: project, uri: uri}} = socket
+      ) do
+    query = uri.query |> Query.put("refs-search", search) |> Query.drop("refs-page")
+
+    {:noreply,
+     push_patch(socket,
+       to: "/#{account.name}/#{project.name}/tests/coverage?#{query}",
+       replace: true
+     )}
+  end
+
   def handle_info({:test_created, _test_run}, %{assigns: %{live_action: :pull_request}} = socket) do
     {:noreply,
      assign_pull_request(socket, Integer.to_string(socket.assigns.pull_request_number), socket.assigns.current_params)}
@@ -102,21 +117,20 @@ defmodule TuistWeb.CoverageLive do
   end
 
   def handle_info({:test_created, _test_run}, socket) do
-    {:noreply, assign_tab(socket, socket.assigns.current_params)}
+    {:noreply, assign_page(socket, socket.assigns.current_params)}
   end
 
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  defp assign_tab(socket, query) do
-    socket = assign_scope(socket)
-
-    case socket.assigns.tab do
-      "overview" -> assign_overview(socket)
-      "branches" -> assign_branches(socket)
-      "history" -> assign_history(socket)
-      "files" -> assign_files(socket, query)
-      "runs" -> assign_runs(socket, query)
-    end
+  # The page holds two sections: what the branch's coverage does over the
+  # period, and every branch and pull request that gathered any.
+  defp assign_page(socket, query) do
+    socket
+    |> assign_scope()
+    |> assign_analytics()
+    |> assign_commits(query)
+    |> assign_gaps()
+    |> assign_refs(query)
   end
 
   # The branch every figure is for, and the schemes measured on it: a
@@ -129,7 +143,7 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:branches, History.branch_names(project.id, period_opts(socket)))
   end
 
-  defp assign_overview(%{assigns: %{selected_project: project, branch: branch, scheme: scheme}} = socket) do
+  defp assign_analytics(%{assigns: %{selected_project: project, branch: branch, scheme: scheme}} = socket) do
     points = History.branch_points(project, branch, Keyword.put(period_opts(socket), :scheme, scheme))
     latest = List.last(points)
     first = List.first(points)
@@ -140,80 +154,58 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:trend, if(latest && first && latest != first, do: Float.round(latest.coverage - first.coverage, 1)))
   end
 
-  defp assign_branches(%{assigns: %{selected_project: project}} = socket) do
-    branches = History.branches(project, period_opts(socket))
-    assign(socket, :branch_rows, Enum.map(branches, &Map.put(&1, :id, &1.git_branch)))
-  end
-
-  defp assign_history(%{assigns: %{selected_project: project, branch: branch}} = socket) do
-    history = History.branch_history(project, branch, Keyword.put(period_opts(socket), :limit, 100))
-
-    {rows, _previous} =
-      history.commits
-      |> Enum.reverse()
-      |> Enum.map_reduce(nil, fn commit, previous ->
-        change = if commit.chained and previous, do: Float.round(commit.coverage - previous.coverage, 1)
-        row = commit |> Map.put(:id, commit.git_commit_sha) |> Map.put(:change, change)
-        {row, if(commit.chained, do: commit, else: previous)}
-      end)
+  defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket, query) do
+    page =
+      History.commit_page(
+        project,
+        branch,
+        Keyword.merge(period_opts(socket), page: Query.bounded_page(query["commits-page"]), page_size: @page_size)
+      )
 
     socket
-    |> assign(:history_rows, Enum.reverse(rows))
-    |> assign(:history_ordered_by, history.ordered_by)
+    |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
+    |> assign(:commits_meta, %{current_page: page.page, total_pages: page.total_pages, total_count: page.total_count})
+    |> assign(:commits_ordered_by, page.ordered_by)
   end
 
-  defp assign_files(%{assigns: %{selected_project: project, branch: branch}} = socket, query) do
-    page = Query.bounded_page(query["page"])
-    latest = History.latest(project, branch, period_opts(socket))
-
-    {targets, files, count} =
+  # Where the coverage is thinnest at the branch's latest commit: the least
+  # covered files, and the tracked files no scheme measured at all.
+  defp assign_gaps(%{assigns: %{selected_project: project, latest: latest}} = socket) do
+    {files, unmeasured} =
       if latest do
-        [targets, {files, count}] =
+        [{files, _count}, unmeasured] =
           Tuist.Tasks.parallel_tasks([
-            fn -> Commits.targets(project.id, latest.git_commit_sha) end,
-            fn -> Commits.list_files(project.id, latest.git_commit_sha, page, @page_size) end
+            fn -> Commits.list_files(project.id, latest.git_commit_sha, 1, @preview_size) end,
+            fn -> Commits.unmeasured_files(project, latest.git_commit_sha, limit: @preview_size) end
           ])
 
-        {targets, files, count}
+        {files, unmeasured}
       else
-        {[], [], 0}
+        {[], []}
       end
 
     socket
-    |> assign(:latest, latest)
-    |> assign(:targets, Enum.map(targets, &Map.put(&1, :id, "target-" <> &1.name)))
-    |> assign(:files, Enum.map(files, &Map.put(&1, :id, "file-" <> &1.path)))
-    |> assign(:files_meta, %{current_page: page, total_pages: max(1, ceil(count / @page_size))})
+    |> assign(:gap_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
+    |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
   end
 
-  defp assign_runs(%{assigns: %{selected_project: project}} = socket, query) do
-    {start_datetime, end_datetime} = socket.assigns.coverage_period
-    kind = if query["coverage"] in ~w(full partial), do: String.to_existing_atom(query["coverage"]), else: :any
+  defp assign_refs(%{assigns: %{selected_project: project}} = socket, query) do
+    search = query["refs-search"] || ""
 
-    options = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project.id},
-        %{field: :ran_at, op: :>=, value: start_datetime},
-        %{field: :ran_at, op: :<=, value: end_datetime}
-      ],
-      order_by: [:ran_at],
-      order_directions: [:desc]
-    }
-
-    options =
-      cond do
-        query["before"] -> options |> Map.put(:last, @page_size) |> Map.put(:before, query["before"])
-        query["after"] -> options |> Map.put(:first, @page_size) |> Map.put(:after, query["after"])
-        true -> Map.put(options, :first, @page_size)
-      end
-
-    {runs, meta} = Tests.list_test_runs(options, project_id: project.id, coverage: {:in, kind})
+    page =
+      History.refs(
+        project,
+        Keyword.merge(period_opts(socket),
+          search: search,
+          page: Query.bounded_page(query["refs-page"]),
+          page_size: @page_size
+        )
+      )
 
     socket
-    |> assign(:runs_kind, Atom.to_string(kind))
-    |> assign(:runs, runs)
-    |> assign(:runs_meta, meta)
-    |> assign(:totals_by_run, Coverage.totals_for_runs(project.id, Enum.map(runs, & &1.id)))
+    |> assign(:refs_search, search)
+    |> assign(:ref_rows, Enum.map(page.refs, &Map.put(&1, :id, &1.kind <> "-" <> &1.name)))
+    |> assign(:refs_meta, %{current_page: page.page, total_pages: page.total_pages, total_count: page.total_count})
   end
 
   defp assign_pull_request(%{assigns: %{selected_project: project}} = socket, number, query) do
@@ -259,6 +251,8 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:commit_sha, sha)
     |> assign(:head, head)
     |> assign(:comparison, comparison)
+    |> assign(:gates, Gates.settings(project))
+    |> assign(:gate_verdict, if(project.coverage_gates_enabled, do: Gates.evaluate(project, comparison)))
     |> assign(:commit_runs, Commits.runs(project.id, sha))
     |> assign(:scheme_rows, Enum.map(comparison.schemes, &Map.put(&1, :id, "scheme-" <> &1.scheme)))
     |> assign(:target_rows, Enum.map(comparison.targets, &Map.put(&1, :id, "target-" <> &1.name)))
@@ -393,12 +387,14 @@ defmodule TuistWeb.CoverageLive do
   def change_color(_change), do: "neutral"
 
   @doc false
+  def completeness_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
   def completeness_label(%{complete: true, completeness: "signal"}), do: dgettext("dashboard_tests", "Complete")
   def completeness_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
   def completeness_label(%{chained: true}), do: dgettext("dashboard_tests", "Comparable")
   def completeness_label(_commit), do: dgettext("dashboard_tests", "Not chained")
 
   @doc false
+  def completeness_color(%{measured: false}), do: "neutral"
   def completeness_color(%{complete: true}), do: "success"
   def completeness_color(%{chained: true}), do: "information"
   def completeness_color(_commit), do: "neutral"
@@ -451,7 +447,50 @@ defmodule TuistWeb.CoverageLive do
   defp with_detail(text, %{detail: detail}) when is_binary(detail) and detail != "", do: "#{text} (#{detail})"
   defp with_detail(text, _reason), do: text
 
-  @doc false
+  @doc "The gates that were evaluated, as the commit page's table lists them."
+  def gate_rows(%{checks: checks}), do: Enum.map(checks, &Map.put(&1, :id, Atom.to_string(&1.gate)))
+
+  @doc "The name of a gate, as the settings page and the check run call it."
+  def gate_label(:min_patch_coverage), do: dgettext("dashboard_tests", "Minimum patch coverage")
+  def gate_label(:max_total_drop), do: dgettext("dashboard_tests", "Maximum total drop")
+
+  @doc """
+  What the gates decided for the commit: nothing until its pipeline signals
+  completion, since a verdict on a half-measured commit would be wrong.
+  """
+  def verdict_label(_verdict, false), do: dgettext("dashboard_tests", "Pending")
+  def verdict_label(%{conclusion: :success}, _complete), do: dgettext("dashboard_tests", "Passed")
+  def verdict_label(%{conclusion: :failure}, _complete), do: dgettext("dashboard_tests", "Failed")
+  def verdict_label(_verdict, _complete), do: dgettext("dashboard_tests", "Not decided")
+
+  def verdict_color(_verdict, false), do: "information"
+  def verdict_color(%{conclusion: :success}, _complete), do: "success"
+  def verdict_color(%{conclusion: :failure}, _complete), do: "destructive"
+  def verdict_color(_verdict, _complete), do: "neutral"
+
+  def gate_status_label(:passed), do: dgettext("dashboard_tests", "Passed")
+  def gate_status_label(:failed), do: dgettext("dashboard_tests", "Failed")
+  def gate_status_label(_status), do: dgettext("dashboard_tests", "Not evaluated")
+
+  def gate_status_color(:passed), do: "success"
+  def gate_status_color(:failed), do: "destructive"
+  def gate_status_color(_status), do: "neutral"
+
+  @doc "A gate's threshold and what the commit measured against it."
+  def gate_threshold(%{gate: :min_patch_coverage, threshold: threshold}),
+    do: dgettext("dashboard_tests", "at least %{threshold}%", threshold: threshold)
+
+  def gate_threshold(%{gate: :max_total_drop, threshold: threshold}),
+    do: dgettext("dashboard_tests", "at most %{threshold} points down", threshold: threshold)
+
+  def gate_value(%{value: nil}), do: "—"
+  def gate_value(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
+  def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)} pt"
+
+  @doc "Whether a ref is a branch or a pull request, as its row's kind reads."
+  def ref_kind_label("pull_request"), do: dgettext("dashboard_tests", "Pull request")
+  def ref_kind_label(_kind), do: dgettext("dashboard_tests", "Branch")
+
   def skipped_reason_label(:stale), do: dgettext("dashboard_tests", "Measured on another version of the file")
   def skipped_reason_label(:no_line_data), do: dgettext("dashboard_tests", "No per-line data in the run")
   def skipped_reason_label(:truncated), do: dgettext("dashboard_tests", "Diff too large to record its lines")

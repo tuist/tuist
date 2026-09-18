@@ -128,6 +128,12 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     ])
 
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
+
+    # The same files the count is taken from, so the page can name them:
+    # `README.md` shares no extension with anything measured, the generated
+    # file is excluded, and the test file was measured.
+    assert Commits.unmeasured_files(project, "abc123") == ["Sources/Untested.swift"]
+    assert Commits.unmeasured_files(project, "nothing") == []
   end
 
   test "the worker republishes the commit and is scheduled once per commit", %{project: project, account: account} do
