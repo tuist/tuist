@@ -147,14 +147,7 @@ defmodule Atlas.Engineering.Postmortems do
   def change_action_item(action_item \\ %ActionItem{}, attrs \\ %{}),
     do: ActionItem.changeset(action_item, attrs)
 
-  def publish_postmortem(attrs, %User{} = user) do
-    if can_publish?(user) do
-      persist_new_postmortem(attrs, user)
-    else
-      {:error, :unauthorized}
-    end
-  end
-
+  def publish_postmortem(attrs, %User{} = user), do: persist_new_postmortem(attrs, user)
   def publish_postmortem(_attrs, _user), do: {:error, :unauthorized}
 
   defp persist_new_postmortem(attrs, user) do

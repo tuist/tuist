@@ -8,7 +8,6 @@ defmodule AtlasWeb.Markdown do
 
   @paragraph_wrap ~r/\A<p>(.*)<\/p>\z/s
   @tag_split ~r/(<[^>]+>)/
-  @html_url_attr ~r/(\s(?:href|src)=["'])([^"']+)(["'])/i
   @mention ~r/(^|[^A-Za-z0-9_\/])@([A-Za-z0-9](?:[A-Za-z0-9._-]{0,37}[A-Za-z0-9])?)/u
   @mention_skip_tags ~w(a code pre)
 
