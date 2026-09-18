@@ -246,11 +246,13 @@ defmodule Tuist.Tests.Coverage.History do
   defp naive(%NaiveDateTime{} = datetime), do: datetime
 
   @doc """
-  The branches and pull requests with a measured commit in the period, the
-  most recently measured first: one row per ref with its newest measured
-  commit and that commit's totals, which is where the page's list of refs
-  sends the reader. A pull request is a ref of its own, since its commits
-  belong to it until it is merged.
+  The branches with a measured commit in the period, the most recently
+  measured first: one row per branch with its newest measured commit, that
+  commit's totals, and the pull request its runs reported, if any
+  (`pull_request_number`, 0 without one) — a branch and its pull request are
+  one thing to the reader, who lands on whichever of the two has more to
+  say. A pull request whose runs never named a branch is listed under its
+  number.
 
   `search` narrows by branch name or pull request number, `page` and
   `page_size` paginate (20 by default). `delta` is the difference from the
@@ -290,7 +292,7 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   # The default branch is the baseline, so it has no difference of its own.
-  defp with_delta(%{kind: "branch", name: branch} = ref, _default, branch), do: Map.put(ref, :delta, nil)
+  defp with_delta(%{git_branch: branch} = ref, _default, branch), do: Map.put(ref, :delta, nil)
 
   defp with_delta(ref, nil, _default_branch), do: Map.put(ref, :delta, nil)
 
@@ -305,16 +307,18 @@ defmodule Tuist.Tests.Coverage.History do
       from(t in subquery(runs_query(project_id, opts)),
         where: t.git_commit_sha != "" and (t.is_pull_request == true or t.git_branch != ""),
         select: %{
-          kind: fragment("if(?, 'pull_request', 'branch')", t.is_pull_request),
+          # A run that named no branch is filed under its pull request, which
+          # is the only name it has.
           name:
             fragment(
-              "if(?, concat('#', toString(?)), ?)",
-              t.is_pull_request,
-              t.pull_request_number,
-              t.git_branch
+              "if(? != '', ?, concat('#', toString(?)))",
+              t.git_branch,
+              t.git_branch,
+              t.pull_request_number
             ),
-          pull_request_number: t.pull_request_number,
           git_branch: t.git_branch,
+          is_pull_request: t.is_pull_request,
+          pull_request_number: t.pull_request_number,
           base_branch: t.base_branch,
           git_commit_sha: t.git_commit_sha,
           ran_at: t.ran_at
@@ -325,13 +329,12 @@ defmodule Tuist.Tests.Coverage.History do
       from(r in subquery(runs),
         join: c in subquery(Commits.commits_query(project_id)),
         on: c.git_commit_sha == r.git_commit_sha,
-        group_by: [r.kind, r.name],
+        group_by: r.name,
         select: %{
-          kind: r.kind,
           name: r.name,
-          pull_request_number: fragment("argMax(?, ?)", r.pull_request_number, r.ran_at),
           git_branch: fragment("argMax(?, ?)", r.git_branch, r.ran_at),
-          base_branch: fragment("argMax(?, ?)", r.base_branch, r.ran_at),
+          pull_request_number: fragment("argMaxIf(?, ?, ?)", r.pull_request_number, r.ran_at, r.is_pull_request),
+          base_branch: fragment("argMaxIf(?, ?, ?)", r.base_branch, r.ran_at, r.is_pull_request),
           git_commit_sha: fragment("argMax(?, ?)", r.git_commit_sha, r.ran_at),
           ran_at: max(r.ran_at),
           covered_lines: fragment("argMax(?, ?)", c.covered_lines, r.ran_at),
@@ -346,8 +349,8 @@ defmodule Tuist.Tests.Coverage.History do
         order_by: [desc: max(r.ran_at)]
       )
 
-    # A pull request is listed by its number, so its branch name is matched too:
-    # the reader knows the branch they pushed, not always the number it got.
+    # A branch is searched by its name and by the number of the pull request
+    # it was pushed for: the reader remembers one or the other.
     case search do
       blank when blank in [nil, ""] ->
         query
@@ -356,7 +359,7 @@ defmodule Tuist.Tests.Coverage.History do
         from(r in query,
           where:
             fragment("positionCaseInsensitive(?, ?) > 0", r.name, ^search) or
-              fragment("positionCaseInsensitive(?, ?) > 0", r.git_branch, ^search)
+              fragment("positionCaseInsensitive(concat('#', toString(?)), ?) > 0", r.pull_request_number, ^search)
         )
     end
   end

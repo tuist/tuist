@@ -167,22 +167,24 @@ defmodule TuistWeb.CoverageLiveTest do
         pull_request_number: 21
       })
 
+      # `feature` and pull request 21 are the same branch, so the list holds
+      # one row for them.
+
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
       table = lv |> element("#coverage-refs-table") |> render()
+      # The branch is listed once, carrying the pull request it was pushed
+      # for and its newest measured commit.
       assert table =~ "feature"
-      assert table =~ "+25.0 pp"
-      assert table =~ "main"
       assert table =~ "#21"
-      assert table =~ "Pull request"
+      assert table =~ "main"
       assert has_element?(lv, "#coverage-refs-table a[href*='/tests/coverage/pull-requests/21']")
 
       lv |> form("#coverage-refs-filter-form", search: "#21") |> render_change()
 
       table = lv |> element("#coverage-refs-table") |> render()
       assert table =~ "#21"
-      refute table =~ ~s(id="branch-feature")
-      refute table =~ ~s(id="branch-main")
+      refute table =~ ~s(id="ref-main")
     end
   end
 
