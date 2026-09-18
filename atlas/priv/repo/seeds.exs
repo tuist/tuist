@@ -36,6 +36,7 @@ alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
 alias Atlas.Engineering.Postmortems
+alias Atlas.Engineering.Specs
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
 alias Atlas.Evidence
@@ -5924,3 +5925,61 @@ if postmortem_author do
     end
   end)
 end
+
+# Engineering specs: seed a couple of proposals so the /engineering/specs
+# index has real content on a fresh local DB.
+spec_author = Repo.get_by(User, email: "alex@atlas.dev")
+seed_project = Repo.one(from(project in EngineeringProject, limit: 1))
+
+spec_fixtures = [
+  %{
+    title: "Cross-domain claims v2",
+    body: """
+    # Cross-domain claims v2
+
+    ## Motivation
+    Reviewers want a way to say "these two records refer to the same thing"
+    without merging domains.
+
+    ## Design
+    Introduce a lightweight claim linking two records across domains, with an
+    evidence class the brief renderer can filter on.
+    """,
+    summary: "Link two records across domains without a merge.",
+    visibility: :public,
+    status: "proposed"
+  },
+  %{
+    title: "Draft: kura pull replication rollout",
+    body: """
+    # Draft: kura pull replication rollout
+
+    Not ready for review. Placeholder while the outbox drain design settles.
+    """,
+    summary: nil,
+    visibility: :private,
+    status: "draft"
+  }
+]
+
+if spec_author && seed_project do
+  Enum.each(spec_fixtures, fn attrs ->
+    payload = %{
+      "title" => attrs.title,
+      "body" => attrs.body,
+      "summary" => attrs.summary,
+      "status" => attrs.status,
+      "visibility" => Atom.to_string(attrs.visibility),
+      "engineering_project_id" => seed_project.id
+    }
+
+    already_seeded? =
+      Specs.list_specs(user: spec_author)
+      |> Enum.any?(fn spec -> spec.title == attrs.title end)
+
+    if !already_seeded? do
+      {:ok, _spec} = Specs.create_spec(payload, spec_author)
+    end
+  end)
+end
+
