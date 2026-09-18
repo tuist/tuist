@@ -358,12 +358,6 @@ msgstr ""
 msgid "Test insights usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:286
-#: lib/tuist_web/live/usage_live.html.heex:326
-#, elixir-autogen, elixir-format
-msgid "Tuist Runners traffic at half"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
@@ -432,4 +426,10 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "No cache usage in this period"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:286
+#: lib/tuist_web/live/usage_live.html.heex:326
+#, elixir-autogen, elixir-format
+msgid "Tuist Runners traffic discount"
 msgstr ""
