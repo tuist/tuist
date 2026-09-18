@@ -7,7 +7,6 @@ defmodule AtlasWeb.ProjectLive.ShowTest do
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Domains.GitHubRepository
   alias Atlas.Engineering.Projects
-  alias Atlas.Engineering.Projects.Webhooks
   alias Atlas.Repo
 
   setup %{conn: conn} do
@@ -164,35 +163,7 @@ defmodule AtlasWeb.ProjectLive.ShowTest do
     assert Enum.map(Projects.get_project!(project.id).domains, & &1.id) == [domain.id]
   end
 
-  test "members can create a project webhook", %{conn: conn} do
-    {:ok, project} =
-      Projects.create_project(%{"name" => "Hive", "visibility" => "public"})
-
-    {:ok, view, html} = live(conn, ~p"/engineering/projects/#{project.id}")
-    assert html =~ "Webhooks"
-    assert html =~ "New webhook"
-
-    html =
-      render_submit(view, "create_webhook", %{
-        "webhook" => %{"name" => "Grafana prod", "source" => "grafana"}
-      })
-
-    assert html =~ "Grafana prod"
-    assert html =~ "Webhook URL"
-    assert [_webhook] = Webhooks.list_for_project(project)
-  end
-
-  test "members can delete a project webhook", %{conn: conn} do
-    {:ok, project} =
-      Projects.create_project(%{"name" => "Hive", "visibility" => "public"})
-
-    {:ok, {webhook, _}} = Webhooks.create(project, %{"name" => "G", "source" => "grafana"})
-
-    {:ok, view, html} = live(conn, ~p"/engineering/projects/#{project.id}")
-    assert html =~ "G"
-
-    render_click(view, "delete_webhook", %{"id" => webhook.id})
-
-    assert Webhooks.list_for_project(project) == []
-  end
+  # The webhook card is hidden until `Projects.ingest_webhook/4` stops
+  # returning `:not_implemented`. When we bring the card back, the
+  # create/delete tests move with it.
 end

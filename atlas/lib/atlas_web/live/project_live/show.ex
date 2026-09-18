@@ -395,13 +395,23 @@ defmodule AtlasWeb.ProjectLive.Show do
         </.card_section>
       </.card>
 
-      <.webhooks_card
-        webhooks={@webhooks}
-        webhook_form={@webhook_form}
-        webhook_sources={@webhook_sources}
-        selected_source={@selected_source}
-        created_webhook_url={@created_webhook_url}
-      />
+      <%!--
+      The webhook card mints URLs under `/webhooks/projects/:project_id/:source/:token`,
+      but the ingest controller did not come across in this port. Hide the card
+      (and hold back the matching MCP tools) until `Projects.ingest_webhook/4`
+      returns something other than `:not_implemented`, so operators do not wire
+      Grafana to a URL that returns 404. The helpers stay compiled so bringing
+      the card back is a one-line revert.
+      --%>
+      <%= if false do %>
+        <.webhooks_card
+          webhooks={@webhooks}
+          webhook_form={@webhook_form}
+          webhook_sources={@webhook_sources}
+          selected_source={@selected_source}
+          created_webhook_url={@created_webhook_url}
+        />
+      <% end %>
 
       <.delete_project_section
         project={@project}

@@ -47,7 +47,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
-  alias Atlas.MCP.Tools.CreateProjectWebhook
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
@@ -60,7 +59,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
-  alias Atlas.MCP.Tools.DeleteProjectWebhook
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
@@ -432,8 +430,9 @@ defmodule Atlas.MCP.Server do
     RotateProjectErrorDsn,
     GetDomainErrorDsn,
     RotateDomainErrorDsn,
-    CreateProjectWebhook,
-    DeleteProjectWebhook,
+    # CreateProjectWebhook / DeleteProjectWebhook are held back until
+    # Projects.ingest_webhook/4 stops returning :not_implemented. Registering
+    # them would hand agents URLs that return 404 in production.
     ListErrorIssues,
     GetErrorIssue,
     ResolveErrorIssue,
