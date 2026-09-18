@@ -217,7 +217,7 @@
           />
           <.widget
             id="widget-cache-charge"
-            title={TuistWeb.UsageLive.usage_charge_title(pricing.cache)}
+            title={dgettext("dashboard_usage", "Usage")}
             description={TuistWeb.UsageLive.usage_charge_description(pricing.cache)}
             value={format_money(pricing.cache.charge)}
             selected={@cache_view == "charge"}
@@ -245,7 +245,26 @@
           />
         </div>
         <div data-part="receipts">
-          <div data-part="receipt" data-kind="egress">
+          <div :if={@cache_view == "charge"} data-part="receipt" data-kind="cache-usage">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Usage")}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>{dgettext("dashboard_usage", "Egress")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.egress.charge)}</dd>
+              </div>
+              <div data-part="line">
+                <dt>{dgettext("dashboard_usage", "Requests")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.requests.charge)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(pricing.cache)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.charge)}</dd>
+              </div>
+            </dl>
+          </div>
+          <div :if={@cache_view == "egress"} data-part="receipt" data-kind="egress">
             <div data-part="heading">
               <span data-part="platform">{dgettext("dashboard_usage", "Egress")}</span>
               <span data-part="shape">{TuistWeb.UsageLive.egress_rate_label()}</span>
@@ -285,7 +304,7 @@
             <% egress_pace = TuistWeb.UsageLive.egress_pace_label(pricing.cache.egress) %>
             <p :if={egress_pace} data-part="footnote">{egress_pace}</p>
           </div>
-          <div data-part="receipt" data-kind="requests">
+          <div :if={@cache_view == "requests"} data-part="receipt" data-kind="requests">
             <div data-part="heading">
               <span data-part="platform">{dgettext("dashboard_usage", "Requests")}</span>
               <span data-part="shape">{TuistWeb.UsageLive.request_rate_label()}</span>

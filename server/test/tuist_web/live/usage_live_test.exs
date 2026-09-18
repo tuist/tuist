@@ -219,9 +219,18 @@ defmodule TuistWeb.UsageLiveTest do
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, "#widget-cache-egress", "140.0 GB")
-      assert has_element?(lv, "#widget-cache-charge", "Estimated")
+      assert has_element?(lv, "#widget-cache-charge", "Usage")
       assert has_element?(lv, "#widget-cache-charge", "4.50")
-      refute has_element?(lv, "#widget-cache-charge", "Billed")
+
+      usage = "[data-part='cache-usage-card'] [data-kind='cache-usage']"
+      assert has_element?(lv, usage, "Egress")
+      assert has_element?(lv, usage, "3.50")
+      assert has_element?(lv, usage, "1.00")
+      assert has_element?(lv, usage, "Estimated for this period")
+      refute has_element?(lv, usage, "Tuist Runners traffic at half")
+      refute has_element?(lv, "[data-part='cache-usage-card']", "Billed this period")
+
+      lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
 
       egress = "[data-part='cache-usage-card'] [data-kind='egress']"
       refute has_element?(lv, egress, "Module cache")
@@ -277,13 +286,24 @@ defmodule TuistWeb.UsageLiveTest do
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, ~s|[phx-value-widget="charge"][data-selected]|)
+      assert has_element?(lv, "[data-kind='cache-usage']")
+      refute has_element?(lv, "[data-kind='egress']")
+      refute has_element?(lv, "[data-kind='requests']")
       assert render(lv) =~ "fn:formatCurrency"
 
       lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
 
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
       refute has_element?(lv, ~s|[phx-value-widget="charge"][data-selected]|)
+      assert has_element?(lv, "[data-kind='egress']")
+      refute has_element?(lv, "[data-kind='cache-usage']")
+      refute has_element?(lv, "[data-kind='requests']")
       assert render(lv) =~ "fn:formatBytes"
+
+      lv |> element(~s|[phx-value-widget="requests"]|) |> render_click()
+
+      assert has_element?(lv, "[data-kind='requests']", "1.3M requests")
+      refute has_element?(lv, "[data-kind='egress']")
     end
 
     test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
@@ -293,9 +313,9 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
       render_async(lv, @render_async_timeout)
 
-      assert has_element?(lv, "#widget-cache-charge", "Billed")
+      assert has_element?(lv, "#widget-tests-charge", "Billed")
       assert has_element?(lv, "#widget-tests-charge", "2.00")
-      assert has_element?(lv, "[data-kind='egress']", "Billed this period")
+      assert has_element?(lv, "[data-kind='cache-usage']", "Billed this period")
       assert has_element?(lv, "[data-kind='passing-test-cases']", "Billed this period")
     end
 
@@ -315,6 +335,9 @@ defmodule TuistWeb.UsageLiveTest do
 
       assert has_element?(lv, "#widget-cache-egress", "2.0 GB")
       assert has_element?(lv, "#widget-cache-requests", "12")
+
+      lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
+
       assert has_element?(lv, "[data-kind='egress']", "2.0 GB of egress")
     end
   end
