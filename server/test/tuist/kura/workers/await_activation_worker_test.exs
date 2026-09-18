@@ -38,7 +38,7 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
     stub(Reconciler, :activate_when_ready, fn id ->
       assert id == server.id
       Agent.update(checks, &(&1 + 1))
-      Process.sleep(200)
+      Process.sleep(700)
       {:waiting, %Deployment{inserted_at: DateTime.utc_now()}}
     end)
 
@@ -46,21 +46,55 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
     assert Agent.get(checks, & &1) < 14
   end
 
-  test "enqueues again for a server whose earlier run was killed mid-check", %{server: server} do
+  test "reclaims a server whose earlier run was killed mid-check", %{server: server} do
     {:ok, first} = AwaitActivationWorker.enqueue(server)
 
     # What a deploy killing a run past the grace period leaves behind.
-    # `Oban.Plugins.Lifeline` only rescues it after 30 minutes, so an unbounded
-    # unique period would hold the fast path off this server for that long.
-    first
-    |> Ecto.Changeset.change(
-      state: "executing",
-      inserted_at: DateTime.add(DateTime.utc_now(), -61, :second)
-    )
-    |> Repo.update!()
+    # `Oban.Plugins.Lifeline` only rescues it after 30 minutes, so without
+    # reclaiming it the fast path would be off this server for that long.
+    orphan(first, attempted_seconds_ago: 300)
 
     assert {:ok, second} = AwaitActivationWorker.enqueue(server)
     assert second.id != first.id
+    assert Repo.get!(Oban.Job, first.id).state == "cancelled"
+  end
+
+  test "leaves a run that is still going, however long its poll has run", %{server: server} do
+    # A snooze keeps the job's `inserted_at`, so bounding the unique period to
+    # cover the orphan would stop a long poll being its own conflict: a
+    # provision running to the stall budget would collect one more polling job
+    # every period, and `:kura_provisioning` is `limit: 10` per node, shared
+    # with the worker that starts provisions at all.
+    {:ok, first} = AwaitActivationWorker.enqueue(server)
+
+    first
+    |> Ecto.Changeset.change(state: "scheduled", inserted_at: DateTime.add(DateTime.utc_now(), -890, :second))
+    |> Repo.update!()
+
+    for _ <- 1..5 do
+      assert {:ok, %Oban.Job{id: id}} = AwaitActivationWorker.enqueue(server)
+      assert id == first.id
+    end
+
+    assert [%Oban.Job{}] = all_enqueued(worker: AwaitActivationWorker)
+  end
+
+  test "leaves a run that is executing and has not outlived a legitimate run", %{server: server} do
+    {:ok, first} = AwaitActivationWorker.enqueue(server)
+    orphan(first, attempted_seconds_ago: 5)
+
+    assert {:ok, %Oban.Job{id: id}} = AwaitActivationWorker.enqueue(server)
+    assert id == first.id
+    assert Repo.get!(Oban.Job, first.id).state == "executing"
+  end
+
+  defp orphan(job, attempted_seconds_ago: seconds) do
+    job
+    |> Ecto.Changeset.change(
+      state: "executing",
+      attempted_at: DateTime.add(DateTime.utc_now(), -seconds, :second)
+    )
+    |> Repo.update!()
   end
 
   test "stops within the run as soon as the instance activates", %{server: server} do
