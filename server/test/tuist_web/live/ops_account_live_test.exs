@@ -737,6 +737,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     html = render_hook(lv, "initiate_enterprise_upgrade", %{})
 
     assert html =~ "Upgrade #{user.account.name} to Enterprise"
+    assert_push_event(lv, "open-modal", %{id: "enterprise-modal"})
   end
 
   test "submits the enterprise form with the collected billing details", %{conn: conn, user: user} do
