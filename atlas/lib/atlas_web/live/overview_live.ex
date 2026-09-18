@@ -20,6 +20,7 @@ defmodule AtlasWeb.OverviewLive do
     selected_widget = normalize_widget(params["widget"])
 
     measurements = TuistOverview.measure({start_date, end_date})
+    recent_organizations = TuistOverview.recent_organizations()
 
     {:noreply,
      socket
@@ -28,7 +29,8 @@ defmodule AtlasWeb.OverviewLive do
      |> assign(:end_date, end_date)
      |> assign(:date_range_period, {date_start_of(start_date), date_end_of(end_date)})
      |> assign(:selected_widget, selected_widget)
-     |> assign(:measurements, measurements)}
+     |> assign(:measurements, measurements)
+     |> assign(:recent_organizations, recent_organizations)}
   end
 
   def handle_event(
@@ -58,7 +60,7 @@ defmodule AtlasWeb.OverviewLive do
   def render(assigns) do
     ~H"""
     <div id="overview">
-      <.card title={gettext("Tuist")} icon="chart_dots" data-part="tuist-card">
+      <.card title={gettext("Overview")} icon="chart_dots" data-part="tuist-card">
         <:actions>
           <div data-part="overview-actions">
             <.date_picker
@@ -125,12 +127,14 @@ defmodule AtlasWeb.OverviewLive do
             <.metric_widget
               id="overview-widget-jobs"
               widget="jobs"
-              title={gettext("Jobs")}
+              title={gettext("CI jobs")}
               measurement={@measurements.jobs}
               legend_color="success"
               selected={@selected_widget == "jobs"}
               tooltip_description={
-                gettext("Runner jobs Tuist scheduled for customers within the selected range.")
+                gettext(
+                  "CI jobs Tuist ran on hosted runners for customers within the selected range."
+                )
               }
             />
             <.metric_widget
@@ -150,9 +154,63 @@ defmodule AtlasWeb.OverviewLive do
           {render_selected_chart(assigns)}
         </.card_section>
       </.card>
+
+      <.card
+        title={gettext("Recent organizations")}
+        icon="building"
+        data-part="recent-organizations-card"
+      >
+        <.card_section data-part="recent-organizations-section">
+          {render_recent_organizations(assigns)}
+        </.card_section>
+      </.card>
     </div>
     """
   end
+
+  defp render_recent_organizations(assigns) do
+    case assigns.recent_organizations do
+      {:ok, rows} ->
+        assigns = assign(assigns, :rows, rows)
+
+        ~H"""
+        <.table id="overview-recent-organizations-table" rows={@rows}>
+          <:col :let={row} label={gettext("Organization")}>
+            <.text_cell label={row.name} />
+          </:col>
+          <:col :let={row} label={gettext("Created")}>
+            <.text_cell label={format_created_at(row.created_at)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="building"
+              title={gettext("No organizations yet")}
+              subtitle={gettext("New Tuist organizations will show up here as they are created.")}
+            />
+          </:empty_state>
+        </.table>
+        """
+
+      {:error, :not_configured} ->
+        ~H"""
+        <div data-part="recent-organizations-empty">
+          {gettext("Tuist server is not connected.")}
+        </div>
+        """
+
+      {:error, _reason} ->
+        ~H"""
+        <div data-part="recent-organizations-empty">
+          {gettext("Recent organizations are temporarily unavailable.")}
+        </div>
+        """
+    end
+  end
+
+  defp format_created_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %-d, %Y")
+  defp format_created_at(%NaiveDateTime{} = ndt), do: Calendar.strftime(ndt, "%b %-d, %Y")
+  defp format_created_at(%Date{} = date), do: Calendar.strftime(date, "%b %-d, %Y")
+  defp format_created_at(_), do: "-"
 
   attr :id, :string, required: true
   attr :widget, :string, required: true
@@ -228,10 +286,12 @@ defmodule AtlasWeb.OverviewLive do
           |> assign(:chart_color, chart_color(assigns.selected_widget))
           |> assign(:chart_title, widget_title(assigns.selected_widget))
 
+        assigns = assign(assigns, :chart_dom_id, chart_dom_id(assigns))
+
         ~H"""
-        <div data-part="chart" id={"overview-chart-wrapper-#{@selected_widget}"}>
+        <div data-part="chart" id={"overview-chart-wrapper-#{@chart_dom_id}"}>
           <.chart
-            id={"overview-chart-#{@selected_widget}"}
+            id={"overview-chart-#{@chart_dom_id}"}
             type={@chart_type}
             extra_options={chart_options(@series_dates)}
             series={[
@@ -272,8 +332,16 @@ defmodule AtlasWeb.OverviewLive do
   defp widget_title("users"), do: "Users"
   defp widget_title("organizations"), do: "Organizations"
   defp widget_title("projects"), do: "Projects"
-  defp widget_title("jobs"), do: "Jobs"
+  defp widget_title("jobs"), do: "CI jobs"
   defp widget_title("cache_operations"), do: "Cache operations"
+
+  # The ECharts hook re-renders in `updated()` when the LiveView patches the
+  # embedded options blob, but a same-widget range change re-uses the same DOM
+  # id and the diff can be missed. Include the window in the id so any range
+  # change remounts the chart cleanly.
+  defp chart_dom_id(assigns) do
+    "#{assigns.selected_widget}-#{Date.to_iso8601(assigns.start_date)}-#{Date.to_iso8601(assigns.end_date)}"
+  end
 
   defp chart_options([]), do: %{}
 

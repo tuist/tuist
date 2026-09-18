@@ -9,6 +9,12 @@ defmodule AtlasWeb.OverviewLiveTest do
   setup :set_mimic_from_context
   setup :verify_on_exit!
 
+  setup do
+    stub(TuistOverview, :recent_organizations, fn -> {:ok, []} end)
+    stub(TuistOverview, :recent_organizations, fn _opts -> {:ok, []} end)
+    :ok
+  end
+
   defp measurements do
     %{
       users:
@@ -73,7 +79,7 @@ defmodule AtlasWeb.OverviewLiveTest do
     assert has_element?(view, "#overview-widget-jobs [data-part='value']", "4,321")
     assert has_element?(view, "#overview-widget-cache-operations [data-part='value']", "12,345,678")
     # Users is the default selected widget.
-    assert has_element?(view, "#overview-chart-users")
+    assert has_element?(view, "[id^='overview-chart-users-']")
     assert has_element?(view, "#overview-date-range-picker")
   end
 
@@ -86,8 +92,8 @@ defmodule AtlasWeb.OverviewLiveTest do
 
     render_click(view, "select_widget", %{"widget" => "cache_operations"})
 
-    assert has_element?(view, "#overview-chart-cache_operations")
-    refute has_element?(view, "#overview-chart-users")
+    assert has_element?(view, "[id^='overview-chart-cache_operations-']")
+    refute has_element?(view, "[id^='overview-chart-users-']")
   end
 
   test "shows an empty state when the Tuist server is not connected", %{conn: conn} do
