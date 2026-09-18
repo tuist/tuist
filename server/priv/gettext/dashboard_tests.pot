@@ -2644,11 +2644,6 @@ msgstr ""
 msgid "at least %{threshold}%"
 msgstr ""
 
-#: lib/tuist_web/live/coverage/components.ex:421
-#, elixir-autogen, elixir-format
-msgid "at most %{threshold} points down"
-msgstr ""
-
 #: lib/tuist_web/live/coverage_detail_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Untested changed files"
@@ -2836,4 +2831,9 @@ msgstr ""
 #: lib/tuist_web/live/coverage/components.ex:74
 #, elixir-autogen, elixir-format
 msgid "Targets coverage"
+msgstr ""
+
+#: lib/tuist_web/live/coverage/components.ex:421
+#, elixir-autogen, elixir-format
+msgid "at most %{threshold}% down"
 msgstr ""

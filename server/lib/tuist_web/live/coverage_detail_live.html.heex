@@ -196,7 +196,7 @@
           }
           value={
             cond do
-              @comparison.total_delta -> "#{signed(@comparison.total_delta)} pp"
+              @comparison.total_delta -> "#{signed(@comparison.total_delta)}%"
               @comparison.commit.partial -> dgettext("dashboard_tests", "Not compared")
               true -> dgettext("dashboard_tests", "No baseline")
             end
@@ -226,7 +226,7 @@
           }
           value={
             if @against_default,
-              do: "#{signed(@against_default.delta)} pp",
+              do: "#{signed(@against_default.delta)}%",
               else: dgettext("dashboard_tests", "Not compared")
           }
         />

@@ -107,7 +107,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
       table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "Not measured"
-      assert table =~ "+50.0 pp"
+      assert table =~ "+50.0%"
       refute has_element?(lv, "#coverage-commits-time-order")
       assert has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/c']")
     end
