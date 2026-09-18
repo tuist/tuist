@@ -197,6 +197,17 @@ defmodule AtlasWeb.ProjectLive.Show do
               max_length={500}
               rows={4}
             />
+            <.text_input
+              id="project-slack-alert-channel"
+              field={@project_form[:slack_alert_channel]}
+              label={gettext("Slack alert channel")}
+              placeholder="#alerts-atlas"
+              hint={
+                gettext(
+                  "Slack channel error alerts for this project are posted to. Leave empty to fall back to the organization-wide default."
+                )
+              }
+            />
             <div data-part="select-field">
               <span>{gettext("Visibility")}</span>
               <.select
