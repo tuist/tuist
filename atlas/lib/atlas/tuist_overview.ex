@@ -57,6 +57,97 @@ defmodule Atlas.TuistOverview do
   def preset(_id), do: nil
 
   @doc """
+  Fetches the most recently created Tuist organizations for the sidebar table.
+
+  Returns `{:ok, [%{name, created_at}]}`, `{:error, :not_configured}` when the
+  Tuist server is not reachable outside dev, or `{:error, reason}` for a proxy
+  failure. In dev a deterministic sample list is returned so the page renders
+  with real-looking data.
+  """
+  def recent_organizations(opts \\ []) do
+    pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
+    configured_fun = Keyword.get(opts, :configured?, &TuistServer.configured?/0)
+    limit = Keyword.get(opts, :limit, 10)
+
+    cond do
+      configured_fun.() -> fetch_recent_organizations(pg_query, limit)
+      Environment.dev?() -> {:ok, sample_recent_organizations(limit)}
+      true -> {:error, :not_configured}
+    end
+  end
+
+  defp fetch_recent_organizations(pg_query, limit) do
+    sql = """
+    SELECT a.name AS name, o.created_at AS created_at
+    FROM organizations o
+    JOIN accounts a ON a.organization_id = o.id
+    ORDER BY o.created_at DESC
+    LIMIT #{limit}
+    """
+
+    case pg_query.(sql, limit: limit) do
+      {:ok, %{"rows" => rows}} when is_list(rows) ->
+        {:ok, Enum.map(rows, &decode_recent_organization_row/1)}
+
+      {:error, reason} ->
+        Logger.warning("Tuist overview recent organizations query failed: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp decode_recent_organization_row(row) do
+    %{
+      name: to_string(row["name"] || ""),
+      created_at: parse_datetime(row["created_at"])
+    }
+  end
+
+  defp parse_datetime(nil), do: nil
+  defp parse_datetime(%DateTime{} = dt), do: dt
+  defp parse_datetime(%NaiveDateTime{} = ndt), do: ndt
+
+  defp parse_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _offset} ->
+        dt
+
+      {:error, _} ->
+        case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
+          {:ok, ndt} -> ndt
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_datetime(_), do: nil
+
+  defp sample_recent_organizations(limit) do
+    names = [
+      "Acme",
+      "Northwind",
+      "Globex",
+      "Umbrella",
+      "Initech",
+      "Hooli",
+      "Stark Industries",
+      "Wayne Enterprises",
+      "Wonka",
+      "Pied Piper",
+      "Cyberdyne",
+      "Soylent"
+    ]
+
+    now = DateTime.utc_now()
+
+    names
+    |> Enum.take(limit)
+    |> Enum.with_index()
+    |> Enum.map(fn {name, i} ->
+      %{name: name, created_at: DateTime.add(now, -i * 86_400, :second)}
+    end)
+  end
+
+  @doc """
   Fetches every overview stat + daily series for the given date window.
 
   `range` is `{start_date, end_date}` (inclusive, `Date` structs). The
