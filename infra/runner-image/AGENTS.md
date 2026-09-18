@@ -171,16 +171,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
   or the pre-flight would 409 the only promote that can unwedge the account.
   Between the inventory and the content hash, a successful job whose image changed
-  runs `shrink_cache_image`: a prune frees blocks inside the image's filesystem
+  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
   and none in the image file, so without `hdiutil compact` a master costs the host
-  the most it ever held. The image is also shrunk to its minimum size, which
-  leaves it full; that is safe only because tart-kubelet grows every branch to the
-  cap before `cache-ready`, so a runner image with this must not reach a host
-  whose tart-kubelet does not grow. Both rewrite the file, which is why they sit
-  before the content hash and after the inventory, which they do not change.
+  the most it ever held. It leaves the capacity alone. Shrinking the capacity
+  instead was measured and dropped: it moves every live block past the new end
+  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
+  rewrites the file, which is why it sits before the content hash and after the
+  inventory, which it does not change.
   Alongside the inventory digest, `capture_content_digest` hashes the settled
-  image FILE (SHA-256, after the read-only measuring attach detaches and after any
-  shrink) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  image FILE (SHA-256, after the read-only measuring attach detaches and after the
+  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
   bit flipped INSIDE a cached file sails through it, and the content digest is the
   end-to-end byte claim. It rides both promote requests; the mint response echoes
   the base64 the server signed into the presigned PUT as `checksum_sha256`, the

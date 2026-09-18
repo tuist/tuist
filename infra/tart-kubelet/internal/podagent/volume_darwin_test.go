@@ -316,10 +316,12 @@ func TestDarwinGrowImageNeverShrinks(t *testing.T) {
 	}
 }
 
-// At teardown the guest shrinks the image it is about to promote to its content
-// and compacts it, so a master costs the host what it holds rather than the most
-// it ever held, and the host's grow gives the next job its room back.
-func TestGuestShrinkCacheImageKeepsItsContent(t *testing.T) {
+// At teardown the guest compacts the image it is about to promote, so a master
+// costs the host what it holds rather than the most it ever held. A prune frees
+// blocks inside the image's filesystem and none in the image file. Compaction
+// returns them and leaves the capacity alone, so the next job still has all of
+// its room.
+func TestGuestCompactCacheImageKeepsItsContentAndCapacity(t *testing.T) {
 	be := darwinVolumeBackend{}
 	image := filepath.Join(t.TempDir(), "cache.sparseimage")
 	if err := be.createImage(image, 1); err != nil {
@@ -329,39 +331,20 @@ func TestGuestShrinkCacheImageKeepsItsContent(t *testing.T) {
 	capacityBefore := imageCapacityBytes(t, image)
 	allocatedBefore := allocatedBytes(t, image)
 
-	cmd := exec.Command("/bin/bash", "-c", "set -u\n"+guestShellFunction(t, "shrink_cache_image")+"\nshrink_cache_image")
+	cmd := exec.Command("/bin/bash", "-c", "set -u\n"+guestShellFunction(t, "compact_cache_image")+"\ncompact_cache_image")
 	cmd.Env = append(os.Environ(), "CACHE_IMAGE="+image)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("shrink_cache_image: %v\n%s", err, out)
+		t.Fatalf("compact_cache_image: %v\n%s", err, out)
 	}
 
-	if capacityAfter := imageCapacityBytes(t, image); capacityAfter >= capacityBefore/2 {
-		t.Fatalf("capacity %d -> %d; want the image shrunk to its content\n%s", capacityBefore, capacityAfter, out)
+	if capacityAfter := imageCapacityBytes(t, image); capacityAfter != capacityBefore {
+		t.Fatalf("capacity %d -> %d; compaction must leave the job's room alone\n%s", capacityBefore, capacityAfter, out)
 	}
 	if allocatedAfter := allocatedBytes(t, image); allocatedAfter >= allocatedBefore {
 		t.Fatalf("allocated %d -> %d; want the pruned bytes returned to the host\n%s", allocatedBefore, allocatedAfter, out)
 	}
 	assertCacheContent(t, image, kept)
-	assertGrownImageTakesWrites(t, be, image)
-}
-
-// The next job clones the shrunk master, and the host's grow is what gives it
-// room to write again.
-func assertGrownImageTakesWrites(t *testing.T, be darwinVolumeBackend, image string) {
-	t.Helper()
-	if err := be.growImage(image, 1); err != nil {
-		t.Fatalf("growImage: %v", err)
-	}
-	mnt := t.TempDir()
-	if _, err := runCmd(2*attachTimeout, "hdiutil", "attach", image,
-		"-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
-		t.Fatalf("attach grown image: %v", err)
-	}
-	defer runCmd(attachTimeout, "hdiutil", "detach", mnt, "-force", "-quiet")
-	if err := os.WriteFile(filepath.Join(mnt, cacheHomeSubdir, "Binaries", "next-job"), make([]byte, 200<<20), 0o644); err != nil {
-		t.Fatalf("writing 200 MiB into the grown image: %v", err)
-	}
 }
 
 // seedPrunedCache fills a binary cache inside the image and prunes half of it,

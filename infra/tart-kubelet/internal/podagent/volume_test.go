@@ -787,46 +787,51 @@ func TestMaterializeReportsFallbackFailure(t *testing.T) {
 	}
 }
 
-// A master the guest shrank to its content at teardown has no free space left,
-// so the job that clones it must get it back at the full ceiling before it can
-// write a byte.
-func TestMaterializeGrowsTheClonedMasterToTheCeiling(t *testing.T) {
+// A master from before the cap was raised, or converged from a host with a
+// smaller one, has less room than the cap. Growing takes an attach and about a
+// second, so the host grows a master when it installs it, after the job that
+// produced it or in the background download, and never while a job waits to
+// start.
+func TestInstallMasterGrowsTheImageToTheCeiling(t *testing.T) {
 	m, be := newTestManager(t, 100)
 	m.CapGiB = 30
-	seedMaster(t, m, "42")
-
-	att := mustAllocate(t, m, "vm-warm")
-	warm, _, err := m.Materialize(att, "42")
-	if err != nil || !warm {
-		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	src := filepath.Join(t.TempDir(), "promoted.sparseimage")
+	if err := os.WriteFile(src, []byte(masterImageContent("42")), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
+	if installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, src, 1); err != nil || !installed {
+		t.Fatalf("InstallMaster = %v, %v; want installed", installed, err)
+	}
 	want := []grownImage{{content: masterImageContent("42"), sizeGiB: 30}}
 	if !reflect.DeepEqual(be.grown, want) {
-		t.Fatalf("grown = %+v; want the cloned master grown to the 30 GiB ceiling: %+v", be.grown, want)
+		t.Fatalf("grown = %+v; want the installed master grown to the 30 GiB cap: %+v", be.grown, want)
 	}
-	if got := branchImageContent(t, m, att); got != masterImageContent("42") {
-		t.Fatalf("branch image = %q; want the master's content", got)
+
+	att := mustAllocate(t, m, "vm-warm")
+	if warm, _, err := m.Materialize(att, "42"); err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	}
+	if len(be.grown) != 1 {
+		t.Fatalf("grown = %+v; materializing a branch must not grow it, a job would wait on it", be.grown)
 	}
 }
 
-// Handing a job a shrunk master it could not grow would fail the job at its first
-// cache write, so a failed grow runs the job cold on an empty image instead.
-func TestMaterializeRunsColdWhenTheBranchCannotGrow(t *testing.T) {
+// A master that cannot be grown still holds everything it did, so it is installed
+// at the size it has and the next job gets that much room.
+func TestInstallMasterKeepsAnImageItCannotGrow(t *testing.T) {
 	m, be := newTestManager(t, 100)
-	seedMasterGen(t, m, "42", masterImageContent("42"), 5)
 	be.growErr = errors.New("hdiutil resize boom")
+	src := filepath.Join(t.TempDir(), "promoted.sparseimage")
+	if err := os.WriteFile(src, []byte(masterImageContent("42")), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-	att := mustAllocate(t, m, "vm-grow-fails")
-	warm, base, err := m.Materialize(att, "42")
-	if !errors.Is(err, be.growErr) {
-		t.Fatalf("Materialize err = %v; want the grow failure", err)
+	if installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, src, 1); err != nil || !installed {
+		t.Fatalf("InstallMaster = %v, %v; want the master installed at its current size", installed, err)
 	}
-	if warm || base != 0 {
-		t.Fatalf("Materialize = warm %v, base %d; want a cold branch at base 0", warm, base)
-	}
-	if got := branchImageContent(t, m, att); got != emptyImageContent {
-		t.Fatalf("branch image = %q; want the empty image the cold path creates", got)
+	if !masterExists(m, "42") {
+		t.Fatal("a master that could not be grown was not installed")
 	}
 }
 

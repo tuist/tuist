@@ -153,8 +153,8 @@ type volumeBackend interface {
 	// the binary cache image and an account's first CAS master on a host.
 	createImage(path string, sizeGiB int) error
 	// growImage raises a detached image's capacity to sizeGiB when it is below
-	// that, and never lowers it. The guest shrinks a promoted image to its
-	// content, so a master is full by definition until it is grown again.
+	// that, and never lowers it. A master created before the cap was raised keeps
+	// its old capacity until it is grown.
 	growImage(path string, sizeGiB int) error
 	// imageInventoryDigest attaches the image read-only and returns the
 	// inventory digest of the cache home inside it. Used to verify a downloaded
@@ -392,8 +392,7 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 }
 
 // Materialize clonefiles the given account's master image into the VM's branch,
-// making the branch a warm, private CoW copy of the account's cache, and grows it
-// to CapGiB. It is
+// making the branch a warm, private CoW copy of the account's cache. It is
 // called once, after the server has stamped the pod's account label. Returns
 // warm=true when a master existed and was cloned; warm=false when the account
 // has no master on this host yet (a cold first job whose writes Finalize will
@@ -447,13 +446,6 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	if err := m.backend.clonePath(master, tmp); err != nil {
 		_ = os.Remove(tmp)
 		return false, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
-	}
-	// A promoted master was shrunk to its content, so it has no room left for the
-	// job. A branch that cannot be grown runs cold rather than fail at its first
-	// cache write.
-	if err := m.backend.growImage(tmp, m.CapGiB); err != nil {
-		_ = os.Remove(tmp)
-		return false, 0, joinFallback(fmt.Errorf("grow materialized image to %d GiB: %w", m.CapGiB, err), m.createBranchImageLocked(dest))
 	}
 	_ = os.Remove(dest)
 	if err := os.Rename(tmp, dest); err != nil {
@@ -708,6 +700,14 @@ func (m *VolumeManager) InstallMaster(account, volume, src string, generation in
 	}
 	if _, err := os.Stat(src); err != nil {
 		return false, fmt.Errorf("master image missing: %w", err)
+	}
+	// A master from before the cap was raised, or from a host with a smaller one,
+	// has less room than the cap. Growing takes an attach and about a second, so it
+	// happens here, off the path a job waits on, and on src, which nothing else
+	// reads. One that cannot be grown is installed at the size it has.
+	if err := m.backend.growImage(src, m.CapGiB); err != nil {
+		log.Log.WithName("cache-volumes").Error(err, "grow cache image to the cap; installing it at its current size",
+			"account", account, "cap_gib", m.CapGiB)
 	}
 
 	m.mu.Lock()

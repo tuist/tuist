@@ -1120,36 +1120,29 @@ capture_settled_inventory() {
   return 0
 }
 
-# shrink_cache_image returns the space this job's prunes freed inside the image
+# compact_cache_image returns the space this job's prunes freed inside the image
 # to the host, so a master costs what it holds rather than the most it ever held.
 # A prune frees blocks inside the image's filesystem and none in the image file;
-# only `hdiutil compact` gives them back. It runs on the detached image, after the
-# inventory and before the content digest, because both a shrink and a compaction
-# rewrite the bytes that digest names.
-#
-# A shrunk image is full, which is safe because the host grows every branch to
-# the ceiling before it signals cache-ready.
+# only `hdiutil compact` gives them back, and it leaves the capacity, which is the
+# room the next job has, alone. It runs on the detached image, after the
+# inventory and before the content digest, because it rewrites the bytes that
+# digest names.
 #
 # Best-effort and deliberately not time-bounded: a failure leaves the image larger
-# than its content, never wrong, whereas killing a resize midway could.
-shrink_cache_image() {
+# on disk than its content, never wrong, whereas killing a compaction midway could.
+compact_cache_image() {
   [ -f "${CACHE_IMAGE}" ] || return 0
-  local before after started finished minimum shrink="ok" compact="ok"
+  local before after started finished compact="ok"
   before=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
   started=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
-  minimum=$(hdiutil resize -limits "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
-  case "${minimum}" in
-    ''|*[!0-9]*) shrink="failed" ;;
-    *) hdiutil resize -sectors "${minimum}" "${CACHE_IMAGE}" >/dev/null 2>&1 || shrink="failed" ;;
-  esac
   hdiutil compact "${CACHE_IMAGE}" >/dev/null 2>&1 || compact="failed"
   after=$(du -k "${CACHE_IMAGE}" 2>/dev/null | awk '{print $1}')
   finished=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache image shrink=${shrink} compact=${compact}: ${before:-unknown} KiB -> ${after:-unknown} KiB in $((finished - started)) ms"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache image compact=${compact}: ${before:-unknown} KiB -> ${after:-unknown} KiB in $((finished - started)) ms"
 }
 
 # capture_content_digest hashes the image FILE after the read-only attach is gone
-# and after any shrink, so the digest names exactly the bytes the PUT will read.
+# and after the compaction, so the digest names exactly the bytes the PUT will read.
 # Nothing else can write between here and the upload: the job's mount is detached
 # and the verify attach was read-only. openssl over shasum for throughput — this
 # runs at teardown and, like the upload it protects, holds the VM slot for its
@@ -1798,8 +1791,8 @@ HOOK
       #   3. measure the SETTLED image (read-only re-attach) for the digest this
       #      job publishes, so the HEAD names the bytes that get uploaded and not
       #      a state a straggler wrote past;
-      #   3b. shrink and compact an image this job changed, then hash the file,
-      #      so the content digest names the resized bytes;
+      #   3b. compact an image this job changed, then hash the file, so the
+      #      content digest names the compacted bytes;
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
@@ -1843,9 +1836,9 @@ HOOK
         mark_cache_not_promotable "settled image could not be measured"
       elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         # Only a changed image from a successful job is promoted, so only that one
-        # is worth the teardown time a shrink costs.
+        # is worth the teardown time a compaction costs.
         if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
-          shrink_cache_image
+          compact_cache_image
         fi
         capture_content_digest
         report_cache_dirty "${rc}"
