@@ -295,7 +295,7 @@ struct BinaryCacheStorageTests {
         #expect(await remote.queries.count == 2000)
         #expect(await remote.queries.values.allSatisfy { $0 == 1 })
         #expect(await remote.maximumActiveLookups > 1)
-        #expect(await remote.maximumActiveLookups <= 32)
+        #expect(await remote.maximumActiveLookups <= 100)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -399,6 +399,65 @@ struct BinaryCacheStorageTests {
         #expect(await remote.downloads[REAPI.digest(Data("shared-resource".utf8))] == 1)
     }
 
+    @Test(.inTemporaryDirectory) func multipleNamesAndEquivalentActionsRestoreWithoutRacingPublication() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let items = Set((0 ..< 8).map { index in
+            CacheStorableItem(
+                name: "Module\(index / 2)", hash: "target-\(index)",
+                metadata: .init(binaryCacheFingerprints: fingerprints)
+            )
+        })
+        _ = try await subject(directory.appending(component: "producer"), remote: remote)
+            .store(Dictionary(uniqueKeysWithValues: items.map { ($0, [artifact]) }), cacheCategory: .binaries)
+        let restored = try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch(items, cacheCategory: .binaries)
+        #expect(restored.count == 8)
+        #expect(Set(restored.values).count == 4)
+        for path in Set(restored.values) {
+            #expect(try await XCFrameworkCoverageService().coverage(at: path).count == 3)
+            #expect(try ArtifactSigner().isValid(path))
+        }
+        #expect(await remote.downloads[REAPI.digest(Data("shared-resource".utf8))] == 1)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func materializesReadyModulesBeforeUnrelatedDownloadsFinish(missingDelayedBlob: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let remote = MemoryREAPICache()
+        let ready = directory.appending(component: "Ready.xcframework")
+        let slow = directory.appending(component: "Slow.xcframework")
+        try await makeArtifact(at: ready, variants: Set(fingerprints.keys))
+        try await fileSystem.copy(ready, to: slow)
+        let delayed = Data("delayed-module-only-resource".utf8)
+        try delayed.write(to: slow.appending(components: ["ios-device", "Shared.framework", "delayed"]).url)
+        let inputs = Dictionary(uniqueKeysWithValues: [ready, slow].map { path in
+            (CacheStorableItem(name: path.basenameWithoutExt, hash: path.basename, metadata: .init(
+                binaryCacheFingerprints: fingerprints
+            )), [path])
+        })
+        _ = try await subject(directory.appending(component: "producer"), remote: remote).store(inputs, cacheCategory: .binaries)
+        if missingDelayedBlob { await remote.corrupt(REAPI.digest(delayed)) }
+        let reader = directory.appending(component: "reader")
+        let gated = GatedREAPICache(remote: remote, delayed: REAPI.digest(delayed)) {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            var published = false
+            while ContinuousClock.now < deadline {
+                if try await !fileSystem.glob(directory: reader, include: ["Binaries/*/Ready.xcframework"]).collect().isEmpty {
+                    published = true
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(published, "The ready module must be published while the unrelated blob is still blocked")
+        }
+        let restored = try await subject(reader, remote: gated).fetch(Set(inputs.keys), cacheCategory: .binaries)
+        #expect(restored.count == (missingDelayedBlob ? 1 : 2))
+    }
+
     private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {
         BinaryCacheStorage(selectiveTestsStorage: EmptyCacheStorage(), local: BinaryCacheLocalStore(
             directory: path.appending(component: "Binaries")
@@ -475,6 +534,38 @@ actor MemoryREAPICache: REAPICacheStoring {
         guard let data = blobs[digest] else { throw REAPICacheError.corruptBlob }
         downloads[digest, default: 0] += 1
         try data.write(to: path)
+    }
+}
+
+private struct GatedREAPICache: REAPICacheStoring {
+    let remote: MemoryREAPICache
+    let delayed: REAPI.Digest
+    let beforeDelayed: @Sendable () async throws -> Void
+
+    func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        try await remote.actionResult(for: digest)
+    }
+
+    func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
+        try await remote.storeActionResult(result, for: digest)
+    }
+
+    func uploadBlobs(_ blobs: [REAPI.Digest: URL]) async throws { try await remote.uploadBlobs(blobs) }
+    func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws { try await remote.downloadBlob(digest, to: path) }
+
+    func downloadAvailableBlobs(
+        _ blobs: [REAPI.Digest: URL], orderedDigests _: [REAPI.Digest],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> Set<REAPI.Digest> {
+        var completed = Set<REAPI.Digest>()
+        for (digest, path) in blobs.sorted(by: { $0.key != delayed && $1.key == delayed }) {
+            if digest == delayed { try await beforeDelayed() }
+            try await remote.downloadBlob(digest, to: path)
+            guard try REAPI.digest(file: path) == digest else { continue }
+            try await onDownloaded(digest)
+            completed.insert(digest)
+        }
+        return completed
     }
 }
 

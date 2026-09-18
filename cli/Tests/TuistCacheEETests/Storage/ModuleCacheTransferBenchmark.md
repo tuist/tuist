@@ -57,6 +57,8 @@ The benchmark alternates which implementation runs first and uses a separate rem
 - **cold-pull:** fetch all three SDKs into an empty local cache, including verification, decompression or local XCFramework reconstruction.
 - **ios-pull:** fetch only the iOS SDKs with REAPI. The archive baseline retrieves the complete original archive using its original exact key. That is the archive model's best-case transfer cost; it does not claim the old model can hit after a graph change that changes that key.
 
+Set optional `phases` to a nonempty subset of `["cold-push", "existing-push", "cold-pull", "ios-pull"]` to measure only the affected operations. For restore-only comparisons, preserve the producer’s `runID`, project, corpus names, repetition indices, and input bytes so both protocols hit the existing remote objects; each measured phase still creates a fresh local cache.
+
 Timing excludes capability/token setup, metrics scraping, input compilation, post-transfer verification, and cleanup. After each pull, the harness checks declared SDK coverage and SHA-256/size equality for every expected regular file, excluding the regenerated top-level Info.plist. It writes each completed measurement to `results.json` and prints `TRANSFER_BENCHMARK` lines.
 
 When a counting proxy exposes `tuist_benchmark_wire_upload_bytes_total` and `tuist_benchmark_wire_download_bytes_total` through `/metrics`, the JSON also records those deltas. These include HTTP/gRPC framing and exclude metrics requests. Kura's stored-byte counters remain uncompressed CAS sizes even when wire compression is enabled.

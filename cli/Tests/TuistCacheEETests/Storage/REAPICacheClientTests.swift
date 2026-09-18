@@ -5,6 +5,7 @@ import GRPCCore
 import GRPCNIOTransportHTTP2
 import Path
 import SwiftProtobuf
+import Synchronization
 import Testing
 import TuistCache
 import TuistCore
@@ -67,6 +68,45 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test(.inTemporaryDirectory) func largeBatchesRespectGRPCMessageLimitsAndPropagateCancellation() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, compressReads: false), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024 * 1024 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let data = Data(repeating: 42, count: 4 * 1024 * 1024 - 64 * 1024)
+            let digest = REAPI.digest(data)
+            let source = directory.appending(component: "source").url
+            try data.write(to: source)
+            try await client.uploadBlobs([digest: source])
+            #expect(await state.updateCalls == 1)
+            #expect(await state.streamWriteBytes == 0)
+            let destination = directory.appending(component: "output").url
+            let downloaded = try await client.downloadAvailableBlobs(
+                [digest: destination], orderedDigests: [REAPI.digest(Data()), digest, digest], onDownloaded: { _ in }
+            )
+            #expect(downloaded == [digest])
+            #expect(try REAPI.digest(file: destination) == digest)
+            #expect(await state.readCalls == 1)
+            await #expect(throws: CancellationError.self) {
+                try await client.downloadAvailableBlobs([digest: destination]) { _ in throw CancellationError() }
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory) func streamsBlobsAndUsesStandardActionCacheRPCs() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
@@ -109,7 +149,7 @@ struct REAPICacheClientTests {
             #expect(await state.actionQueries.count == 2000)
             #expect(await state.actionQueries.values.allSatisfy { $0 == 1 })
             #expect(await state.peakActionQueries > 1)
-            #expect(await state.peakActionQueries <= 32)
+            #expect(await state.peakActionQueries <= 100)
             var inputs: [REAPI.Digest: URL] = [:]
             for index in 0 ..< 300 {
                 let file = directory.appending(component: "small-\(index)").url
@@ -130,8 +170,20 @@ struct REAPICacheClientTests {
             })
             let missing = REAPI.digest(Data("missing".utf8))
             destinations[missing] = directory.appending(component: "missing").url
-            let downloaded = try await client.downloadAvailableBlobs(destinations)
-            #expect(downloaded == Set(inputs.keys).subtracting([corrupt]))
+            let rejected = try #require(inputs.keys.first { $0 != corrupt })
+            let published = Mutex<Set<REAPI.Digest>>([])
+            let downloadPaths = destinations
+            let downloaded = try await client.downloadAvailableBlobs(destinations) { digest in
+                #expect(try REAPI.digest(file: downloadPaths[digest]!) == digest)
+                if digest == rejected { throw REAPICacheError.insufficientSpace }
+                try await FileSystem().move(
+                    from: AbsolutePath(validating: downloadPaths[digest]!.path),
+                    to: directory.appending(component: "published-" + digest.hash)
+                )
+                #expect(published.withLock { $0.insert(digest).inserted })
+            }
+            #expect(downloaded == Set(inputs.keys).subtracting([corrupt, rejected]))
+            #expect(published.withLock { $0 } == downloaded)
             #expect(await state.readCalls > 1)
             #expect(await state.readCalls < 20)
             #expect(try await !FileSystem().exists(AbsolutePath(validating: destinations[corrupt]!.path)))
@@ -147,7 +199,12 @@ struct REAPICacheClientTests {
             try await client.uploadBlobs([digest: path, emptyDigest: empty])
             #expect(await state.writes == 302)
             let output = directory.appending(component: "download").url
-            try await client.downloadBlob(digest, to: output)
+            let streamed = try await client.downloadAvailableBlobs([digest: output]) { completed in
+                #expect(completed == digest)
+                let actual = try REAPI.digest(file: output)
+                #expect(actual == digest)
+            }
+            #expect(streamed == [digest])
             #expect(try await FileSystem().readFile(at: AbsolutePath(validating: output.path)) == data)
             #expect(try await client.actionResult(for: digest) == nil)
             let result = REAPI.ActionResult.with { $0.outputFiles = [.with { $0.path = "output"; $0.digest = digest }] }
@@ -333,6 +390,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
 
 private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServiceProtocol {
     let state: WireCache
+    var compressReads = true
     func batchUpdateBlobs(
         request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
         context _: ServerContext
@@ -364,7 +422,7 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
                 try .with {
                     $0.digest = digest
                     if let data = blobs[digest] {
-                        if request.acceptableCompressors.contains(.zstd), data.count >= 1024 {
+                        if compressReads, request.acceptableCompressors.contains(.zstd), data.count >= 1024 {
                             $0.data = try REAPICompression.compress(data)
                             $0.compressor = .zstd
                         } else { $0.data = data }
@@ -444,13 +502,14 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
 private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.SimpleServiceProtocol {
     var streamCompression = false
     var batchCompression = false
+    var maximumBatchBytes: Int64 = 32 * 1024
     func getCapabilities(
         request _: Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest,
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_ServerCapabilities {
         .with {
             $0.cacheCapabilities.digestFunctions = [.sha256]
-            $0.cacheCapabilities.maxBatchTotalSizeBytes = 32 * 1024
+            $0.cacheCapabilities.maxBatchTotalSizeBytes = maximumBatchBytes
             $0.cacheCapabilities.supportedCompressors = streamCompression ? [.zstd] : []
             $0.cacheCapabilities.supportedBatchUpdateCompressors = batchCompression ? [.zstd] : []
         }

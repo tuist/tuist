@@ -8,11 +8,22 @@ import Synchronization
 import TuistEnvironment
 
 public final class REAPICacheClient: REAPICacheStoring, Sendable {
-    private let client: GRPCClient<HTTP2ClientTransport.Posix>
-    private let connection: Task<Void, Error>
+    private let clients: [GRPCClient<HTTP2ClientTransport.Posix>]
+    private let connections: [Task<Void, Error>]
+    private let nextClient = Mutex(0)
+    private var client: GRPCClient<HTTP2ClientTransport.Posix> {
+        nextClient.withLock { index in
+            let client = clients[index]
+            index = (index + 1) % clients.count
+            return client
+        }
+    }
+
     private let instanceName: String
     private let accountHandle: String
-    private let negotiatedBatchBytes = Mutex<Int64>(2 * 1024 * 1024)
+    // Leave room for protobuf metadata within gRPC's default 4 MiB message limit.
+    private static let maximumBatchBytes: Int64 = 4 * 1024 * 1024 - 64 * 1024
+    private let negotiatedBatchBytes = Mutex<Int64>(maximumBatchBytes)
     private var batchBytes: Int64 { negotiatedBatchBytes.withLock { $0 } }
     private let compression = Mutex((stream: false, batchUpload: false))
     private let fileSystem: FileSysteming
@@ -25,10 +36,26 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
         fileSystem: FileSysteming = FileSystem(),
         token: @escaping @Sendable () async throws -> String
     ) async throws {
-        let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
-        let client = GRPCClient(transport: transport)
-        self.client = client
-        connection = Task { try await client.runConnections() }
+        var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
+        var connections: [Task<Void, Error>] = []
+        do {
+            for _ in 0 ..< 4 {
+                let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
+                let client = GRPCClient(transport: transport)
+                clients.append(client)
+                connections.append(Task { try await client.runConnections() })
+            }
+        } catch {
+            for client in clients {
+                client.beginGracefulShutdown()
+            }
+            for connection in connections {
+                connection.cancel()
+            }
+            throw error
+        }
+        self.clients = clients
+        self.connections = connections
         self.instanceName = instanceName
         self.accountHandle = accountHandle
         self.token = token
@@ -36,8 +63,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
     }
 
     deinit {
-        client.beginGracefulShutdown()
-        connection.cancel()
+        for client in clients {
+            client.beginGracefulShutdown()
+        }
+        for connection in connections {
+            connection.cancel()
+        }
     }
 
     private func metadata() async throws -> Metadata {
@@ -101,7 +132,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
             )
         }
         let advertised = response.cacheCapabilities.maxBatchTotalSizeBytes
-        if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, 2 * 1024 * 1024) } }
+        if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, Self.maximumBatchBytes) } }
     }
 
     private func retry<T>(_ operation: () async throws -> T) async throws -> T {
@@ -198,12 +229,25 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
     }
 
     public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+        try await downloadAvailableBlobs(blobs, onDownloaded: { _ in })
+    }
+
+    public func downloadAvailableBlobs(
+        _ blobs: [REAPI.Digest: URL],
+        orderedDigests: [REAPI.Digest] = [],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> Set<REAPI.Digest> {
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
-        return try await transfer(batches(Array(blobs.keys))) { batch in
+        var seen = Set<REAPI.Digest>()
+        var ordered = orderedDigests.filter { blobs[$0] != nil && seen.insert($0).inserted }
+        ordered.append(contentsOf: blobs.keys.filter { !seen.contains($0) })
+        let usesStreams = blobs.keys.contains { $0.sizeBytes > batchBytes }
+        return try await transfer(batches(ordered), maxConcurrentTasks: usesStreams ? 8 : 32) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 try await self.retry { try await self.downloadBlob(digest, to: blobs[digest]!) }
+                try await onDownloaded(digest)
                 return [digest]
             }
             var successful = Set<REAPI.Digest>()
@@ -218,7 +262,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
                             $0.digestFunction = .sha256
                         }, metadata: try await self.metadata(), options: self.options)
                     for output in response.responses where output.status.code == 0 {
-                        guard batch.contains(output.digest), let path = blobs[output.digest] else { continue }
+                        guard batch.contains(output.digest), !successful.contains(output.digest),
+                              let path = blobs[output.digest] else { continue }
                         do {
                             let data: Data
                             switch output.compressor {
@@ -227,7 +272,17 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
                             default: continue
                             }
                             guard REAPI.digest(data) == output.digest else { continue }
-                            try data.write(to: path, options: .atomic)
+                            // These are private download files; the caller publishes verified content atomically.
+                            try Data().write(to: path)
+                            let handle = try FileHandle(forWritingTo: path)
+                            do {
+                                try handle.write(contentsOf: data)
+                                try handle.close()
+                            } catch {
+                                try? handle.close()
+                                throw error
+                            }
+                            try await onDownloaded(output.digest)
                             successful.insert(output.digest)
                         } catch {
                             if error is CancellationError || Task.isCancelled { throw error }
@@ -246,6 +301,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
 
     private func transfer(
         _ batches: [[REAPI.Digest]],
+        maxConcurrentTasks: Int = 8,
         operation: @escaping @Sendable ([REAPI.Digest]) async throws -> Set<REAPI.Digest>
     ) async throws -> Set<REAPI.Digest> {
         var successful = Set<REAPI.Digest>()
@@ -259,7 +315,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
                     }
                 }
             }
-            for _ in 0 ..< 8 {
+            for _ in 0 ..< maxConcurrentTasks {
                 if let batch = pending.next() { enqueue(batch) }
             }
             while let completed = try await group.next() {

@@ -32,6 +32,7 @@ enum REAPITransport {
         let proxyContext = proxy?.scheme == "https" ? try NIOSSLContext(configuration: proxyTLS) : nil
         var config = HTTP2ClientTransport.Posix.Config.defaults
         config.http2.authority = endpoint.authority
+        config.http2.targetWindowSize = 32 * 1024 * 1024
         config.channelDebuggingCallbacks.onCreateTCPConnection = { channel in
             channel.eventLoop.makeCompletedFuture {
                 if let context {

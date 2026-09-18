@@ -78,6 +78,15 @@ public protocol REAPICacheStoring: Sendable {
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
+    /// Delivers verified blobs as transfers finish, before all downloads complete. The callback
+    /// may move the file into its final cache location. Publication failures exclude that blob
+    /// from the returned set; cancellation stops the operation. `orderedDigests` prioritizes
+    /// inputs needed by early consumers without imposing a completion order.
+    func downloadAvailableBlobs(
+        _ blobs: [REAPI.Digest: URL],
+        orderedDigests: [REAPI.Digest],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> Set<REAPI.Digest>
     func uploadBlobs(_ blobs: [REAPI.Digest: URL]) async throws
     func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws
 }
@@ -86,6 +95,23 @@ extension REAPICacheStoring {
     public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
         try await uploadBlobs(blobs)
         return Set(blobs.keys)
+    }
+
+    public func downloadAvailableBlobs(
+        _ blobs: [REAPI.Digest: URL],
+        orderedDigests _: [REAPI.Digest] = [],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> Set<REAPI.Digest> {
+        var published = Set<REAPI.Digest>()
+        for digest in try await downloadAvailableBlobs(blobs) {
+            do {
+                try await onDownloaded(digest)
+                published.insert(digest)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+            }
+        }
+        return published
     }
 
     public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {

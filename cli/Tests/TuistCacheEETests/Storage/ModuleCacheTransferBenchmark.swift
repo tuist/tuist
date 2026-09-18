@@ -21,6 +21,7 @@ struct ModuleCacheTransferBenchmark {
         let inputs: String
         let output: String
         let repetitions: Int
+        let phases: [String]?
         let project: String?
         let authenticationURL: URL?
         let metricsURL: URL?
@@ -57,6 +58,10 @@ struct ModuleCacheTransferBenchmark {
         let authentication = MockServerAuthenticationControlling()
         given(authentication).authenticationToken(serverURL: .any).willReturn(.project(config.token))
         given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .any).willReturn(.project(config.token))
+        let phases = config.phases ?? ["cold-push", "existing-push", "cold-pull", "ios-pull"]
+        try #require(!phases.isEmpty && phases.allSatisfy {
+            ["cold-push", "existing-push", "cold-pull", "ios-pull"].contains($0)
+        })
         var measurements: [Measurement] = []
         let corpora = try await fileSystem.contentsOfDirectory(AbsolutePath(validating: config.inputs)).sorted()
         for corpus in corpora {
@@ -84,16 +89,22 @@ struct ModuleCacheTransferBenchmark {
                 })
                 for model in repetition.isMultiple(of: 2) ? ["archive", "reapi"] : ["reapi", "archive"] {
                     let project = config.project ?? "\(corpus.basename)-\(repetition)-\(model)"
-                    let client = try await REAPICacheClient(
-                        endpoint: .init(
-                            host: try #require(config.endpoint.host),
-                            explicitPort: config.endpoint.port,
-                            isTLS: config.endpoint.scheme == "https"
-                        ),
-                        accountHandle: config.account,
-                        instanceName: project
-                    ) { config.token }
-                    if model == "reapi" { try await client.validateCapabilities() }
+                    let client: REAPICacheClient?
+                    if model == "reapi" {
+                        let reapi = try await REAPICacheClient(
+                            endpoint: .init(
+                                host: try #require(config.endpoint.host),
+                                explicitPort: config.endpoint.port,
+                                isTLS: config.endpoint.scheme == "https"
+                            ),
+                            accountHandle: config.account,
+                            instanceName: project
+                        ) { config.token }
+                        try await reapi.validateCapabilities()
+                        client = reapi
+                    } else {
+                        client = nil
+                    }
                     // Both transports receive the same cache credential, outside the timed phases.
                     let _: String? = try await CachedValueStore.current.getValue(
                         key: "cache-token-\(authenticationURL.absoluteString)-\(config.account)/\(project)"
@@ -101,7 +112,7 @@ struct ModuleCacheTransferBenchmark {
                     _ = try await CacheTokenStore.shared.cacheToken(
                         authenticationURL: authenticationURL, fullHandle: "\(config.account)/\(project)"
                     )
-                    for phase in ["cold-push", "existing-push", "cold-pull", "ios-pull"] {
+                    for phase in phases {
                         let directory = root.appending(component: "\(project)-\(phase)")
                         let provider = MockCacheDirectoriesProviding()
                         given(provider).cacheDirectory(for: .any).willReturn(directory)
