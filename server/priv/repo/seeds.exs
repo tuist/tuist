@@ -2236,7 +2236,7 @@ existing_events_with_xcode =
 events_needing_xcode =
   from(e in Event,
     where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at, project_id: e.project_id},
     order_by: [desc: e.ran_at],
     limit: 200
   )
