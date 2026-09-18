@@ -261,6 +261,16 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       # A page past the end comes back as the last one rather than empty.
       assert History.commit_page(project, "main", page: 9, page_size: 2).page == 2
+
+      # `max_commits` caps what the pages hold at all, newest first.
+      capped = History.commit_page(project, "main", page_size: 2, max_commits: 3)
+      assert capped.total_count == 3
+      assert capped.total_pages == 2
+
+      assert Enum.map(
+               History.commit_page(project, "main", page: 2, page_size: 2, max_commits: 3).commits,
+               & &1.git_commit_sha
+             ) == ["b"]
     end
 
     test "holds only the commits the period covers", %{project: project, account: account} do

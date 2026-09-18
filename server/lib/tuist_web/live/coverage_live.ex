@@ -30,6 +30,10 @@ defmodule TuistWeb.CoverageLive do
   alias TuistWeb.Utilities.Query
 
   @page_size 20
+  # The commits list is a recent history to glance at, not an archive: five
+  # rows a page, ten pages of them.
+  @commits_page_size 5
+  @commits_limit 50
   # How many rows the cards that only point somewhere else hold.
   @preview_size 5
 
@@ -153,7 +157,11 @@ defmodule TuistWeb.CoverageLive do
       History.commit_page(
         project,
         branch,
-        Keyword.merge(period_opts(socket), page: Query.bounded_page(query["commits-page"]), page_size: @page_size)
+        Keyword.merge(period_opts(socket),
+          page: Query.bounded_page(query["commits-page"]),
+          page_size: @commits_page_size,
+          max_commits: @commits_limit
+        )
       )
 
     socket
