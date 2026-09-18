@@ -121,8 +121,17 @@ extension TuistConfig.InspectOptions {
         manifest: ProjectDescription.Config.InspectOptions
     ) -> Self {
         return .init(
+            implicitDependencies: .from(manifest: manifest.implicitDependencies),
             redundantDependencies: .from(manifest: manifest.redundantDependencies)
         )
+    }
+}
+
+extension TuistConfig.InspectOptions.ImplicitDependencies {
+    static func from(
+        manifest: ProjectDescription.Config.InspectOptions.ImplicitDependencies
+    ) -> Self {
+        return .init(ignoreDependencies: manifest.ignoreDependencies)
     }
 }
 
@@ -131,7 +140,8 @@ extension TuistConfig.InspectOptions.RedundantDependencies {
         manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
     ) -> Self {
         return .init(
-            ignoreTagsMatching: manifest.ignoreTagsMatching
+            ignoreTagsMatching: manifest.ignoreTagsMatching,
+            ignoreDependencies: manifest.ignoreDependencies
         )
     }
 }
