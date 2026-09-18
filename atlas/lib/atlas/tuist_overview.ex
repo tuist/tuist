@@ -264,17 +264,26 @@ defmodule Atlas.TuistOverview do
     run_event_query(sql, start_date, end_date, ch_query)
   end
 
+  # Filter on the timestamp that is both in each table's sort key AND its
+  # `toYYYYMM(...)` partition column, so ClickHouse can prune partitions and
+  # skip granules:
+  #   * `reapi_cache_events` → `inserted_at` (sort: `operation, project_id,
+  #     inserted_at`; partition: `toYYYYMM(inserted_at)`). `observed_at` is
+  #     unindexed and forces a full scan — the Kura → server delay is under
+  #     one minute, so day buckets are identical.
+  #   * `gradle_cache_events` → `inserted_at` (sort: `action, project_id,
+  #     inserted_at`; partition: `toYYYYMM(inserted_at)`). Only option.
   defp event_query(:cache_operations, start_date, end_date, ch_query) do
     sql = """
     SELECT day, sum(c) AS c FROM (
-      SELECT toDate(created_at) AS day, count() AS c
+      SELECT toDate(inserted_at) AS day, count() AS c
       FROM reapi_cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
+      WHERE inserted_at >= {start_ts:DateTime} AND inserted_at < {end_ts:DateTime}
       GROUP BY day
       UNION ALL
-      SELECT toDate(created_at) AS day, count() AS c
+      SELECT toDate(inserted_at) AS day, count() AS c
       FROM gradle_cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
+      WHERE inserted_at >= {start_ts:DateTime} AND inserted_at < {end_ts:DateTime}
       GROUP BY day
     )
     GROUP BY day
@@ -284,12 +293,14 @@ defmodule Atlas.TuistOverview do
     run_event_query(sql, start_date, end_date, ch_query)
   end
 
-  # Cache operations combine Xcode cache events (Postgres `cache_events`) with
-  # Bazel REAPI and Gradle events (ClickHouse). Each source is queried in its
-  # own database and the daily series are summed before the widget renders.
-  defp cache_operations_measure({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query) do
-    with {:ok, xcode_prev, _} <- xcode_cache_query(previous_start, previous_end, pg_query),
-         {:ok, xcode_curr, xcode_curr_series} <- xcode_cache_query(start_date, end_date, pg_query),
+  # Cache operations combine Xcode cache hits (ClickHouse `command_events`,
+  # summed per invocation) with Bazel REAPI and Gradle events (also
+  # ClickHouse). Each source is queried on its own and the daily series are
+  # summed before the widget renders. Postgres `cache_events` is deprecated
+  # (no writers), so it is intentionally not queried here.
+  defp cache_operations_measure({start_date, end_date}, {previous_start, previous_end}, _pg_query, ch_query) do
+    with {:ok, xcode_prev, _} <- xcode_cache_query(previous_start, previous_end, ch_query),
+         {:ok, xcode_curr, xcode_curr_series} <- xcode_cache_query(start_date, end_date, ch_query),
          {:ok, ch_prev, _} <- event_query(:cache_operations, previous_start, previous_end, ch_query),
          {:ok, ch_curr, ch_curr_series} <- event_query(:cache_operations, start_date, end_date, ch_query) do
       combined_series = merge_series(xcode_curr_series, ch_curr_series)
@@ -307,28 +318,21 @@ defmodule Atlas.TuistOverview do
     end
   end
 
-  defp xcode_cache_query(start_date, end_date, pg_query) do
+  # `command_events_by_ran_at` is the ran_at-ordered materialized view of
+  # `command_events`; scanning it lets ClickHouse skip granules using the
+  # ran_at sort key instead of full-scanning the name-ordered base table.
+  # `remote_cache_hits_count` is a non-nullable UInt32 (default:
+  # `length(remote_cache_target_hits)`), which sums without a coalesce.
+  defp xcode_cache_query(start_date, end_date, ch_query) do
     sql = """
-    SELECT date_trunc('day', created_at)::date AS day, count(*) AS c
-    FROM cache_events
-    WHERE created_at >= '#{iso(start_date)}' AND created_at < '#{iso(Date.add(end_date, 1))}'
-    GROUP BY 1
-    ORDER BY 1
+    SELECT toDate(ran_at) AS day, sum(remote_cache_hits_count) AS c
+    FROM command_events_by_ran_at
+    WHERE ran_at >= {start_ts:DateTime} AND ran_at < {end_ts:DateTime}
+    GROUP BY day
+    ORDER BY day
     """
 
-    case pg_query.(sql, limit: 5000) do
-      {:ok, %{"rows" => rows}} ->
-        series =
-          rows
-          |> Enum.map(fn row -> {parse_date(row["day"]), to_integer(row["c"])} end)
-          |> Enum.filter(fn {day, _c} -> match?(%Date{}, day) end)
-
-        {:ok, Enum.reduce(series, 0, fn {_d, c}, acc -> acc + c end), series}
-
-      {:error, reason} ->
-        Logger.warning("Tuist overview Xcode cache Postgres query failed: #{inspect(reason)}")
-        {:error, reason}
-    end
+    run_event_query(sql, start_date, end_date, ch_query)
   end
 
   defp merge_series(left, right) do
