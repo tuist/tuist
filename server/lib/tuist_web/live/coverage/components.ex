@@ -232,7 +232,7 @@ defmodule TuistWeb.Coverage.Components do
               style="light-fill"
               size="large"
               color={change_color({:delta, row.delta})}
-              label={"#{signed(row.delta)} pp"}
+              label={"#{signed(row.delta)}%"}
             />
           </div>
         </:col>
@@ -264,7 +264,7 @@ defmodule TuistWeb.Coverage.Components do
       :if={@delta}
       style="light-fill"
       color={change_color({:delta, @delta})}
-      label={"#{signed(@delta)} pp"}
+      label={"#{signed(@delta)}%"}
     />
     <.text_cell :if={is_nil(@delta)} label="—" />
     """
@@ -418,11 +418,11 @@ defmodule TuistWeb.Coverage.Components do
     do: dgettext("dashboard_tests", "at least %{threshold}%", threshold: threshold)
 
   def gate_threshold(%{gate: :max_total_drop, threshold: threshold}),
-    do: dgettext("dashboard_tests", "at most %{threshold} points down", threshold: threshold)
+    do: dgettext("dashboard_tests", "at most %{threshold}% down", threshold: threshold)
 
   def gate_value(%{value: nil}), do: "—"
   def gate_value(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
-  def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)} pt"
+  def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)}%"
 
   @doc "The directory a file sits in, or nil for one at the repository's root."
   def parent_dir(path) do

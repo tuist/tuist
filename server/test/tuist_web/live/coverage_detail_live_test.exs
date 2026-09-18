@@ -97,7 +97,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/12")
 
       assert has_element?(lv, "#widget-coverage", "50.0%")
-      assert has_element?(lv, "#widget-change", "-50.0 pp")
+      assert has_element?(lv, "#widget-change", "-50.0%")
       assert has_element?(lv, "#widget-patch", "0.0%")
       assert has_element?(lv, "#widget-gaps", "2")
       refute has_element?(lv, "#coverage-no-baseline")
@@ -107,7 +107,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       # live in their own tabs.
       falls = lv |> element("#coverage-target-falls-table") |> render()
       assert falls =~ "Calculator"
-      assert falls =~ "-50.0 pp"
+      assert falls =~ "-50.0%"
 
       patch = lv |> element("#coverage-patch-table") |> render()
       assert patch =~ "Sources/A.swift"
@@ -135,7 +135,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       targets = lv |> element("#coverage-targets-table") |> render()
       assert targets =~ "Calculator"
-      assert targets =~ "-50.0 pp"
+      assert targets =~ "-50.0%"
 
       {:ok, lv, _html} =
         live(
@@ -220,7 +220,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/branches/release/1.0")
 
       assert has_element?(lv, "#widget-coverage", "75.0%")
-      assert has_element?(lv, "#widget-against-default", "-25.0 pp")
+      assert has_element?(lv, "#widget-against-default", "-25.0%")
     end
 
     test "shows a commit on its own page, complete once signalled", %{
