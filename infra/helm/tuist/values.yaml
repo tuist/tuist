@@ -696,6 +696,13 @@ server:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
+      # Overridable field names inside the per-env 1Password items. The
+      # chart's default field layout is described in
+      # templates/server-config-external-secrets.yaml; override here to
+      # point ESO at a sibling field on the same 1P item (e.g. to send
+      # errors to a different ingest without touching every other secret).
+      fields:
+        sentryDsn: dsn
   # Stripe price IDs, keyed plan -> category -> [price ids], plus a top-level
   # `runners` map from meter event name -> price id. Not secrets (just
   # identifiers), so they live here rather than 1Password; the chart JSON-encodes

@@ -155,8 +155,13 @@ externalSecrets:
       remoteRef: "atlas-super-admin/password"
     STRIPE_API_KEY:
       remoteRef: "atlas-stripe-api-key/password"
-    SENTRY_DSN:
-      remoteRef: "atlas-sentry/dsn"
+    # SENTRY_DSN is intentionally not synced: with no DSN configured,
+    # Atlas' primary Sentry.LoggerHandler stays detached and the in-process
+    # Atlas.Engineering.Errors.SelfMonitor attaches instead, recording
+    # this instance's own crashes against the "Atlas" self-project through
+    # the same ingest pipeline external SDKs use — no HTTP hop, so an
+    # ingest outage cannot loop back through the logger. This replaces the
+    # previous route that posted envelopes to hive.tuist.dev.
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
