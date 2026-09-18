@@ -64,7 +64,7 @@
         variant="secondary"
         size="medium"
         navigate={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}"
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=overview"
         }
       />
     </:actions>
@@ -273,12 +273,6 @@
             } />
           </:col>
         </.table>
-        <.pagination_group
-          :if={@commits_meta.total_pages > 1}
-          current_page={@commits_meta.current_page}
-          number_of_pages={@commits_meta.total_pages}
-          page_patch={fn page -> "?#{Query.put(@uri.query, "commits-page", page)}" end}
-        />
       </div>
     </.card_section>
     <.coverage_empty
@@ -294,7 +288,7 @@
 
   <%!-- Coverage gaps --%>
   <.card
-    :if={@latest}
+    :if={@head_commit}
     title={dgettext("dashboard_tests", "Coverage gaps")}
     icon="chart_dots"
     data-part="gaps"
@@ -313,16 +307,35 @@
       <.card_section data-part="gaps-section">
         <div data-part="header">
           <span data-part="title">
+            {dgettext("dashboard_tests", "Files whose coverage changed")}
+          </span>
+        </div>
+        <.table id="coverage-changed-files-table" rows={@changed_files}>
+          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+            <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
+            <.text_cell label={
+              if file.coverage,
+                do: "#{file.coverage}%",
+                else: dgettext("dashboard_tests", "Removed")
+            } />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Change")}>
+            <.change_cell delta={file.delta} />
+          </:col>
+        </.table>
+        <div :if={@changed_files == []} data-part="empty">
+          {dgettext("dashboard_tests", "No file's coverage changed at this commit.")}
+        </div>
+      </.card_section>
+    </div>
+    <div data-part="gaps-sections">
+      <.card_section data-part="gaps-section">
+        <div data-part="header">
+          <span data-part="title">
             {dgettext("dashboard_tests", "Least covered files")}
           </span>
-          <.link
-            data-part="link"
-            navigate={
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{@latest.git_commit_sha}"
-            }
-          >
-            {dgettext("dashboard_tests", "View all")}
-          </.link>
         </div>
         <.table id="coverage-gap-files-table" rows={@gap_files}>
           <:col :let={file} label={dgettext("dashboard_tests", "File")}>
@@ -343,7 +356,7 @@
           </span>
           <span data-part="count">
             {dgettext("dashboard_tests", "%{count} in total",
-              count: format_number(Map.get(@latest, :unmeasured_files_count) || 0)
+              count: format_number(Map.get(@head_commit, :unmeasured_files_count) || 0)
             )}
           </span>
         </div>

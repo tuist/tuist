@@ -21,17 +21,16 @@ defmodule TuistWeb.CoverageLive do
 
   alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  # The commits list is a recent history to glance at, not an archive: five
-  # rows a page, ten pages of them.
-  @commits_page_size 5
-  @commits_limit 50
-  # How many rows the cards that only point somewhere else hold.
+  # Every list here is a glance at the head of something longer, which the
+  # cards' "View more" leads to.
+  @commits_preview_size 5
   @preview_size 5
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -94,10 +93,10 @@ defmodule TuistWeb.CoverageLive do
 
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  defp assign_page(socket, query) do
+  defp assign_page(socket, _query) do
     socket
     |> assign_analytics()
-    |> assign_commits(query)
+    |> assign_commits()
     |> assign_gaps()
   end
 
@@ -112,43 +111,55 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:trend, if(latest && first && latest != first, do: Float.round(latest.coverage - first.coverage, 1)))
   end
 
-  defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket, query) do
+  defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     page =
       History.commit_page(
         project,
         branch,
-        Keyword.merge(period_opts(socket),
-          page: Query.bounded_page(query["commits-page"]),
-          page_size: @commits_page_size,
-          max_commits: @commits_limit
-        )
+        Keyword.merge(period_opts(socket), page_size: @commits_preview_size, max_commits: @commits_preview_size)
       )
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
-    |> assign(:commits_meta, %{current_page: page.page, total_pages: page.total_pages, total_count: page.total_count})
     |> assign(:commits_ordered_by, page.ordered_by)
   end
 
   # Where the coverage is thinnest at the branch's latest commit: the least
   # covered files, and the tracked files no scheme measured at all.
-  defp assign_gaps(%{assigns: %{selected_project: project, latest: latest}} = socket) do
-    {files, unmeasured} =
-      if latest do
-        [{files, _count}, unmeasured] =
+  # The head commit's files, read exactly as its own page reads them: the
+  # files whose coverage changed, the least covered, and the ones nothing
+  # measured — the head of each list, with the page behind the card.
+  defp assign_gaps(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+    head = History.head_commit(project, branch, period_opts(socket))
+
+    {changed, files, unmeasured} =
+      if head do
+        [changed, {files, _count}, unmeasured] =
           Tuist.Tasks.parallel_tasks([
-            fn -> Commits.list_files(project.id, latest.git_commit_sha, 1, @preview_size) end,
-            fn -> Commits.unmeasured_files(project, latest.git_commit_sha, limit: @preview_size) end
+            fn -> changed_files(project, head.git_commit_sha) end,
+            fn -> Commits.list_files(project.id, head.git_commit_sha, 1, @preview_size) end,
+            fn -> Commits.unmeasured_files(project, head.git_commit_sha, limit: @preview_size) end
           ])
 
-        {files, unmeasured}
+        {changed, files, unmeasured}
       else
-        {[], []}
+        {[], [], []}
       end
 
     socket
+    |> assign(:head_commit, head)
+    |> assign(:changed_files, changed)
     |> assign(:gap_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
     |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
+  end
+
+  defp changed_files(project, sha) do
+    project
+    |> Comparison.from_commit(sha)
+    |> then(&Comparison.compare(project, &1))
+    |> Map.fetch!(:files)
+    |> Enum.take(@preview_size)
+    |> Enum.map(&Map.put(&1, :id, "changed-" <> &1.path))
   end
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)

@@ -190,7 +190,9 @@
     gap: var(--noora-spacing-3);
 
     & > * {
-      flex: 1;
+      /* Tables shrink with their column rather than widening the row. */
+      flex: 1 1 0;
+      min-width: 0;
     }
 
     @media (max-width: 768px) {
