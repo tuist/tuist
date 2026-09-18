@@ -16,13 +16,14 @@ defmodule Tuist.Kura.PlacerClaimsTest do
     %{account: Repo.preload(account, :subscriptions)}
   end
 
-  defp insert_server!(account, region, claim_size, status) do
+  defp insert_server!(account, region, claim_size, status, attrs \\ []) do
     %{
       account_id: account.id,
       region: region,
       provisioner_node_ref: "kura-#{account.name}-#{region}",
       storage_claim_size: claim_size
     }
+    |> Map.merge(Map.new(attrs))
     |> Server.create_changeset()
     |> Repo.insert!()
     |> Ecto.Changeset.change(status: status)
@@ -68,6 +69,24 @@ defmodule Tuist.Kura.PlacerClaimsTest do
       insert_server!(account, "local-controller", "50Gi", :active)
 
       assert PlacerClaims.effective_claim_size(account) == "16Gi"
+    end
+  end
+
+  describe "region_claims/1" do
+    test "the largest pin each region's instances hold, by account", %{account: account} do
+      other = AccountsFixtures.organization_fixture().account
+      insert_server!(account, "us-east", "50Gi", :active)
+      insert_server!(account, "eu-west", "16Gi", :active)
+      insert_server!(account, "eu-west", "24Gi", :provisioning, move_phase: :moving_in)
+      insert_server!(account, "us-west", "64Gi", :archived)
+      insert_server!(account, "us-central", nil, :active)
+      insert_server!(account, "local-controller", "100Gi", :active)
+      insert_server!(other, "us-east", "8Gi", :active)
+
+      assert PlacerClaims.region_claims([account.id, other.id]) == %{
+               account.id => %{"us-east" => "50Gi", "eu-west" => "24Gi"},
+               other.id => %{"us-east" => "8Gi"}
+             }
     end
   end
 end

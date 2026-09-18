@@ -39,6 +39,7 @@ struct CLI {
     var netrcFile: CLIPath?
     var netrc = true
     var forceNetrc = false
+    var disableKeychain = false
     var disableSandbox = false
     var enableDependencyCache = false
     var disableDependencyCache = false
@@ -238,6 +239,15 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     @Flag(name: .customLong("netrc"))
     var forceNetrc = false
 
+    // SwiftPM exposes this as `[--enable-keychain|--disable-keychain]`, defaulting
+    // to enabled on Darwin. Match the same pair here so a caller forwarding either
+    // spelling verbatim keeps working; the `disableKeychain` computed property below
+    // is what the rest of the pipeline reads.
+    @Flag(inversion: .prefixedEnableDisable)
+    var keychain: Bool = true
+
+    var disableKeychain: Bool { !keychain }
+
     @Flag(name: .customLong("disable-sandbox"))
     var disableSandbox = false
 
@@ -322,6 +332,7 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             netrcFile: CLIPath.optional(netrcFile),
             netrc: netrc,
             forceNetrc: forceNetrc,
+            disableKeychain: disableKeychain,
             disableSandbox: disableSandbox,
             enableDependencyCache: enableDependencyCache,
             disableDependencyCache: disableDependencyCache,
@@ -518,7 +529,8 @@ enum CLIRunner {
         SwifterPMNetrcConfiguration(
             isEnabled: cli.netrc,
             path: paths.resolve(cli.netrcFile),
-            forcesNetrc: cli.forceNetrc
+            forcesNetrc: cli.forceNetrc,
+            disableKeychain: cli.disableKeychain
         )
     }
 

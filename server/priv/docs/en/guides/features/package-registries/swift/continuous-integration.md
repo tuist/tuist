@@ -1,7 +1,7 @@
 ---
 {
   "title": "Continuous integration",
-  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "titleTemplate": ":title · Swift · Package Registries · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---

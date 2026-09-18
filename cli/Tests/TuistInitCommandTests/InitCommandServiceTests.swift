@@ -85,11 +85,10 @@ struct InitCommandServiceTests {
     #if os(macOS)
         @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {
             try await withMockedDependencies {
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any).willReturn(
                     .createGeneratedProject
                 )
                 given(prompter).promptGeneratedProjectName().willReturn("Test")
-                given(prompter).promptIntegrateWithServer().willReturn(true)
                 given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
                 given(prompter).promptAccountType(
                     authenticatedUserHandle: .value("account"), organizations: .value(["org"])
@@ -149,11 +148,10 @@ struct InitCommandServiceTests {
 
         @Test func generatesTheRightConfiguration_when_generatedAndNotConnectedToServer() async throws {
             try await withMockedDependencies {
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any).willReturn(
                     .createGeneratedProject
                 )
                 given(prompter).promptGeneratedProjectName().willReturn("Test")
-                given(prompter).promptIntegrateWithServer().willReturn(false)
                 given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
 
                 try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
@@ -165,7 +163,17 @@ struct InitCommandServiceTests {
                     .willReturn(.init(unfolding: { nil }))
 
                     // When
-                    try await subject.run(from: temporaryDirectory, answers: nil)
+                    try await subject.run(
+                        from: temporaryDirectory,
+                        answers: .init(
+                            workflowType: .createGeneratedProject,
+                            integrateWithServer: false,
+                            generatedProjectPlatform: "ios",
+                            generatedProjectName: "Test",
+                            accountType: .organization(""),
+                            newOrganizationAccountHandle: ""
+                        )
+                    )
 
                     // Then
                     let tuistSwift = try await fileSystem.readTextFile(
@@ -192,9 +200,8 @@ struct InitCommandServiceTests {
         {
             try await withMockedDependencies {
                 let projectName = UUID().uuidString
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any)
                     .willReturn(.connectProjectOrSwiftPackage(projectName))
-                given(prompter).promptIntegrateWithServer().willReturn(true)
                 given(prompter).promptAccountType(
                     authenticatedUserHandle: .value("account"), organizations: .value(["org"])
                 )
@@ -254,9 +261,8 @@ struct InitCommandServiceTests {
         {
             try await withMockedDependencies {
                 let projectName = UUID().uuidString
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any)
                     .willReturn(.connectProjectOrSwiftPackage(projectName))
-                given(prompter).promptIntegrateWithServer().willReturn(false)
 
                 try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                     temporaryDirectory in
@@ -271,7 +277,17 @@ struct InitCommandServiceTests {
                     )
 
                     // When
-                    try await subject.run(from: temporaryDirectory, answers: nil)
+                    try await subject.run(
+                        from: temporaryDirectory,
+                        answers: .init(
+                            workflowType: .connectProjectOrSwiftPackage(projectName),
+                            integrateWithServer: false,
+                            generatedProjectPlatform: "",
+                            generatedProjectName: projectName,
+                            accountType: .organization(""),
+                            newOrganizationAccountHandle: ""
+                        )
+                    )
 
                     // Then
                     let tuistSwift = try await fileSystem.readTextFile(
@@ -293,11 +309,10 @@ struct InitCommandServiceTests {
         {
             try await withMockedDependencies {
                 let organizationName = UUID().uuidString
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any).willReturn(
                     .createGeneratedProject
                 )
                 given(prompter).promptGeneratedProjectName().willReturn("Test")
-                given(prompter).promptIntegrateWithServer().willReturn(true)
                 given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
                 given(prompter).promptAccountType(
                     authenticatedUserHandle: .value("account"),
@@ -357,7 +372,7 @@ struct InitCommandServiceTests {
         {
             try await withMockedDependencies {
                 #if os(macOS)
-                    given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                    given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any, bazelWorkspaceDetected: .any)
                         .willReturn(.connectGradleProject)
                 #endif
                 given(prompter).promptAccountType(

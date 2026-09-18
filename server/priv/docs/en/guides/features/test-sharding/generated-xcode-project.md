@@ -1,19 +1,11 @@
 ---
 {
-  "title": "Generated Projects Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute tests in Tuist generated projects across multiple CI runners with Tuist Test Sharding."
+  "title": "Generated Xcode project",
+  "titleTemplate": ":title · Test sharding · Features · Guides · Tuist",
+  "description": "Distribute tests in a Tuist-generated Xcode project across multiple CI runners with Tuist Test Sharding."
 }
 ---
-# Generated projects test sharding {#generated-projects-test-sharding}
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing)
-
+# Generated Xcode project {#generated-xcode-project-test-sharding}
 
 Test sharding for generated projects uses `tuist test` for both the build and test phases.
 
@@ -83,7 +75,6 @@ Tuist downloads the `.xctestproducts` bundle and filters it to include only the 
 > **Selective Testing**
 >
 > Test sharding works seamlessly with <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
-
 
 ## Continuous integration {#continuous-integration}
 

@@ -9,13 +9,6 @@
 
 Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <.localized_link href="/guides/features/cache/gradle-cache">remote build caching</.localized_link> and <.localized_link href="/guides/features/build-insights/gradle">build insights</.localized_link>. This guide walks you through installing and configuring the plugin.
 
-> [!WARNING]
-> **Requirements**
->
-> - <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link> 4.138.1 or later
-> - A Gradle project
-
-
 ## 1. Initialize Tuist {#initialize-tuist}
 
 Run the following command in your Gradle project root:

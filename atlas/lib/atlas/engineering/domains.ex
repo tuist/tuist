@@ -7,6 +7,7 @@ defmodule Atlas.Engineering.Domains do
 
   import Ecto.Query
 
+  alias Atlas.Audit
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Domains.GitHubRepository
   alias Atlas.Engineering.Projects.ProjectDomain
@@ -62,7 +63,9 @@ defmodule Atlas.Engineering.Domains do
       |> Repo.transaction()
       |> case do
         {:ok, %{domain: domain}} ->
-          {:ok, preload_full(domain)}
+          domain = preload_full(domain)
+          audit_domain("engineering_domain.created", domain)
+          {:ok, domain}
 
         {:error, _step, %Ecto.Changeset{} = changeset, _changes} ->
           {:error, changeset}
@@ -72,7 +75,16 @@ defmodule Atlas.Engineering.Domains do
     end
   end
 
-  def delete_domain(%Domain{} = domain), do: Repo.delete(domain)
+  def delete_domain(%Domain{} = domain) do
+    case Repo.delete(domain) do
+      {:ok, deleted} ->
+        audit_domain("engineering_domain.deleted", deleted)
+        {:ok, deleted}
+
+      {:error, _changeset} = error ->
+        error
+    end
+  end
 
   def update_domain(%Domain{} = domain, attrs) do
     domain = preload_full(domain)
@@ -89,7 +101,9 @@ defmodule Atlas.Engineering.Domains do
       |> Repo.transaction()
       |> case do
         {:ok, %{domain: domain}} ->
-          {:ok, preload_full(domain)}
+          domain = preload_full(domain)
+          audit_domain("engineering_domain.updated", domain)
+          {:ok, domain}
 
         {:error, _step, %Ecto.Changeset{} = changeset, _changes} ->
           {:error, changeset}
@@ -97,6 +111,15 @@ defmodule Atlas.Engineering.Domains do
     else
       {:error, changeset}
     end
+  end
+
+  defp audit_domain(action, %Domain{} = domain) do
+    Audit.record(action, %{
+      target_type: "engineering_domain",
+      target_id: domain.id,
+      target_label: domain.name,
+      metadata: %{}
+    })
   end
 
   def link_domain_to_project(%Domain{id: domain_id}, project_id) when is_binary(project_id) do

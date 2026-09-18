@@ -21,10 +21,12 @@ defmodule Tuist.Kura.PlacerClaims do
   The largest claim pinned on the account's governed instances that still hold
   volumes comes first, then the sized claim, then the plan's. The claim is
   account-wide: Kura replicates the account's content into every instance, so
-  one built smaller evicts that content sooner than the rest, and sizing, which
-  grows the whole account when any instance runs short, reads it as a reason to
-  grow all of them. Pins lead the sized claim because they can exist without
-  one, and lead the plan because they outlive a change to its constants.
+  one built smaller evicts that content sooner than the rest, and sizing raises
+  such an instance to this claim once it runs short. Pins lead the sized claim
+  because they can exist without one, and lead the plan because they outlive a
+  change to its constants. Sizing moves every pin to the claim it applies, so
+  the largest pin is the claim it measured for as long as no pin was written
+  around it.
   """
   def effective_claim_size(%Account{id: account_id} = account) do
     resolve_claim_size(account, Map.get(pinned_claims([account_id]), account_id), claim_for(account))
@@ -47,16 +49,36 @@ defmodule Tuist.Kura.PlacerClaims do
   grow into a silent shrink of that instance's volume.
   """
   def pinned_claims(account_ids) do
+    account_ids
+    |> region_claims()
+    |> Map.new(fn {account_id, claims} -> {account_id, claims |> Map.values() |> largest_claim()} end)
+    |> Map.reject(fn {_account_id, claim} -> is_nil(claim) end)
+  end
+
+  @doc """
+  The largest claim pinned in each governed region, by account id and then
+  region: the claim the ring an account reports from that region runs on.
+  Skips what `pinned_claims/1` skips, and drops a region with no pin.
+  """
+  def region_claims(account_ids) do
     Server
     |> where([server], server.account_id in ^account_ids)
     |> where([server], server.region in ^governed_region_ids())
     |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses())
     |> where([server], not is_nil(server.storage_claim_size))
-    |> select([server], {server.account_id, server.storage_claim_size})
+    |> select([server], {server.account_id, server.region, server.storage_claim_size})
     |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Map.new(fn {account_id, claims} -> {account_id, largest_claim(claims)} end)
-    |> Map.reject(fn {_account_id, claim} -> is_nil(claim) end)
+    |> Enum.group_by(&elem(&1, 0), &{elem(&1, 1), elem(&1, 2)})
+    |> Map.new(fn {account_id, pins} ->
+      claims =
+        pins
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+        |> Map.new(fn {region, claims} -> {region, largest_claim(claims)} end)
+        |> Map.reject(fn {_region, claim} -> is_nil(claim) end)
+
+      {account_id, claims}
+    end)
+    |> Map.reject(fn {_account_id, claims} -> claims == %{} end)
   end
 
   @doc """
@@ -96,7 +118,10 @@ defmodule Tuist.Kura.PlacerClaims do
     end
   end
 
-  defp largest_claim(claims) do
+  @doc """
+  The largest of `claims` by the bytes it names, or `nil` when none parses.
+  """
+  def largest_claim(claims) do
     claims
     |> Enum.flat_map(fn claim ->
       case Regions.parse_storage_quantity(claim) do
