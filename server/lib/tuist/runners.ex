@@ -124,6 +124,9 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
+  # The job's cache volume, stamped with the account label. See
+  # `VolumeHeads.volume_name_for_repository/1`.
+  @cache_volume_label "tuist.dev/runner-cache-volume"
   # Stamped on a Pod whenever dispatch cannot POSITIVELY confirm the job is
   # trusted (same-repo, not a fork). tart-kubelet reads it and skips cache-volume
   # materialization + promotion, so an untrusted fork job neither reads the
@@ -204,25 +207,25 @@ defmodule Tuist.Runners do
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
 
-  # The account's cache-volume HEAD for the dispatch response: the current
+  # The job's cache-volume HEAD for the dispatch response: the current
   # generation + inventory digest, plus a presigned GET URL for the master object
   # so a behind runner can converge its stale local master. The PUT URL is minted
-  # separately at promote time (volume_master_upload_url/2), keyed by the runner's
+  # separately at promote time (volume_master_upload_url/4), keyed by the runner's
   # new digest. Best-effort — any failure returns nil and the runner stays on its
   # local master (the status quo).
-  defp volume_head_payload(account) do
-    head = VolumeHeads.get_head(account.id)
+  defp volume_head_payload(account, volume_name) do
+    head = VolumeHeads.get_head(account.id, volume_name)
 
     # Download URL for the CURRENT HEAD's content-addressed object, so a behind
     # host converges by fetching exactly the bytes that produced the HEAD digest.
     # No HEAD yet => nil => the host stays cold (status quo) and its first
     # successful job establishes the HEAD. The upload URL is NOT handed out here
     # anymore: the guest mints it at promote time keyed by its own new digest
-    # (volume_master_upload_url/2), which is what makes the object keys immutable
+    # (volume_master_upload_url/4), which is what makes the object keys immutable
     # and stops concurrent promotes clobbering the object the HEAD points at.
     download_url =
       if head && head.tree_digest do
-        key = volume_master_object_key(account.id, head_master_object_id(head))
+        key = volume_master_object_key(account.id, volume_name, head_master_object_id(head))
         Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
       end
 
@@ -242,16 +245,17 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Mints a presigned PUT URL for `account_id`'s cache-volume master object keyed
-  by `tree_digest` — the content-addressed, immutable key the runner uploads its
+  Mints a presigned PUT URL for the master object of `account_id`'s cache volume
+  `volume_name`, keyed by `tree_digest` — the content-addressed, immutable key
+  the runner uploads its
   promoted image to before bumping the HEAD. Called at promote time (not
   dispatch) because only then does the runner know the new inventory digest.
 
   `tree_digest` MUST be a 40-char SHA-1 hex string (the guest's inventory
   digest): that matches the guest's format and keeps the value a safe,
   traversal-free object-key component under the account's own prefix. Returns
-  `:error` for an invalid account or digest, or a URL that would target a
-  non-public host (SSRF guard, the write-side twin of the download guard).
+  `:error` for an invalid account, volume or digest, or a URL that would target
+  a non-public host (SSRF guard, the write-side twin of the download guard).
 
   `content_digest`, when the guest reports one (a 64-char SHA-256 hex of the
   image bytes it is about to PUT), is signed into the URL as an
@@ -268,15 +272,15 @@ defmodule Tuist.Runners do
   differ in bytes upload distinct objects, and neither can overwrite the object
   the other's HEAD advertises.
   """
-  def volume_master_upload_url(account_id, tree_digest, content_digest \\ nil)
+  def volume_master_upload_url(account_id, volume_name, tree_digest, content_digest \\ nil)
 
-  def volume_master_upload_url(account_id, tree_digest, content_digest)
+  def volume_master_upload_url(account_id, volume_name, tree_digest, content_digest)
       when is_integer(account_id) and is_binary(tree_digest) do
-    if valid_inventory_digest?(tree_digest) do
+    if valid_inventory_digest?(tree_digest) and VolumeHeads.valid_volume_name?(volume_name) do
       content_digest = reported_content_digest(content_digest)
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
-           key = volume_master_object_key(account_id, master_object_id(tree_digest, content_digest)),
+           key = volume_master_object_key(account_id, volume_name, master_object_id(tree_digest, content_digest)),
            {checksum, upload_opts} = upload_checksum_and_opts(account, content_digest),
            url when is_binary(url) <-
              Storage.generate_upload_url(key, account, upload_opts),
@@ -292,7 +296,7 @@ defmodule Tuist.Runners do
     _ -> :error
   end
 
-  def volume_master_upload_url(_account_id, _tree_digest, _content_digest), do: :error
+  def volume_master_upload_url(_account_id, _volume_name, _tree_digest, _content_digest), do: :error
 
   # The base64 SHA-256 to sign into the presigned PUT, plus the storage opts
   # that sign it. No digest — or a provider whose presigned URLs cannot carry
@@ -310,8 +314,9 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Whether a promote built on `base_generation` could still win `account_id`'s
-  cache-volume fast-forward — the pre-flight a runner makes before uploading.
+  Whether a promote built on `base_generation` could still win the fast-forward
+  of `account_id`'s cache volume `volume_name` — the pre-flight a runner makes
+  before uploading.
 
   The runner's image upload runs at teardown and blocks the VM halt (and so the
   host slot's reclaim) for its whole duration, yet under cross-host contention
@@ -326,13 +331,13 @@ defmodule Tuist.Runners do
   retire it.
 
   Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/4` — the
-  compare-and-swap in `report_volume_head/5` remains what decides the HEAD.
+  compare-and-swap in `report_volume_head/7` remains what decides the HEAD.
   """
-  def fast_forward_viable?(account_id, base_generation, unverifiable_digest \\ nil) do
+  def fast_forward_viable?(account_id, volume_name, base_generation, unverifiable_digest \\ nil) do
     VolumeHeads.fast_forward_viable?(
       account_id,
       base_generation,
-      VolumeHeads.reserved_tuist_cache(),
+      volume_name,
       unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
     )
   end
@@ -359,15 +364,16 @@ defmodule Tuist.Runners do
   defp reported_content_digest(_digest), do: nil
 
   @doc """
-  Records a runner's promote of `account_id`'s cache volume: fast-forwards the
-  account's HEAD to `tree_digest` published from `node_name`, but ONLY when
+  Records a runner's promote of `account_id`'s cache volume `volume_name`:
+  fast-forwards the volume's HEAD to `tree_digest` published from `node_name`,
+  but ONLY when
   `base_generation` (the generation the job built on) is still the current HEAD.
   Called by the runner after a successful, cache-changing job whose branch it
   uploaded to the master archive.
 
   `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
   stored HEAD digest straight into the master object key
-  (volume_master_object_key/2), so an unvalidated digest from an authenticated
+  (volume_master_object_key/3), so an unvalidated digest from an authenticated
   runner could persist `/` or `..` and poison a future dispatch's download key or
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
@@ -391,6 +397,7 @@ defmodule Tuist.Runners do
   """
   def report_volume_head(
         account_id,
+        volume_name,
         node_name,
         tree_digest,
         base_generation,
@@ -398,7 +405,7 @@ defmodule Tuist.Runners do
         content_digest \\ nil
       ) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
-      superseded = VolumeHeads.get_head(account_id)
+      superseded = VolumeHeads.get_head(account_id, volume_name)
       content_digest = reported_content_digest(content_digest)
       master_id = master_object_id(tree_digest, content_digest)
 
@@ -407,7 +414,7 @@ defmodule Tuist.Runners do
              node_name,
              tree_digest,
              base_generation,
-             VolumeHeads.reserved_tuist_cache(),
+             volume_name,
              unverifiable_digest: reported_unverifiable_digest(unverifiable_digest),
              content_digest: content_digest
            ) do
@@ -416,8 +423,8 @@ defmodule Tuist.Runners do
           # an earlier job's promote of the same image was rejected — forget it so
           # the scheduled reclaim below becomes a no-op and never deletes the live
           # master. Its lifecycle now belongs to the supersession prune.
-          VolumeMasterOrphans.forget(account_id, master_id)
-          schedule_superseded_master_prune(account_id, superseded, master_id)
+          VolumeMasterOrphans.forget(account_id, master_id, volume_name)
+          schedule_superseded_master_prune(account_id, volume_name, superseded, master_id)
           {:ok, generation}
 
         :conflict ->
@@ -431,7 +438,7 @@ defmodule Tuist.Runners do
           # is what keeps rejected uploads from accumulating indefinitely under
           # contention, without the conflict-time-guessing hazard of pruning
           # straight away.
-          reclaim_rejected_master_upload(account_id, master_id)
+          reclaim_rejected_master_upload(account_id, volume_name, master_id)
           :conflict
       end
     else
@@ -445,18 +452,18 @@ defmodule Tuist.Runners do
   # as long as any dispatch that already handed out its download URL could still be
   # converging to it, then reclaims the storage. Skipped when there was no prior
   # HEAD or the object is unchanged (idempotent re-report of the same image).
-  defp schedule_superseded_master_prune(account_id, superseded, new_master_id) do
+  defp schedule_superseded_master_prune(account_id, volume_name, superseded, new_master_id) do
     case head_master_object_id(superseded) do
       old_master_id when is_binary(old_master_id) and old_master_id != new_master_id ->
-        enqueue_superseded_master_prune(account_id, old_master_id)
+        enqueue_superseded_master_prune(account_id, volume_name, old_master_id)
 
       _ ->
         :ok
     end
   end
 
-  defp enqueue_superseded_master_prune(account_id, master_id) do
-    case %{account_id: account_id, master_id: master_id}
+  defp enqueue_superseded_master_prune(account_id, volume_name, master_id) do
+    case %{account_id: account_id, volume_name: volume_name, master_id: master_id}
          |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
          |> Oban.insert() do
       {:ok, _job} ->
@@ -472,18 +479,20 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Deletes the account's superseded cache-volume master object `master_id` (see
-  `volume_master_object_key/2`), UNLESS it is (again) the object the account's
-  current HEAD points at — a re-promoted, identical image reuses the same key, so
-  deleting it would drop the live master. Best-effort; called from
-  `PruneVolumeMasterWorker` on a delay after the object was superseded.
+  Deletes the superseded master object `master_id` of `account_id`'s cache
+  volume `volume_name` (see `volume_master_object_key/3`), UNLESS it is (again)
+  the object that volume's current HEAD points at — a re-promoted, identical
+  image reuses the same key, so deleting it would drop the live master. The key
+  is scoped to the volume, so no other volume's HEAD can point at it.
+  Best-effort; called from `PruneVolumeMasterWorker` on a delay after the object
+  was superseded.
   """
-  def prune_superseded_volume_master(account_id, master_id) do
-    if head_master_object_id(VolumeHeads.get_head(account_id)) == master_id do
+  def prune_superseded_volume_master(account_id, volume_name, master_id) do
+    if head_master_object_id(VolumeHeads.get_head(account_id, volume_name)) == master_id do
       :ok
     else
       with {:ok, account} <- Accounts.get_account_by_id(account_id) do
-        Storage.delete_object(volume_master_object_key(account_id, master_id), account)
+        Storage.delete_object(volume_master_object_key(account_id, volume_name, master_id), account)
       end
     end
   end
@@ -493,10 +502,10 @@ defmodule Tuist.Runners do
   # concurrent job might accept this same image (which forgets the orphan); an
   # object that stays orphaned past it never became HEAD, so no download URL
   # points at it.
-  defp reclaim_rejected_master_upload(account_id, master_id) do
-    VolumeMasterOrphans.record(account_id, master_id)
+  defp reclaim_rejected_master_upload(account_id, volume_name, master_id) do
+    VolumeMasterOrphans.record(account_id, master_id, volume_name)
 
-    case %{account_id: account_id, master_id: master_id}
+    case %{account_id: account_id, volume_name: volume_name, master_id: master_id}
          |> PruneVolumeMasterOrphanWorker.new(schedule_in: @volume_master_url_ttl_seconds)
          |> Oban.insert() do
       {:ok, _job} ->
@@ -512,23 +521,24 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Reclaims the rejected-promote master object `master_id`, UNLESS it has since
-  been accepted as the account's HEAD. Deletes only an object that is still
+  Reclaims the rejected-promote master object `master_id` of `account_id`'s
+  cache volume `volume_name`, UNLESS it has since been accepted as that volume's
+  HEAD. Deletes only an object that is still
   recorded as an orphan (never accepted) and is not the current HEAD's — a
   rejected image a later job committed is forgotten on acceptance and skipped
   here, so a live master is never dropped. Best-effort; called from
   `PruneVolumeMasterOrphanWorker` on a delay after the promote was rejected.
   """
-  def prune_orphan_volume_master(account_id, master_id) do
+  def prune_orphan_volume_master(account_id, volume_name, master_id) do
     cond do
-      not VolumeMasterOrphans.exists?(account_id, master_id) ->
+      not VolumeMasterOrphans.exists?(account_id, master_id, volume_name) ->
         # Accepted as HEAD (forgotten on acceptance) or already reclaimed.
         :ok
 
-      head_master_object_id(VolumeHeads.get_head(account_id)) == master_id ->
+      head_master_object_id(VolumeHeads.get_head(account_id, volume_name)) == master_id ->
         # Belt-and-suspenders: it is the live HEAD, so it is not an orphan. Forget
         # the stale row without deleting the object.
-        VolumeMasterOrphans.forget(account_id, master_id)
+        VolumeMasterOrphans.forget(account_id, master_id, volume_name)
         :ok
 
       true ->
@@ -536,18 +546,20 @@ defmodule Tuist.Runners do
         # stays so the worker's retry (or a later run) reclaims the object rather
         # than orphaning it permanently.
         with {:ok, account} <- Accounts.get_account_by_id(account_id),
-             :ok <- Storage.delete_object(volume_master_object_key(account_id, master_id), account) do
-          VolumeMasterOrphans.forget(account_id, master_id)
+             :ok <- Storage.delete_object(volume_master_object_key(account_id, volume_name, master_id), account) do
+          VolumeMasterOrphans.forget(account_id, master_id, volume_name)
           :ok
         end
     end
   end
 
   @doc """
-  Resolves the account a runner Pod ran, from the `tuist.dev/runner-account`
-  label the server stamped on it at claim. Authoritative — the runner can't
-  change it — so a volume-head report is bound to the account it actually ran,
-  not to whatever the request body claims.
+  Resolves the account and cache volume a runner Pod ran, from the
+  `tuist.dev/runner-account` and `tuist.dev/runner-cache-volume` labels the
+  server stamped on it at claim. Authoritative — the runner can't change them —
+  so a volume-head report is bound to the account and volume it actually ran,
+  not to whatever the request body claims. A Pod stamped without a volume label
+  ran the account's `tuist-cache` volume; a malformed one resolves nothing.
 
   A Pod carrying the `tuist.dev/runner-cache-untrusted` label (an untrusted
   fork-PR job) is rejected: it was dispatched with no volume-head and its cache
@@ -555,12 +567,14 @@ defmodule Tuist.Runners do
   account's shared HEAD. Fail-closed so a compromised fork job can't poison the
   master by reporting a promote.
   """
-  def account_id_for_sa(namespace, sa_name) do
+  def volume_owner_for_sa(namespace, sa_name) do
     with {:ok, pod} <- K8sClient.get_pod(namespace, pod_name_from_sa(sa_name)),
          :ok <- reject_untrusted_pod(pod),
          label when is_binary(label) <- get_in(pod, ["metadata", "labels", @account_label]),
-         {account_id, ""} <- Integer.parse(label) do
-      {:ok, account_id}
+         {account_id, ""} <- Integer.parse(label),
+         volume_name = get_in(pod, ["metadata", "labels", @cache_volume_label]) || VolumeHeads.reserved_tuist_cache(),
+         true <- VolumeHeads.valid_volume_name?(volume_name) do
+      {:ok, %{account_id: account_id, volume_name: volume_name}}
     else
       {:error, :cache_untrusted} = error -> error
       _ -> {:error, :account_unresolved}
@@ -577,11 +591,11 @@ defmodule Tuist.Runners do
 
   @doc """
   Object-storage prefix holding an account's runner cache-volume master
-  archive(s). Deleting this prefix removes the account's cache masters
-  regardless of the per-object key, so it is the unit of account-deletion
-  cleanup. Keyed by `account_id` (stable across handle renames), so it is not
-  swept by the account-handle-based artifact retention — account deletion is
-  what removes it.
+  archive(s), under one `<volume_name>/` directory per volume. Deleting this
+  prefix removes the account's cache masters regardless of the per-object key,
+  so it is the unit of account-deletion cleanup. Keyed by `account_id` (stable
+  across handle renames), so it is not swept by the account-handle-based
+  artifact retention — account deletion is what removes it.
   """
   def volume_master_object_prefix(account_id) do
     "runner-volume-masters/#{account_id}/"
@@ -592,8 +606,8 @@ defmodule Tuist.Runners do
   # instead of clobbering the one the current HEAD points at (the bug that
   # stranded the master on the promoting host). Dispatch derives the download key
   # from the HEAD row; the guest mints the matching upload key at promote time.
-  defp volume_master_object_key(account_id, master_id) do
-    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}/#{master_id}.image"
+  defp volume_master_object_key(account_id, volume_name, master_id) do
+    volume_master_object_prefix(account_id) <> "#{volume_name}/#{master_id}.image"
   end
 
   # A master object's identity, which its key is built from: the inventory digest,
@@ -1166,13 +1180,14 @@ defmodule Tuist.Runners do
           # host is told to skip materialize/promote via the untrusted label.
           trusted = job_trusted?(candidate, account)
           assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
+          volume_name = cache_volume_name(fleet_name, node_name, candidate)
 
           # Stamp the account label (the host's cache-materialize trigger) only
           # now that dispatch has fully committed — stamping it before the commit
           # would let a failed dispatch strand a stale account on a Pod that later
-          # runs a different one. The untrusted label rides the same patch so the
-          # host sees both atomically. See stamp_account_label/4.
-          stamp_account_label(namespace, pod_name, account, trusted)
+          # runs a different one. The volume and untrusted labels ride the same
+          # patch so the host sees them atomically. See stamp_account_label/5.
+          stamp_account_label(namespace, pod_name, account, volume_name, trusted)
 
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
@@ -1235,7 +1250,7 @@ defmodule Tuist.Runners do
              # presigned URLs for the account's master archive — trusted jobs
              # only. nil for an untrusted job (no convergence, and the guest has
              # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(trusted, do: volume_head_payload(account))
+             volume_head: if(trusted, do: volume_head_payload(account, volume_name))
            }}
         else
           {:error, reason} = err ->
@@ -1333,10 +1348,18 @@ defmodule Tuist.Runners do
   # the account the VM actually runs ever triggers materialization. Best-effort:
   # a stamp failure degrades to a cold (unmaterialized) job, never a
   # wrong-account one.
-  defp stamp_account_label(namespace, pod_name, account, trusted) do
-    labels = %{@account_label => Integer.to_string(account.id)}
+  defp stamp_account_label(namespace, pod_name, account, volume_name, trusted) do
+    labels = %{@account_label => Integer.to_string(account.id), @cache_volume_label => volume_name}
     labels = if trusted, do: labels, else: Map.put(labels, @cache_untrusted_label, "true")
     patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
+  end
+
+  defp cache_volume_name(fleet_name, node_name, candidate) do
+    if volume_affinity_enabled?(fleet_name) and VolumeAffinities.repository_volumes?(node_name) do
+      VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
+    else
+      VolumeHeads.reserved_tuist_cache()
+    end
   end
 
   # A job is trusted only when its workflow run's head repository is the base

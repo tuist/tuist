@@ -17,19 +17,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Per-account cache volumes for the macOS runner fleet.
+// Cache volumes for the macOS runner fleet, one per (account, volume).
 //
-// A VolumeManager owns the lifecycle of per-account cache masters kept as
-// sparse APFS disk images under a single quota-bounded runner-cache root. The
-// model is "materialize after dispatch":
+// A VolumeManager owns the lifecycle of cache masters kept as sparse APFS disk
+// images under a single quota-bounded runner-cache root, keyed by account and
+// volume. A job's volume is its repository's; a job with no repository uses
+// ReservedTuistCacheVolume. The model is "materialize after dispatch":
 //
 //   - A warm-pool VM boots GENERIC — an empty, writable directory is attached
 //     as a virtio-fs share at the cache root. No account data, no prediction.
-//   - The server stamps the pod's `tuist.dev/runner-account` label when it
-//     claims a job. The reconciler then calls Materialize, which APFS-
-//     clonefiles that account's master IMAGE into the VM's branch (instant,
-//     CoW) and the guest is signalled to attach it and proceed warm.
-//   - On job end Finalize promotes the branch image back to the account's
+//   - The server stamps the pod's `tuist.dev/runner-account` and
+//     `tuist.dev/runner-cache-volume` labels when it claims a job. The
+//     reconciler then calls Materialize, which APFS-clonefiles that volume's
+//     master IMAGE into the VM's branch (instant, CoW) and the guest is
+//     signalled to attach it and proceed warm.
+//   - On job end Finalize promotes the branch image back to that volume's
 //     master (job succeeded AND the cache changed) or discards it.
 //
 // The cache is a disk image rather than a directory tree because the share
@@ -62,11 +64,34 @@ import (
 // (VZXHCIController runtime attach): only the device swaps — an image on a
 // virtio-fs share today, a hot-attached block device once tart exposes the API.
 
-// ReservedTuistCacheVolume is the reserved volume name for the managed Tuist
-// module cache. Masters are keyed (account_id, volume_name) on disk so that
-// generic, user-declared volumes (spec #69) are new names rather than a
-// re-keying migration.
+// ReservedTuistCacheVolume is the account-wide volume, used by jobs with no
+// repository. Masters are keyed (account_id, volume_name) on disk.
 const ReservedTuistCacheVolume = "tuist-cache"
+
+// A repository's volume is "repo-" plus the first 16 hex characters of the
+// SHA-256 of its lowercased name, as the server derives it at claim.
+const (
+	repositoryVolumePrefix  = "repo-"
+	repositoryVolumeHashLen = 16
+)
+
+// isVolumeName reports whether name is a volume the server can stamp. It
+// becomes a directory name and part of a Node label key.
+func isVolumeName(name string) bool {
+	if name == ReservedTuistCacheVolume {
+		return true
+	}
+	hash, ok := strings.CutPrefix(name, repositoryVolumePrefix)
+	if !ok || len(hash) != repositoryVolumeHashLen {
+		return false
+	}
+	for _, r := range hash {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
 
 // cacheHomeSubdir is the single top-level directory the Tuist CLI writes under
 // its cache home (TUIST_XDG_CACHE_HOME/tuist/...), which the guest points at
@@ -182,7 +207,8 @@ const (
 type VolumeAttachment struct {
 	// Attached is false when the feature is off or admission declined.
 	Attached bool
-	// VolumeName is the reserved/generic volume name (tuist-cache in v1).
+	// VolumeName is the volume the branch materializes from and promotes into,
+	// set from the pod's volume label at materialize.
 	VolumeName string
 	// BranchPath is the per-VM branch directory shared into the VM. It holds
 	// exactly one file: the branch cache image.
@@ -203,8 +229,8 @@ type VolumeAttachment struct {
 	PromotedGeneration int
 }
 
-// VolumeManager manages per-account cache-volume master images under a single
-// quota-bounded runner-cache root. Safe for concurrent use.
+// VolumeManager manages cache-volume master images under a single quota-bounded
+// runner-cache root. Safe for concurrent use.
 type VolumeManager struct {
 	// Root is the runner-cache root — a dedicated quota-bounded APFS volume
 	// provisioned at host bootstrap. Empty disables the whole feature: every
@@ -391,12 +417,29 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	}, nil
 }
 
-// Materialize clonefiles the given account's master image into the VM's branch,
-// making the branch a warm, private CoW copy of the account's cache. It is
-// called once, after the server has stamped the pod's account label. Returns
-// warm=true when a master existed and was cloned; warm=false when the account
-// has no master on this host yet (a cold first job whose writes Finalize will
-// promote into that account's first master).
+// MaterializeSource is where a branch's image came from.
+type MaterializeSource string
+
+const (
+	MaterializedWarm MaterializeSource = "warm"
+	// MaterializedSeeded: a clone of the account's ReservedTuistCacheVolume
+	// master, for a repository volume with no master on this host.
+	MaterializedSeeded MaterializeSource = "seeded"
+	MaterializedCold   MaterializeSource = "cold"
+)
+
+// masterKey names one master: <root>/<account>/<volume>.
+type masterKey struct {
+	account string
+	volume  string
+}
+
+// Materialize clonefiles the master of the given account and the attachment's
+// volume into the VM's branch, making the branch a warm, private CoW copy of
+// that cache. It is called once, after the server has stamped the pod's account
+// and volume labels. A repository volume with no master here is seeded from the
+// account's ReservedTuistCacheVolume master when there is one; otherwise the job
+// runs cold and Finalize promotes its writes into the volume's first master.
 //
 // Every path leaves an image at the branch: the guest is already pointed at the
 // share and cannot attach what isn't there, and a missing image kills the job
@@ -410,55 +453,82 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 // cloned from, captured under the same lock as the clone so a background converge
 // cannot advance it out from under the value. This is the base the job builds on
 // — the guest sends it at promote and the server's fast-forward accepts the bump
-// only if HEAD is still at it. A cold clone (no master) has base 0.
-func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm bool, baseGeneration int, err error) {
+// only if HEAD is still at it. A cold or seeded branch has base 0.
+func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (source MaterializeSource, baseGeneration int, err error) {
 	if !m.Enabled() || !att.Attached || account == "" {
-		return false, 0, nil
+		return MaterializedCold, 0, nil
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := m.reserveLocked(att, account); err != nil {
-		return false, 0, err
+	source, from := m.materializeSourceLocked(account, att.VolumeName)
+	if err := m.reserveLocked(att, from); err != nil {
+		return MaterializedCold, 0, err
 	}
 
 	// The CAS store is folded into the cache image (casStoreDir), so it is cloned
 	// into the branch as part of the one image below — no separate CAS clone.
 
 	dest := m.BranchImage(att)
-	master := m.masterImage(account, att.VolumeName)
-	if _, statErr := os.Stat(master); statErr != nil {
-		// No master for this account here yet: cold path. The guest warms from
-		// the remote cache and Finalize promotes the result into a new master.
-		return false, 0, m.createBranchImageLocked(dest)
+	if source == MaterializedCold {
+		// No master to clone: the guest warms from the remote cache and Finalize
+		// promotes the result into the volume's first master.
+		return MaterializedCold, 0, m.createBranchImageLocked(dest)
 	}
 
-	base, err := m.masterGenerationLocked(account, att.VolumeName)
-	if err != nil {
-		return false, 0, err
+	if source == MaterializedWarm {
+		if baseGeneration, err = m.masterGenerationLocked(from.account, from.volume); err != nil {
+			return MaterializedCold, 0, err
+		}
 	}
 
 	// Clone beside the destination and rename, so a clone that fails partway
 	// never leaves a torn image the guest could attach.
+	master := m.masterImage(from.account, from.volume)
 	tmp := dest + ".materialize.tmp"
 	_ = os.Remove(tmp)
 	if err := m.backend.clonePath(master, tmp); err != nil {
 		_ = os.Remove(tmp)
-		return false, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
+		return MaterializedCold, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
 	}
 	_ = os.Remove(dest)
 	if err := os.Rename(tmp, dest); err != nil {
 		_ = os.Remove(tmp)
-		return false, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
+		return MaterializedCold, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
 	}
 	if err := chmodImageGuestWritable(dest); err != nil {
-		return false, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
+		return MaterializedCold, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
 	}
 	// Mark the master used so LRU tracks materialization, not just promotion —
-	// an account whose jobs keep landing here stays hot.
-	_ = os.Chtimes(master, m.now(), m.now())
-	return true, base, nil
+	// a volume whose jobs keep landing here stays hot. A seed source is not
+	// marked, so it ages out.
+	if source == MaterializedWarm {
+		_ = os.Chtimes(master, m.now(), m.now())
+	}
+	return source, baseGeneration, nil
+}
+
+// materializeSourceLocked picks the master a branch for (account, volume) is
+// cloned from: the volume's own, else for a repository volume the account's
+// ReservedTuistCacheVolume master, else none.
+func (m *VolumeManager) materializeSourceLocked(account, volume string) (MaterializeSource, masterKey) {
+	own := masterKey{account: account, volume: volume}
+	if m.hasMasterLocked(own) {
+		return MaterializedWarm, own
+	}
+	if volume != ReservedTuistCacheVolume {
+		seed := masterKey{account: account, volume: ReservedTuistCacheVolume}
+		if m.hasMasterLocked(seed) {
+			return MaterializedSeeded, seed
+		}
+	}
+	return MaterializedCold, masterKey{}
+}
+
+func (m *VolumeManager) hasMasterLocked(key masterKey) bool {
+	_, err := os.Stat(m.masterImage(key.account, key.volume))
+	return err == nil
 }
 
 // MaterializeEmpty gives a branch an empty image without consulting any
@@ -471,7 +541,7 @@ func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.reserveLocked(att, ""); err != nil {
+	if err := m.reserveLocked(att, masterKey{}); err != nil {
 		return err
 	}
 	return m.createBranchImageLocked(m.BranchImage(att))
@@ -481,15 +551,15 @@ func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
 // other reserved branch's worst-case remaining growth. statfs free already
 // reflects what reserved branches have written; reserving CapGiB per branch keeps
 // enough headroom that all of them reaching the cap cannot ENOSPC the volume. If
-// it doesn't fit, it evicts LRU masters other than keepAccount's, the master
-// about to be cloned; if it still doesn't, it declines with errAdmissionDeclined.
-// Reserving an already-reserved branch again is a no-op.
-func (m *VolumeManager) reserveLocked(att VolumeAttachment, keepAccount string) error {
+// it doesn't fit, it evicts LRU masters other than keep, the master about to be
+// cloned; if it still doesn't, it declines with errAdmissionDeclined. Reserving
+// an already-reserved branch again is a no-op.
+func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) error {
 	if m.reserved[att.BranchPath] {
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
-	free, err := m.ensureFreeLocked(want, keepAccount)
+	free, err := m.ensureFreeLocked(want, keep)
 	if errors.Is(err, errNoRoom) {
 		// Surfaced so a host wedged under disk pressure does not look identical to
 		// one where the feature is simply idle.
@@ -1069,18 +1139,30 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 	return len(masters), free, nil
 }
 
-// cacheMasterNodeLabelPrefix advertises one resident per-account cache master
-// per Node label, mirroring how golden base VMs are advertised. The suffix is
-// the account id, which is exactly what the master directories are named after
-// (the server stamps `tuist.dev/runner-account` with the account id and
-// Materialize uses that as the directory), so the server can read the label set
-// as account ids with no translation.
+// cacheMasterNodeLabelPrefix advertises one resident cache master per Node
+// label, mirroring how golden base VMs are advertised. The suffix is
+// `<account id>` for a ReservedTuistCacheVolume master and
+// `<account id>.<volume>` for a repository's: the master's directory names, as
+// the server stamped them on the pod. The longest name is 54 characters.
 const cacheMasterNodeLabelPrefix = "tuist.dev/cache-master-"
 
-// CacheMasterNodeLabels returns the Node labels advertising which accounts'
-// cache masters are resident on this host, for the node maintainer to publish.
+// repositoryVolumesNodeLabel tells the server this host reads the Pod's volume
+// label, so it may stamp a repository volume on jobs dispatched here. A host
+// without it gets ReservedTuistCacheVolume.
+const repositoryVolumesNodeLabel = "tuist.dev/cache-volumes-per-repository"
+
+func cacheMasterNodeLabel(key masterKey) string {
+	if key.volume == ReservedTuistCacheVolume {
+		return cacheMasterNodeLabelPrefix + key.account
+	}
+	return cacheMasterNodeLabelPrefix + key.account + "." + key.volume
+}
+
+// CacheMasterNodeLabels returns the Node labels advertising which (account,
+// volume) cache masters are resident on this host, for the node maintainer to
+// publish.
 //
-// The server prefers handing a polling node a queued job whose account's master
+// The server prefers handing a polling node a queued job whose volume's master
 // is already here, so the job materializes warm instead of cold. It cannot see
 // this host's disk, and the alternative was for it to model residency from its
 // own dispatch history plus the admission arithmetic. That model could not see
@@ -1105,15 +1187,16 @@ func (m *VolumeManager) CacheMasterNodeLabels() (map[string]string, error) {
 		return nil, err
 	}
 
+	labels[repositoryVolumesNodeLabel] = "true"
 	for _, master := range masters {
-		// A directory name that is not an account id cannot have come from
-		// Materialize. Skip it rather than emit a label that might be invalid:
-		// one bad key fails the whole Node update, which would take the
-		// advertisement for every other account down with it.
-		if !isAccountID(master.account) {
+		// A directory name that is not an account id or a volume cannot have come
+		// from Materialize. Skip it rather than emit a label that might be
+		// invalid: one bad key fails the whole Node update, which would take the
+		// advertisement for every other master down with it.
+		if !isAccountID(master.key.account) || !isVolumeName(master.key.volume) {
 			continue
 		}
-		labels[cacheMasterNodeLabelPrefix+master.account] = "true"
+		labels[cacheMasterNodeLabel(master.key)] = "true"
 	}
 	return labels, nil
 }
@@ -1188,11 +1271,11 @@ func (m *VolumeManager) reservedBranches() int {
 }
 
 // ensureFreeLocked makes sure at least want bytes are free, evicting LRU
-// masters other than keepAccount's as needed. Returns errNoRoom when even a
+// masters other than keep as needed. Returns errNoRoom when even a
 // fully-evicted root cannot fit the request (caller declines to the cold path). The returned free-bytes
 // value is the space available after any eviction, so the caller can log why a
 // decline happened without a second statfs.
-func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint64, error) {
+func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
 	free, err := m.backend.freeBytes(m.Root)
 	if err != nil {
 		return 0, err
@@ -1208,7 +1291,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint6
 		if free >= want {
 			return free, nil
 		}
-		if keepAccount != "" && mm.account == keepAccount {
+		if mm.key == keep {
 			continue
 		}
 		if err := os.RemoveAll(mm.path); err != nil {
@@ -1227,7 +1310,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint6
 }
 
 type masterEntry struct {
-	account string
+	key     masterKey
 	path    string
 	modTime time.Time
 }
@@ -1276,7 +1359,7 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 				continue
 			}
 			out = append(out, masterEntry{
-				account: acct.Name(),
+				key:     masterKey{account: acct.Name(), volume: vol.Name()},
 				path:    m.volumeDir(acct.Name(), vol.Name()),
 				modTime: info.ModTime(),
 			})
