@@ -32,7 +32,7 @@
     flex-shrink: 0;
     align-self: flex-start;
     margin-top: var(--noora-spacing-5);
-    max-height: 100vh;
+    max-height: calc(100vh - 72px);
     overflow-y: auto;
   }
 

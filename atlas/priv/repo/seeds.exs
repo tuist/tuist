@@ -35,6 +35,7 @@ alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
 alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
+alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
 alias Atlas.Evidence
@@ -5835,3 +5836,91 @@ Enum.each(summary_run_fixtures, fn fixture ->
   |> ErrorsSummaryRun.changeset(attrs)
   |> Repo.insert_or_update!()
 end)
+
+# Engineering postmortems: seed a couple of published incidents so the
+# /engineering/postmortems index has real content on a fresh local DB.
+postmortem_author = Repo.get_by(User, email: "alex@atlas.dev")
+cache_domain = Repo.get_by(EngineeringDomain, name: "Cache")
+registry_domain = Repo.get_by(EngineeringDomain, name: "Registry")
+
+postmortem_fixtures = [
+  %{
+    body: """
+    # Cache mesh partial partition — 2026-08-22
+
+    ## Summary
+    A Kura peer in `fsn1` stopped serving `GetActionResult` for ~14 minutes
+    after a memory-pressure eviction cascade denied its snapshot gate.
+
+    ## Impact
+    CI runs on affected accounts saw REAPI `NOT_FOUND` on warm actions and
+    fell back to local execution. No data was lost.
+
+    ## Root cause
+    The snapshot gate refused to serve digests whose blobs had been evicted
+    by the LRU sweep in the same tick. The gate is a backstop, but the
+    eviction cascade was not atomic across gate + storage.
+
+    ## Resolution
+    Made the eviction cascade atomic. Kept the gates as a defense in depth.
+    """,
+    visibility: :public,
+    domain_ids: [cache_domain && cache_domain.id]
+  },
+  %{
+    body: """
+    # Swift registry publish failure — 2026-09-04
+
+    ## Summary
+    Package publishes silently corrupted xcframeworks by flattening
+    symlinks in the archive writer.
+
+    ## Impact
+    Consumers of a handful of packages hit `a sealed resource is missing
+    or invalid` at codesign verification, blocking release builds.
+
+    ## Root cause
+    `:zip.create` does not preserve symlinks. The writer path had no
+    coverage for signed bundles.
+
+    ## Resolution
+    Switched the writer to a symlink-preserving path and backfilled the
+    affected releases.
+    """,
+    visibility: :public,
+    domain_ids: [registry_domain && registry_domain.id]
+  },
+  %{
+    body: """
+    # Draft: preview migration credential leak
+
+    Draft postmortem being written up. Do not share externally.
+    """,
+    visibility: :private,
+    domain_ids: []
+  }
+]
+
+if postmortem_author do
+  Enum.each(postmortem_fixtures, fn attrs ->
+    domain_ids = attrs.domain_ids |> Enum.reject(&is_nil/1)
+
+    payload = %{
+      "body" => attrs.body,
+      "visibility" => Atom.to_string(attrs.visibility),
+      "domain_ids" => Enum.map(domain_ids, &to_string/1)
+    }
+
+    first_line = payload["body"] |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ")
+
+    already_seeded? =
+      Postmortems.list_postmortems(postmortem_author)
+      |> Enum.any?(fn pm ->
+        pm.body |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ") == first_line
+      end)
+
+    if !already_seeded? do
+      {:ok, _postmortem} = Postmortems.publish_postmortem(payload, postmortem_author)
+    end
+  end)
+end
