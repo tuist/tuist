@@ -487,6 +487,25 @@ defmodule TuistWeb.CoverageLive do
   def gate_value(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
   def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)} pt"
 
+  @doc "The directory a file sits in, or nil for one at the repository's root."
+  def parent_dir(path) do
+    case Path.dirname(path) do
+      "." -> nil
+      dir -> dir
+    end
+  end
+
+  @doc """
+  A branch's or pull request's state. Chaining is about a trend, which a
+  single head commit has none of, so a ref is either complete or still
+  waiting for its pipeline to say so.
+  """
+  def ref_status_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
+  def ref_status_label(_ref), do: dgettext("dashboard_tests", "Pending")
+
+  def ref_status_color(%{complete: true}), do: "success"
+  def ref_status_color(_ref), do: "information"
+
   @doc "Whether a ref is a branch or a pull request, as its row's kind reads."
   def ref_kind_label("pull_request"), do: dgettext("dashboard_tests", "Pull request")
   def ref_kind_label(_kind), do: dgettext("dashboard_tests", "Branch")
