@@ -22,9 +22,9 @@ defmodule AtlasWeb.RouterAuthTest do
     end
   end
 
-  test "GET / redirects to /commercial/sales when authenticated", %{conn: conn} do
+  test "GET / renders the overview page when authenticated", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
     conn = get(conn, "/")
-    assert redirected_to(conn) == "/commercial/sales"
+    assert html_response(conn, 200) =~ ~s(id="overview")
   end
 end

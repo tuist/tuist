@@ -1,18 +1,16 @@
 ---
 {
-  "title": "Generated Projects Flaky Tests",
-  "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
-  "description": "Detect, manage, and quarantine flaky tests in Tuist generated projects."
+  "title": "Generated Xcode project",
+  "titleTemplate": ":title · Flaky tests · Test insights · Features · Guides · Tuist",
+  "description": "Detect, manage, and quarantine flaky tests in a Tuist-generated Xcode project."
 }
 ---
-# Generated projects flaky tests {#generated-projects-flaky-tests}
+# Generated Xcode project {#generated-xcode-project-flaky-tests}
 
 > [!WARNING]
 > **Requirements**
 >
-> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
-> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
-
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured (auto-generated schemes include the `tuist inspect test` post-action; custom schemes need it added).
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 

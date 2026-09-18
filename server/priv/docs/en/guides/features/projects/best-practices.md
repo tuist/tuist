@@ -161,7 +161,7 @@ If a worktree falls back to source builds when you expected a cache hit, follow 
 
 #### Speed up Swift Package resolution with the registry {#worktrees-registry}
 
-Each worktree resolves Swift packages independently. On a project with a large dependency graph that adds up fast. Switching to the <.localized_link href="/guides/features/registry">Tuist Registry</.localized_link> avoids re-cloning git histories and drops resolution from minutes to seconds.
+Each worktree resolves Swift packages independently. On a project with a large dependency graph that adds up fast. Switching to the <.localized_link href="/guides/features/package-registries/swift">Tuist Registry</.localized_link> avoids re-cloning git histories and drops resolution from minutes to seconds.
 
 #### Give agents access to project insights {#worktrees-mcp}
 

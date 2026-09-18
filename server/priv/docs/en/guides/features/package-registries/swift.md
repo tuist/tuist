@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Registry",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize Swift Package Manager resolution with the Tuist Registry."
+  "title": "Swift",
+  "titleTemplate": ":title · Package Registries · Features · Guides · Tuist",
+  "description": "Speed up Swift Package Manager resolution from minutes to seconds with the Tuist Swift package registry, backed by Tuist's global cache network."
 }
 ---
-# Registry {#registry}
+# Swift Package Registry {#swift-package-registry}
 
 As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming and takes up more memory than a centralized approach would. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commits you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) -- if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
 
@@ -32,7 +32,7 @@ let tuist = Tuist(
 With this option, `tuist generate` will automatically create the registry configuration file in your workspace. This eliminates the need to run `tuist registry setup` separately.
 
 > [!TIP]
-> `registryEnabled` also configures the registry for projects that integrate dependencies through Xcode's default Swift Package Manager integration, rather than Tuist's XcodeProj-based integration. It doesn't configure Xcode to resolve packages that are declared with a source control URL from the registry. To do that, run `tuist registry setup` once on each machine, as described in <.localized_link href="/guides/features/registry/xcode-project#resolving-source-control-packages">Resolving source control packages</.localized_link>.
+> `registryEnabled` also configures the registry for projects that integrate dependencies through Xcode's default Swift Package Manager integration, rather than Tuist's XcodeProj-based integration. It doesn't configure Xcode to resolve packages that are declared with a source control URL from the registry. To do that, run `tuist registry setup` once on each machine, as described in <.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">Resolving source control packages</.localized_link>.
 
 
 ### Option 2: Manual setup {#manual-setup}
@@ -60,12 +60,12 @@ tuist registry login
 ### Resolving dependencies {#resolving-dependencies}
 
 To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
-- <.localized_link href="/guides/features/registry/xcode-project">Xcode project</.localized_link>
-- <.localized_link href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</.localized_link>
-- <.localized_link href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</.localized_link>
-- <.localized_link href="/guides/features/registry/swift-package">Swift package</.localized_link>
+- <.localized_link href="/guides/features/package-registries/swift/xcode-project">Xcode project</.localized_link>
+- <.localized_link href="/guides/features/package-registries/swift/generated-project">Generated project with the Xcode package integration</.localized_link>
+- <.localized_link href="/guides/features/package-registries/swift/xcodeproj-integration">Generated project with the XcodeProj-based package integration</.localized_link>
+- <.localized_link href="/guides/features/package-registries/swift/swift-package">Swift package</.localized_link>
 
-To set up the registry on the CI, follow this guide: <.localized_link href="/guides/features/registry/continuous-integration">Continuous integration</.localized_link>.
+To set up the registry on the CI, follow this guide: <.localized_link href="/guides/features/package-registries/swift/continuous-integration">Continuous integration</.localized_link>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 
