@@ -279,28 +279,26 @@ defmodule TuistWeb.CoverageLive do
 
   attr :title, :string, required: true
   attr :get_started_href, :string, default: nil
+  attr :image, :string, default: "line_chart", values: ~w(line_chart table)
   attr :rest, :global
 
   defp coverage_empty(assigns) do
+    assigns = assign(assigns, :artwork, empty_artwork(assigns.image))
+
     ~H"""
     <.empty_card_section title={@title} get_started_href={@get_started_href} {@rest}>
       <:image>
-        <img
-          src={~p"/images/empty_line_chart_light.png"}
-          data-theme="light"
-          loading="lazy"
-          decoding="async"
-        />
-        <img
-          src={~p"/images/empty_line_chart_dark.png"}
-          data-theme="dark"
-          loading="lazy"
-          decoding="async"
-        />
+        <img src={@artwork.light} data-theme="light" loading="lazy" decoding="async" />
+        <img src={@artwork.dark} data-theme="dark" loading="lazy" decoding="async" />
       </:image>
     </.empty_card_section>
     """
   end
+
+  defp empty_artwork("table"), do: %{light: ~p"/images/empty_table_light.png", dark: ~p"/images/empty_table_dark.png"}
+
+  defp empty_artwork(_image),
+    do: %{light: ~p"/images/empty_line_chart_light.png", dark: ~p"/images/empty_line_chart_dark.png"}
 
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
@@ -320,16 +318,13 @@ defmodule TuistWeb.CoverageLive do
 
   defp change_cell(assigns) do
     ~H"""
-    <div data-part="cell" data-type="text">
-      <.badge
-        :if={@delta}
-        style="light-fill"
-        size="small"
-        color={change_color({:delta, @delta})}
-        label={"#{signed(@delta)} pp"}
-      />
-      <span :if={is_nil(@delta)} data-part="label">—</span>
-    </div>
+    <.badge_cell
+      :if={@delta}
+      style="light-fill"
+      color={change_color({:delta, @delta})}
+      label={"#{signed(@delta)} pp"}
+    />
+    <.text_cell :if={is_nil(@delta)} label="—" />
     """
   end
 
@@ -359,7 +354,7 @@ defmodule TuistWeb.CoverageLive do
   # The schemes that measured a commit, the partial ones marked.
   defp measured_by_cell(assigns) do
     ~H"""
-    <div data-part="cell" data-type="text">
+    <div data-part="cell" data-type="badge">
       <div data-part="tags">
         <.badge
           :for={scheme <- @commit.schemes}
