@@ -1004,11 +1004,12 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
-    # an admission line of 1303 (85% of allocatable), so Admission refused every
-    # storage claim growth here — and a claim is account-scoped, so that refusal
-    # also blocked the regions the same accounts run in that did have room.
-    replicas: 3
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
