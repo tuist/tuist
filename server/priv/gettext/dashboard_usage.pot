@@ -431,5 +431,5 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:286
 #: lib/tuist_web/live/usage_live.html.heex:326
 #, elixir-autogen, elixir-format
-msgid "Tuist Runners traffic discount"
+msgid "Tuist Runners discount"
 msgstr ""

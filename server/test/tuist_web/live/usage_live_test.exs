@@ -227,7 +227,7 @@ defmodule TuistWeb.UsageLiveTest do
       assert has_element?(lv, usage, "3.50")
       assert has_element?(lv, usage, "1.00")
       assert has_element?(lv, usage, "Estimated for this period")
-      refute has_element?(lv, usage, "Tuist Runners traffic discount")
+      refute has_element?(lv, usage, "Tuist Runners discount")
       refute has_element?(lv, "[data-part='cache-usage-card']", "Billed this period")
 
       lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
@@ -235,7 +235,7 @@ defmodule TuistWeb.UsageLiveTest do
       egress = "[data-part='cache-usage-card'] [data-kind='egress']"
       refute has_element?(lv, egress, "Module cache")
       assert has_element?(lv, egress, "140.0 GB of egress")
-      assert has_element?(lv, egress, "Tuist Runners traffic discount")
+      assert has_element?(lv, egress, "Tuist Runners discount")
       assert has_element?(lv, egress, "−10.50")
       assert has_element?(lv, egress, "100.0 GB included")
       assert has_element?(lv, egress, "Estimated for this period")
