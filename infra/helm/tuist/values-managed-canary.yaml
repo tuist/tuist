@@ -283,29 +283,19 @@ clickhouse:
     # canary is for is the shape production will run, which staging does not
     # exercise: two replicas here, one on each AX42-1.
     #
-    # Still one replica, running the configuration a second one needs, so
-    # that configuration reaches it in a deploy of its own. A joining replica
-    # fetches every part from the address its peer registered in Keeper, and
-    # before this configuration that address is the pod's name under a
-    # Service that is not headless, which does not resolve. The StatefulSet
-    # creates a new replica before it restarts the old one, so adding the
-    # second replica in the same deploy would leave it unable to catch up and
-    # the rollout waiting on it until helm gives up.
-    #
     # Keeper stays at one member. Growing a live ensemble to three is a
     # membership change, not a replica count: new members started with a
     # three-server configuration can elect a leader between themselves with
     # none of the existing member's metadata.
-    replicas: 1
+    replicas: 2
     persistence:
       size: 200Gi
       localVolume:
-        # The box that has held the data since the migration began. The
-        # second one, bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv, is
-        # joined, tainted and idle until it becomes replica 1. See `nodeNames`
-        # in values.yaml.
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
         nodeNames:
           - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does
