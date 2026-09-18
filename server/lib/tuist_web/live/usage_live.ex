@@ -518,23 +518,30 @@ defmodule TuistWeb.UsageLive do
   def money_label(money), do: CldrHelpers.format_money(money)
 
   @doc """
-  Chart options for the cache usage card's selected view: money for the
-  charge, bytes for egress, and a plain count for requests.
+  Chart options for a usage pricing chart whose values are in `unit`:
+  `:currency`, `:bytes`, or `:count`.
   """
-  def cache_chart_options(dates, view) do
-    {formatter, value_format} =
-      case view do
-        "egress" -> {"fn:formatBytes", "fn:formatBytes"}
-        "requests" -> {"fn:formatNumber", "fn:formatNumber"}
-        "charge" -> {"fn:formatCurrency", "fn:formatCurrency"}
+  def usage_chart_options(dates, unit) do
+    formatter =
+      case unit do
+        :currency -> "fn:formatCurrency"
+        :bytes -> "fn:formatBytes"
+        :count -> "fn:formatNumber"
       end
 
     dates
     |> runner_chart_options()
-    |> Map.merge(%{legend: chart_legend(), grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}})
-    |> Map.put(:tooltip, %{valueFormat: value_format})
+    |> Map.merge(%{
+      legend: chart_legend(),
+      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true},
+      tooltip: %{valueFormat: formatter}
+    })
     |> put_in([:yAxis, :axisLabel, :formatter], formatter)
   end
+
+  def cache_chart_unit("charge"), do: :currency
+  def cache_chart_unit("egress"), do: :bytes
+  def cache_chart_unit("requests"), do: :count
 
   @doc """
   Every date a usage pricing chart draws, spend and projection alike.
@@ -576,6 +583,20 @@ defmodule TuistWeb.UsageLive do
     field = if view == "egress", do: :bytes, else: :requests
     dates = usage_chart_dates(cache)
 
+    project_series(days, dates, field) ++ projected_series(cache.projected_days, dates, field)
+  end
+
+  @doc """
+  The daily value of billable passing test cases by project, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def tests_chart_series(%{days: days, projected_days: projected_days} = tests) do
+    dates = usage_chart_dates(tests)
+
+    project_series(days, dates, :dollars) ++ projected_series(projected_days, dates, :dollars)
+  end
+
+  defp project_series(days, dates, field) do
     days
     |> Enum.group_by(& &1.project)
     |> Enum.sort_by(fn {_project, rows} -> -Enum.sum(Enum.map(rows, &Map.fetch!(&1, field))) end)
@@ -589,18 +610,6 @@ defmodule TuistWeb.UsageLive do
         field
       )
     end)
-    |> Kernel.++(projected_series(cache.projected_days, dates, field))
-  end
-
-  @doc """
-  The daily value of billable passing test cases, followed by the projection
-  for the days the period has not reached yet.
-  """
-  def tests_chart_series(%{days: days, projected_days: projected_days} = tests) do
-    dates = usage_chart_dates(tests)
-
-    [bar_series(dgettext("dashboard_usage", "Passing test cases"), "primary", dates, days, :dollars)] ++
-      projected_series(projected_days, dates, :dollars)
   end
 
   defp projected_series([], _dates, _field), do: []

@@ -64,19 +64,15 @@ defmodule Tuist.Billing.UsagePricing do
 
     cache_rows = UsageMeters.cache_downloads(account.id, period_start, usage_end)
     test_rows = UsageMeters.test_case_runs(account.id, period_start, usage_end)
+    project_names = UsageMeters.project_names(account.id)
+    period = {period_start, period_end, usage_end}
 
     %{
       period_start: DateTime.to_date(period_start),
       period_end: DateTime.to_date(period_end),
       usage_through: DateTime.to_date(usage_end),
-      cache:
-        cache_breakdown(
-          cache_rows,
-          UsageMeters.project_names(account.id),
-          subscribed,
-          {period_start, period_end, usage_end}
-        ),
-      tests: tests_breakdown(test_rows, subscribed, {period_start, period_end, usage_end})
+      cache: cache_breakdown(cache_rows, project_names, subscribed, period),
+      tests: tests_breakdown(test_rows, project_names, subscribed, period)
     }
   end
 
@@ -114,7 +110,7 @@ defmodule Tuist.Billing.UsagePricing do
     }
   end
 
-  defp tests_breakdown(rows, subscribed, {period_start, period_end, usage_end}) do
+  defp tests_breakdown(rows, project_names, subscribed, {period_start, period_end, usage_end}) do
     totals = test_totals(rows)
     billable = max(totals.passed - @included_passing_test_cases, 0)
     gross = passing_test_case_cost(totals.passed)
@@ -123,11 +119,15 @@ defmodule Tuist.Billing.UsagePricing do
     days =
       rows
       |> Enum.filter(&(&1.status == "success" and not &1.runners))
-      |> Enum.group_by(& &1.date, & &1.count)
-      |> Enum.map(fn {date, counts} ->
-        %{date: date, dollars: dollars(Enum.sum(counts) * @cents_per_million_passing_test_cases / 1_000_000)}
+      |> Enum.group_by(&{&1.date, Map.get(project_names, &1.project_id)}, & &1.count)
+      |> Enum.map(fn {{date, project}, counts} ->
+        %{
+          date: date,
+          project: project,
+          dollars: dollars(Enum.sum(counts) * @cents_per_million_passing_test_cases / 1_000_000)
+        }
       end)
-      |> Enum.sort_by(&Date.to_erl(&1.date))
+      |> Enum.sort_by(&{Date.to_erl(&1.date), &1.project || ""})
 
     Map.merge(totals, %{
       included: @included_passing_test_cases,

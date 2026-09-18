@@ -24,7 +24,8 @@ defmodule Tuist.Billing.UsagePricingTest do
   defp cache_row(attrs),
     do: Map.merge(%{date: ~D[2026-05-10], project_id: 1, runners: false, bytes: 0, requests: 0}, attrs)
 
-  defp test_row(attrs), do: Map.merge(%{date: ~D[2026-05-10], status: "success", runners: false, count: 0}, attrs)
+  defp test_row(attrs),
+    do: Map.merge(%{date: ~D[2026-05-10], project_id: 1, status: "success", runners: false, count: 0}, attrs)
 
   describe "meter_values/3" do
     test "halves runner traffic and reports egress in whole megabytes", %{account: account} do
@@ -119,7 +120,8 @@ defmodule Tuist.Billing.UsagePricingTest do
     test "bills only passing test cases that did not run on Tuist Runners", %{account: account} do
       stub(UsageMeters, :test_case_runs, fn _, _, _ ->
         [
-          test_row(%{status: "success", count: 6_000_000}),
+          test_row(%{status: "success", count: 4_000_000}),
+          test_row(%{project_id: 2, status: "success", count: 2_000_000}),
           test_row(%{status: "failure", count: 2_000_000}),
           test_row(%{status: "skipped", count: 1_000_000}),
           test_row(%{status: "success", runners: true, count: 4_000_000}),
@@ -134,6 +136,11 @@ defmodule Tuist.Billing.UsagePricingTest do
       assert tests.skipped == 1_000_000
       assert tests.on_runners == 4_000_500
       assert tests.charge == Money.new(200, :USD)
+
+      assert tests.days == [
+               %{date: ~D[2026-05-10], project: "android", dollars: 4.0},
+               %{date: ~D[2026-05-10], project: "ios", dollars: 8.0}
+             ]
     end
 
     test "only bills an account with a subscription", %{account: account} do

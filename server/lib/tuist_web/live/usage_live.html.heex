@@ -235,9 +235,9 @@
             id="cache-spend-chart"
             type="bar"
             extra_options={
-              TuistWeb.UsageLive.cache_chart_options(
+              TuistWeb.UsageLive.usage_chart_options(
                 TuistWeb.UsageLive.usage_chart_dates(pricing.cache),
-                @cache_view
+                TuistWeb.UsageLive.cache_chart_unit(@cache_view)
               )
             }
             series={TuistWeb.UsageLive.cache_chart_series(pricing.cache, @cache_view)}
@@ -386,14 +386,6 @@
             value={CldrHelpers.format_number(pricing.tests.passed)}
           />
           <.widget
-            id="widget-not-billed-test-cases"
-            title={dgettext("dashboard_usage", "Not billed")}
-            description={dgettext("dashboard_usage", "Failed, skipped, and run on Tuist Runners")}
-            value={
-              CldrHelpers.format_number(TuistWeb.UsageLive.not_billed_test_cases(pricing.tests))
-            }
-          />
-          <.widget
             id="widget-tests-charge"
             title={TuistWeb.UsageLive.usage_charge_title(pricing.tests)}
             description={TuistWeb.UsageLive.usage_charge_description(pricing.tests)}
@@ -410,8 +402,9 @@
             id="tests-spend-chart"
             type="bar"
             extra_options={
-              TuistWeb.UsageLive.runner_chart_options(
-                TuistWeb.UsageLive.usage_chart_dates(pricing.tests)
+              TuistWeb.UsageLive.usage_chart_options(
+                TuistWeb.UsageLive.usage_chart_dates(pricing.tests),
+                :currency
               )
             }
             series={TuistWeb.UsageLive.tests_chart_series(pricing.tests)}

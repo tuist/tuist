@@ -191,7 +191,7 @@ defmodule TuistWeb.UsageLiveTest do
         included_credit: Money.new(1_000, :USD),
         charge: tests_charge,
         billed: if(billed?, do: tests_charge),
-        days: [%{date: ~D[2026-08-20], dollars: 0.4}],
+        days: [%{date: ~D[2026-08-20], project: "ios", dollars: 0.4}],
         projected_days: []
       }
     }
@@ -242,7 +242,7 @@ defmodule TuistWeb.UsageLiveTest do
       assert has_element?(lv, egress, "On track for about 210.0 GB this period.")
 
       assert has_element?(lv, "#widget-passing-test-cases", "6M")
-      assert has_element?(lv, "#widget-not-billed-test-cases", "4M")
+      refute has_element?(lv, "#widget-not-billed-test-cases")
       assert has_element?(lv, "[data-kind='not-billed-test-cases']", "20K failed")
       assert has_element?(lv, "[data-kind='not-billed-test-cases']", "3,000 skipped")
       assert has_element?(lv, "[data-kind='not-billed-test-cases']", "4M run on Tuist Runners")
@@ -758,11 +758,33 @@ defmodule TuistWeb.UsageLiveTest do
     test "formats the axis for the selected view", %{cache: cache} do
       dates = UsageLive.usage_chart_dates(cache)
 
-      assert UsageLive.cache_chart_options(dates, "egress").yAxis.axisLabel.formatter == "fn:formatBytes"
-      assert UsageLive.cache_chart_options(dates, "requests").tooltip.valueFormat == "fn:formatNumber"
-      assert UsageLive.cache_chart_options(dates, "charge").legend.top == "bottom"
-      assert UsageLive.cache_chart_options(dates, "egress").legend.top == "bottom"
-      assert UsageLive.cache_chart_options(dates, "requests").legend.top == "bottom"
+      for {view, formatter} <- [
+            {"charge", "fn:formatCurrency"},
+            {"egress", "fn:formatBytes"},
+            {"requests", "fn:formatNumber"}
+          ] do
+        options = UsageLive.usage_chart_options(dates, UsageLive.cache_chart_unit(view))
+
+        assert options.yAxis.axisLabel.formatter == formatter
+        assert options.tooltip.valueFormat == formatter
+        assert options.legend.top == "bottom"
+      end
+    end
+  end
+
+  describe "tests_chart_series/1" do
+    test "stacks the value of passing test cases by project, then the projection" do
+      tests = %{
+        days: [
+          %{date: ~D[2026-08-20], project: "ios", dollars: 0.2},
+          %{date: ~D[2026-08-20], project: "android", dollars: 0.6}
+        ],
+        projected_days: [%{date: ~D[2026-08-21], dollars: 0.8}]
+      }
+
+      assert [android, ios, projected] = UsageLive.tests_chart_series(tests)
+      assert {android.name, ios.name, projected.name} == {"android", "ios", "Projected"}
+      assert [[~D[2026-08-20], 0.6], [~D[2026-08-21], +0.0]] = android.data
     end
   end
 

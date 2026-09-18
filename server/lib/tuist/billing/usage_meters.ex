@@ -111,11 +111,11 @@ defmodule Tuist.Billing.UsageMeters do
   end
 
   @doc """
-  Test case runs per UTC day of `ran_at`, split by status and by whether their
-  test run came from a Tuist Runners job.
+  Test case runs per UTC day of `ran_at`, split by project, by status, and by
+  whether their test run came from a Tuist Runners job.
 
-  Returns `%{date, status, runners, count}` rows, where `status` is one of
-  `"success"`, `"failure"`, or `"skipped"`.
+  Returns `%{date, project_id, status, runners, count}` rows, where `status` is
+  one of `"success"`, `"failure"`, or `"skipped"`.
   """
   def test_case_runs(account_id, %DateTime{} = period_start, %DateTime{} = period_end) when is_integer(account_id) do
     project_ids = project_ids(account_id)
@@ -124,20 +124,22 @@ defmodule Tuist.Billing.UsageMeters do
       project_ids
       |> Enum.chunk_every(@project_ids_chunk_size)
       |> Enum.flat_map(&all_test_case_runs(&1, period_start, period_end))
-      |> counts_by_day_and_status()
+      |> counts_by_day_project_and_status()
 
     on_runners =
       project_ids
       |> Enum.chunk_every(@project_ids_chunk_size)
       |> Enum.flat_map(&runner_test_case_runs(&1, account_id, period_start, period_end))
-      |> counts_by_day_and_status()
+      |> counts_by_day_project_and_status()
 
     elsewhere =
       Enum.map(all, fn {key, count} -> {key, max(count - Map.get(on_runners, key, 0), 0)} end)
 
     [{false, elsewhere}, {true, on_runners}]
     |> Enum.flat_map(fn {runners, counts} ->
-      Enum.map(counts, fn {{date, status}, count} -> %{date: date, status: status, runners: runners, count: count} end)
+      Enum.map(counts, fn {{date, project_id, status}, count} ->
+        %{date: date, project_id: project_id, status: status, runners: runners, count: count}
+      end)
     end)
     |> Enum.reject(&(&1.count == 0))
   end
@@ -148,8 +150,13 @@ defmodule Tuist.Billing.UsageMeters do
         hints: ["FINAL"],
         where: fragment("? IN (?)", r.project_id, type(^project_ids, {:array, :integer})),
         where: r.ran_at >= ^period_start and r.ran_at < ^period_end,
-        group_by: [fragment("toDate(?)", r.ran_at), r.status],
-        select: %{date: fragment("toDate(?)", r.ran_at), status: r.status, count: fragment("count()")}
+        group_by: [fragment("toDate(?)", r.ran_at), r.project_id, r.status],
+        select: %{
+          date: fragment("toDate(?)", r.ran_at),
+          project_id: r.project_id,
+          status: r.status,
+          count: fragment("count()")
+        }
       )
     )
   end
@@ -175,15 +182,20 @@ defmodule Tuist.Billing.UsageMeters do
         hints: ["FINAL"],
         where: r.test_run_id in subquery(test_run_ids),
         where: r.ran_at >= ^period_start and r.ran_at < ^period_end,
-        group_by: [fragment("toDate(?)", r.ran_at), r.status],
-        select: %{date: fragment("toDate(?)", r.ran_at), status: r.status, count: fragment("count()")}
+        group_by: [fragment("toDate(?)", r.ran_at), r.project_id, r.status],
+        select: %{
+          date: fragment("toDate(?)", r.ran_at),
+          project_id: r.project_id,
+          status: r.status,
+          count: fragment("count()")
+        }
       )
     )
   end
 
-  defp counts_by_day_and_status(rows) do
+  defp counts_by_day_project_and_status(rows) do
     Enum.reduce(rows, %{}, fn row, acc ->
-      Map.update(acc, {row.date, row.status}, to_integer(row.count), &(&1 + to_integer(row.count)))
+      Map.update(acc, {row.date, row.project_id, row.status}, to_integer(row.count), &(&1 + to_integer(row.count)))
     end)
   end
 

@@ -210,9 +210,9 @@ defmodule Tuist.Billing.UsageMetersTest do
       test_case_runs(project, test_run, ["success", "success", "failure", "skipped"])
 
       assert account.id |> UsageMeters.test_case_runs(@period_start, @period_end) |> Enum.sort_by(& &1.status) == [
-               %{date: ~D[2026-05-01], status: "failure", runners: false, count: 1},
-               %{date: ~D[2026-05-01], status: "skipped", runners: false, count: 1},
-               %{date: ~D[2026-05-01], status: "success", runners: false, count: 2}
+               %{date: ~D[2026-05-01], project_id: project.id, status: "failure", runners: false, count: 1},
+               %{date: ~D[2026-05-01], project_id: project.id, status: "skipped", runners: false, count: 1},
+               %{date: ~D[2026-05-01], project_id: project.id, status: "success", runners: false, count: 2}
              ]
 
       assert UsageMeters.test_case_runs(uploader.id, @period_start, @period_end) == []
@@ -235,9 +235,9 @@ defmodule Tuist.Billing.UsageMetersTest do
              |> UsageMeters.test_case_runs(@period_start, @period_end)
              |> Enum.sort_by(&{&1.runners, &1.status}) ==
                [
-                 %{date: ~D[2026-05-01], status: "success", runners: false, count: 1},
-                 %{date: ~D[2026-05-01], status: "failure", runners: true, count: 1},
-                 %{date: ~D[2026-05-01], status: "success", runners: true, count: 2}
+                 %{date: ~D[2026-05-01], project_id: project.id, status: "success", runners: false, count: 1},
+                 %{date: ~D[2026-05-01], project_id: project.id, status: "failure", runners: true, count: 1},
+                 %{date: ~D[2026-05-01], project_id: project.id, status: "success", runners: true, count: 2}
                ]
     end
 
