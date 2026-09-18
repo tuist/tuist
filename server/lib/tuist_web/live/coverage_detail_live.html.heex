@@ -1,49 +1,64 @@
 <div id="coverage-detail">
+  <.button
+    label={dgettext("dashboard_tests", "Code coverage")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
   <div data-part="header">
-    <.button
-      label={dgettext("dashboard_tests", "Code coverage")}
-      variant="secondary"
-      size="medium"
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
-    >
-      <:icon_left><.icon name="arrow_left" /></:icon_left>
-    </.button>
-    <h1 data-part="title">{subject_title(@subject)}</h1>
-    <div data-part="subtitle">
-      <.badge
-        :if={@subject.kind != :commit}
-        label={short_sha(@subject.sha)}
-        color="neutral"
-        style="light-fill"
-        size="large"
-      />
-      <.badge
-        :if={@subject.kind == :commit}
-        label={@subject.sha}
-        color="neutral"
-        style="light-fill"
-        size="large"
-      />
-      <span :if={@subject.kind == :pull_request and @subject.branch != ""} data-part="branches">
-        <.badge label={@subject.branch} color="neutral" style="light-fill" size="large" />
-        <.icon name="arrow_right" />
+    <div data-part="title-group">
+      <h1 data-part="title">{subject_title(@subject)}</h1>
+      <div data-part="badges">
         <.badge
-          label={
-            if @subject.base_branch == "",
-              do: @selected_project.default_branch,
-              else: @subject.base_branch
-          }
-          color="information"
+          label={if @subject.kind == :commit, do: @subject.sha, else: short_sha(@subject.sha)}
+          color="neutral"
           style="light-fill"
           size="large"
         />
-      </span>
-      <.badge
-        label={ref_status_label(@comparison.commit)}
-        color={ref_status_color(@comparison.commit)}
-        style="light-fill"
-        size="large"
-      />
+        <span :if={@subject.kind == :pull_request and @subject.branch != ""} data-part="branches">
+          <.badge label={@subject.branch} color="neutral" style="light-fill" size="large" />
+          <.icon name="arrow_right" />
+          <.badge
+            label={
+              if @subject.base_branch == "",
+                do: @selected_project.default_branch,
+                else: @subject.base_branch
+            }
+            color="information"
+            style="light-fill"
+            size="large"
+          />
+        </span>
+        <.badge
+          label={ref_status_label(@comparison.commit)}
+          color={ref_status_color(@comparison.commit)}
+          style="light-fill"
+          size="large"
+        />
+      </div>
+    </div>
+    <div :if={@subject.kind == :pull_request and length(@commits) > 1} data-part="actions">
+      <.dropdown
+        id="coverage-commit-dropdown"
+        label={short_sha(@subject.sha)}
+        secondary_text={dgettext("dashboard_tests", "Commit:")}
+      >
+        <.dropdown_item
+          :for={commit <- @commits}
+          value={commit.git_commit_sha}
+          label={
+            "#{short_sha(commit.git_commit_sha)} · #{Tuist.Utilities.DateFormatter.from_now(commit.ran_at)}"
+          }
+          patch={"?#{@uri.query |> Query.put("commit", commit.git_commit_sha) |> Query.drop("page")}"}
+          data-selected={@subject.sha == commit.git_commit_sha}
+        >
+          <:right_icon :if={@subject.sha == commit.git_commit_sha}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
     </div>
   </div>
 
@@ -56,33 +71,58 @@
     />
   </.tab_menu_horizontal>
 
-  <div :if={@subject.kind == :pull_request and length(@series) > 1} data-part="filters">
-    <.dropdown
-      id="coverage-commit-dropdown"
-      label={short_sha(@subject.sha)}
-      secondary_text={dgettext("dashboard_tests", "Commit:")}
-    >
-      <.dropdown_item
-        :for={commit <- @commits}
-        value={commit.git_commit_sha}
-        label={
-          "#{short_sha(commit.git_commit_sha)} · #{Tuist.Utilities.DateFormatter.from_now(commit.ran_at)}"
-        }
-        patch={"?#{@uri.query |> Query.put("commit", commit.git_commit_sha) |> Query.drop("page")}"}
-        data-selected={@subject.sha == commit.git_commit_sha}
-      >
-        <:right_icon :if={@subject.sha == commit.git_commit_sha}><.check /></:right_icon>
-      </.dropdown_item>
-    </.dropdown>
-  </div>
-
   <%!-- Overview --%>
   <.card
     :if={@tab == "overview"}
-    title={dgettext("dashboard_tests", "Coverage against the baseline")}
+    title={comparison_title(@subject, @selected_project)}
     icon="chart_arcs"
     data-part="comparison-card"
   >
+    <:actions>
+      <.date_picker
+        :if={@subject.kind == :branch}
+        id="coverage-date-range-picker"
+        name="coverage-date-range"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@coverage_preset}
+        period={@coverage_period}
+        on_period_change="coverage_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
     <.card_section data-part="comparison-section">
       <.alert
         :if={is_nil(@comparison.baseline)}
@@ -232,40 +272,7 @@
         />
       </div>
     </.card_section>
-    <.card_section :if={@commit_runs != []} data-part="runs-section">
-      <h3 data-part="section-title">{dgettext("dashboard_tests", "Measured by")}</h3>
-      <.table
-        id="coverage-commit-runs-table"
-        rows={Enum.map(@commit_runs, &Map.put(&1, :id, &1.test_run_id))}
-        row_navigate={
-          fn run ->
-            url(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}?tab=coverage"
-            )
-          end
-        }
-      >
-        <:col :let={run} label={scheme_label(@selected_project)}>
-          <.text_cell label={run.scheme} />
-        </:col>
-        <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
-          <.totals_cell totals={run} />
-        </:col>
-        <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
-          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
-        </:col>
-      </.table>
-    </.card_section>
-  </.card>
-
-  <%!-- Coverage over time --%>
-  <.card
-    :if={@tab == "overview" and length(@series) > 1}
-    title={dgettext("dashboard_tests", "Coverage over time")}
-    icon="chart_arcs"
-    data-part="analytics"
-  >
-    <.card_section>
+    <.card_section :if={length(@series) > 1} data-part="analytics-section">
       <div data-part="analytics-chart">
         <.chart
           id="coverage-detail-chart"
@@ -581,6 +588,47 @@
       title={dgettext("dashboard_tests", "No commit gathered coverage here")}
       image="table"
       data-part="empty-commits"
+    />
+  </.card>
+
+  <%!-- Test Runs --%>
+  <.card
+    :if={@tab == "runs"}
+    title={dgettext("dashboard_tests", "Test Runs")}
+    icon="dashboard"
+    data-part="runs-card"
+  >
+    <.card_section :if={@run_rows != []} data-part="runs-section">
+      <.table
+        id="coverage-runs-table"
+        rows={@run_rows}
+        row_navigate={
+          fn run ->
+            url(
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}?tab=coverage"
+            )
+          end
+        }
+      >
+        <:col :let={run} label={scheme_label(@selected_project)}>
+          <.text_cell label={run.scheme} />
+        </:col>
+        <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
+          <.totals_cell totals={run} />
+        </:col>
+        <:col :let={run} label={dgettext("dashboard_tests", "Commit")}>
+          <.text_cell label={short_sha(run.git_commit_sha)} />
+        </:col>
+        <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.coverage_empty
+      :if={@run_rows == []}
+      title={dgettext("dashboard_tests", "No run gathered coverage here")}
+      image="table"
+      data-part="empty-runs"
     />
   </.card>
 

@@ -25,10 +25,11 @@ defmodule TuistWeb.CoverageDetailLive do
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(overview commits targets files)
+  @tabs ~w(overview commits targets files runs)
   @page_size 20
   # How many rows the rises and falls hold: a highlight, not a listing.
   @highlight_size 5
@@ -52,14 +53,35 @@ defmodule TuistWeb.CoverageDetailLive do
 
   def handle_params(params, uri, socket) do
     query = Query.query_params(uri)
+    %{preset: preset, period: period} = DatePicker.date_picker_params(query, "coverage", default_preset: "last-30-days")
 
     socket =
       socket
       |> assign(:uri, URI.new!("?" <> URI.encode_query(query)))
       |> assign(:current_params, query)
+      |> assign(:coverage_preset, preset)
+      |> assign(:coverage_period, period)
       |> assign_subject(params, query)
 
     {:noreply, assign_tab(socket, query)}
+  end
+
+  def handle_event(
+        "coverage_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("coverage-date-range", "custom")
+        |> Query.put("coverage-start-date", start_date)
+        |> Query.put("coverage-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "?" <> Query.drop(query, "page"))}
   end
 
   def handle_info({:test_created, _test_run}, socket) do
@@ -123,9 +145,10 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_subject(%{assigns: %{live_action: :branch}} = socket, params, _query) do
     project = socket.assigns.selected_project
     branch = params["branch"] |> List.wrap() |> Enum.join("/")
+    period = period_opts(socket)
 
     head =
-      case History.head_commit(project, branch) do
+      case History.head_commit(project, branch, period) do
         nil ->
           raise NotFoundError,
                 dgettext("dashboard_tests", "No run on branch %{branch} gathered coverage.", branch: branch)
@@ -143,8 +166,8 @@ defmodule TuistWeb.CoverageDetailLive do
       branch: branch,
       pull_request_number: nil
     })
-    |> assign(:against_default, History.against_default(project, head))
-    |> assign(:series, History.branch_points(project, branch))
+    |> assign(:against_default, History.against_default(project, head, period))
+    |> assign(:series, History.branch_points(project, branch, period))
   end
 
   defp assign_tab(socket, query) do
@@ -155,6 +178,7 @@ defmodule TuistWeb.CoverageDetailLive do
       "commits" -> assign_commits(socket, query)
       "targets" -> assign_targets(socket)
       "files" -> assign_files(socket, query)
+      "runs" -> assign_runs(socket)
     end
   end
 
@@ -175,9 +199,8 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:gate_verdict, if(project.coverage_gates_enabled, do: Gates.evaluate(project, comparison)))
   end
 
-  defp assign_overview(%{assigns: %{selected_project: project, comparison: comparison, subject: subject}} = socket) do
+  defp assign_overview(%{assigns: %{comparison: comparison}} = socket) do
     socket
-    |> assign(:commit_runs, Commits.runs(project.id, subject.sha))
     |> assign(:scheme_rows, Enum.map(comparison.schemes, &Map.put(&1, :id, "scheme-" <> &1.scheme)))
     |> assign(:target_rises, highlights(comparison.targets, :desc, "target-rise"))
     |> assign(:target_falls, highlights(comparison.targets, :asc, "target-fall"))
@@ -221,12 +244,38 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   defp assign_commits(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
-    page = History.commit_page(project, subject.branch, page: Query.bounded_page(query["page"]), page_size: @page_size)
+    page =
+      History.commit_page(
+        project,
+        subject.branch,
+        Keyword.merge(period_opts(socket), page: Query.bounded_page(query["page"]), page_size: @page_size)
+      )
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
     |> assign(:commits_meta, %{current_page: page.page, total_pages: page.total_pages})
     |> assign(:commits_ordered_by, page.ordered_by)
+  end
+
+  # The runs behind the subject: one commit's, or those of every commit the
+  # page holds.
+  defp assign_runs(%{assigns: %{selected_project: project}} = socket) do
+    runs = Commits.runs(project.id, subject_shas(socket))
+
+    assign(socket, :run_rows, runs |> Enum.reverse() |> Enum.map(&Map.put(&1, :id, &1.test_run_id)))
+  end
+
+  defp subject_shas(%{assigns: %{subject: %{kind: :commit, sha: sha}}}), do: [sha]
+
+  defp subject_shas(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}}),
+    do: Enum.map(commits, & &1.git_commit_sha)
+
+  defp subject_shas(%{assigns: %{selected_project: project, subject: subject}} = socket) do
+    project
+    |> History.commit_page(subject.branch, Keyword.put(period_opts(socket), :page_size, 200))
+    |> Map.fetch!(:commits)
+    |> Enum.filter(& &1.measured)
+    |> Enum.map(& &1.git_commit_sha)
   end
 
   defp assign_targets(%{assigns: %{comparison: comparison}} = socket) do
@@ -260,6 +309,21 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp skipped_rows(_patch), do: []
 
+  defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
+
+  @doc """
+  What the subject's figures are held against, which is what its card is
+  called: the commit before it on the branch, the default branch for a
+  branch of its own, and the baseline commit for a pull request or a commit.
+  """
+  def comparison_title(%{kind: :branch, branch: branch}, %{default_branch: branch}),
+    do: dgettext("dashboard_tests", "Analytics against the previous commit")
+
+  def comparison_title(%{kind: :branch}, project),
+    do: dgettext("dashboard_tests", "Analytics against %{branch}", branch: project.default_branch)
+
+  def comparison_title(_subject, _project), do: dgettext("dashboard_tests", "Analytics against the baseline")
+
   @doc "What the page's title calls its subject."
   def subject_title(%{kind: :commit, name: name}), do: dgettext("dashboard_tests", "Commit %{name}", name: name)
 
@@ -269,11 +333,12 @@ defmodule TuistWeb.CoverageDetailLive do
   def subject_title(%{kind: :branch, name: name}), do: dgettext("dashboard_tests", "Branch %{name}", name: name)
 
   @doc "The tabs the subject has: a commit is not a series, so it has no commits of its own."
-  def tabs(%{kind: :commit}), do: ~w(overview targets files)
+  def tabs(%{kind: :commit}), do: ~w(overview targets files runs)
   def tabs(_subject), do: @tabs
 
   def tab_label("overview"), do: dgettext("dashboard_tests", "Overview")
   def tab_label("commits"), do: dgettext("dashboard_tests", "Commits")
   def tab_label("targets"), do: dgettext("dashboard_tests", "Targets")
   def tab_label("files"), do: dgettext("dashboard_tests", "Files")
+  def tab_label("runs"), do: dgettext("dashboard_tests", "Test Runs")
 end

@@ -118,7 +118,14 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert skipped =~ "README.md"
       assert skipped =~ "Not compiled into any tested target"
 
-      assert has_element?(lv, "a[href*='/tests/test-runs/#{pr.id}?tab=coverage']")
+      # The runs that measured it are a tab of their own.
+      {:ok, runs_lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/12?tab=runs"
+        )
+
+      assert has_element?(runs_lv, "a[href*='/tests/test-runs/#{pr.id}?tab=coverage']")
 
       {:ok, lv, _html} =
         live(
@@ -230,7 +237,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
       refute has_element?(lv, "#coverage-incomplete")
-      assert lv |> element("#coverage-detail [data-part='subtitle']") |> render() =~ "Complete"
+      assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Complete"
     end
 
     test "shows what the gates decided, and that they wait for the completion signal", %{

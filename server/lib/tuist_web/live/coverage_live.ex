@@ -151,7 +151,5 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
   end
 
-  defp period_opts(%{assigns: %{coverage_period: {start_datetime, end_datetime}}}) do
-    [since: DateTime.to_naive(start_datetime), until: DateTime.to_naive(end_datetime)]
-  end
+  defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
 end

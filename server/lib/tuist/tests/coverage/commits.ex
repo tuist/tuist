@@ -177,15 +177,20 @@ defmodule Tuist.Tests.Coverage.Commits do
   with its scheme, whether it was partial, and its repository. Runs from a
   dirty checkout are left out.
   """
-  def runs(project_id, sha) do
+  def runs(project_id, sha) when is_binary(sha), do: runs(project_id, [sha])
+
+  def runs(_project_id, []), do: []
+
+  def runs(project_id, shas) when is_list(shas) do
     runs =
       from(t in Test,
-        where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
+        where: t.project_id == ^project_id and t.git_commit_sha in ^shas,
         group_by: t.id,
         select: %{
           id: t.id,
           scheme: fragment("any(?)", t.scheme),
           build_system: fragment("any(?)", t.build_system),
+          git_commit_sha: fragment("any(?)", t.git_commit_sha),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at),
           ran_at: min(t.ran_at)
@@ -202,6 +207,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           scheme: c.scheme,
           build_system: c.build_system,
           partial: c.partial,
+          git_commit_sha: t.git_commit_sha,
           git_repository_id: t.git_repository_id,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
