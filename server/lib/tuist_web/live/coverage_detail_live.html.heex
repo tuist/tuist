@@ -255,7 +255,10 @@
           id="widget-gaps"
           title={dgettext("dashboard_tests", "Untested changed files")}
           description={
-            dgettext("dashboard_tests", "Changed files with executable lines no test executed.")
+            dgettext(
+              "dashboard_tests",
+              "Changed files where no test ran any of the changed lines."
+            )
           }
           value={format_number(length(@comparison.gaps))}
         />
