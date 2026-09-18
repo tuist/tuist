@@ -4,11 +4,41 @@ defmodule Atlas.Engineering.Errors.SummaryWorkerTest do
   import Mimic
 
   alias Atlas.Audit.Activity
+  alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Summaries
   alias Atlas.Engineering.Errors.SummaryRun
   alias Atlas.Engineering.Errors.SummaryWorker
 
   setup :verify_on_exit!
+
+  setup do
+    stub(Errors, :enabled?, fn -> true end)
+    :ok
+  end
+
+  test "no-ops when engineering errors are disabled" do
+    stub(Errors, :enabled?, fn -> false end)
+
+    reject(&Summaries.reconcile/1)
+
+    assert :ok = SummaryWorker.perform(%Oban.Job{attempt: 1})
+  end
+
+  test "is scheduled by Oban cron" do
+    plugins = Application.fetch_env!(:atlas, Oban)[:plugins]
+
+    crontab =
+      Enum.find_value(plugins, fn
+        {Oban.Plugins.Cron, opts} -> Keyword.fetch!(opts, :crontab)
+        _other -> nil
+      end)
+
+    assert Enum.any?(crontab, fn
+             {_schedule, SummaryWorker} -> true
+             {_schedule, SummaryWorker, _opts} -> true
+             _other -> false
+           end)
+  end
 
   test "audits a delivered error summary" do
     run = %SummaryRun{
