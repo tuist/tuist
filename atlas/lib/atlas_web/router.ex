@@ -195,6 +195,7 @@ defmodule AtlasWeb.Router do
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/", OverviewLive, :index
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show
@@ -260,8 +261,6 @@ defmodule AtlasWeb.Router do
         live "/inference/tokens/:id", InferenceTokenLive, :show
       end
     end
-
-    get "/", PageController, :root
 
     # Document download URLs are stable public paths (email attachments, share
     # links). Keep them at /documents/... even though the dashboard view lives
