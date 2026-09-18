@@ -290,7 +290,7 @@ defmodule TuistWeb.Coverage.Components do
       <.badge
         :for={{color, label} <- List.wrap(coverage_badge(@totals))}
         style="light-fill"
-        size="small"
+        size="large"
         color={color}
         label={label}
       />
@@ -300,17 +300,32 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :commit, :map, required: true
 
-  # The schemes that measured a commit, the partial ones marked.
+  # The schemes that measured a commit, the partial ones marked. Past two, the
+  # rest fold into a count, as a run's tags do on the Build Runs page.
   def measured_by_cell(assigns) do
+    schemes = assigns.commit.schemes
+    {shown, folded} = if length(schemes) > 2, do: Enum.split(schemes, 1), else: {schemes, []}
+    assigns = assigns |> assign(:shown, shown) |> assign(:folded, folded)
+
     ~H"""
     <div data-part="cell" data-type="badge">
       <div data-part="tags">
         <.badge
-          :for={scheme <- @commit.schemes}
+          :for={scheme <- @shown}
           style="light-fill"
-          size="small"
+          size="large"
           color={if scheme in @commit.partial_schemes, do: "warning", else: "neutral"}
           label={if scheme in @commit.partial_schemes, do: "#{scheme} · P", else: scheme}
+        />
+        <.badge
+          :if={@folded != []}
+          style="light-fill"
+          size="large"
+          color={
+            if Enum.any?(@folded, &(&1 in @commit.partial_schemes)), do: "warning", else: "neutral"
+          }
+          label={"+#{length(@folded)}"}
+          title={Enum.join(@folded, ", ")}
         />
       </div>
     </div>
