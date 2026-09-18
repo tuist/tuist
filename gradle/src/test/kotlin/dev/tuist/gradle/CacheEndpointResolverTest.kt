@@ -118,6 +118,25 @@ class CacheEndpointResolverTest {
     }
 
     @Test
+    fun `asks again for an endpoint being prepared within a fraction of a second`() {
+        // An instance being prepared typically serves within seconds, so a whole second
+        // between requests would be a large share of the wait.
+        val clock = FakeClock()
+        val service = SlowService(clock, responseMs = 0, readyAfterCalls = 3)
+        val pauses = mutableListOf<Long>()
+
+        CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = { null },
+            getCacheEndpointsService = service,
+            sleeper = { pauses += it; clock.advance(it) },
+            nanoTime = { clock.nanos }
+        )
+
+        assertEquals(listOf(250L, 250L), pauses)
+    }
+
+    @Test
     fun `counts the time requests take against the wait`() {
         // Every answer takes 500ms. Counting only the pauses, a 3s wait polled every second
         // would make three more requests and run for 4.5s after the first answer.

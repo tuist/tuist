@@ -200,7 +200,8 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
       # The stand-in answer stops being right the moment the account's own
-      # instance starts serving, so it must not be held for the usual interval.
+      # instance starts serving, which takes seconds, so it is held for no longer
+      # than that.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       # Resolution refuses a service region the deployment does not serve;
       # state the deployment this test assumes rather than inheriting the test
@@ -219,7 +220,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"], "provisioning" => true}
-      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
+      assert ["private, max-age=5"] = get_resp_header(conn, "cache-control")
     end
 
     test "never hands the legacy cache nodes to a client always routed to Kura while its instance is provisioned back",
@@ -244,7 +245,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # The client polls until its instance serves, so an HTTP cache must not
       # answer those polls.
       assert json_response(conn, :ok) == %{"endpoints" => [], "provisioning" => true}
-      assert ["private, no-cache, max-age=30"] = get_resp_header(conn, "cache-control")
+      assert ["private, no-cache, max-age=5"] = get_resp_header(conn, "cache-control")
     end
 
     test "routes CLIs from the first version without the kura client feature flag to Kura", %{conn: conn} do

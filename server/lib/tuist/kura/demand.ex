@@ -72,11 +72,16 @@ defmodule Tuist.Kura.Demand do
   say where from. A `nil` origin still records demand — an account the edge
   could not locate keeps its instance warm exactly as before, it just does not
   vote on where the instance goes.
-  """
-  def record(account_id, origin \\ nil)
 
-  def record(account_id, origin) when is_integer(account_id) do
-    Origins.record_demand(account_id, origin)
+  `persist_origin: true` writes the origin count through instead of buffering
+  it, for a request about to have its instance placed by a job that may run on
+  another node (`Tuist.Kura.Workers.ProvisionOnDemandWorker`), where this
+  node's buffer is not visible.
+  """
+  def record(account_id, origin \\ nil, opts \\ [])
+
+  def record(account_id, origin, opts) when is_integer(account_id) do
+    Origins.record_demand(account_id, origin, persist: Keyword.get(opts, :persist_origin, false))
 
     if Environment.kura_demand_write_through_repo?() do
       persist([{account_id, System.system_time(:second)}])
@@ -89,7 +94,7 @@ defmodule Tuist.Kura.Demand do
     ArgumentError -> :ok
   end
 
-  def record(_account_id, _origin), do: :ok
+  def record(_account_id, _origin, _opts), do: :ok
 
   @doc """
   Drains this node's buffer into `kura_account_region_lifecycles`. Called on
@@ -117,6 +122,15 @@ defmodule Tuist.Kura.Demand do
     Origins.flush()
 
     if Environment.kura_demand_write_through_repo?(), do: {:ok, 0}, else: drain()
+  end
+
+  @doc """
+  Writes one account's demand through the caller's connection at once, instead
+  of leaving it in this node's buffer. For a caller that is about to act on the
+  demand, possibly on another node, and so cannot wait for a flush.
+  """
+  def persist_now(account_id, %DateTime{} = demand_at) do
+    persist([{account_id, DateTime.to_unix(demand_at)}])
   end
 
   @doc """

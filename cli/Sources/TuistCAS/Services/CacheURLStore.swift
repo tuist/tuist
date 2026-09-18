@@ -60,7 +60,7 @@ public struct CacheURLStore: CacheURLStoring {
         getCacheEndpointsService: GetCacheEndpointsServicing,
         endpointLatencyService: EndpointLatencyServicing,
         provisioningWait: CacheProvisioningWait = .none,
-        provisioningPollInterval: Duration = .seconds(1)
+        provisioningPollInterval: Duration = .milliseconds(250)
     ) {
         self.cachedValueStore = cachedValueStore
         self.getCacheEndpointsService = getCacheEndpointsService

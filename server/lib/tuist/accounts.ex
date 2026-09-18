@@ -31,6 +31,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
@@ -2817,18 +2818,18 @@ defmodule Tuist.Accounts do
         # boundary the demand-driven lifecycle measures: it covers the Xcode,
         # Module, and Gradle lanes uniformly, and it is the same call whether
         # the client is a developer machine or a runner. The write is buffered
-        # in memory and flushed periodically, so this stays one ETS insert.
-        Demand.record(account.id, origin)
+        # in memory and flushed periodically, so this stays one ETS insert,
+        # except for the origin of a request that has an instance provisioned
+        # for it: the job placing that instance may run on another node, so the
+        # origin it places from is written through first.
+        urls = kura_cache_endpoint_urls(account, Origins.value(origin))
+        provisioning? = urls == [] and Demand.instance_expected?(account)
+        Demand.record(account.id, origin, persist_origin: provisioning?)
+        if provisioning?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
 
-        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
-          [] ->
-            %{
-              endpoints: absent_kura_endpoint_urls(account, technology),
-              provisioning: Demand.instance_expected?(account)
-            }
-
-          urls ->
-            %{endpoints: urls, provisioning: false}
+        case urls do
+          [] -> %{endpoints: absent_kura_endpoint_urls(account, technology), provisioning: provisioning?}
+          urls -> %{endpoints: urls, provisioning: false}
         end
 
       _ ->

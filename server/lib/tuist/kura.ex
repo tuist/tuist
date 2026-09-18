@@ -23,8 +23,10 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.DNS
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Admission
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
@@ -1440,9 +1442,12 @@ defmodule Tuist.Kura do
     end
   end
 
+  # Asked of the zone's authoritative nameservers: activation asks from before
+  # the record exists, and a caching resolver would hold that answer for the
+  # zone's negative TTL. See `Tuist.DNS`.
   defp ensure_public_host_resolves(host) do
-    case :inet.gethostbyname(String.to_charlist(host)) do
-      {:ok, _} -> :ok
+    case DNS.record_published(host) do
+      :ok -> :ok
       {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
     end
   end
@@ -2202,6 +2207,54 @@ defmodule Tuist.Kura do
     |> select([s], {s.region, count(s.id, :distinct)})
     |> Repo.all()
     |> Map.new()
+  end
+
+  @doc """
+  The 90th percentile, in seconds, of how long the new instances that started
+  serving in the last `window_seconds` took, and how many there were. `nil`
+  percentile with a zero count when there were none.
+
+  A new instance is one whose deployment is the first its server has had since
+  the account-region last returned from archive, which is a first provision or
+  a cold return. Every later deployment is a rollout of an instance that was
+  already serving, and a fleet rollout outnumbers new instances by an order of
+  magnitude, so counting those would measure the rollout gate instead.
+
+  Read from `kura_deployments` rather than from the `time_to_ready`
+  distribution, which is per pod and only holds what the pod that activated the
+  instance scraped.
+  """
+  def new_instance_readiness(window_seconds) do
+    since = DateTime.add(DateTime.utc_now(), -window_seconds, :second)
+
+    earlier_deployment =
+      from(e in Deployment,
+        where: e.kura_server_id == parent_as(:deployment).kura_server_id,
+        where: e.inserted_at < parent_as(:deployment).inserted_at,
+        where:
+          is_nil(parent_as(:lifecycle).last_returned_at) or
+            e.inserted_at >= parent_as(:lifecycle).last_returned_at,
+        select: 1
+      )
+
+    from(d in Deployment, as: :deployment)
+    |> join(:inner, [d], s in Server, on: s.id == d.kura_server_id)
+    |> join(:inner, [_d, s], l in AccountRegionLifecycle,
+      as: :lifecycle,
+      on: l.account_id == s.account_id and l.service_region == s.region
+    )
+    |> where([d], d.status == :succeeded and not is_nil(d.finished_at) and d.finished_at >= ^since)
+    |> where(not exists(earlier_deployment))
+    |> select([d], %{
+      count: count(d.id),
+      p90_seconds:
+        fragment(
+          "percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (? - ?)))",
+          d.finished_at,
+          d.inserted_at
+        )
+    })
+    |> Repo.one()
   end
 
   defp lock_server(id, account_id) do

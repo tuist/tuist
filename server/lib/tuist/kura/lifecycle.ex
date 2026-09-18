@@ -51,6 +51,11 @@ defmodule Tuist.Kura.Lifecycle do
   the cold-provision path, on the same row, with no expectation of prior
   content.
 
+  An instance, a first one or a return, starts from the request that asks for
+  it (`provision_account/2`) rather than from the reconciler tick, and its
+  activation is checked twice a second (`Tuist.Kura.Workers.AwaitActivationWorker`)
+  rather than every minute.
+
   ## Why archival cannot run on empty demand data
 
   An archival sweep against an unseeded `last_cache_demand_at` reads every
@@ -140,6 +145,46 @@ defmodule Tuist.Kura.Lifecycle do
   def reconcile do
     each_region(&reconcile_region/1)
     reconcile_placement_retirements()
+  end
+
+  @doc """
+  Provisions what one account's cache demand asks for, now, instead of on the
+  next reconciler tick: demand is written through at `requested_at` rather than
+  left in this node's buffer, and every region that needs an instance for the
+  account gets one, a return from archive included. The same eligibility rules
+  as the tick apply, so the two can never disagree about whether an instance is
+  due.
+
+  Returns the account's instances that are coming up, whether this call started
+  them or not, so the caller can apply and await each one.
+  """
+  def provision_account(account_id, %DateTime{} = requested_at) do
+    {:ok, _count} = Demand.persist_now(account_id, requested_at)
+
+    case image_tag() do
+      nil ->
+        {:ok, []}
+
+      image_tag ->
+        lifecycle_region_ids = Enum.map(lifecycle_regions(), & &1.id)
+
+        account_id
+        |> account_lifecycles_needing_instance(lifecycle_region_ids)
+        |> Enum.filter(&demand_inside_window?(&1, Capacity.under_pressure?(&1.service_region)))
+        |> Enum.each(&provision(&1, &1.service_region, image_tag))
+
+        {:ok, coming_up(account_id, lifecycle_region_ids)}
+    end
+  end
+
+  defp coming_up(account_id, region_ids) do
+    Repo.all(
+      from(s in Server,
+        where: s.account_id == ^account_id and s.region in ^region_ids,
+        where: s.status == :provisioning and s.move_phase == :none,
+        order_by: [asc: s.region]
+      )
+    )
   end
 
   @doc """
@@ -374,10 +419,32 @@ defmodule Tuist.Kura.Lifecycle do
   # `id` breaks ties so paging is a total order: without it, rows sharing a
   # demand second could repeat or be skipped across pages.
   defp account_regions_needing_instance(region_id, limit, offset) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.service_region == ^region_id,
+        order_by: [desc: l.last_cache_demand_at, asc: l.id],
+        limit: ^limit,
+        offset: ^offset,
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp account_lifecycles_needing_instance(account_id, region_ids) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.account_id == ^account_id and l.service_region in ^region_ids,
+        order_by: [asc: l.service_region],
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp needing_instance_query do
     live_server_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status not in [:destroyed, :archived],
         select: 1
       )
@@ -390,7 +457,7 @@ defmodule Tuist.Kura.Lifecycle do
     destroyed_since_demand_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status == :destroyed,
         where: s.updated_at >= parent_as(:lifecycle).last_cache_demand_at,
         select: 1
@@ -398,24 +465,17 @@ defmodule Tuist.Kura.Lifecycle do
 
     default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
 
-    Repo.all(
-      from(l in AccountRegionLifecycle,
-        as: :lifecycle,
-        where: l.service_region == ^region_id,
-        where: l.last_cache_demand_at >= ^default_cutoff,
-        where: not exists(live_server_exists),
-        where: not exists(destroyed_since_demand_exists),
-        # An instance reclaimed for never storing anything or under pressure
-        # comes back only for demand recorded after its archival, not for the
-        # demand it already had.
-        where:
-          is_nil(l.drain_reason) or l.drain_reason not in [:unused, :capacity_pressure] or is_nil(l.archived_at) or
-            l.last_cache_demand_at > l.archived_at,
-        order_by: [desc: l.last_cache_demand_at, asc: l.id],
-        limit: ^limit,
-        offset: ^offset,
-        preload: [account: :subscriptions]
-      )
+    from(l in AccountRegionLifecycle,
+      as: :lifecycle,
+      where: l.last_cache_demand_at >= ^default_cutoff,
+      where: not exists(live_server_exists),
+      where: not exists(destroyed_since_demand_exists),
+      # An instance reclaimed for never storing anything or under pressure
+      # comes back only for demand recorded after its archival, not for the
+      # demand it already had.
+      where:
+        is_nil(l.drain_reason) or l.drain_reason not in [:unused, :capacity_pressure] or is_nil(l.archived_at) or
+          l.last_cache_demand_at > l.archived_at
     )
   end
 

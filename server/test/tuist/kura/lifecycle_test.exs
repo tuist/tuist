@@ -15,9 +15,11 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1523,6 +1525,91 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile_placement_retirements()
 
       assert PlacerRegions.claimed_regions(account) == ["eu-west"]
+    end
+  end
+
+  describe "provisioning on request" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    defp archived(account) do
+      server = active_instance(account)
+      start_drain(account, server)
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+      server
+    end
+
+    test "returns the asking account's archived instance without waiting for the demand buffer or the reconciler tick" do
+      account = account()
+      server = archived(account)
+      requested_at = DateTime.utc_now()
+
+      assert {:ok, [%Server{id: id, status: :provisioning}]} = Lifecycle.provision_account(account.id, requested_at)
+
+      assert id == server.id
+      lifecycle = reload_lifecycle(account)
+      assert lifecycle.last_returned_at
+      assert lifecycle.last_cache_demand_at == DateTime.truncate(requested_at, :second)
+      assert Repo.exists?(from(d in Deployment, where: d.kura_server_id == ^server.id and d.status == :pending))
+    end
+
+    test "provisions an account that has never had an instance" do
+      account = account()
+
+      assert {:ok, [%Server{status: :provisioning}]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+    end
+
+    test "hands back an instance that is already coming up, so its activation can be awaited" do
+      account = account()
+      {:ok, [server]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+
+      assert {:ok, [%Server{id: id}]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+      assert id == server.id
+      assert [_server] = servers_for(account)
+    end
+
+    test "leaves every other account to the reconciler tick" do
+      other = account()
+      other_server = archived(other)
+      account = account()
+      archived(account)
+      Demand.record(other.id)
+
+      assert {:ok, [_server]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+
+      assert reload(other_server).status == :archived
+    end
+
+    test "places a first instance near the request that asked for it, whichever node provisions it" do
+      # The request is recorded on the node that served it, and the job that
+      # provisions the instance can run on any node, where nothing that node
+      # buffered is visible.
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      stub(Environment, :kura_control_plane?, fn -> true end)
+      stub(Reconciler, :reconcile_server, fn _server -> :ok end)
+      account = account()
+
+      Accounts.get_cache_resolution_for_handle(account.name, :kura, {:ok, "DE"})
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: ProvisionOnDemandWorker)
+      :ets.delete_all_objects(Tuist.Kura.Origins)
+      :ets.delete_all_objects(Demand)
+
+      assert :ok = perform_job(ProvisionOnDemandWorker, args)
+
+      assert [%Server{region: "eu-west", status: :provisioning}] = servers_for(account)
+    end
+
+    test "provisions nothing with no runtime image tag configured" do
+      stub(Environment, :kura_runtime_image_tag, fn -> nil end)
+      account = account()
+
+      assert {:ok, []} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+      assert servers_for(account) == []
     end
   end
 

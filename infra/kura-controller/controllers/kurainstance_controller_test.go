@@ -1917,7 +1917,7 @@ func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", "", false, false),
+			Template:             podTemplate(legacyInstance, "", "production", "", false, false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -2354,7 +2354,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", "", false, false),
+			Template:             podTemplate(instance, "", "production", "", false, false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2412,7 +2412,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "", false, false)
+	stsTemplate := podTemplate(instance, "", "production", "", false, false, false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -4727,8 +4727,8 @@ func TestTemplateServesGatewayGRPCOnlyAlongsideARestart(t *testing.T) {
 		})
 	}
 
-	withGateway := podTemplate(instance, "", "production", "", false, true).Spec.Containers[0]
-	withoutGateway := podTemplate(instance, "", "production", "", false, false).Spec.Containers[0]
+	withGateway := podTemplate(instance, "", "production", "", false, true, false).Spec.Containers[0]
+	withoutGateway := podTemplate(instance, "", "production", "", false, false, false).Spec.Containers[0]
 	if !podDeclaresContainerPort(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{withGateway}}}, "grpc", gatewayGRPCPort) {
 		t.Fatal("expected a gateway template to declare the grpc container port")
 	}
