@@ -62,6 +62,13 @@ body:has([data-part="support-chat"]) {
   & [data-part="title"] {
     font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
     margin: 0;
+
+    /* On phones the fields sit at 1rem (the iOS focus-zoom guard), which
+       is exactly heading-small there, so the title read smaller than the
+       placeholders. Step it up one size on touch devices. */
+    @media (hover: none), (pointer: coarse) {
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
   }
 
   & [data-part="close"] {
