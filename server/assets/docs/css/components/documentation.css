@@ -2,6 +2,41 @@
   padding-left: var(--noora-spacing-5);
 }
 
+/* Docs admonitions read as tinted quote blocks rather than filled banners.
+   Drop the saturated fill for a soft surface + accent border on the leading
+   edge (bottom in RTL locales are still handled by Noora's own layout). Keeps
+   the icon and title so the callout is still scannable, but stops the pages
+   from feeling like a stack of billboards. */
+.tuist-docs .noora-alert {
+  --noora-alert-success-secondary-background: light-dark(
+    color-mix(in oklch, var(--noora-green-100) 45%, transparent),
+    color-mix(in oklch, var(--noora-green-700) 12%, transparent)
+  );
+  --noora-alert-information-secondary-background: light-dark(
+    color-mix(in oklch, var(--noora-azure-100) 45%, transparent),
+    color-mix(in oklch, var(--noora-azure-700) 12%, transparent)
+  );
+  --noora-alert-warning-secondary-background: light-dark(
+    color-mix(in oklch, var(--noora-orange-100) 45%, transparent),
+    color-mix(in oklch, var(--noora-orange-700) 12%, transparent)
+  );
+  --noora-alert-error-secondary-background: light-dark(
+    color-mix(in oklch, var(--noora-red-100) 45%, transparent),
+    color-mix(in oklch, var(--noora-red-700) 12%, transparent)
+  );
+}
+
+/* Tighter padding and a lighter title weight so a TIP no longer overpowers
+   the surrounding paragraph. */
+.tuist-docs .noora-alert[data-size="large"] {
+  gap: var(--noora-spacing-4);
+  padding: var(--noora-spacing-4) var(--noora-spacing-5);
+}
+
+.tuist-docs .noora-alert[data-size="large"] > [data-part="column"] > [data-part="title"] {
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+}
+
 .tuist-docs :is(ul, ol) > li + li {
   margin-top: var(--noora-spacing-5);
 }
