@@ -145,7 +145,7 @@ server:
       # Each Meter must exist in Stripe before the flag is enabled for an
       # account. Empty Price ids keep them reporting-only.
       usage_meters:
-        cache_download_megabytes: ""
+        cache_egress_megabytes: ""
         cache_requests: ""
         passing_test_cases: ""
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per

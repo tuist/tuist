@@ -2757,16 +2757,6 @@ msgstr ""
 msgid "%{quantity} above free tier"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:186
-#, elixir-autogen, elixir-format
-msgid "Cache downloads"
-msgstr ""
-
-#: lib/tuist_web/live/billing_live.html.heex:43
-#, elixir-autogen, elixir-format
-msgid "Cache downloads:"
-msgstr ""
-
 #: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Cache requests"
@@ -2790,4 +2780,14 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "of your cache and test insights usage"
+msgstr ""
+
+#: lib/tuist_web/live/billing_live.ex:186
+#, elixir-autogen, elixir-format
+msgid "Cache egress"
+msgstr ""
+
+#: lib/tuist_web/live/billing_live.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Cache egress:"
 msgstr ""

@@ -1062,7 +1062,7 @@ defmodule Tuist.BillingTest do
       stub(Environment, :stripe_prices, fn ->
         %{
           "runners" => %{},
-          "usage_meters" => %{"cache_download_megabytes" => "", "cache_requests" => "", "passing_test_cases" => ""}
+          "usage_meters" => %{"cache_egress_megabytes" => "", "cache_requests" => "", "passing_test_cases" => ""}
         }
       end)
 
@@ -1070,7 +1070,7 @@ defmodule Tuist.BillingTest do
 
       expect(UsagePricing, :meter_values, fn ^account, ^period_start, ^period_end ->
         [
-          %{event_name: "cache_download_megabytes", value: 1_200},
+          %{event_name: "cache_egress_megabytes", value: 1_200},
           %{event_name: "cache_requests", value: 0},
           %{event_name: "passing_test_cases", value: 42}
         ]
@@ -1079,7 +1079,7 @@ defmodule Tuist.BillingTest do
       stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, usage_based_pricing: true) == [
-               %{event_name: "cache_download_megabytes", value: 1_200},
+               %{event_name: "cache_egress_megabytes", value: 1_200},
                %{event_name: "passing_test_cases", value: 42}
              ]
     end
@@ -1091,12 +1091,12 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
       stub(Environment, :stripe_prices, fn ->
-        %{"runners" => %{}, "usage_meters" => %{"cache_download_megabytes" => ""}}
+        %{"runners" => %{}, "usage_meters" => %{"cache_egress_megabytes" => ""}}
       end)
 
       stub(UsagePricing, :meter_values, fn _account, _period_start, _period_end ->
         [
-          %{event_name: "cache_download_megabytes", value: 1_200},
+          %{event_name: "cache_egress_megabytes", value: 1_200},
           %{event_name: "cache_requests", value: 30},
           %{event_name: "passing_test_cases", value: 42}
         ]
@@ -1105,7 +1105,7 @@ defmodule Tuist.BillingTest do
       stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, usage_based_pricing: true) == [
-               %{event_name: "cache_download_megabytes", value: 1_200}
+               %{event_name: "cache_egress_megabytes", value: 1_200}
              ]
     end
 
@@ -1116,7 +1116,7 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
       stub(Environment, :stripe_prices, fn ->
-        %{"runners" => %{}, "usage_meters" => %{"cache_download_megabytes" => ""}}
+        %{"runners" => %{}, "usage_meters" => %{"cache_egress_megabytes" => ""}}
       end)
 
       reject(&UsagePricing.meter_values/3)

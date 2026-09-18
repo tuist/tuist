@@ -15,15 +15,15 @@ defmodule Tuist.Billing.UsagePricing do
   alias Tuist.Billing
   alias Tuist.Billing.UsageMeters
 
-  @download_meter "cache_download_megabytes"
+  @egress_meter "cache_egress_megabytes"
   @request_meter "cache_requests"
   @passing_test_case_meter "passing_test_cases"
 
-  @included_download_bytes 100_000_000_000
+  @included_egress_bytes 100_000_000_000
   @included_requests 1_000_000
   @included_passing_test_cases 5_000_000
 
-  @cents_per_download_gigabyte 35
+  @cents_per_egress_gigabyte 35
   @cents_per_thousand_requests 1
   @cents_per_million_passing_test_cases 200
 
@@ -32,7 +32,7 @@ defmodule Tuist.Billing.UsagePricing do
 
   @projection_minimum_elapsed_percent 10
 
-  def included_download_bytes, do: @included_download_bytes
+  def included_egress_bytes, do: @included_egress_bytes
   def included_requests, do: @included_requests
   def included_passing_test_cases, do: @included_passing_test_cases
 
@@ -46,7 +46,7 @@ defmodule Tuist.Billing.UsagePricing do
     tests = account_id |> UsageMeters.test_case_runs(period_start, period_end) |> test_totals()
 
     [
-      %{event_name: @download_meter, value: div(metered(cache.bytes, cache.runner_bytes), @bytes_per_megabyte)},
+      %{event_name: @egress_meter, value: div(metered(cache.bytes, cache.runner_bytes), @bytes_per_megabyte)},
       %{event_name: @request_meter, value: metered(cache.requests, cache.runner_requests)},
       %{event_name: @passing_test_case_meter, value: tests.passed}
     ]
@@ -77,9 +77,9 @@ defmodule Tuist.Billing.UsagePricing do
   defp cache_breakdown(rows, subscribed, {period_start, period_end, usage_end}) do
     totals = cache_totals(rows)
 
-    downloads =
+    egress =
       totals.bytes
-      |> receipt(totals.runner_bytes, @included_download_bytes, &download_cost/1)
+      |> receipt(totals.runner_bytes, @included_egress_bytes, &egress_cost/1)
       |> Map.put(:projected, project(totals.bytes, period_start, period_end, usage_end))
 
     requests =
@@ -87,17 +87,24 @@ defmodule Tuist.Billing.UsagePricing do
       |> receipt(totals.runner_requests, @included_requests, &request_cost/1)
       |> Map.put(:projected, project(totals.requests, period_start, period_end, usage_end))
 
-    charge = Money.add(downloads.charge, requests.charge)
-    days = cache_days(rows)
+    charge = Money.add(egress.charge, requests.charge)
+    charge_days = charge_days(rows)
 
     %{
-      downloads: downloads,
+      egress: egress,
       requests: requests,
-      gross: Money.add(downloads.gross, requests.gross),
+      gross: Money.add(egress.gross, requests.gross),
       charge: charge,
       billed: if(subscribed, do: charge),
-      days: days,
-      projected_days: projected_days(days, period_start, period_end, usage_end)
+      days: cache_days(rows),
+      charge_days: charge_days,
+      projected_days:
+        projected_days(
+          %{bytes: totals.bytes, requests: totals.requests, dollars: charge_days |> Enum.map(& &1.dollars) |> Enum.sum()},
+          period_start,
+          period_end,
+          usage_end
+        )
     }
   end
 
@@ -125,7 +132,8 @@ defmodule Tuist.Billing.UsagePricing do
       charge: charge,
       billed: if(subscribed, do: charge),
       days: days,
-      projected_days: projected_days(days, period_start, period_end, usage_end)
+      projected_days:
+        projected_days(%{dollars: days |> Enum.map(& &1.dollars) |> Enum.sum()}, period_start, period_end, usage_end)
     })
   end
 
@@ -149,30 +157,49 @@ defmodule Tuist.Billing.UsagePricing do
 
   defp cache_days(rows) do
     rows
-    |> Enum.group_by(&{&1.date, &1.cache}, &cache_row_dollars/1)
-    |> Enum.map(fn {{date, cache}, dollars} -> %{date: date, cache: cache, dollars: Enum.sum(dollars)} end)
+    |> Enum.group_by(&{&1.date, &1.cache})
+    |> Enum.map(fn {{date, cache}, cache_rows} ->
+      %{
+        date: date,
+        cache: cache,
+        bytes: cache_rows |> Enum.map(& &1.bytes) |> Enum.sum(),
+        requests: cache_rows |> Enum.map(& &1.requests) |> Enum.sum()
+      }
+    end)
     |> Enum.sort_by(&{Date.to_erl(&1.date), &1.cache})
   end
 
-  defp cache_row_dollars(%{runners: runners, bytes: bytes, requests: requests}) do
-    share = if runners, do: 0.5, else: 1
+  defp charge_days(rows) do
+    rows
+    |> Enum.flat_map(fn row ->
+      share = if row.runners, do: 0.5, else: 1
 
-    dollars(bytes * share * @cents_per_download_gigabyte / @bytes_per_gigabyte) +
-      dollars(requests * share * @cents_per_thousand_requests / 1_000)
+      [
+        %{
+          date: row.date,
+          meter: :egress,
+          dollars: dollars(row.bytes * share * @cents_per_egress_gigabyte / @bytes_per_gigabyte)
+        },
+        %{date: row.date, meter: :requests, dollars: dollars(row.requests * share * @cents_per_thousand_requests / 1_000)}
+      ]
+    end)
+    |> Enum.group_by(&{&1.date, &1.meter}, & &1.dollars)
+    |> Enum.map(fn {{date, meter}, dollars} -> %{date: date, meter: meter, dollars: Enum.sum(dollars)} end)
+    |> Enum.sort_by(&{Date.to_erl(&1.date), &1.meter})
   end
 
-  defp projected_days(days, period_start, period_end, usage_end) do
-    total = days |> Enum.map(& &1.dollars) |> Enum.sum()
+  defp projected_days(totals, period_start, period_end, usage_end) do
     days_elapsed = max(Date.diff(DateTime.to_date(usage_end), DateTime.to_date(period_start)) + 1, 1)
     first_remaining = usage_end |> DateTime.to_date() |> Date.add(1)
     last = period_end |> DateTime.add(-1, :microsecond) |> DateTime.to_date()
+    daily = Map.new(totals, fn {key, total} -> {key, total / days_elapsed} end)
 
-    if total == 0 or Date.after?(first_remaining, last) do
+    if Enum.all?(Map.values(totals), &(&1 == 0)) or Date.after?(first_remaining, last) do
       []
     else
       first_remaining
       |> Date.range(last)
-      |> Enum.map(&%{date: &1, dollars: total / days_elapsed})
+      |> Enum.map(&Map.put(daily, :date, &1))
     end
   end
 
@@ -208,7 +235,7 @@ defmodule Tuist.Billing.UsagePricing do
 
   defp metered(quantity, runner_quantity), do: quantity - runner_quantity + div(runner_quantity, 2)
 
-  defp download_cost(bytes), do: Money.new(div(bytes * @cents_per_download_gigabyte, @bytes_per_gigabyte), :USD)
+  defp egress_cost(bytes), do: Money.new(div(bytes * @cents_per_egress_gigabyte, @bytes_per_gigabyte), :USD)
 
   defp request_cost(requests), do: Money.new(div(requests * @cents_per_thousand_requests, 1_000), :USD)
 

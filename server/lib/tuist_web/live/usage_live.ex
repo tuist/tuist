@@ -45,10 +45,12 @@ defmodule TuistWeb.UsageLive do
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
      |> assign(:usage_based_pricing, FeatureFlags.usage_based_pricing_enabled?(account))
+     |> assign(:cache_view, "charge")
      |> assign(:prepaid_balance, prepaid_balance)}
   end
 
   @widgets ["egress", "ingress", "requests"]
+  @cache_views ["charge", "egress", "requests"]
 
   @impl true
   def handle_params(
@@ -157,6 +159,10 @@ defmodule TuistWeb.UsageLive do
   end
 
   @impl true
+  def handle_event("select_cache_view", %{"widget" => view}, socket) do
+    {:noreply, assign(socket, :cache_view, cache_view_param(view))}
+  end
+
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, push_patch_with_param(socket, "widget", widget)}
   end
@@ -183,6 +189,9 @@ defmodule TuistWeb.UsageLive do
     query = Query.put(socket.assigns.uri.query || "", key, value)
     push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query}")
   end
+
+  defp cache_view_param(view) when view in @cache_views, do: view
+  defp cache_view_param(_view), do: "charge"
 
   defp widget_param(widget) when widget in @widgets, do: widget
   defp widget_param(_), do: "egress"
@@ -511,16 +520,25 @@ defmodule TuistWeb.UsageLive do
   @cache_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
 
   @doc """
-  The runner chart's options with a legend, because the cache receipts do not
-  break the charge down by cache.
+  Chart options for the cache usage card's selected view: money for the
+  charge, bytes for egress, and a plain count for requests.
   """
-  def cache_chart_options(dates) do
+  def cache_chart_options(dates, view) do
+    {formatter, value_format} =
+      case view do
+        "egress" -> {"fn:formatBytes", "fn:formatBytes"}
+        "requests" -> {"fn:formatNumber", "fn:formatNumber"}
+        "charge" -> {"fn:formatCurrency", "fn:formatCurrency"}
+      end
+
     dates
     |> runner_chart_options()
     |> Map.merge(%{
       legend: chart_legend(),
-      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}
+      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true},
+      tooltip: %{valueFormat: value_format}
     })
+    |> put_in([:yAxis, :axisLabel, :formatter], formatter)
   end
 
   @doc """
@@ -534,25 +552,43 @@ defmodule TuistWeb.UsageLive do
   end
 
   @doc """
-  One stacked bar series per cache, valued in dollars, followed by the
-  projection for the days the period has not reached yet.
+  The cache usage card's chart for the selected view, followed by the
+  projection for the days the period has not reached yet. The charge is split
+  by meter, and egress and requests by cache.
   """
-  def cache_chart_series(%{days: days} = cache) do
+  def cache_chart_series(%{charge_days: charge_days} = cache, "charge") do
+    dates = usage_chart_dates(cache)
+
+    [
+      bar_series(
+        dgettext("dashboard_usage", "Egress"),
+        "primary",
+        dates,
+        Enum.filter(charge_days, &(&1.meter == :egress)),
+        :dollars
+      ),
+      bar_series(
+        dgettext("dashboard_usage", "Requests"),
+        "secondary",
+        dates,
+        Enum.filter(charge_days, &(&1.meter == :requests)),
+        :dollars
+      )
+    ] ++ projected_series(cache.projected_days, dates, :dollars)
+  end
+
+  def cache_chart_series(%{days: days} = cache, view) do
+    field = if view == "egress", do: :bytes, else: :requests
     dates = usage_chart_dates(cache)
 
     days
     |> Enum.group_by(& &1.cache)
-    |> Enum.sort_by(fn {_cache, rows} -> -Enum.sum(Enum.map(rows, & &1.dollars)) end)
+    |> Enum.sort_by(fn {_cache, rows} -> -Enum.sum(Enum.map(rows, &Map.fetch!(&1, field))) end)
     |> Enum.with_index()
     |> Enum.map(fn {{cache, rows}, index} ->
-      bar_series(
-        cache_label(cache),
-        Enum.at(@cache_colors, rem(index, length(@cache_colors))),
-        dates,
-        rows
-      )
+      bar_series(cache_label(cache), Enum.at(@cache_colors, rem(index, length(@cache_colors))), dates, rows, field)
     end)
-    |> Kernel.++(projected_dollar_series(cache.projected_days, dates))
+    |> Kernel.++(projected_series(cache.projected_days, dates, field))
   end
 
   @doc """
@@ -562,35 +598,40 @@ defmodule TuistWeb.UsageLive do
   def tests_chart_series(%{days: days, projected_days: projected_days} = tests) do
     dates = usage_chart_dates(tests)
 
-    [bar_series(dgettext("dashboard_usage", "Passing test cases"), "primary", dates, days)] ++
-      projected_dollar_series(projected_days, dates)
+    [bar_series(dgettext("dashboard_usage", "Passing test cases"), "primary", dates, days, :dollars)] ++
+      projected_series(projected_days, dates, :dollars)
   end
 
-  defp projected_dollar_series([], _dates), do: []
+  defp projected_series([], _dates, _field), do: []
 
-  defp projected_dollar_series(projected_days, dates),
-    do: [bar_series(dgettext("dashboard_usage", "Projected"), "lines", dates, projected_days)]
+  defp projected_series(projected_days, dates, field),
+    do: [bar_series(dgettext("dashboard_usage", "Projected"), "lines", dates, projected_days, field)]
 
-  defp bar_series(name, color, dates, rows) do
+  defp bar_series(name, color, dates, rows, field) do
     %{
       color: "var:noora-chart-#{color}",
-      data: bar_series_data(dates, rows),
+      data: bar_series_data(dates, rows, field),
       name: name,
       type: "bar",
       stack: "spend"
     }
   end
 
-  defp bar_series_data(dates, rows) do
+  defp bar_series_data(dates, rows, field) do
     per_day =
-      rows |> Enum.group_by(& &1.date, & &1.dollars) |> Map.new(fn {date, dollars} -> {date, Enum.sum(dollars)} end)
+      rows
+      |> Enum.group_by(& &1.date, &Map.fetch!(&1, field))
+      |> Map.new(fn {date, values} -> {date, Enum.sum(values)} end)
 
-    Enum.map(dates, fn date -> [date, Float.round(Map.get(per_day, date, 0) / 1, 2)] end)
+    Enum.map(dates, fn date -> [date, chart_value(Map.get(per_day, date, 0), field)] end)
   end
+
+  defp chart_value(value, :dollars), do: Float.round(value / 1, 2)
+  defp chart_value(value, _field), do: round(value)
 
   def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []
 
-  def cache_used?(%{downloads: downloads, requests: requests}), do: downloads.quantity > 0 or requests.quantity > 0
+  def cache_used?(%{egress: egress, requests: requests}), do: egress.quantity > 0 or requests.quantity > 0
 
   def tests_used?(tests), do: tests.passed + not_billed_test_cases(tests) > 0
 
@@ -619,7 +660,7 @@ defmodule TuistWeb.UsageLive do
     """
   end
 
-  def download_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
+  def egress_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
 
   def request_rate_label,
     do: "$0.01 " <> dgettext("dashboard_usage", "per %{count}", count: CldrHelpers.format_number(1_000))
@@ -651,9 +692,9 @@ defmodule TuistWeb.UsageLive do
   def not_billed_test_cases(%{failed: failed, skipped: skipped, on_runners: on_runners}),
     do: failed + skipped + on_runners
 
-  def downloads_pace_label(%{projected: nil}), do: nil
+  def egress_pace_label(%{projected: nil}), do: nil
 
-  def downloads_pace_label(%{projected: projected}),
+  def egress_pace_label(%{projected: projected}),
     do: dgettext("dashboard_usage", "On track for about %{size} this period.", size: format_bytes(projected))
 
   def requests_pace_label(%{projected: nil}), do: nil

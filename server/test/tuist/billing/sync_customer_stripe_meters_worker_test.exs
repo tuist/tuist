@@ -26,7 +26,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
                                                ^period_start_datetime,
                                                ^period_end_datetime,
                                                [include_qa: false, usage_based_pricing: true] ->
-      [%{event_name: "cache_download_megabytes", value: 10}, %{event_name: "passing_test_cases", value: 20}]
+      [%{event_name: "cache_egress_megabytes", value: 10}, %{event_name: "passing_test_cases", value: 20}]
     end)
 
     assert :ok =
@@ -41,7 +41,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     assert [worker: SyncCustomerStripeMeterWorker]
            |> all_enqueued()
            |> Enum.map(& &1.args["event_name"])
-           |> Enum.sort() == ["cache_download_megabytes", "passing_test_cases"]
+           |> Enum.sort() == ["cache_egress_megabytes", "passing_test_cases"]
   end
 
   test "enqueues one child job per snapshotted meter with the parent period" do

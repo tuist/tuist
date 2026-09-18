@@ -319,7 +319,7 @@ defmodule TuistWeb.BillingLiveTest do
 
       %{
         cache: %{
-          downloads: %{
+          egress: %{
             metered: 110_000_000_000,
             included: 100_000_000_000,
             billable: 10_000_000_000,
@@ -345,7 +345,7 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       refute has_element?(lv, "#remote-cache-hits-progress")
-      assert has_element?(lv, "#cache-downloads-progress", "110.0 GB")
+      assert has_element?(lv, "#cache-egress-progress", "110.0 GB")
       assert has_element?(lv, "#cache-requests-progress", "1.1M")
       assert has_element?(lv, "#passing-test-cases-progress", "6M")
       assert render(lv) =~ "Free tier exceeded"

@@ -31,16 +31,16 @@
         </div>
         <%= if @usage_pricing do %>
           <.progress_bar
-            id="cache-downloads-progress"
-            value={@usage_pricing.cache.downloads.metered}
+            id="cache-egress-progress"
+            value={@usage_pricing.cache.egress.metered}
             value_label={
-              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.downloads.metered)
+              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.metered)
             }
-            max={@usage_pricing.cache.downloads.included}
+            max={@usage_pricing.cache.egress.included}
             max_label={
-              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.downloads.included)
+              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.included)
             }
-            title={dgettext("dashboard_account", "Cache downloads:")}
+            title={dgettext("dashboard_account", "Cache egress:")}
           />
           <.progress_bar
             id="cache-requests-progress"

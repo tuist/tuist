@@ -26,7 +26,7 @@ defmodule Tuist.Billing.UsagePricingTest do
   defp test_row(attrs), do: Map.merge(%{date: ~D[2026-05-10], status: "success", runners: false, count: 0}, attrs)
 
   describe "meter_values/3" do
-    test "halves runner traffic and reports downloads in whole megabytes", %{account: account} do
+    test "halves runner traffic and reports egress in whole megabytes", %{account: account} do
       account_id = account.id
 
       expect(UsageMeters, :cache_downloads, fn ^account_id, @period_start, @period_end ->
@@ -47,7 +47,7 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       assert UsagePricing.meter_values(account, @period_start, @period_end) == [
                # 3,999,999 + 2,000,001 / 2 = 4,999,999 bytes
-               %{event_name: "cache_download_megabytes", value: 4},
+               %{event_name: "cache_egress_megabytes", value: 4},
                # 10 + 7 / 2
                %{event_name: "cache_requests", value: 13},
                %{event_name: "passing_test_cases", value: 40}
@@ -65,9 +65,9 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
-      assert breakdown.cache.downloads.gross == Money.new(3_500, :USD)
-      assert breakdown.cache.downloads.included_credit == Money.new(3_500, :USD)
-      assert breakdown.cache.downloads.charge == Money.new(0, :USD)
+      assert breakdown.cache.egress.gross == Money.new(3_500, :USD)
+      assert breakdown.cache.egress.included_credit == Money.new(3_500, :USD)
+      assert breakdown.cache.egress.charge == Money.new(0, :USD)
       assert breakdown.cache.requests.gross == Money.new(1_000, :USD)
       assert breakdown.cache.requests.charge == Money.new(0, :USD)
       assert breakdown.tests.gross == Money.new(1_000, :USD)
@@ -84,8 +84,8 @@ defmodule Tuist.Billing.UsagePricingTest do
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
       # 10 GB at $0.35
-      assert breakdown.cache.downloads.billable == 10_000_000_000
-      assert breakdown.cache.downloads.charge == Money.new(350, :USD)
+      assert breakdown.cache.egress.billable == 10_000_000_000
+      assert breakdown.cache.egress.charge == Money.new(350, :USD)
       # 250,000 requests at $0.01 per 1,000
       assert breakdown.cache.requests.charge == Money.new(250, :USD)
       assert breakdown.cache.charge == Money.new(600, :USD)
@@ -103,14 +103,14 @@ defmodule Tuist.Billing.UsagePricingTest do
       end)
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
-      downloads = breakdown.cache.downloads
+      egress = breakdown.cache.egress
 
-      assert downloads.quantity == 140_000_000_000
-      assert downloads.metered == 110_000_000_000
-      assert downloads.gross == Money.new(4_900, :USD)
-      assert downloads.runner_credit == Money.new(1_050, :USD)
-      assert downloads.included_credit == Money.new(3_500, :USD)
-      assert downloads.charge == Money.new(350, :USD)
+      assert egress.quantity == 140_000_000_000
+      assert egress.metered == 110_000_000_000
+      assert egress.gross == Money.new(4_900, :USD)
+      assert egress.runner_credit == Money.new(1_050, :USD)
+      assert egress.included_credit == Money.new(3_500, :USD)
+      assert egress.charge == Money.new(350, :USD)
       assert breakdown.cache.requests.metered == 1_100_000
       assert breakdown.cache.requests.charge == Money.new(100, :USD)
     end
@@ -164,8 +164,17 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
+      assert breakdown.cache.days == [%{date: ~D[2026-05-10], cache: :module, bytes: 10_000_000_000, requests: 1_000}]
+
+      assert breakdown.cache.charge_days == [
+               %{date: ~D[2026-05-10], meter: :egress, dollars: 3.5},
+               %{date: ~D[2026-05-10], meter: :requests, dollars: 0.01}
+             ]
+
+      assert %{bytes: bytes, requests: requests, dollars: dollars} = hd(breakdown.cache.projected_days)
+      assert {round(bytes), round(requests), Float.round(dollars, 4)} == {909_090_909, 91, 0.3191}
       assert breakdown.usage_through == ~D[2026-05-11]
-      assert breakdown.cache.downloads.projected == 31_000_000_000
+      assert breakdown.cache.egress.projected == 31_000_000_000
       assert [%{date: ~D[2026-05-12]} | _] = breakdown.cache.projected_days
       assert List.last(breakdown.cache.projected_days).date == ~D[2026-05-31]
     end

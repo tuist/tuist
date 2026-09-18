@@ -172,7 +172,7 @@ defmodule TuistWeb.BillingLive do
   end
 
   def usage_allowance_exceeded?(%{cache: cache, tests: tests}) do
-    cache.downloads.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
+    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
   end
 
   @doc """
@@ -182,11 +182,11 @@ defmodule TuistWeb.BillingLive do
     Enum.filter(
       [
         %{
-          id: "cache-downloads",
-          label: dgettext("dashboard_account", "Cache downloads"),
-          quantity: Tuist.Utilities.ByteFormatter.format_bytes(cache.downloads.billable),
-          price: TuistWeb.UsageLive.download_rate_label(),
-          total: cache.downloads.charge
+          id: "cache-egress",
+          label: dgettext("dashboard_account", "Cache egress"),
+          quantity: Tuist.Utilities.ByteFormatter.format_bytes(cache.egress.billable),
+          price: TuistWeb.UsageLive.egress_rate_label(),
+          total: cache.egress.charge
         },
         %{
           id: "cache-requests",
