@@ -519,9 +519,7 @@ defmodule TuistWeb.UsageLive do
 
   @doc """
   Chart options for the cache usage card's selected view: money for the
-  charge, bytes for egress, and a plain count for requests. Only the charge
-  view has a legend; the project views name each project in the tooltip, like
-  the runner chart does with repositories.
+  charge, bytes for egress, and a plain count for requests.
   """
   def cache_chart_options(dates, view) do
     {formatter, value_format} =
@@ -533,15 +531,10 @@ defmodule TuistWeb.UsageLive do
 
     dates
     |> runner_chart_options()
-    |> Map.merge(cache_chart_legend(view))
+    |> Map.merge(%{legend: chart_legend(), grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}})
     |> Map.put(:tooltip, %{valueFormat: value_format})
     |> put_in([:yAxis, :axisLabel, :formatter], formatter)
   end
-
-  defp cache_chart_legend("charge"),
-    do: %{legend: chart_legend(), grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}}
-
-  defp cache_chart_legend(_view), do: %{}
 
   @doc """
   Every date a usage pricing chart draws, spend and projection alike.

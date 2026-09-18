@@ -761,7 +761,8 @@ defmodule TuistWeb.UsageLiveTest do
       assert UsageLive.cache_chart_options(dates, "egress").yAxis.axisLabel.formatter == "fn:formatBytes"
       assert UsageLive.cache_chart_options(dates, "requests").tooltip.valueFormat == "fn:formatNumber"
       assert UsageLive.cache_chart_options(dates, "charge").legend.top == "bottom"
-      assert UsageLive.cache_chart_options(dates, "egress").legend == %{show: false}
+      assert UsageLive.cache_chart_options(dates, "egress").legend.top == "bottom"
+      assert UsageLive.cache_chart_options(dates, "requests").legend.top == "bottom"
     end
   end
 
