@@ -454,6 +454,7 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	// Per-host fields must not move the canonical hash, or every host in
 	// a fleet would falsely drift.
 	perHost.NodeName = "macmini-7"
+	perHost.SSHUser = "m1"
 	perHost.IP = "51.15.1.2"
 	perHost.Kubeconfig = "kubeconfig-yaml"
 	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
@@ -1130,6 +1131,8 @@ var hashPartInstaller = map[string]string{
 	"node-exporter":           "installNodeExporter",
 	"tailnet-resolver":        "installTailnetResolver",
 	"local-network-allowlist": "installLocalNetworkAllowlist",
+	"software-update-policy":  "installSoftwareUpdatePolicy",
+	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",

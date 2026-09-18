@@ -47,3 +47,9 @@ image versions).
   creating a new one changes the push topic and orphans every
   enrollment.
 - The enroller's `/webhook` must never be routed by the ingress.
+- Host update policy and Setup Assistant suppression come from the SSH
+  bootstrap ("Host macOS updates" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`). Do not add a
+  `com.apple.SoftwareUpdate` profile: Apple removes that payload in
+  macOS 27, and managed update policy needs the DDM
+  `com.apple.configuration.softwareupdate.settings` declaration.
