@@ -26,6 +26,14 @@ defmodule Tuist.AccountTest do
   end
 
   describe "handle validity" do
+    test "it fails the validation if a handle starts or ends with a hyphen" do
+      for name <- ["-handle", "handle-", "-"] do
+        changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
+
+        assert "must start and end with a letter or number" in errors_on(changeset).name
+      end
+    end
+
     test "it fails the validation if a handle is included in the block list" do
       changeset =
         Account.create_changeset(%Account{}, %{

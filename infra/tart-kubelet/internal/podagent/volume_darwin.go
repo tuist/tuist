@@ -65,6 +65,36 @@ func (darwinVolumeBackend) createImage(path string, sizeGiB int) error {
 	return err
 }
 
+// growImage raises a detached sparse image's capacity to sizeGiB, and the APFS
+// container inside follows it. It reads the current size first because
+// `hdiutil resize -size` also shrinks an image larger than the size it is given,
+// and a master converged from a host with a larger ceiling must reach a job
+// unchanged. A created image reports a few sectors under its nominal size, so
+// anything within a MiB of the target is already grown.
+func (darwinVolumeBackend) growImage(path string, sizeGiB int) error {
+	if sizeGiB <= 0 {
+		return fmt.Errorf("cache image size must be positive, got %d", sizeGiB)
+	}
+	out, err := runCmd(time.Minute, "hdiutil", "resize", "-limits", path)
+	if err != nil {
+		return err
+	}
+	fields := strings.Fields(out)
+	if len(fields) != 3 {
+		return fmt.Errorf("hdiutil resize -limits %s: want minimum, current and maximum, got %q", path, strings.TrimSpace(out))
+	}
+	currentSectors, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return fmt.Errorf("hdiutil resize -limits %s: current size %q: %w", path, fields[1], err)
+	}
+	const mib = uint64(1 << 20)
+	if currentSectors*512+mib >= uint64(sizeGiB)<<30 {
+		return nil
+	}
+	_, err = runCmd(2*time.Minute, "hdiutil", "resize", "-size", strconv.Itoa(sizeGiB)+"g", path)
+	return err
+}
+
 // imageInventoryDigest attaches the image READ-ONLY at a private mountpoint and
 // digests the cache home inside it. Read-only makes it safe to run beside a
 // concurrent reader and unable to mutate what it measures; `-owners off` keeps

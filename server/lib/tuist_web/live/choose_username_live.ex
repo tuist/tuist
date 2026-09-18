@@ -310,6 +310,7 @@ defmodule TuistWeb.ChooseUsernameLive do
     |> String.replace(".", "-")
     |> String.replace("_", "-")
     |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+    |> String.trim("-")
     |> String.downcase()
   end
 

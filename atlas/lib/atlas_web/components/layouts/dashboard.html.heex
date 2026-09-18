@@ -160,6 +160,31 @@
         />
       </.sidebar_group>
       <.sidebar_group
+        id="sidebar-engineering"
+        label={gettext("Engineering")}
+        icon="code"
+        collapsible={false}
+      >
+        <.sidebar_item
+          label={gettext("Projects")}
+          icon="folder"
+          navigate={~p"/engineering/projects"}
+          selected={String.starts_with?(@current_path, "/engineering/projects")}
+        />
+        <.sidebar_item
+          label={gettext("Domains")}
+          icon="list_tree"
+          navigate={~p"/engineering/domains"}
+          selected={String.starts_with?(@current_path, "/engineering/domains")}
+        />
+        <.sidebar_item
+          label={gettext("Errors")}
+          icon="alert_circle"
+          navigate={~p"/engineering/errors"}
+          selected={String.starts_with?(@current_path, "/engineering/errors")}
+        />
+      </.sidebar_group>
+      <.sidebar_group
         :if={Atlas.Users.executive?(@current_user)}
         id="sidebar-operations"
         label={gettext("Operations")}

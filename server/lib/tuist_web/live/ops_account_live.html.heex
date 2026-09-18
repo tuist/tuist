@@ -201,8 +201,15 @@
     </.card_section>
     <.card_section :if={@kura_claim_proposal}>
       <p data-part="kura-claim-proposal-summary">
-        {case @kura_claim_proposal.direction do
-          :grow ->
+        {case @kura_claim_proposal do
+          %{direction: :grow, current_claim_size: claim, recommended_claim_size: claim} ->
+            dgettext(
+              "dashboard",
+              "Sizing proposes growing the instances pinned below %{recommended} to it, the claim the account's other instances hold.",
+              recommended: claim
+            )
+
+          %{direction: :grow} ->
             dgettext(
               "dashboard",
               "Sizing proposes growing the disk claim from %{current} to %{recommended}.",
@@ -210,7 +217,7 @@
               recommended: @kura_claim_proposal.recommended_claim_size
             )
 
-          :shrink ->
+          %{direction: :shrink} ->
             dgettext(
               "dashboard",
               "Sizing proposes shrinking the disk claim from %{current} to %{recommended}.",
@@ -250,7 +257,7 @@
       <p data-part="kura-storage-claim-description">
         {dgettext(
           "dashboard",
-          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up or keeps work for weeks longer than that. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
         )}
       </p>
       <p :if={@kura_sized_claim} data-part="kura-sized-claim">
@@ -296,7 +303,7 @@
           <.text_cell label={Timex.from_now(decision.inserted_at)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Change")}>
-          <.text_cell label={kura_claim_history_change(decision)} />
+          <.text_cell label={claim_history_change(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
           <% {label, color} = claim_history_outcome(decision) %>

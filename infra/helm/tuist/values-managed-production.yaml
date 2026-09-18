@@ -519,9 +519,8 @@ clickhouse:
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    # so the copy and the soak can start as soon as a box lands. A second one
+    # needs its own box, named in `persistence.localVolume.nodeNames`.
     #
     # A single replica is not the shape to *finish* on: after the cutover the
     # system of record would live on one machine, with the backups below as the
@@ -1004,11 +1003,12 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
-    # an admission line of 1303 (85% of allocatable), so Admission refused every
-    # storage claim growth here — and a claim is account-scoped, so that refusal
-    # also blocked the regions the same accounts run in that did have room.
-    replicas: 3
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1196,10 +1196,10 @@ macosFleet:
     #
     # The cap is bounded by admission, not by taste. Admission reserves
     # masterCapGib for the branch it is admitting plus every branch already
-    # live, so with B branches already held the resident masters that survive
-    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
-    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
-    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
+    # running a job, so with B such branches the resident masters that survive
+    # are gib/cap - (B+1). A branch is reserved when it is materialized for a
+    # job, not at VM boot, so a warm standby holds none and B is 1 only while
+    # one job starts as another tears down. At cap 28 that leaves 1 or 0 masters —
     # which is what the fleet showed, hosts flapping between one master and
     # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
     # covers the account set with dispatch affinity scoring on residency.
@@ -1451,7 +1451,7 @@ runnersFleet:
         # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
         # guest host would hold FEWER hot accounts than a single-guest
         # M2-L does today. Resident masters are `gib/masterCapGib -
-        # (liveBranches + 1)` and a branch is reserved at VM boot, so
+        # (liveBranches + 1)` and a branch is reserved while it runs a job, so
         # two guests means liveBranches reaches 2: at 80/20 that is
         # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
         #

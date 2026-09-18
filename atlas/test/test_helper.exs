@@ -67,6 +67,13 @@ Mimic.copy(Atlas.Memory.EdgeClassifier, type_check: true)
 Mimic.copy(Req)
 Mimic.copy(Oban)
 Mimic.copy(Condukt, type_check: true)
+Mimic.copy(Atlas.IngestRepo)
+Mimic.copy(Atlas.Engineering.Errors, type_check: true)
+Mimic.copy(Atlas.Engineering.Errors.Availability, type_check: true)
+Mimic.copy(Atlas.Engineering.Errors.Event.Buffer, type_check: true)
+Mimic.copy(Atlas.Engineering.Errors.IssueCoalescer, type_check: true)
+Mimic.copy(Atlas.Engineering.Errors.DropAlerter, type_check: true)
+Mimic.copy(Atlas.Engineering.Errors.Summaries, type_check: true)
 
 # The suite runs every module concurrently, so a process that is merely slow to
 # be scheduled must not read as a process that never sent its message. This only

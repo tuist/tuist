@@ -293,6 +293,38 @@
         }
 
         @Test(.withMockedEnvironment())
+        func asks_again_for_a_provisioning_endpoint_within_a_fraction_of_a_second() async throws {
+            // Given: an instance being prepared typically serves within seconds, so a
+            // whole second between requests would be a large share of the wait.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://acme-us-east-1.kura.tuist.dev"
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.seconds(30))
+            )
+            var lookups = 0
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willProduce { _, _ in
+                    lookups += 1
+                    return lookups < 2
+                        ? CacheEndpointsResolution(endpoints: [], maxAge: 5, provisioning: true)
+                        : CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil)
+                }
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result.absoluteString == endpoint)
+            #expect(start.duration(to: clock.now) < .milliseconds(750))
+        }
+
+        @Test(.withMockedEnvironment())
         func stops_waiting_for_a_provisioning_endpoint_after_the_wait() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!

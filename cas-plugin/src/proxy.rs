@@ -47,10 +47,23 @@ pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 /// one is asked again. The move happens only if the second answer agrees.
 pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
 
-/// How soon a proxy with no endpoint at all asks again. The account's cache is
-/// being prepared, which takes seconds, and every build until it is found runs
-/// without a remote.
+/// How soon a proxy with no endpoint at all asks again when the CLI has not
+/// said the account's cache is being prepared. Every build until an endpoint
+/// is found runs without a remote.
 pub const ENDPOINT_ABSENT_INTERVAL: Duration = Duration::from_secs(10);
+
+/// How soon the proxy asks again while the CLI reports the account's cache as
+/// being prepared, whether or not it has an endpoint. Every build until the
+/// answer changes runs without the account's cache.
+pub const ENDPOINT_PREPARING_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How long a streak of "being prepared" answers keeps the proxy on
+/// `ENDPOINT_PREPARING_INTERVAL`. Each answer is a CLI process, and a cache
+/// still being prepared after this is not coming back in seconds.
+pub const ENDPOINT_PREPARING_WINDOW: Duration = Duration::from_secs(120);
+
+/// How often the proxy checks whether an endpoint resolution is due.
+pub const ENDPOINT_RESOLUTION_TICK: Duration = Duration::from_millis(250);
 
 #[derive(Debug, PartialEq, Eq)]
 enum EndpointVerdict {
@@ -1846,6 +1859,9 @@ pub struct Proxy {
     // Epoch-ms of the last endpoint resolution, so the sweep can carry the
     // interval without a timer of its own. 0 means never resolved.
     endpoint_resolved_at_ms: AtomicU64,
+    // Epoch-ms of the first answer in the current streak of "being prepared"
+    // answers. 0 means the last answer was not one.
+    endpoint_preparing_since_ms: AtomicU64,
     // Bumped on every adoption. Only ever compared for equality.
     endpoint_generation: AtomicU64,
     // An endpoint the last resolution preferred over a healthy current one,
@@ -1972,6 +1988,7 @@ impl Proxy {
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
+            endpoint_preparing_since_ms: AtomicU64::new(0),
             endpoint_generation: AtomicU64::new(0),
             endpoint_candidate: Mutex::new(None),
             tokens,
@@ -4174,7 +4191,8 @@ impl Proxy {
     /// A resolution that fails changes nothing. A CLI that is absent, logged
     /// out or offline says nothing about where the cache went, and dropping a
     /// working endpoint on its say-so would turn a local problem into a cold
-    /// cache.
+    /// cache. An answer that the account's cache is being prepared keeps the
+    /// endpoint too, and has the proxy ask again sooner.
     pub fn refresh_endpoint(&self) {
         let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
             // Nothing is being served, so nothing depends on the answer. First
@@ -4185,7 +4203,7 @@ impl Proxy {
     }
 
     /// Re-resolves the endpoint for `instance` unless it was resolved within
-    /// `ENDPOINT_REFRESH_INTERVAL`.
+    /// `endpoint_resolution_interval`.
     ///
     /// The endpoint is per-account and every instance this proxy serves shares
     /// it, so any of them answers the question; the caller passes the one it
@@ -4198,20 +4216,47 @@ impl Proxy {
         let Some(fetch) = self.tokens.cli_fetch() else {
             return;
         };
-        if !self
-            .claim_endpoint_resolution(crate::reapi::now_ms(), self.endpoint_resolution_interval())
-        {
+        let now = crate::reapi::now_ms();
+        if !self.claim_endpoint_resolution(now, self.endpoint_resolution_interval(now)) {
             return;
         }
-        if let Some(resolved) =
-            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance)
-        {
-            self.consider_endpoint(&resolved, || self.current_endpoint_reachable(instance));
+        let resolution =
+            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance);
+        self.record_resolution(resolution, now, || {
+            self.current_endpoint_reachable(instance)
+        });
+    }
+
+    fn record_resolution(
+        &self,
+        resolution: crate::endpoint::Resolution,
+        now: u64,
+        current_reachable: impl FnOnce() -> bool,
+    ) {
+        match resolution {
+            crate::endpoint::Resolution::Endpoint(resolved) => {
+                self.endpoint_preparing_since_ms.store(0, Ordering::Relaxed);
+                self.consider_endpoint(&resolved, current_reachable);
+            }
+            crate::endpoint::Resolution::BeingPrepared => {
+                let _ = self.endpoint_preparing_since_ms.compare_exchange(
+                    0,
+                    now,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                );
+            }
+            crate::endpoint::Resolution::Unknown => {}
         }
     }
 
-    fn endpoint_resolution_interval(&self) -> Duration {
-        if self.grpc_url.read().unwrap().is_empty() {
+    fn endpoint_resolution_interval(&self, now: u64) -> Duration {
+        let preparing_since = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
+        if preparing_since != 0
+            && now.saturating_sub(preparing_since) < ENDPOINT_PREPARING_WINDOW.as_millis() as u64
+        {
+            ENDPOINT_PREPARING_INTERVAL
+        } else if self.grpc_url.read().unwrap().is_empty() {
             ENDPOINT_ABSENT_INTERVAL
         } else if self.endpoint_candidate.lock().unwrap().is_some() {
             ENDPOINT_CONFIRM_INTERVAL
@@ -7422,8 +7467,108 @@ mod tests {
             None,
         );
 
-        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_ABSENT_INTERVAL);
-        assert_eq!(test_proxy().endpoint_resolution_interval(), ENDPOINT_REFRESH_INTERVAL);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+        assert_eq!(
+            test_proxy().endpoint_resolution_interval(1_000_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_cache_being_prepared_is_asked_about_every_second() {
+        let absent = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let serving = test_proxy();
+        let start = 1_000_000_u64;
+
+        for proxy in [absent, serving] {
+            proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+
+            assert_eq!(
+                proxy.endpoint_resolution_interval(start + 30_000),
+                ENDPOINT_PREPARING_INTERVAL
+            );
+        }
+    }
+
+    #[test]
+    fn a_streak_of_being_prepared_answers_is_timed_from_its_first_answer() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::BeingPrepared,
+            start + window - 1,
+            || true,
+        );
+
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window - 1),
+            ENDPOINT_PREPARING_INTERVAL
+        );
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+    }
+
+    #[test]
+    fn an_answer_the_cli_could_not_give_keeps_the_absent_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+
+        proxy.record_resolution(crate::endpoint::Resolution::Unknown, 1_000_000, || true);
+
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_001_000),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+    }
+
+    #[test]
+    fn an_endpoint_ends_a_streak_of_being_prepared_answers() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::Endpoint(resolution("http://127.0.0.1:2", None)),
+            start + 5_000,
+            || proxy.current_endpoint_reachable("acme/app"),
+        );
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + 6_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
     }
 
     #[test]
@@ -7444,7 +7589,10 @@ mod tests {
             proxy.current_endpoint_reachable("acme/app")
         }));
         assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
-        assert_eq!(proxy.endpoint_resolution_interval(), ENDPOINT_REFRESH_INTERVAL);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
     }
 
     #[test]
@@ -7553,7 +7701,7 @@ mod tests {
         assert_eq!(*proxy.grpc_url.read().unwrap(), current);
         assert!(Arc::ptr_eq(&before, &proxy.remote_for("acme/app")));
         assert_eq!(
-            proxy.endpoint_resolution_interval(),
+            proxy.endpoint_resolution_interval(1_000_000),
             ENDPOINT_CONFIRM_INTERVAL
         );
     }
@@ -7569,7 +7717,7 @@ mod tests {
 
         assert_eq!(*proxy.grpc_url.read().unwrap(), far);
         assert_eq!(
-            proxy.endpoint_resolution_interval(),
+            proxy.endpoint_resolution_interval(1_000_000),
             ENDPOINT_REFRESH_INTERVAL
         );
     }
@@ -7753,8 +7901,45 @@ mod tests {
 
     struct TempCasDir(std::path::PathBuf);
 
+    // `Drop` never runs when a test run is killed, and each store can hold
+    // gigabytes, so the first store of every run reclaims the stores of runs
+    // whose process is gone.
+    static SWEEP_DEAD_RUN_STORES: std::sync::Once = std::sync::Once::new();
+
+    fn sweep_dead_run_stores(root: &std::path::Path) {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if !name.starts_with("cas-") {
+                continue;
+            }
+            let Some(pid) = name
+                .rsplit('-')
+                .next()
+                .and_then(|pid| pid.parse::<libc::pid_t>().ok())
+            else {
+                continue;
+            };
+            if pid <= 0 || pid as u32 == std::process::id() {
+                continue;
+            }
+            if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let dead = unsafe { libc::kill(pid, 0) } == -1
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+            if dead {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+
     impl TempCasDir {
         fn new(tag: &str) -> Self {
+            SWEEP_DEAD_RUN_STORES.call_once(|| sweep_dead_run_stores(&std::env::temp_dir()));
             let dir = std::env::temp_dir().join(format!("cas-{tag}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
@@ -7774,6 +7959,32 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn sweep_reclaims_only_stores_of_dead_runs() {
+        let root = TempCasDir::new("sweep-root");
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let dead_pid = child.id();
+        child.wait().unwrap();
+        let live_pid = unsafe { libc::getppid() };
+        let dead = root.0.join(format!("cas-x-{dead_pid}"));
+        let live = root.0.join(format!("cas-x-{live_pid}"));
+        let own = root.0.join(format!("cas-x-{}", std::process::id()));
+        let unrelated = root.0.join(format!("other-x-{dead_pid}"));
+        for dir in [&dead, &live, &own, &unrelated] {
+            std::fs::create_dir_all(dir.join("v1")).unwrap();
+        }
+
+        sweep_dead_run_stores(&root.0);
+
+        assert!(!dead.exists(), "a store of a dead run must be reclaimed");
+        assert!(live.exists(), "a store of a live run must be kept");
+        assert!(own.exists(), "this run's stores must be kept");
+        assert!(
+            unrelated.exists(),
+            "directories that are not stores must be kept"
+        );
     }
 
     // The regression this whole guard exists for. An llcas handle pins the store

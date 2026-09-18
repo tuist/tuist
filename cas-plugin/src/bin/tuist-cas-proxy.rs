@@ -232,13 +232,20 @@ fn main() {
         proxy.forget_unused_paths();
         proxy.bound_stores();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
-        proxy.refresh_endpoint();
         proxy.refresh_snapshots();
         proxy.refresh_view_keys();
         let stats = proxy.stats_line();
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
         }
+    });
+
+    // Endpoint resolution on a tick of its own, shorter than the sweep's: a
+    // cache being prepared is asked about every second. `refresh_endpoint`
+    // resolves only once its interval has passed.
+    std::thread::spawn(move || loop {
+        std::thread::sleep(tuist_cas_plugin::proxy::ENDPOINT_RESOLUTION_TICK);
+        proxy.refresh_endpoint();
     });
 
     eprintln!("tuist-cas-proxy listening on {socket_path}");
