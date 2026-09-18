@@ -12,7 +12,7 @@ defmodule Atlas.MCP.Tools.CreatePostmortemTest do
              })
 
     assert postmortem["title"] == "Incident"
-    assert postmortem["visibility"] == "public"
+    assert is_nil(postmortem["share_token"])
     assert is_integer(postmortem["number"])
   end
 

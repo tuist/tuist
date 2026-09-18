@@ -8,7 +8,6 @@ defmodule Atlas.MCP.Tools.CreatePostmortem do
       "required" => ["body"],
       "properties" => %{
         "body" => %{"type" => "string", "description" => "Complete postmortem in Markdown."},
-        "visibility" => %{"type" => "string", "enum" => ["public", "private"]},
         "domain_ids" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
@@ -32,7 +31,7 @@ defmodule Atlas.MCP.Tools.CreatePostmortem do
   def description, do: "Publish a postmortem. Authenticated operators only."
 
   def execute(conn, args) do
-    attrs = Map.take(args, ["body", "visibility", "domain_ids"])
+    attrs = Map.take(args, ["body", "domain_ids"])
 
     case Postmortems.publish_postmortem(attrs, Tool.current_user(conn)) do
       {:ok, postmortem} ->

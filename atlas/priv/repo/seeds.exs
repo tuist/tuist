@@ -5865,7 +5865,6 @@ postmortem_fixtures = [
     ## Resolution
     Made the eviction cascade atomic. Kept the gates as a defense in depth.
     """,
-    visibility: :public,
     domain_ids: [cache_domain && cache_domain.id]
   },
   %{
@@ -5888,7 +5887,6 @@ postmortem_fixtures = [
     Switched the writer to a symlink-preserving path and backfilled the
     affected releases.
     """,
-    visibility: :public,
     domain_ids: [registry_domain && registry_domain.id]
   },
   %{
@@ -5897,7 +5895,6 @@ postmortem_fixtures = [
 
     Draft postmortem being written up. Do not share externally.
     """,
-    visibility: :private,
     domain_ids: []
   }
 ]
@@ -5908,7 +5905,6 @@ if postmortem_author do
 
     payload = %{
       "body" => attrs.body,
-      "visibility" => Atom.to_string(attrs.visibility),
       "domain_ids" => Enum.map(domain_ids, &to_string/1)
     }
 

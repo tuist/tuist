@@ -16,11 +16,14 @@ defmodule AtlasWeb.PostmortemLive.Show do
   def mount(%{"number" => number}, _session, socket) do
     case Postmortems.fetch_visible_postmortem_by_number(number, socket.assigns.current_user) do
       {:ok, postmortem} ->
+        {:ok, postmortem} = Postmortems.ensure_share_token(postmortem)
+
         {:ok,
          socket
          |> assign(:page_title, Postmortems.title(postmortem))
          |> assign(:postmortem, postmortem)
          |> assign(:can_edit?, Postmortems.can_edit?(postmortem, socket.assigns.current_user))
+         |> assign(:public_url, url(~p"/p/postmortems/#{postmortem.share_token}"))
          |> assign(:editing_action_item_id, nil)
          |> assign(:expanded_action_item_keys, MapSet.new())
          |> assign_action_item_form(Postmortems.change_action_item())}
@@ -177,6 +180,24 @@ defmodule AtlasWeb.PostmortemLive.Show do
           </h1>
         </div>
         <div data-part="header-actions">
+          <button
+            :if={@public_url}
+            id="share-postmortem"
+            class="noora-button"
+            data-variant="secondary"
+            data-size="medium"
+            data-part="share-button"
+            type="button"
+            phx-hook="Clipboard"
+            data-clipboard-value={@public_url}
+            title={dgettext("postmortems", "Copy public link")}
+            aria-label={dgettext("postmortems", "Copy public link")}
+          >
+            <span data-part="share-idle-icon"><.link_icon /></span>
+            <span data-part="share-copied-icon"><.check /></span>
+            <span data-part="share-idle-label">{dgettext("postmortems", "Share")}</span>
+            <span data-part="share-copied-label">{dgettext("postmortems", "Copied")}</span>
+          </button>
           <.button
             :if={@can_edit?}
             label={dgettext("postmortems", "Edit")}
@@ -228,6 +249,8 @@ defmodule AtlasWeb.PostmortemLive.Show do
           <Markdown.content
             id={"postmortem-#{@postmortem.number}-body"}
             body={@postmortem.body}
+            heading_offset={0}
+            strip_leading_h1={true}
             data-part="body"
           />
         </.card_section>

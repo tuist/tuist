@@ -11,12 +11,11 @@ defmodule Atlas.Engineering.Postmortems.Postmortem do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  @visibilities [:public, :private]
 
   schema "postmortems" do
     field :number, :integer, read_after_writes: true
     field :body, :string
-    field :visibility, Ecto.Enum, values: @visibilities, default: :public
+    field :share_token, Ecto.UUID
 
     belongs_to :created_by_user, User
     field :domain_ids, {:array, :binary_id}, virtual: true
@@ -31,14 +30,17 @@ defmodule Atlas.Engineering.Postmortems.Postmortem do
     timestamps(type: :utc_datetime)
   end
 
-  def visibilities, do: @visibilities
-
   def changeset(postmortem, attrs) do
     postmortem
-    |> cast(attrs, [:body, :visibility, :domain_ids])
-    |> validate_required([:body, :visibility])
+    |> cast(attrs, [:body, :domain_ids])
+    |> validate_required([:body])
     |> validate_length(:body, min: 10, max: 100_000)
-    |> validate_inclusion(:visibility, @visibilities)
     |> foreign_key_constraint(:created_by_user_id)
+  end
+
+  def share_token_changeset(postmortem, token) do
+    postmortem
+    |> change(share_token: token)
+    |> unique_constraint(:share_token)
   end
 end

@@ -21,6 +21,58 @@
     flex-shrink: 0;
   }
 
+  & [data-part="share-button"] {
+    & [data-part="share-copied-icon"],
+    & [data-part="share-copied-label"] {
+      display: none;
+    }
+
+    &[data-copied] {
+      color: var(--noora-surface-label-success);
+
+      & [data-part="share-idle-icon"],
+      & [data-part="share-idle-label"] {
+        display: none;
+      }
+
+      & [data-part="share-copied-icon"],
+      & [data-part="share-copied-label"] {
+        display: inline-flex;
+      }
+    }
+  }
+
+  /* Postmortem bodies read like a document; give the markdown a comfortable
+     measure and let the h2 sections breathe so they read as section breaks
+     rather than blending into the paragraphs below. */
+  & .markdown[data-part="body"] {
+    max-width: 72ch;
+
+    & > h2 {
+      margin-top: var(--noora-spacing-9);
+      padding-bottom: var(--noora-spacing-3);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > h2:first-child,
+    & > h3:first-child {
+      margin-top: 0;
+    }
+
+    & > h3 {
+      margin-top: var(--noora-spacing-8);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+
+    & > p,
+    & > ul,
+    & > ol,
+    & > blockquote {
+      margin-top: var(--noora-spacing-5);
+    }
+  }
+
   & [data-part="title-group"] {
     display: flex;
     flex-direction: column;

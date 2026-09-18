@@ -158,6 +158,10 @@ defmodule AtlasWeb.Router do
     get "/email/subscriptions/confirm/:token", GTMSubscriptionController, :confirm
     get "/email/subscriptions/unsubscribe/:token", GTMSubscriptionController, :unsubscribe
     get "/support/chat/verify/:token", SupportChatVerificationController, :confirm
+
+    live_session :public_postmortem, layout: false do
+      live "/p/postmortems/:share_token", PostmortemLive.Public
+    end
   end
 
   scope "/", AtlasWeb do

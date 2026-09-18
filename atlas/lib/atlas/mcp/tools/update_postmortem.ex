@@ -12,7 +12,6 @@ defmodule Atlas.MCP.Tools.UpdatePostmortem do
           "description" => "Postmortem identifier, public number, or shared postmortem address."
         },
         "body" => %{"type" => "string", "description" => "Complete postmortem in Markdown."},
-        "visibility" => %{"type" => "string", "enum" => ["public", "private"]},
         "domain_ids" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
@@ -45,7 +44,7 @@ defmodule Atlas.MCP.Tools.UpdatePostmortem do
   end
 
   defp update(postmortem, user, args) do
-    attrs = Map.take(args, ["body", "visibility", "domain_ids"])
+    attrs = Map.take(args, ["body", "domain_ids"])
 
     case Postmortems.update_postmortem(postmortem, attrs, user) do
       {:ok, postmortem} ->
