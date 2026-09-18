@@ -65,16 +65,16 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    # Include commits with (cache) scope (supports multi-scope like "feat(cache,server)")
-    { message = "^feat\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bcache\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bcache\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bcache\\b[^)]*\\)", skip = true },
+    # Include commits with (atlas) scope (supports multi-scope like "feat(atlas,server)")
+    { message = "^feat\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test\\([^)]*\\batlas\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\([^)]*\\batlas\\b[^)]*\\)", skip = true },
+    { message = "^ci\\([^)]*\\batlas\\b[^)]*\\)", skip = true },
     # Skip any other scoped commits
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
@@ -83,7 +83,7 @@ protect_breaking_commits = false
 # filter out the commits that are not matched by commit parsers
 filter_commits = true
 # regex for matching git tags
-tag_pattern = "cache@[0-9].*"
+tag_pattern = "atlas@[0-9].*"
 # regex for skipping tags
 skip_tags = "beta|alpha"
 # regex for ignoring tags

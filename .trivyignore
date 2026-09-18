@@ -2,18 +2,40 @@
 # Revisit whenever the scan turns red: drop entries whose fixed package has
 # landed in the Debian suite the runner image tracks (bookworm-security).
 
-# High-severity Chromium vulnerabilities fixed upstream in 152.0.7977.75.
-# Debian carries that build in unstable only (152.0.7977.75-1); bookworm-security
-# still publishes 151.0.7922.173-1~deb12u1, which the security tracker marks
-# vulnerable to all three, so `apt-get upgrade` in server/Dockerfile has no
-# patched package to install. Pulling Chromium from unstable onto bookworm would
-# replace hundreds of core packages including glibc.
+# Chromium vulnerabilities fixed upstream in 153.0.8010.36 and 153.0.8010.47.
+# Debian uploaded the fixed source to bookworm-security as
+# 153.0.8010.47-2~deb12u1, but its binaries have not been built yet, so
+# bookworm-security still publishes 152.0.7977.82-1~deb12u1 on amd64 and arm64
+# and `apt-get upgrade` in server/Dockerfile has no patched package to install.
+# Pulling Chromium from trixie-security onto bookworm would replace hundreds of
+# core packages including glibc.
 # Chromium is present solely to render Open Graph images. It renders markup the
-# server builds from fixed templates, with only length-validated text
-# interpolated in, and never navigates to a remote page, so the crafted-page
-# vector CVE-2026-84349 and CVE-2026-84351 require is not reachable, and the
-# Omnibox that CVE-2026-84357 targets does not exist in that headless run.
-# Drop these entries once bookworm-security publishes 152.0.7977.75-1~deb12u1.
-CVE-2026-84349
-CVE-2026-84351
-CVE-2026-84357
+# server builds from fixed templates, with only server-signed, HTML-escaped text
+# interpolated in and fonts inlined as data URIs. It never navigates to a remote
+# page, loads no extensions, and shows no browser UI, so none of the crafted
+# page, crafted extension, compromised renderer, or social engineering vectors
+# these CVEs require are reachable. CVE-2026-87534, CVE-2026-87616,
+# CVE-2026-91727, and CVE-2026-91748 also only affect Android, Windows, or macOS.
+# Drop these entries once bookworm-security publishes 153.0.8010.47-2~deb12u1.
+CVE-2026-87431
+CVE-2026-87433
+CVE-2026-87444
+CVE-2026-87450
+CVE-2026-87460
+CVE-2026-87468
+CVE-2026-87471
+CVE-2026-87498
+CVE-2026-87499
+CVE-2026-87534
+CVE-2026-87544
+CVE-2026-87569
+CVE-2026-87570
+CVE-2026-87588
+CVE-2026-87612
+CVE-2026-87616
+CVE-2026-87636
+CVE-2026-91715
+CVE-2026-91720
+CVE-2026-91727
+CVE-2026-91732
+CVE-2026-91748

@@ -519,9 +519,8 @@ clickhouse:
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    # so the copy and the soak can start as soon as a box lands. A second one
+    # needs its own box, named in `persistence.localVolume.nodeNames`.
     #
     # A single replica is not the shape to *finish* on: after the cutover the
     # system of record would live on one machine, with the backups below as the
@@ -846,10 +845,12 @@ kuraFleet:
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -857,11 +858,11 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
@@ -901,7 +902,7 @@ vultrFleets:
   # region out of service without touching the box.
   us-central:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
@@ -1002,11 +1003,12 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
-    # an admission line of 1303 (85% of allocatable), so Admission refused every
-    # storage claim growth here — and a claim is account-scoped, so that refusal
-    # also blocked the regions the same accounts run in that did have room.
-    replicas: 3
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1023,7 +1025,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1194,10 +1196,10 @@ macosFleet:
     #
     # The cap is bounded by admission, not by taste. Admission reserves
     # masterCapGib for the branch it is admitting plus every branch already
-    # live, so with B branches already held the resident masters that survive
-    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
-    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
-    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
+    # running a job, so with B such branches the resident masters that survive
+    # are gib/cap - (B+1). A branch is reserved when it is materialized for a
+    # job, not at VM boot, so a warm standby holds none and B is 1 only while
+    # one job starts as another tears down. At cap 28 that leaves 1 or 0 masters —
     # which is what the fleet showed, hosts flapping between one master and
     # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
     # covers the account set with dispatch affinity scoring on residency.
@@ -1449,7 +1451,7 @@ runnersFleet:
         # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
         # guest host would hold FEWER hot accounts than a single-guest
         # M2-L does today. Resident masters are `gib/masterCapGib -
-        # (liveBranches + 1)` and a branch is reserved at VM boot, so
+        # (liveBranches + 1)` and a branch is reserved while it runs a job, so
         # two guests means liveBranches reaches 2: at 80/20 that is
         # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
         #
@@ -1569,6 +1571,11 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
     "27.0":
       autoscaling:
         enabled: true

@@ -90,6 +90,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Root directory resolution: `cli/Sources/TuistRootDirectoryLocator/AGENTS.md`
 - Scaffold generation: `cli/Sources/TuistScaffold/AGENTS.md`
 - Simulator integration: `cli/Sources/TuistSimulator/AGENTS.md`
+- Checkout paths and snapshots: `cli/Sources/TuistTestSupport/AGENTS.md`
 - Test helpers: `cli/Sources/TuistTesting/AGENTS.md`
 - XCActivityLog parsing: `cli/Sources/TuistXCActivityLog/AGENTS.md`
 - XCResult handling: `cli/Sources/TuistXCResultService/AGENTS.md`

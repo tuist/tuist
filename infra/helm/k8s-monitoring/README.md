@@ -206,10 +206,14 @@ a month at the stack's measured rate.
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The
 local control-plane jobs use 30 seconds so a short control-plane interruption
 still produces enough samples to distinguish process, storage, and network
-pressure. The one-minute default
-matches Grafana Cloud's included rate of one data point per minute for each
-active series, while keeping enough resolution for the infrastructure
-dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
+pressure. Kura is the exception: annotation autodiscovery scrapes pods
+labelled `app.kubernetes.io/name=kura` every 65 seconds, because the fleet
+exports a large per-node metric surface and its observed 14-day DPM p95 was
+1.052. The interval lives in this chart's `extraDiscoveryRules` rather than in
+a pod annotation, so changing it does not restart the Kura fleet. This brings Kura below Grafana Cloud's included rate of one data
+point per minute per active series. The one-minute default remains in place for
+all other metrics, keeping enough resolution for the infrastructure dashboards
+and alerts. Keep other job-specific overrides at 60 seconds unless a
 documented operational requirement justifies the additional ingestion cost.
 See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
 
@@ -234,9 +238,28 @@ Three layers trim what leaves the cluster, cheapest first:
 Histogram buckets are the single largest shape, around a third of all billable
 series, and their cardinality tracks route and worker coverage rather than
 traffic. They are dropped for `tuist-staging`, `tuist-canary` and
-`tuist-pentest`. `_count` and `_sum` survive, so request rates and mean
-latency still work everywhere; `histogram_quantile` percentiles are
-production-only.
+`tuist-pentest`. Production Kura keeps its public request and multipart
+admission histograms, but drops alternating buckets so `histogram_quantile`
+continues to work with coarser boundaries.
+`kura_replication_request_duration_seconds` keeps every bucket: since pull
+replication it only times catch-up passes, is labelled by operation alone, and
+coarser buckets overstated its p99 by 50-75%. `_count` and `_sum` survive every reduction, so request rates and
+mean latency remain intact. The production reduction targets the Kura fleet
+because it grew from 53 nodes / 17k series on September 1 to 344 nodes /
+roughly 120k series in the latest cardinality sample.
+
+At the current measured rate, roughly $0.008 per excess metrics series-month,
+the Kura-specific 65-second scrape interval should save up to about $75/month
+by removing the small DPM overage. The bucket reduction is expected to remove
+around 11,000 active series at the current fleet size, worth approximately
+$88/month. Together, the two changes are expected to save roughly
+$150-$175/month, before any further Kura fleet growth. The additional Kura
+ingress log sampling change should save another roughly $15-$30/month based
+on the current 40 MB/hour Kura log volume, bringing the expected total to
+approximately $165-$205/month. Reducing healthy trace sampling from 10% to
+5% adds a smaller, workload-dependent saving of up to roughly $20/month while
+retaining all errors and traces slower than two seconds. These are estimates;
+Grafana Cloud's next billing samples are the source of truth.
 
 Two cost levers are **not** chart values and have to be changed on the stack:
 
@@ -258,17 +281,28 @@ a scrape target, and add `selector={cluster="tuist-staging"}` to scope it.
 
 ## Log and trace sampling
 
-Routine request logs are sampled before they leave the cluster. The pipeline
-keeps 10 percent of the single structured completion entry emitted for Tuist
-requests with response codes from 200 through 399. It also keeps 10 percent of
-Kura ingress responses with codes from 200 through 299 or 404. The standalone
-cache hosts apply the same rate to completion entries with response codes from
-200 through 299 or 404. Every warning, error, and unusual response remains
-unsampled.
+Routine request logs are sampled before they leave the cluster. The pipeline keeps 10 percent of the single structured completion entry
+emitted for Tuist requests with response codes from 200 through 399. Kura is
+sampled more aggressively: only 1 percent of ingress responses with codes from
+200 through 299 or 404 are retained. The standalone cache hosts keep the 10
+percent rate for their completion entries. Every warning, error, and unusual
+response remains unsampled.
 
 Application traces use [tail sampling](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
 The sampler keeps every trace marked as an error, every trace lasting more than
-two seconds, and 25 percent of the remaining healthy traces. Production runs
+two seconds, and 5 percent of the remaining healthy traces, with two
+exclusions:
+
+- Kura's pull-replication long-polls (`/_internal/sync/forward` and the region
+  listing on `/_internal/backfill/entries`) are held open for up to 25 seconds
+  by design, so they do not count as slow. They are still kept when they fail
+  and still take part in the 5 percent sample.
+- Healthy probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and
+  Kura's peer `/_internal/status` health check) are not sampled. They are kept
+  only when they fail or take longer than two seconds.
+
+Both exclusions match on the `http.route` span attribute, so they apply to any
+service that reports one of those routes. Production runs
 two sampler replicas; staging and canary run one. Trace collection and the
 sampler remain disabled in the management cluster.
 

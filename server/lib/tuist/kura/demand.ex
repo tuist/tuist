@@ -12,7 +12,7 @@ defmodule Tuist.Kura.Demand do
 
   It is deliberately a proxy for cache traffic rather than a measure of it, and
   it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
+  `RunAtLoad`, so the CAS proxy resolves an endpoint on every login: an
   account whose agent is installed but idle keeps refreshing its clock without
   anyone building, and may never reach a full inactive window. In the other
   direction the CLI caches a resolved endpoint for an hour, so most requests
@@ -72,11 +72,16 @@ defmodule Tuist.Kura.Demand do
   say where from. A `nil` origin still records demand — an account the edge
   could not locate keeps its instance warm exactly as before, it just does not
   vote on where the instance goes.
-  """
-  def record(account_id, origin \\ nil)
 
-  def record(account_id, origin) when is_integer(account_id) do
-    Origins.record_demand(account_id, origin)
+  `persist_origin: true` writes the origin count through instead of buffering
+  it, for a request about to have its instance placed by a job that may run on
+  another node (`Tuist.Kura.Workers.ProvisionOnDemandWorker`), where this
+  node's buffer is not visible.
+  """
+  def record(account_id, origin \\ nil, opts \\ [])
+
+  def record(account_id, origin, opts) when is_integer(account_id) do
+    Origins.record_demand(account_id, origin, persist: Keyword.get(opts, :persist_origin, false))
 
     if Environment.kura_demand_write_through_repo?() do
       persist([{account_id, System.system_time(:second)}])
@@ -89,7 +94,7 @@ defmodule Tuist.Kura.Demand do
     ArgumentError -> :ok
   end
 
-  def record(_account_id, _origin), do: :ok
+  def record(_account_id, _origin, _opts), do: :ok
 
   @doc """
   Drains this node's buffer into `kura_account_region_lifecycles`. Called on
@@ -120,6 +125,15 @@ defmodule Tuist.Kura.Demand do
   end
 
   @doc """
+  Writes one account's demand through the caller's connection at once, instead
+  of leaving it in this node's buffer. For a caller that is about to act on the
+  demand, possibly on another node, and so cannot wait for a flush.
+  """
+  def persist_now(account_id, %DateTime{} = demand_at) do
+    persist([{account_id, DateTime.to_unix(demand_at)}])
+  end
+
+  @doc """
   The lifecycle row for an account-region, or `nil` when the account has never
   asked for Kura cache in that region.
   """
@@ -132,9 +146,10 @@ defmodule Tuist.Kura.Demand do
 
   Cache-endpoint resolution uses this to decide what to answer while no Kura
   instance is serving: a lifecycle-managed account falls back to the
-  Tuist-hosted default lane rather than to its own legacy custom endpoints,
-  because routing archived accounts at the custom-endpoint path would make
-  archival the thing that keeps that path alive.
+  Tuist-hosted default lane, or gets no endpoints for a client that is always
+  routed to Kura, rather than to its own legacy custom endpoints, because
+  routing archived accounts at the custom-endpoint path would make archival the
+  thing that keeps that path alive.
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))

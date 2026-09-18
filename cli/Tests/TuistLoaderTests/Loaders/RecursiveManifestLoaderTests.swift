@@ -337,6 +337,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             packageType: .any,
             packageSettings: .any,
             packageModuleAliases: .any,
+            packageProducts: .any,
             enabledTraits: .any
         )
         .willReturn(
@@ -375,6 +376,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             packageType: .any,
             packageSettings: .any,
             packageModuleAliases: .any,
+            packageProducts: .any,
             enabledTraits: .any
         )
         .willReturn(
@@ -409,6 +411,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             packageType: .any,
             packageSettings: .any,
             packageModuleAliases: .any,
+            packageProducts: .any,
             enabledTraits: .any
         )
         .willReturn(

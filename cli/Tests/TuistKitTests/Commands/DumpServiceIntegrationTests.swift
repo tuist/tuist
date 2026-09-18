@@ -253,6 +253,7 @@ final class DumpServiceTests: TuistTestCase {
                     ],
                     "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
+                    "projectFormat": "pbxproj",
                     "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,
                     "staticSideEffectsWarningTargets": {

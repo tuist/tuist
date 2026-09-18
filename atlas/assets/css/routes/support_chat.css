@@ -62,6 +62,13 @@ body:has([data-part="support-chat"]) {
   & [data-part="title"] {
     font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
     margin: 0;
+
+    /* On phones the fields sit at 1rem (the iOS focus-zoom guard), which
+       is exactly heading-small there, so the title read smaller than the
+       placeholders. Step it up one size on touch devices. */
+    @media (hover: none), (pointer: coarse) {
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
   }
 
   & [data-part="close"] {
@@ -231,12 +238,50 @@ body:has([data-part="support-chat"]) {
     gap: var(--noora-spacing-1);
   }
 
+  /* Noora's text area pads its wrapper 12px on every side while the text
+     inputs pad 8px horizontally, so the Message placeholder sat right of
+     Name and Email. Bring the inputs up to the text area's 12px inset: the
+     column lines up and the text no longer hugs the border. */
+  & [data-part="wrapper"]:has(> [data-part="identity-input"]) {
+    padding: var(--noora-spacing-3) var(--noora-spacing-5);
+  }
+
+  /* Neither Noora field resets the browser's own padding, and iOS Safari's
+     native textfield appearance adds a further inner inset to inputs but
+     not textareas, so the text column drifted per browser. Drop the native
+     appearance and set explicit paddings so the column is the wrapper
+     padding alone everywhere; the input keeps its 1px vertical to hold the
+     same height it had with the UA default. */
+  & input[data-part="identity-input"] {
+    appearance: none;
+    padding: 1px 0;
+  }
+
+  & textarea[data-part="message-input"] {
+    appearance: none;
+    padding: 0;
+  }
+
+  /* Noora bumps inputs to 1rem under 768px to stop iOS focus zoom but
+     leaves text areas at 0.875rem. Focusing either textarea on a phone
+     zoomed the whole page (the panel's header and timestamps ended up
+     clipped at both edges), and the Message placeholder rendered smaller
+     than Name and Email. Same bump, same reason, for both textareas. */
+  @media (max-width: 768px) {
+    & textarea[data-part="message-input"],
+    & textarea[data-part="composer-input"] {
+      font-size: 1rem;
+    }
+  }
+
   /* Noora bumps inputs to 1rem under 768px viewports to stop iOS focus-zoom,
      but the embed iframe is always narrower than that, leaving inputs and the
      textarea at different sizes. With a fine pointer zoom is not a concern, so
      pin everything to desktop/body-medium regular. */
   @media (hover: hover) and (pointer: fine) {
-    & input[data-part="identity-input"] {
+    & input[data-part="identity-input"],
+    & textarea[data-part="message-input"],
+    & textarea[data-part="composer-input"] {
       font: var(--noora-font-body-medium);
     }
   }

@@ -6,6 +6,7 @@ import "../css/components/account_dropdown.css"
 import "../css/components/pagination.css"
 import "../css/components/widget.css"
 import "../css/components/search_palette.css"
+import "../css/components/platform_icon.css"
 import "../css/routes/sales.css"
 import "../css/routes/finance.css"
 import "../css/routes/accounts.css"
@@ -20,6 +21,8 @@ import "../css/routes/admin_audit.css"
 import "../css/routes/admin_identities.css"
 import "../css/routes/admin_users.css"
 import "../css/routes/admin_memory.css"
+import "../css/routes/admin_inference.css"
+import "../css/components/empty_card_section.css"
 import "../css/routes/documents.css"
 import "../css/routes/document.css"
 import "../css/routes/postal.css"
@@ -28,6 +31,9 @@ import "../css/routes/financings.css"
 import "../css/routes/data_centers.css"
 import "../css/routes/insurance.css"
 import "../css/routes/notes.css"
+import "../css/routes/projects.css"
+import "../css/routes/domains.css"
+import "../css/routes/errors.css"
 
 import "phoenix_html"
 import {Socket} from "phoenix"
@@ -39,11 +45,12 @@ import IdentityChannelDropdownScroll from "./hooks/identity_channel_dropdown_scr
 import OriginalEmailPreview from "./hooks/original_email_preview"
 import ScreenshotPaste from "./hooks/screenshot_paste"
 import SearchPalette from "./hooks/search_palette"
+import Clipboard from "./hooks/clipboard"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette},
+  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page

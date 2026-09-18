@@ -9,6 +9,7 @@ defmodule AtlasWeb.Router do
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
   alias AtlasWeb.Plugs.FetchCurrentUser
+  alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
   alias AtlasWeb.Plugs.RequireAuth
   alias Plug.Swoosh.MailboxPreview
@@ -47,6 +48,11 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :inference do
+    plug :accepts, ["json", "event-stream"]
+    plug InferenceAuthentication
+  end
+
   scope "/", AtlasWeb do
     get "/ready", HealthController, :ready
   end
@@ -78,6 +84,14 @@ defmodule AtlasWeb.Router do
     forward "/mcp", StreamableHTTP, server: Server
   end
 
+  scope "/inference/v1", AtlasWeb do
+    pipe_through :inference
+
+    get "/models", InferenceController, :models
+    post "/chat/completions", InferenceController, :chat_completions
+    post "/embeddings", InferenceController, :embeddings
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api]
 
@@ -101,6 +115,12 @@ defmodule AtlasWeb.Router do
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put
+  end
+
+  scope "/api", AtlasWeb.ErrorsAPI do
+    pipe_through [:api]
+
+    post "/:project_id/envelope/", EnvelopeController, :create
   end
 
   scope "/api", AtlasWeb do
@@ -193,6 +213,13 @@ defmodule AtlasWeb.Router do
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
+      live "/engineering/projects", ProjectLive.Index, :index
+      live "/engineering/projects/:id", ProjectLive.Show, :show
+      live "/engineering/domains", DomainLive.Index, :index
+      live "/engineering/domains/:id", DomainLive.Show, :show
+      live "/engineering/errors", ErrorsLive.Index, :index
+      live "/engineering/errors/:id", ErrorsLive.Show, :show
+      live "/engineering/errors/:id/events/:event_id", ErrorsLive.Event, :event
     end
 
     live_session :executive_dashboard,
@@ -226,6 +253,11 @@ defmodule AtlasWeb.Router do
         live "/audit", AuditLive, :index
         live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
+        live "/inference", InferenceLive, :index
+        live "/inference/profiles", InferenceLive, :index
+        live "/inference/profiles/:id", InferenceProfileLive, :show
+        live "/inference/providers", InferenceProvidersLive, :index
+        live "/inference/tokens/:id", InferenceTokenLive, :show
       end
     end
 

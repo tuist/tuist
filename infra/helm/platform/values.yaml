@@ -351,6 +351,17 @@ external-dns:
   # write records under tuist.dev. The bootstrap task overrides this with
   # "<cluster-name>-platform".
   txtOwnerId: tuist-platform
+  # Sync about 5s after a source changes (external-dns fixes that delay; a
+  # lower --min-event-sync-interval does not shorten it) instead of only on the
+  # 1m interval. A new Kura instance's DNSEndpoint is the last step before its
+  # endpoint can be handed out, and waiting for the next interval was most of
+  # the time a cold instance took to serve.
+  triggerLoopOnEvent: true
+  extraArgs:
+    # Every sync lists the whole zone. At the default 100 records a page that is
+    # a dozen Cloudflare API calls per sync, which syncing on events multiplies;
+    # at 5,000 it is one.
+    - --cloudflare-dns-records-per-page=5000
   # Limit which records external-dns will touch; be explicit for prod safety.
   domainFilters:
     - tuist.dev
