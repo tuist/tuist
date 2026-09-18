@@ -94,7 +94,7 @@ struct ModuleCacheTransferBenchmark {
                         instanceName: project
                     ) { config.token }
                     if model == "reapi" { try await client.validateCapabilities() }
-                    // Both transports receive the same pre-exchanged credential, outside the timed phases.
+                    // Both transports receive the same cache credential, outside the timed phases.
                     let _: String? = try await CachedValueStore.current.getValue(
                         key: "cache-token-\(authenticationURL.absoluteString)-\(config.account)/\(project)"
                     ) { (value: config.token, expiresAt: Date().addingTimeInterval(3600)) }

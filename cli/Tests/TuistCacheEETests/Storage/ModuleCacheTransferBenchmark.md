@@ -2,7 +2,7 @@
 
 `ModuleCacheTransferBenchmark.compareTransfers` compares the previous modern module-cache path (`CacheStorage` + `CacheLocalStorage` + `ModuleCacheRemoteStorage`, AppleArchive/LZFSE over HTTP) with `BinaryCacheStorage` + `REAPICacheClient`. Both clients use the same dedicated Kura node and the same prebuilt XCFrameworks. This is a storage-path benchmark, not a compilation or complete `tuist cache`/`tuist generate` benchmark.
 
-The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JSON configuration. Use disposable local Kura storage or an isolated hosted benchmark project, with a pre-exchanged cache token restricted to those projects. The benchmark creates remote records and does not delete them. It does not require server changes or a privileged metrics endpoint.
+The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JSON configuration. Use disposable local Kura storage or an isolated hosted benchmark project, with a cache credential restricted to those projects (pre-exchanged when supported). The benchmark creates remote records and does not delete them. It does not require server changes or a privileged metrics endpoint.
 
 ```json
 {
@@ -18,7 +18,7 @@ The test is disabled unless `TUIST_MODULE_CACHE_BENCHMARK_CONFIG` points to a JS
 
 Each immediate subdirectory of `inputs` is a corpus of XCFrameworks. Each framework must contain iOS device, iOS simulator, and macOS slices using standard architectures. Artifact basenames become target names. Authorize projects named `<corpus>-<zero-based repetition>-archive` and `<corpus>-<zero-based repetition>-reapi` under the configured account, or set `project` to use one existing benchmark project. Action keys include a fresh invocation UUID (overridable with `runID`), corpus, and repetition. The two protocols have separate remote record formats.
 
-For a deployed Kura node, set `endpoint` to its resolved HTTPS cache URL, `authenticationURL` to the Tuist server URL, and `project` to the isolated project handle. TLS follows the endpoint scheme. Both clients receive the same pre-exchanged token outside the timed phases. Omit `metricsURL`: production timings do not require scraping server metrics, and absent counters mean unavailable, not zero bytes transferred. Confirm deployed capabilities before treating the node as supporting the optimized compression paths.
+For a deployed Kura node, set `endpoint` to its resolved HTTPS cache URL, `authenticationURL` to the Tuist server URL, and `project` to the isolated project handle. TLS follows the endpoint scheme. Both clients receive the same credential outside the timed phases. An existing project token can be used when the deployed server does not support cache-token exchange. Omit `metricsURL`: production timings do not require scraping server metrics, and absent counters mean unavailable, not zero bytes transferred. Confirm deployed capabilities before treating the node as supporting the optimized compression paths.
 
 Fresh action keys alone do not make CAS content cold. Set `independentRepetitionInputs` to `true` and arrange artifacts as `inputs/<corpus>/<zero-based repetition>/*.xcframework` to use distinct content per sample. The generator below prepares 100-module and large-artifact workloads with distinct payload bytes for every invocation, repetition, module, and SDK:
 
@@ -156,4 +156,46 @@ A separate 15-second CPU sample of the optimized many-module run captured stagin
 
 REAPI also negotiates zstd for streaming and batch uploads, accepts compressed batch reads, hashes while streaming to avoid rereading downloads, batches missing-blob lookups by metadata count, fills transfer slots as they become available, and avoids reading/signing SDK action records a second time during the same warm operation. The encoding follows standard REAPI compressor fields and `compressed-blobs/zstd` resource names; content digests and server storage identities remain uncompressed.
 
-**Remaining limitation:** REAPI is still slower than the archive baseline on loopback in every final measured case. Compression and the profiled fixes improve the implementation but do not make this rollout performance-neutral. The remaining local staging/materialization, filesystem metadata, signatures, and per-SDK action work are visible costs. The two SDK models also solve different reuse cases: the archive iOS baseline uses the original exact key and downloads the complete artifact. Do not interpret that baseline as evidence that old exact-target keys can satisfy a narrowed incoming graph. WAN performance, cold OS page caches, production-scale distinct libraries, and complete CLI invocation times remain unmeasured.
+**Remaining limitation:** REAPI is still slower than the archive baseline on loopback in every final measured case. Compression and the profiled fixes improve the implementation but do not make this rollout performance-neutral. The remaining local staging/materialization, filesystem metadata, signatures, and per-SDK action work are visible costs. The two SDK models also solve different reuse cases: the archive iOS baseline uses the original exact key and downloads the complete artifact. Do not interpret that baseline as evidence that old exact-target keys can satisfy a narrowed incoming graph. That loopback run did not measure WAN performance. The production measurements below address that gap; cold OS page caches, real production-library corpora, and complete CLI invocation times remain unmeasured.
+
+
+## Production transfer measurements (2026-09-18)
+
+The same locally built Release client measured both storage paths against the existing production endpoint `https://tuist-eu-west-1.kura.tuist.dev`, using the isolated `tuist/reapi-bench-20260918` project. No server changes or deployments were made. A deployed GetCapabilities probe advertised SHA-256, action-cache updates, zstd streaming, and zstd batch uploads. Production did not expose `/api/cache/token` (404), so both paths used the same project-only credential through the existing credential fallback. The credential was revoked after measurement. Server binary/version was not pinned; these results describe the deployed endpoint at the time of the run.
+
+All **72 measured phases passed**, including SDK coverage and SHA-256/size verification of every restored regular file outside the timed region. No full suite or acceptance suite was rerun. An initial account-token run was stopped before its short-lived credential could expire and is excluded from these results. The final run used fresh generated payloads and fresh action keys. The client source was `dd727f4df8`; the machine, Release optimization, and narrow IssueReporting compiler workaround match the earlier local measurements. This invokes the real storage implementations, not complete CLI command execution.
+
+Each corpus has three repetitions, with model order alternating. Every phase starts with an empty local cache. Cold push uses fresh keys and distinct dominant payload bytes per repetition, module, and SDK. Existing push retains the remote content from that sample. Pulls follow upload, so remote contents are warm; this does not measure a cold backing object store. Compiled fixture bytes remain shared. Both models include local staging, signing, hashing, compression, network transfer, and materialization; credential setup, capability negotiation, verification, and cleanup are outside timing.
+
+The corpora remain synthetic scaling/compression workloads around real compiled three-SDK frameworks:
+
+| Corpus | Modules | Regular-file bytes | Files | Generated payload |
+|---|---:|---:|---:|---|
+| many-mixed | 100 | 339,437,220 | 8,400 | 1 MiB per SDK, half random/half zero |
+| large-mixed | 4 | 403,647,780 | 336 | 32 MiB per SDK, half random/half zero |
+| large-incompressible | 4 | 403,649,508 | 336 | 32 MiB per SDK, all random |
+
+Median seconds (min–max), including local storage work:
+
+| Corpus | Phase | Archive/LZFSE | REAPI/zstd |
+|---|---|---:|---:|
+| many-mixed | cold-push | 34.80 (34.71–42.82) | 49.90 (48.64–49.97) |
+| many-mixed | existing-push | 5.61 (5.38–6.07) | 16.31 (15.63–16.56) |
+| many-mixed | cold-pull | 3.58 (3.33–9.15) | 14.91 (14.88–15.04) |
+| many-mixed | ios-pull | 3.32 (3.18–3.55) | 9.76 (9.65–10.07) |
+| large-mixed | cold-push | 47.86 (33.42–77.97) | 48.71 (41.94–75.17) |
+| large-mixed | existing-push | 0.69 (0.67–0.98) | 1.41 (1.41–1.66) |
+| large-mixed | cold-pull | 4.24 (4.13–4.58) | 4.74 (4.27–4.97) |
+| large-mixed | ios-pull | 4.67 (4.18–5.09) | 2.91 (2.81–3.57) |
+| large-incompressible | cold-push | 121.40 (76.47–142.56) | 75.91 (64.20–84.48) |
+| large-incompressible | existing-push | 1.03 (0.95–1.19) | 3.84 (1.59–4.45) |
+| large-incompressible | cold-pull | 9.69 (8.25–10.85) | 9.81 (8.64–20.99) |
+| large-incompressible | ios-pull | 8.69 (8.01–10.32) | 6.13 (5.76–7.07) |
+
+The archive iOS-pull baseline uses the original exact key and downloads the entire three-SDK archive. REAPI fetches only the two iOS SDKs. This comparison quantifies the narrower transfer, not compatibility of old exact-target keys with a narrowed graph. Production metrics and wire-byte counters were not collected; empty counter maps mean unavailable. Artifact sizes above are uncompressed source bytes, not network throughput measurements. This is one workstation/network path, with three samples and no controlled WAN latency/bandwidth, remote load, or cold OS page caches. It is not a benchmark of 100 independently compiled production libraries or complete CLI invocation times.
+
+**Interpretation:** this production run does not reproduce a universal REAPI slowdown, but it also does not establish a performance-neutral switch. For four large frameworks, median full restores were close: 4.24 → 4.74 seconds for mixed data and 9.69 → 9.81 seconds for incompressible data (archive → REAPI). Restoring just iOS improved by 38% and 29%, respectively. Large mixed-data uploads were about equal; incompressible uploads favored REAPI in this run, but upload ranges were wide and the network/server load was uncontrolled.
+
+The 100-module workload remains a substantial regression: median cold push increased from 34.80 to 49.90 seconds, full restore from 3.58 to 14.91 seconds (4.2×), and iOS-only restore from 3.32 to 9.76 seconds (2.9×). Repeat push was slower with REAPI in every corpus. The implementation still needs work on many-module overhead before claiming general performance parity. These end-to-end storage timings do not isolate RPC latency, local per-file publication, signing, or materialization; the earlier local profile identifies candidates, not a production attribution.
+
+The [raw measurements and corpus provenance](ModuleCacheTransferBenchmark.production-2026-09-18.json) retain all 72 unrounded phase timings and the deployed capability response; credentials are excluded.
