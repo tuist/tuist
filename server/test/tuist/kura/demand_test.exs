@@ -8,6 +8,7 @@ defmodule Tuist.Kura.DemandTest do
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Demand.Kicks
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -220,6 +221,60 @@ defmodule Tuist.Kura.DemandTest do
       account = air_account()
 
       assert {:error, :not_found} = Demand.set_keep_warm(account.id, "us-east", true)
+    end
+  end
+
+  describe "claim_provision_kick/1" do
+    test "lets the first resolution through and holds the rest of the window" do
+      # Every client of an account with nothing serving asks, and asks again on
+      # the provisioning answer's short max age. Acting on each would cost a
+      # write-through and a unique job insert per request, to schedule work the
+      # job's own unique window deduplicates anyway.
+      account_id = System.unique_integer([:positive])
+
+      assert Demand.claim_provision_kick(account_id)
+      refute Demand.claim_provision_kick(account_id)
+      refute Demand.claim_provision_kick(account_id)
+    end
+
+    test "keeps separate windows per account" do
+      assert Demand.claim_provision_kick(System.unique_integer([:positive]))
+      assert Demand.claim_provision_kick(System.unique_integer([:positive]))
+    end
+
+    test "backs a streak off to the tick's cadence once it outlives a provisioning attempt" do
+      # An account still asking a quarter of an hour later is one its region is
+      # refusing for capacity, or one whose provision is wedged. Neither is
+      # something another kick places, and both are owned by the reconciler
+      # tick and the stalled-instance alert.
+      account_id = System.unique_integer([:positive])
+      now = System.monotonic_time(:millisecond)
+      started_ms = now - to_timeout(minute: 20)
+
+      :ets.insert(Kicks, {account_id, now - 1, started_ms})
+
+      assert Demand.claim_provision_kick(account_id)
+
+      assert [{^account_id, next_allowed_ms, ^started_ms}] =
+               :ets.lookup(Kicks, account_id)
+
+      assert next_allowed_ms - now >= to_timeout(minute: 1) - 5
+    end
+
+    test "starts a new streak for an account that stopped asking" do
+      account_id = System.unique_integer([:positive])
+      now = System.monotonic_time(:millisecond)
+      stale = now - to_timeout(minute: 30)
+
+      :ets.insert(Kicks, {account_id, stale, stale - to_timeout(minute: 20)})
+
+      assert Demand.claim_provision_kick(account_id)
+
+      assert [{^account_id, next_allowed_ms, streak_started_ms}] =
+               :ets.lookup(Kicks, account_id)
+
+      assert streak_started_ms >= now
+      assert next_allowed_ms - now <= to_timeout(second: 5)
     end
   end
 end
