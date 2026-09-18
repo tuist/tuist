@@ -306,8 +306,9 @@ defmodule Tuist.Kura do
   The claim pinned on the row when it carries one, which is what its volumes
   were created at rather than what its account would be sized at today. The two
   diverge for as long as an instance holds volumes built under different sizing,
-  and nothing converges them on its own, so an operator looking at a region's
-  occupancy can see which instances account for it.
+  until claim sizing next applies a proposal and moves every instance to one
+  claim, so an operator looking at a region's occupancy can see which instances
+  account for it.
 
   A row that pins none holds what it resolves to instead: its account's
   effective claim where the region sizes per account, the region's own declared
@@ -515,10 +516,21 @@ defmodule Tuist.Kura do
   operator override write. `resolved_by` lands on the proposal's audit trail —
   an operator's handle from the ops page, or `"automatic"` from the sweep.
 
+  Every instance that holds volumes moves to the recommendation, whatever it
+  held, so an account whose instances were pinned apart comes out on one
+  claim: some raised, which admission has to take, others lowered, which keep
+  their caches and evict down. One transaction does all of it, so a region
+  refusing a raise leaves every pin, the sized claim and the proposal as they
+  were. The sized claim is written even when it does not change, which is what
+  restarts the evidence window on the rings the instances now run.
+
   A proposal whose premises no longer hold — resolved meanwhile, or the claim
   it measured moved since it was written — is marked superseded instead of
   applied and `{:error, :stale_proposal}` comes back. The sweep writes a fresh
-  proposal on its next pass if the recommendation still stands.
+  proposal on its next pass if the recommendation still stands. The claim
+  measured is the account's, its largest pin; a smaller pin moving meanwhile
+  does not change what applying does, since every instance lands on the
+  recommendation either way.
   """
   def apply_claim_proposal(%ClaimProposal{} = proposal, resolved_by) when is_binary(resolved_by) do
     account = Repo.get!(Account, proposal.account_id)

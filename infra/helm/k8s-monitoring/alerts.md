@@ -1389,7 +1389,12 @@ allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
 `Tuist.Kura.ClaimSizing`), and the disk row counts in units of two replicas at
 50 GiB against allocatable, per node: where the scheduler refuses. Shrinking
-claims is a lever here as well as a node.
+claims is a lever here as well as a node, and sizing pulls it on its own for
+rings that keep weeks of content. A lowered pin releases its reservation
+without rebuilding anything: admission reads the pin, and the pods' requests
+and ring budget (`KURA_CAS_CAPACITY_BYTES`, derived from the claim) follow it
+on their next roll, while the volume keeps the size it was built at and the
+ring evicts down inside it.
 
 **This row is not the admission check, and the region fills up before it
 fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
@@ -1754,6 +1759,25 @@ this rule paged on exactly that while it was critical. It stays as the early
 signal; the page is **Kura instance retention horizon under a day for three
 days**. A rule at two days was deployed with this one on 2026-09-02 and
 removed on 2026-09-04, having fired only on the artifact described below.
+
+Each region is measured against the claim its own instances are pinned at,
+and an account keeps one claim: an instance pinned below the rest of its
+account (an expansion built at the plan's starting claim beside instances the
+pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
+to the account's claim as soon as a rung confirms, rather than grown from the
+larger pin or left short.
+
+**Sizing also shrinks, and lands well clear of both tiers.** Besides a ring
+that never fills, a claim shrinks when every region kept what it shed for
+three retention floors (nine days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, 3.75 days, one
+step at most halves it (leaving at least 4.5 days), and it never goes under
+the plan's starting claim, so a shrunk ring sits several times above this
+rule's one day and above the longest growth rung's three. Once a lowered
+claim's pods roll, the ring's first rotation evicts its oldest segments down to
+the new budget: that sheds content older than anything it keeps afterwards,
+and fullness (segments held against the smaller desired total) reads over 100
+until it does, so the gate stays open without the rule firing.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
