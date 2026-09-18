@@ -127,10 +127,10 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetOutreachNextStep
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
-  alias Atlas.MCP.Tools.GetSpec
   alias Atlas.MCP.Tools.GetProjectErrorDsn
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
+  alias Atlas.MCP.Tools.GetSpec
   alias Atlas.MCP.Tools.GetSupportThread
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
@@ -182,11 +182,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListOutreachContacts
   alias Atlas.MCP.Tools.ListPostmortemActionItems
   alias Atlas.MCP.Tools.ListPostmortems
-  alias Atlas.MCP.Tools.ListSpecComments
-  alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListProductTraces
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
   alias Atlas.MCP.Tools.ListSocialPostRevisions
+  alias Atlas.MCP.Tools.ListSpecComments
+  alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
   alias Atlas.MCP.Tools.ListTuistPostgresTables
