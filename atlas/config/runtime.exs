@@ -572,6 +572,14 @@ config :atlas, :slack_agent,
   identities: slack_agent_identities,
   channel_policies: slack_agent_channel_policies
 
+# Fallback Slack channel for engineering-errors alerts posted by
+# `Atlas.Engineering.Errors.IssueCoalescer` and `Atlas.Engineering.Errors.DropAlerter`.
+# Used when a project has no explicit `slack_alert_channel` set. Defaults to
+# `#errors` in the Tuist company workspace.
+config :atlas,
+       :default_alert_slack_channel,
+       System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
+
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
 # populated by rel/env.sh.eex from the deploy SHA; falls back to the
