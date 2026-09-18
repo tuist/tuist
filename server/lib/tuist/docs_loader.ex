@@ -241,7 +241,7 @@ defmodule Tuist.Docs.Loader do
         raise "Snippet cycle detected: #{snippet_path} (from #{source_path})"
       end
 
-      unless File.exists?(snippet_path) do
+      if !File.exists?(snippet_path) do
         raise "Snippet not found: #{snippet_ref} (referenced from #{source_path}, resolved to #{snippet_path})"
       end
 

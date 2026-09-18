@@ -46,8 +46,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   attr :supported_for, :string,
     default: nil,
-    doc:
-      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel".)
+    doc: ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel".)
 
   def home_card(assigns) do
     href =
