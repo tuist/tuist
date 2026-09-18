@@ -277,7 +277,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
   (verified both ways — same digest when reversed). Taking the baseline first
   makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. A pruned store settles at ~2x its per-generation limit
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. `record_cas_primaries`
+  notes each store's primary right after the attach pass, and
+  `report_cas_generations` logs one `CAS store generations (teardown)` line per
+  store just before the teardown pass (for every rc): the primary at attach and at
+  teardown beside the upstream, in KiB. A job that starts on a fresh primary and
+  ends with one close to its upstream's size has copied most of it forward, which
+  is the measurement that decides whether a store could keep one generation at
+  rest instead of two. A pruned store settles at ~2x its per-generation limit
   (primary + the demoted upstream, which is the warm cache), which is why
   `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
   `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports

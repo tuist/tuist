@@ -8294,6 +8294,41 @@ mod tests {
         assert_eq!(generations(&dir), vec!["v1.2", "v1.3"]);
     }
 
+    /// A root the proxy stores after a rotation does not depend on the upstream:
+    /// `store_node` verifies every ref by loading its closure, and a load that
+    /// resolves in the upstream copies the graph into the primary. So the root
+    /// `fetch_object` puts back on a demand load cannot be left over absent
+    /// children when the upstream goes, the one shape the read guard would
+    /// otherwise have to catch below the root.
+    #[test]
+    fn a_root_the_proxy_stores_after_a_rotation_does_not_depend_on_the_upstream() {
+        let dir = TempCasDir::new("store-node-upstream");
+        let state = path_state_for(&dir.path());
+        let child = store_probe_object(state, b"a child only the upstream holds");
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        state.prune_ondisk(16 * 1024 * 1024).unwrap();
+        assert_eq!(generations(&dir), vec!["v1.1", "v1.2"]);
+
+        let root = reapi::Node { refs: vec![child.clone()], data: b"a root stored after the rotation".to_vec() };
+        unsafe { store_node(state, &root) }.unwrap();
+        let elsewhere = TempCasDir::new("store-node-upstream-digest");
+        let digest_state = path_state_for(&elsewhere.path());
+        store_probe_object(digest_state, b"a child only the upstream holds");
+        let root_digest = store_probe_object_with_refs(digest_state, &root.data, &[child]);
+
+        let held = state.cas.write().unwrap().take().unwrap();
+        unsafe { (state.up.llcas_cas_dispose)(held) };
+        let lock = std::fs::File::open(dir.0.join("lock")).unwrap();
+        lock.try_lock().expect("nothing else holds the store");
+        std::fs::remove_dir_all(dir.0.join("v1.1")).unwrap();
+        drop(lock);
+
+        assert!(
+            path_state_for(&dir.path()).graph_present(&root_digest),
+            "the root's children must have come forward with it"
+        );
+    }
+
     #[test]
     fn a_store_rotated_on_disk_is_the_chain_the_upstream_plugin_expects() {
         let dir = TempCasDir::new("prune-upstream-roundtrip");
