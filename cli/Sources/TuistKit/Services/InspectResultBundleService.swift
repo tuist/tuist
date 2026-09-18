@@ -220,7 +220,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             gitHistory: gitHistory?.payload,
             coverageUpload: coverageUpload
         )
-        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
 
@@ -367,7 +372,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             gitHistory: gitHistory?.payload,
             coverageUpload: nil
         )
-        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         return test
     }
