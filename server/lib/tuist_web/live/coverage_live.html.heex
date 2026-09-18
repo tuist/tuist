@@ -309,14 +309,14 @@
             <.text_cell label={gate_value(check)} />
           </:col>
           <:col :let={check} label={dgettext("dashboard_tests", "Result")}>
-            <div data-part="cell" data-type="text">
+            <div data-part="cell" data-type="badge">
               <.badge
                 style="light-fill"
-                size="small"
+                size="large"
                 color={gate_status_color(check.status)}
                 label={gate_status_label(check.status)}
               />
-              <span :if={Map.get(check, :reason)} data-part="label">
+              <span :if={Map.get(check, :reason)} data-part="sublabel">
                 {reason_label(check.reason)}
               </span>
             </div>
@@ -501,8 +501,8 @@
       icon="chart_arcs"
       data-part="analytics"
     >
-      <.card_section :if={@latest} data-part="analytics-widgets-section">
-        <div data-part="widgets">
+      <div data-part="analytics-content">
+        <div :if={@latest} data-part="widgets">
           <.widget
             id="widget-coverage"
             title={dgettext("dashboard_tests", "Code coverage")}
@@ -524,6 +524,7 @@
                   )
             }
             value={"#{@latest.coverage}%"}
+            legend_color="primary"
             trend_value={@trend}
             trend_type={:neutral}
             trend_label={dgettext("dashboard_tests", "over the period")}
@@ -562,64 +563,73 @@
             value={format_number(Map.get(@latest, :unmeasured_files_count) || 0)}
           />
         </div>
-      </.card_section>
-      <.card_section :if={@latest} data-part="analytics-card-chart-section">
-        <.chart
-          id="coverage-chart"
-          type="line"
-          extra_options={
-            %{
-              grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
-              xAxis: %{
-                boundaryGap: false,
-                type: "category",
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter: "fn:toLocaleDate",
-                  customValues: [
-                    @points
-                    |> List.first()
-                    |> Map.get(:inserted_at)
-                    |> NaiveDateTime.to_iso8601(),
-                    @points |> List.last() |> Map.get(:inserted_at) |> NaiveDateTime.to_iso8601()
-                  ],
-                  padding: [10, 0, 0, 0]
+        <.card_section :if={@latest}>
+          <div data-part="analytics-chart">
+            <.chart
+              id="coverage-chart"
+              type="line"
+              extra_options={
+                %{
+                  grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: false,
+                    type: "category",
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "fn:toLocaleDate",
+                      customValues: [
+                        @points
+                        |> List.first()
+                        |> Map.get(:inserted_at)
+                        |> NaiveDateTime.to_iso8601(),
+                        @points
+                        |> List.last()
+                        |> Map.get(:inserted_at)
+                        |> NaiveDateTime.to_iso8601()
+                      ],
+                      padding: [10, 0, 0, 0]
+                    }
+                  },
+                  yAxis: %{
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value}%"
+                    }
+                  },
+                  legend: %{show: false},
+                  tooltip: %{valueFormat: "{value}%"}
                 }
-              },
-              yAxis: %{
-                splitNumber: 4,
-                splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
-              },
-              legend: %{show: false},
-              tooltip: %{valueFormat: "{value}%"}
-            }
+              }
+              series={[
+                %{
+                  color: "var:noora-chart-tertiary",
+                  data:
+                    Enum.map(@points, &[NaiveDateTime.to_iso8601(&1.inserted_at), &1.coverage]),
+                  name: dgettext("dashboard_tests", "Code coverage"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "circle",
+                  symbolSize: 4
+                }
+              ]}
+              y_axis_min={0}
+              y_axis_max={100}
+            />
+          </div>
+        </.card_section>
+        <.coverage_empty
+          :if={is_nil(@latest)}
+          title={
+            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+              branch: @branch
+            )
           }
-          series={[
-            %{
-              color: "var:noora-chart-tertiary",
-              data: Enum.map(@points, &[NaiveDateTime.to_iso8601(&1.inserted_at), &1.coverage]),
-              name: dgettext("dashboard_tests", "Code coverage"),
-              type: "line",
-              smooth: 0.1,
-              symbol: "circle",
-              symbolSize: 4
-            }
-          ]}
-          y_axis_min={0}
-          y_axis_max={100}
+          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          data-part="empty-analytics"
         />
-      </.card_section>
-      <.coverage_empty
-        :if={is_nil(@latest)}
-        title={
-          dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-            branch: @branch
-          )
-        }
-        get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-        data-part="empty-analytics"
-      />
+      </div>
     </.card>
 
     <%!-- Commits --%>
@@ -674,14 +684,11 @@
             <.text_cell :if={not row.measured} label="—" />
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
-            <div data-part="cell" data-type="text">
-              <.badge
-                style="light-fill"
-                size="small"
-                color={completeness_color(row)}
-                label={completeness_label(row)}
-              />
-            </div>
+            <.badge_cell
+              style="light-fill"
+              color={completeness_color(row)}
+              label={completeness_label(row)}
+            />
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
             <.text_cell sublabel={
@@ -704,6 +711,7 @@
           dgettext("dashboard_tests", "No commit of %{branch} in this period", branch: @branch)
         }
         get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+        image="table"
         data-part="empty-commits"
       />
     </.card>
@@ -819,14 +827,11 @@
               />
             </:col>
             <:col :let={ref} label={dgettext("dashboard_tests", "Kind")}>
-              <div data-part="cell" data-type="text">
-                <.badge
-                  style="light-fill"
-                  size="small"
-                  color={if ref.kind == "pull_request", do: "information", else: "neutral"}
-                  label={ref_kind_label(ref.kind)}
-                />
-              </div>
+              <.badge_cell
+                style="light-fill"
+                color={if ref.kind == "pull_request", do: "information", else: "neutral"}
+                label={ref_kind_label(ref.kind)}
+              />
             </:col>
             <:col :let={ref} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={ref.covered_lines} executable={ref.executable_lines} />
@@ -848,14 +853,11 @@
               <.measured_by_cell commit={ref} />
             </:col>
             <:col :let={ref} label={dgettext("dashboard_tests", "Status")}>
-              <div data-part="cell" data-type="text">
-                <.badge
-                  style="light-fill"
-                  size="small"
-                  color={ref_status_color(ref)}
-                  label={ref_status_label(ref)}
-                />
-              </div>
+              <.badge_cell
+                style="light-fill"
+                color={ref_status_color(ref)}
+                label={ref_status_label(ref)}
+              />
             </:col>
             <:col :let={ref} label={dgettext("dashboard_tests", "Measured")}>
               <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(ref.ran_at)} />
@@ -875,6 +877,7 @@
               search: @refs_search
             )
           }
+          image="table"
           data-part="empty-refs"
         />
         <.coverage_empty
@@ -886,6 +889,7 @@
             )
           }
           get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          image="table"
           data-part="empty-refs"
         />
       </.card_section>
