@@ -119,7 +119,7 @@
         <div data-part="widgets">
           <.widget
             id="widget-pr-coverage"
-            title={dgettext("dashboard_tests", "Line coverage")}
+            title={dgettext("dashboard_tests", "Code coverage")}
             description={
               dgettext(
                 "dashboard_tests",
@@ -188,7 +188,7 @@
           />
           <.widget
             id="widget-pr-gaps"
-            title={dgettext("dashboard_tests", "Gaps")}
+            title={dgettext("dashboard_tests", "Untested changed files")}
             description={
               dgettext("dashboard_tests", "Changed files with executable lines no test executed.")
             }
@@ -732,7 +732,7 @@
           </div>
           <.table id="coverage-gap-files-table" rows={@gap_files}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_cell label={Path.basename(file.path)} sublabel={Path.dirname(file.path)} />
+              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
             </:col>
             <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
@@ -755,7 +755,7 @@
           </div>
           <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_cell label={Path.basename(file.path)} sublabel={Path.dirname(file.path)} />
+              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
             </:col>
           </.table>
           <div :if={@unmeasured_files == []} data-part="empty">
@@ -852,8 +852,8 @@
                 <.badge
                   style="light-fill"
                   size="small"
-                  color={completeness_color(ref)}
-                  label={completeness_label(ref)}
+                  color={ref_status_color(ref)}
+                  label={ref_status_label(ref)}
                 />
               </div>
             </:col>
