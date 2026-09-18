@@ -909,7 +909,7 @@ defmodule Tuist.VCS do
   defp coverage_total_text(%{commit: %{coverage: coverage}}), do: "#{coverage}%"
 
   defp coverage_delta_text(%{total_delta: delta, baseline: baseline}) when is_float(delta) do
-    "#{signed_delta(delta)} pp (#{baseline.coverage}% at #{String.slice(baseline.commit, 0, 7)})"
+    "#{signed_delta(delta)}% (#{baseline.coverage}% at #{String.slice(baseline.commit, 0, 7)})"
   end
 
   defp coverage_delta_text(%{commit: %{partial: true}, baseline: baseline}) when not is_nil(baseline),
@@ -922,7 +922,7 @@ defmodule Tuist.VCS do
   defp scheme_total_text(%{coverage: coverage}), do: "#{coverage}%"
 
   defp scheme_delta_text(%{delta: delta, baseline_coverage: baseline}) when is_float(delta),
-    do: "#{signed_delta(delta)} pp (#{baseline}%)"
+    do: "#{signed_delta(delta)}% (#{baseline}%)"
 
   defp scheme_delta_text(%{baseline_coverage: nil}), do: "not measured at the baseline"
   defp scheme_delta_text(_row), do: "not compared"
