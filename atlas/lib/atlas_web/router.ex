@@ -225,6 +225,10 @@ defmodule AtlasWeb.Router do
       live "/engineering/postmortems/new", PostmortemLive.Form, :new
       live "/engineering/postmortems/:number", PostmortemLive.Show
       live "/engineering/postmortems/:number/edit", PostmortemLive.Form, :edit
+      live "/engineering/specs", SpecLive.Index
+      live "/engineering/specs/new", SpecLive.Form, :new
+      live "/engineering/specs/:number", SpecLive.Show
+      live "/engineering/specs/:number/edit", SpecLive.Form, :edit
     end
 
     live_session :executive_dashboard,
