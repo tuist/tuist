@@ -233,6 +233,10 @@ defmodule TuistWeb.UserLoginLive do
     """
   end
 
+  def handle_event("turnstile_state_changed", _payload, socket) do
+    {:noreply, socket}
+  end
+
   defp oauth_configured?(assigns) do
     social_oauth_configured?(assigns) or sso_login_available?(assigns)
   end
