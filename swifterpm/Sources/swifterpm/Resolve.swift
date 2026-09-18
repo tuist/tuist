@@ -159,19 +159,13 @@ enum PackageResolver {
     /// its own source cache. In that case native SwiftPM is the shortest
     /// correct path: it is already responsible for fetching each missing pin.
     ///
-    /// A registry pin cannot be probed offline: its cache path embeds the archive
-    /// checksum, which only a registry request returns. `sharesCachedDirectories`
-    /// decides what to do with that unknown. When the workspace links into the
-    /// shared cache, the cache is meant to outlive the installation, so a registry
-    /// pin is left to the restoration path, which fetches it once and caches it for
-    /// every later installation. When the workspace instead receives copies, the
-    /// cache may not survive the run at all, so an unprobeable pin keeps delegating
-    /// to native SwiftPM rather than paying to populate a cache nothing will read.
+    /// Registry pins are probed the same way, against the checksum marker the cache keeps
+    /// inside each registry release. Keying the cache path on identity, version and registry
+    /// URL alone is what makes that probe possible without asking the registry anything.
     static func shouldUseNativeColdPath(
         packageDir: URL,
         cacheRoot: URL,
-        sharesCachedDirectories: Bool = !Environment.cachedDirectoryMaterializationMode()
-            .shouldCopyCachedDirectories
+        registryConfig: RegistryConfig
     ) async throws -> Bool {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else {
@@ -190,10 +184,17 @@ enum PackageResolver {
 
         for pin in pins {
             guard PinKind.isSourceControl(pin.kind) else {
-                if PinKind.isRegistry(pin.kind), sharesCachedDirectories {
-                    continue
+                guard PinKind.isRegistry(pin.kind) else {
+                    return true
                 }
-                return true
+                guard try await WorkspaceRestorer.cachedRegistrySourceExists(
+                    cacheRoot: cacheRoot,
+                    registryConfig: registryConfig,
+                    pin: pin
+                ) else {
+                    return true
+                }
+                continue
             }
             let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
             guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {

@@ -627,12 +627,16 @@ enum CLIRunner {
             )
         }
 
+        let registryConfig = try await cliRegistryConfig(
+            cli: cli, paths: paths, package: package)
+
         // Use the same native cold path as the embeddable API. The direct
         // invocation is only safe for lockfiles SwiftPM itself understands;
         // preserve SwifterPM's compatibility path for older custom pin kinds.
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
-            cacheRoot: cacheRoot
+            cacheRoot: cacheRoot,
+            registryConfig: registryConfig
         ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
@@ -653,6 +657,12 @@ enum CLIRunner {
                 cache: cache,
                 resolved: resolved
             )
+            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                resolved: resolved
+            )
             if !cli.quiet {
                 ResolvedFile.print(resolved)
             }
@@ -660,8 +670,6 @@ enum CLIRunner {
         }
 
         let cache = try await Cache(root: cacheRoot)
-        let registryConfig = try await cliRegistryConfig(
-            cli: cli, paths: paths, package: package)
 
         let resolved = try await PackageResolver.resolveOrLoad(
             packageDir: package,
