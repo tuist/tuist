@@ -5,7 +5,7 @@ defmodule Atlas.Repo.Migrations.CreateEngineeringDomains do
     create table(:domains, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
-      add :description, :string
+      add :description, :text
       add :visibility, :string, null: false, default: "public"
 
       timestamps(type: :timestamptz)

@@ -5,7 +5,7 @@ defmodule Atlas.Repo.Migrations.CreateEngineeringProjects do
     create table(:projects, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
-      add :description, :string
+      add :description, :text
       add :visibility, :string, null: false, default: "public"
 
       timestamps(type: :timestamptz)
@@ -18,7 +18,7 @@ defmodule Atlas.Repo.Migrations.CreateEngineeringProjects do
       add :owner, :string, null: false
       add :name, :string, null: false
       add :visibility, :string, null: false, default: "public"
-      add :project_id, references(:projects, type: :binary_id, on_delete: :nilify_all)
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all)
 
       timestamps(type: :timestamptz)
     end
