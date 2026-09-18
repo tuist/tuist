@@ -588,6 +588,37 @@ defmodule TuistWeb.UsageLive do
     Enum.map(dates, fn date -> [date, Float.round(Map.get(per_day, date, 0) / 1, 2)] end)
   end
 
+  def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []
+
+  def cache_used?(%{downloads: downloads, requests: requests}), do: downloads.quantity > 0 or requests.quantity > 0
+
+  def tests_used?(tests), do: tests.passed + not_billed_test_cases(tests) > 0
+
+  attr :title, :string, required: true
+  attr :get_started_href, :string, required: true
+  attr :rest, :global
+
+  def usage_empty_state(assigns) do
+    ~H"""
+    <.empty_card_section title={@title} get_started_href={@get_started_href} {@rest}>
+      <:image>
+        <img
+          src={~p"/images/empty_bar_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_bar_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+    """
+  end
+
   def download_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
 
   def request_rate_label,
@@ -601,7 +632,6 @@ defmodule TuistWeb.UsageLive do
   def cache_label(:bazel), do: dgettext("dashboard_usage", "Bazel cache")
   def cache_label(:nx), do: dgettext("dashboard_usage", "Nx cache")
   def cache_label(:metro), do: dgettext("dashboard_usage", "Metro cache")
-  def cache_label(_cache), do: dgettext("dashboard_usage", "Other caches")
 
   @doc """
   The heading of a usage pricing charge. Only an account with a subscription

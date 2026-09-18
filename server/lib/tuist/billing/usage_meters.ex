@@ -21,6 +21,14 @@ defmodule Tuist.Billing.UsageMeters do
   alias Tuist.Tests.TestCaseRunByTestRun
 
   @project_ids_chunk_size 5_000
+  @caches %{
+    "module" => :module,
+    "xcode" => :xcode,
+    "gradle" => :gradle,
+    "reapi" => :bazel,
+    "nx" => :nx,
+    "metro" => :metro
+  }
   @runner_job_lookback_days 7
 
   @doc """
@@ -28,7 +36,8 @@ defmodule Tuist.Billing.UsageMeters do
   from a Tuist Runners cache region.
 
   Returns `%{date, cache, runners, bytes, requests}` rows, where `cache` is one
-  of `:module`, `:xcode`, `:gradle`, `:bazel`, `:nx`, `:metro`, or `:other`.
+  of `:module`, `:xcode`, `:gradle`, `:bazel`, `:nx`, or `:metro`. Kura
+  artifact kinds outside that list are not counted.
   """
   def cache_downloads(account_id, %DateTime{} = period_start, %DateTime{} = period_end) when is_integer(account_id) do
     kura_downloads(account_id, period_start, period_end) ++
@@ -53,6 +62,7 @@ defmodule Tuist.Billing.UsageMeters do
       )
 
     from(e in subquery(deduped),
+      where: e.artifact_kind in ^Map.keys(@caches),
       group_by: [fragment("toDate(?)", e.window_start), e.artifact_kind, e.region],
       select: %{
         date: fragment("toDate(?)", e.window_start),
@@ -66,7 +76,7 @@ defmodule Tuist.Billing.UsageMeters do
     |> Enum.map(fn row ->
       %{
         date: row.date,
-        cache: cache(row.artifact_kind),
+        cache: Map.fetch!(@caches, row.artifact_kind),
         runners: row.region in runner_regions,
         bytes: to_integer(row.bytes),
         requests: to_integer(row.requests)
@@ -184,14 +194,6 @@ defmodule Tuist.Billing.UsageMeters do
     |> Enum.filter(&Regions.private?/1)
     |> Enum.map(& &1.id)
   end
-
-  defp cache("module"), do: :module
-  defp cache("xcode"), do: :xcode
-  defp cache("gradle"), do: :gradle
-  defp cache("reapi"), do: :bazel
-  defp cache("nx"), do: :nx
-  defp cache("metro"), do: :metro
-  defp cache(_artifact_kind), do: :other
 
   defp to_naive(%DateTime{} = datetime), do: datetime |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
 

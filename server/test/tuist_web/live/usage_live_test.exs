@@ -250,6 +250,21 @@ defmodule TuistWeb.UsageLiveTest do
       refute has_element?(lv, "[data-part='kura-traffic-by-region-card']")
     end
 
+    test "shows an empty state for a feature the account has not used", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='runner-usage-empty']", "No runner usage in this period")
+      assert has_element?(lv, "[data-part='cache-usage-empty']", "No cache downloads in this period")
+      assert has_element?(lv, "[data-part='test-insights-usage-empty']", "No test runs in this period")
+      refute has_element?(lv, "[data-kind='downloads']")
+      refute has_element?(lv, "[data-kind='passing-test-cases']")
+      assert has_element?(lv, "#widget-cache-downloads", "0 B")
+    end
+
     test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
       stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(true) end)

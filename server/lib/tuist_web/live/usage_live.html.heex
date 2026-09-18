@@ -70,7 +70,10 @@
         />
       </div>
     </.card_section>
-    <.card_section data-part="usage-detail-section">
+    <.card_section
+      :if={TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}
+      data-part="usage-detail-section"
+    >
       <div data-part="chart">
         <.chart
           id="runner-spend-chart"
@@ -152,6 +155,12 @@
         </div>
       </div>
     </.card_section>
+    <.usage_empty_state
+      :if={not TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}
+      data-part="runner-usage-empty"
+      title={dgettext("dashboard_usage", "No runner usage in this period")}
+      get_started_href="https://tuist.dev/en/docs/guides/features/runners"
+    />
   </.card>
 
   <.card
@@ -204,7 +213,10 @@
           />
         </div>
       </.card_section>
-      <.card_section data-part="usage-detail-section">
+      <.card_section
+        :if={TuistWeb.UsageLive.cache_used?(pricing.cache)}
+        data-part="usage-detail-section"
+      >
         <div data-part="chart">
           <.chart
             id="cache-spend-chart"
@@ -299,6 +311,12 @@
           </div>
         </div>
       </.card_section>
+      <.usage_empty_state
+        :if={not TuistWeb.UsageLive.cache_used?(pricing.cache)}
+        data-part="cache-usage-empty"
+        title={dgettext("dashboard_usage", "No cache downloads in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
+      />
     </.async_result>
   </.card>
 
@@ -350,7 +368,10 @@
           />
         </div>
       </.card_section>
-      <.card_section data-part="usage-detail-section">
+      <.card_section
+        :if={TuistWeb.UsageLive.tests_used?(pricing.tests)}
+        data-part="usage-detail-section"
+      >
         <div data-part="chart">
           <.chart
             id="tests-spend-chart"
@@ -428,6 +449,12 @@
           </div>
         </div>
       </.card_section>
+      <.usage_empty_state
+        :if={not TuistWeb.UsageLive.tests_used?(pricing.tests)}
+        data-part="test-insights-usage-empty"
+        title={dgettext("dashboard_usage", "No test runs in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+      />
     </.async_result>
   </.card>
 
