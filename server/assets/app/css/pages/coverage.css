@@ -75,7 +75,9 @@
     gap: var(--noora-spacing-8);
   }
 
-  & .noora-card {
+  /* Clipped per section rather than per card: a card's header can hold a date
+     picker, whose calendar has to open over the card's edge. */
+  & .noora-card__section {
     overflow-x: hidden;
   }
 

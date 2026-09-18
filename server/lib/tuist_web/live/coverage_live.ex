@@ -84,7 +84,7 @@ defmodule TuistWeb.CoverageLive do
         Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "?" <> Query.drop(query, "page"))}
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
   end
 
   def handle_info({:test_created, _test_run}, socket) do

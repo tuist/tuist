@@ -74,7 +74,7 @@
   <%!-- Overview --%>
   <.card
     :if={@tab == "overview"}
-    title={comparison_title(@subject, @selected_project)}
+    title={dgettext("dashboard_tests", "Analytics")}
     icon="chart_arcs"
     data-part="comparison-card"
   >
@@ -182,20 +182,7 @@
         <.widget
           id="widget-change"
           title={dgettext("dashboard_tests", "Change")}
-          description={
-            if @comparison.baseline,
-              do:
-                dgettext("dashboard_tests", "Against %{coverage}% at %{sha} on %{branch}.",
-                  coverage: @comparison.baseline.coverage,
-                  sha: short_sha(@comparison.baseline.commit),
-                  branch: @comparison.baseline.branch
-                ),
-              else:
-                dgettext(
-                  "dashboard_tests",
-                  "Difference of the total against the baseline commit."
-                )
-          }
+          description={change_description(@subject, @selected_project, @comparison)}
           value={
             cond do
               @comparison.total_delta -> "#{signed(@comparison.total_delta)}%"
@@ -289,11 +276,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @series
-                    |> List.first()
-                    |> Map.get(:inserted_at)
-                    |> NaiveDateTime.to_iso8601(),
-                    @series |> List.last() |> Map.get(:inserted_at) |> NaiveDateTime.to_iso8601()
+                    @series |> List.first() |> point_time(),
+                    @series |> List.last() |> point_time()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -310,7 +294,7 @@
           series={[
             %{
               color: "var:noora-chart-primary",
-              data: Enum.map(@series, &[NaiveDateTime.to_iso8601(&1.inserted_at), &1.coverage]),
+              data: Enum.map(@series, &[point_time(&1), &1.coverage]),
               name: dgettext("dashboard_tests", "Code coverage"),
               type: "line",
               smooth: 0.1,
