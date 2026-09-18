@@ -680,13 +680,6 @@ defmodule TuistWeb.UsageLive do
   def project_label(nil), do: dgettext("dashboard_usage", "Unknown project")
   def project_label(project), do: project
 
-  @doc """
-  The heading of a usage pricing charge. Only an account with a subscription
-  is billed, so every other account is shown an estimate.
-  """
-  def usage_charge_title(%{billed: nil}), do: dgettext("dashboard_usage", "Estimated")
-  def usage_charge_title(_section), do: dgettext("dashboard_usage", "Billed")
-
   def usage_charge_description(%{billed: nil}),
     do: dgettext("dashboard_usage", "What this period comes to. There is no subscription to bill it to.")
 

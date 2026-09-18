@@ -313,7 +313,7 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
       render_async(lv, @render_async_timeout)
 
-      assert has_element?(lv, "#widget-tests-charge", "Billed")
+      assert has_element?(lv, "#widget-tests-charge", "Usage")
       assert has_element?(lv, "#widget-tests-charge", "2.00")
       assert has_element?(lv, "[data-kind='cache-usage']", "Billed this period")
       assert has_element?(lv, "[data-kind='passing-test-cases']", "Billed this period")
