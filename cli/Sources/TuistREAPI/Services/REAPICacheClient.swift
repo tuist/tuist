@@ -21,8 +21,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable {
 
     private let instanceName: String
     private let accountHandle: String
-    // Leave room for protobuf metadata within gRPC's default 4 MiB message limit.
-    private static let maximumBatchBytes: Int64 = 4 * 1024 * 1024 - 64 * 1024
+    private static let maximumBatchBytes: Int64 = 2 * 1024 * 1024
     private let negotiatedBatchBytes = Mutex<Int64>(maximumBatchBytes)
     private var batchBytes: Int64 { negotiatedBatchBytes.withLock { $0 } }
     private let compression = Mutex((stream: false, batchUpload: false))

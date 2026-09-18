@@ -277,7 +277,7 @@ struct BinaryCacheStorageTests {
         try await local.storeBlob(firstDigest, from: source, preserving: [])
         try second.write(to: source)
         await #expect(throws: REAPICacheError.self) {
-            try await local.storeBlob(secondDigest, from: source, preserving: [firstDigest.hash])
+            try await local.storeBlob(secondDigest, from: source, preserving: [local.blobEntry(firstDigest)])
         }
         #expect(try await local.blob(firstDigest) != nil)
         #expect(try await local.blob(secondDigest) == nil)
@@ -316,8 +316,8 @@ struct BinaryCacheStorageTests {
         try payload.write(to: source)
         let admission = try await local.admission(preserving: [])
         try await local.storeBlob(digest, from: source, preserving: [], admission: admission)
-        try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
-        try await local.storeAction(result, digest: digest, preserving: [digest.hash], admission: admission)
+        try await local.storeAction(result, digest: digest, preserving: [local.blobEntry(digest)], admission: admission)
+        try await local.storeAction(result, digest: digest, preserving: [local.blobEntry(digest)], admission: admission)
         #expect(try await local.action(digest) == result)
         #expect(try await local.blob(digest) != nil)
         #expect(try await FileSystem().exists(binaries.appending(components: [
@@ -328,7 +328,7 @@ struct BinaryCacheStorageTests {
         #expect(remaining == 90000 - payload.count - resultSize)
         #expect(await admission.admit(remaining))
         #expect(await admission.admit(1) == false)
-        try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [digest.hash])
+        try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [local.blobEntry(digest)])
         #expect(try await local.action(digest) == nil)
         #expect(try await local.blob(digest) != nil)
     }
@@ -456,6 +456,28 @@ struct BinaryCacheStorageTests {
         }
         let restored = try await subject(reader, remote: gated).fetch(Set(inputs.keys), cacheCategory: .binaries)
         #expect(restored.count == (missingDelayedBlob ? 1 : 2))
+    }
+
+    @Test(.inTemporaryDirectory) func blobPublicationRefreshesRecencyAndRepairsCorruption() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let local = BinaryCacheLocalStore(directory: directory.appending(component: "Binaries"))
+        let source = directory.appending(component: "download")
+        let data = Data("verified-download".utf8)
+        let digest = REAPI.digest(data)
+        try data.write(to: source.url)
+        try await fileSystem.setFileTimes(of: source, lastAccessDate: nil, lastModificationDate: Date(timeIntervalSince1970: 0))
+        let before = Date()
+        try await local.storeBlob(digest, from: source.url, preserving: [], verified: true, move: true)
+        #expect(try await !fileSystem.exists(source))
+        let metadata = try #require(await fileSystem.fileMetadata(at: local.blobPath(digest)))
+        #expect(metadata.lastModificationDate >= before)
+        let cached = try #require(await local.blob(digest))
+        try Data("corrupt".utf8).write(to: cached)
+        #expect(try await local.blob(digest) == nil)
+        try data.write(to: source.url)
+        try await local.storeBlob(digest, from: source.url, preserving: [])
+        #expect(try REAPI.digest(file: #require(await local.blob(digest))) == digest)
     }
 
     private func subject(_ path: AbsolutePath, remote: (any REAPICacheStoring)? = nil) -> BinaryCacheStorage {

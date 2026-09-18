@@ -68,7 +68,7 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(.inTemporaryDirectory) func largeBatchesRespectGRPCMessageLimitsAndPropagateCancellation() async throws {
+    @Test(.inTemporaryDirectory) func largerServerLimitsStillUseBoundedBatchesAndPropagateCancellation() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
@@ -87,7 +87,7 @@ struct REAPICacheClientTests {
                 accountHandle: "account", instanceName: "project"
             ) { "token" }
             try await client.validateCapabilities()
-            let data = Data(repeating: 42, count: 4 * 1024 * 1024 - 64 * 1024)
+            let data = Data(repeating: 42, count: 2 * 1024 * 1024)
             let digest = REAPI.digest(data)
             let source = directory.appending(component: "source").url
             try data.write(to: source)

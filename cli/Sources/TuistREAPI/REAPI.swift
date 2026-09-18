@@ -78,7 +78,7 @@ public protocol REAPICacheStoring: Sendable {
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
-    /// Delivers verified blobs as transfers finish, before all downloads complete. The callback
+    /// Accepts verified blobs as they become available; implementations may report batches. The callback
     /// may move the file into its final cache location. Publication failures exclude that blob
     /// from the returned set; cancellation stops the operation. `orderedDigests` prioritizes
     /// inputs needed by early consumers without imposing a completion order.
