@@ -95,7 +95,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`succeeded`, `failed` or `canceled`) to `job-result` in its state
   directory, ahead of the credential check, for the cache-volume promote gate
   below. Only the macOS teardown reads it, and only together with the agent's
-  exit status (see below).
+  exit status (see below). `canceled` comes from `BUILDKITE_JOB_CANCELLED`,
+  which the executor sets for the hooks that run after a cancel.
 - `/Users/runner/work/<owner>/<repo>` — workspace path the JIT
   config sets via `work_folder: "/Users/runner/work"`; matches
   GitHub-hosted's `GITHUB_WORKSPACE`.

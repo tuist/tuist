@@ -73,13 +73,21 @@ case "${exit_status}" in
     ;;
 esac
 
+# The executor sets BUILDKITE_JOB_CANCELLED for the hooks that run after it
+# is told to cancel, and that includes this one. Read as a literal "true",
+# since it lands in a JSON boolean below.
+cancelled=false
+if [ "${BUILDKITE_JOB_CANCELLED:-}" = "true" ]; then
+  cancelled=true
+fi
+
 # The macOS teardown reads this, together with the agent's final exit
 # status, to decide whether the job's cache volume may be promoted. This is
 # its only record of a cancel and its proof that the job ran; the exit status
 # covers the failures above that this hook cannot see. Written ahead of the
 # credential check, since a job that cannot report its outcome to Tuist still
 # ended one way or the other.
-if [ "${BUILDKITE_BUILD_CANCELLING:-false}" = "true" ]; then
+if [ "${cancelled}" = "true" ]; then
   job_result=canceled
 elif [ "${exit_status}" = "0" ]; then
   job_result=succeeded
@@ -172,7 +180,7 @@ report_finish() {
   cat >"${body}" <<JSON
 {
   "exit_status": ${exit_status},
-  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false}
+  "cancelled": ${cancelled}
 }
 JSON
 
