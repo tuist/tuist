@@ -341,3 +341,63 @@ vector:
       - name: document_id
         field_type: String
         indexed: true
+
+# ClickHouse instance backing Atlas.Engineering.Errors (event stream).
+# Ported from Hive. Disabled by default; production values enables it
+# and configures per-environment resources and backups.
+clickhouse:
+  enabled: false
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: "26.1.2.11"
+    pullPolicy: IfNotPresent
+  database: atlas
+  username: default
+  service:
+    httpPort: 8123
+    nativePort: 9000
+  persistence:
+    size: 50Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  nodeSelector: {}
+  tolerations: []
+  probes:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+  backup:
+    enabled: false
+    # Time (UTC) the daily CronJob runs. Offset by 30 minutes from the
+    # Postgres backup so both do not contend for network/disk at once.
+    schedule: "30 3 * * *"
+    image:
+      repository: altinity/clickhouse-backup
+      tag: "2.6.30"
+      pullPolicy: IfNotPresent
+    s3:
+      bucket: atlas-clickhouse-backups
+      path: production
+      region: eu-central-1
+      endpoint: ""
+    # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
+    credentialsSecretName: atlas-clickhouse-backup-credentials
+    activeDeadlineSeconds: 3600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi

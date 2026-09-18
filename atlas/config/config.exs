@@ -46,8 +46,8 @@ llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
-
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
+config :atlas, Atlas.ClickHouseRepo, read_only: true
 config :atlas, Atlas.Mailer, adapter: Local
 
 config :atlas, Atlas.Vault,
@@ -213,7 +213,7 @@ config :guardian, Guardian.DB,
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:request_id, :domain]
 
 # An operator grant is a live bearer that arrives as a query parameter on the
 # redirect back from ops. Phoenix logs request and LiveView event parameters,

@@ -702,6 +702,19 @@ if config_env() in [:dev, :test] do
     secret_key: "dev-only-guardian-secret-do-not-use-in-prod-aaaaaaaaaaaaaaaa"
 end
 
+# ClickHouse (Engineering.Errors) - separate instance from Tuist server's analytics DB.
+# Feature-gated so Atlas can boot without ClickHouse in dev/test.
+parse_boolean = fn
+  nil -> false
+  "" -> false
+  "true" -> true
+  "1" -> true
+  _ -> false
+end
+
+clickhouse_enabled? =
+  parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in
@@ -713,3 +726,44 @@ config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL"
 config :atlas, :tuist_server,
   base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
   token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"
+
+if clickhouse_enabled? do
+  clickhouse_database =
+    System.get_env("ATLAS_CLICKHOUSE_DATABASE") ||
+      case config_env() do
+        :dev ->
+          DevInstance.database_name("atlas_dev")
+
+        :test ->
+          DevInstance.database_name("atlas_test", partition: System.get_env("MIX_TEST_PARTITION"))
+
+        _env ->
+          "atlas"
+      end
+
+  clickhouse_config = [
+    hostname: System.get_env("ATLAS_CLICKHOUSE_HOST", "127.0.0.1"),
+    port: System.get_env("ATLAS_CLICKHOUSE_PORT", "8123") |> String.to_integer(),
+    database: clickhouse_database,
+    username: System.get_env("ATLAS_CLICKHOUSE_USERNAME", "default"),
+    password: System.get_env("ATLAS_CLICKHOUSE_PASSWORD") || System.get_env("SECRET_KEY_BASE"),
+    pool_size: System.get_env("ATLAS_CLICKHOUSE_POOL_SIZE", "5") |> String.to_integer(),
+    settings: [session_timezone: "UTC"]
+  ]
+
+  ingest_repo_config =
+    clickhouse_config
+    |> Keyword.put(
+      :flush_interval_ms,
+      System.get_env("ATLAS_INGEST_FLUSH_INTERVAL_MS", "2000") |> String.to_integer()
+    )
+    |> Keyword.put(
+      :max_buffer_size,
+      System.get_env("ATLAS_INGEST_MAX_BUFFER_SIZE", "1048576") |> String.to_integer()
+    )
+
+  config :atlas, Atlas.ClickHouseRepo, Keyword.put(clickhouse_config, :read_only, true)
+  config :atlas, Atlas.IngestRepo, ingest_repo_config
+  config :atlas, :clickhouse_enabled, true
+  config :atlas, :ecto_repos, [Atlas.Repo, Atlas.IngestRepo]
+end

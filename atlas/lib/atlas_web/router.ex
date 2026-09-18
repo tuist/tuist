@@ -117,6 +117,12 @@ defmodule AtlasWeb.Router do
     put "/documents/uploads/local/:token", DocumentUploadController, :put
   end
 
+  scope "/api", AtlasWeb.ErrorsAPI do
+    pipe_through [:api]
+
+    post "/:project_id/envelope/", EnvelopeController, :create
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
@@ -207,6 +213,13 @@ defmodule AtlasWeb.Router do
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
+      live "/engineering/projects", ProjectLive.Index, :index
+      live "/engineering/projects/:id", ProjectLive.Show, :show
+      live "/engineering/domains", DomainLive.Index, :index
+      live "/engineering/domains/:id", DomainLive.Show, :show
+      live "/engineering/errors", ErrorsLive.Index, :index
+      live "/engineering/errors/:id", ErrorsLive.Show, :show
+      live "/engineering/errors/:id/events/:event_id", ErrorsLive.Event, :event
     end
 
     live_session :executive_dashboard,
