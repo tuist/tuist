@@ -269,7 +269,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
       refute has_element?(lv, "#coverage-incomplete")
-      assert lv |> element("[data-part='pull-request'] [data-part='subtitle']") |> render() =~ "Complete"
+      assert lv |> element("#coverage-commit [data-part='subtitle']") |> render() =~ "Complete"
     end
 
     test "shows what the gates decided, and that they wait for the completion signal", %{
