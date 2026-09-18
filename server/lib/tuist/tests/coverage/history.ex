@@ -297,9 +297,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp with_delta(ref, nil, _default_branch), do: Map.put(ref, :delta, nil)
 
   defp with_delta(ref, default, _default_branch) do
-    comparable = ref.schemes == default.schemes and ref.partial_schemes == default.partial_schemes
-
-    Map.put(ref, :delta, if(comparable, do: Float.round(ref.coverage - default.coverage, 1)))
+    Map.put(ref, :delta, if(comparable?(ref, default), do: Float.round(ref.coverage - default.coverage, 1)))
   end
 
   defp refs_query(project_id, search, opts) do
@@ -363,6 +361,38 @@ defmodule Tuist.Tests.Coverage.History do
         )
     end
   end
+
+  @doc """
+  The branch's newest measured commit, chained or not: the commit a branch
+  page describes. Nil when nothing on the branch was measured.
+  """
+  def head_commit(%Project{} = project, branch, opts \\ []) do
+    project
+    |> branch_history(branch, Keyword.put_new(opts, :limit, 200))
+    |> Map.fetch!(:commits)
+    |> Enum.find(& &1.measured)
+  end
+
+  @doc """
+  A measured commit against the default branch's newest chained commit:
+  `%{branch, commit, coverage, delta}`, or nil when the commit is that
+  branch's own, when nothing on it is chained, or when the two measured
+  different sets — anything else only compares per scheme.
+  """
+  def against_default(%Project{} = project, commit, opts \\ []) do
+    default = latest(project, project.default_branch, opts)
+
+    if default && default.git_commit_sha != commit.git_commit_sha && comparable?(commit, default) do
+      %{
+        branch: project.default_branch,
+        commit: default.git_commit_sha,
+        coverage: default.coverage,
+        delta: Float.round(commit.coverage - default.coverage, 1)
+      }
+    end
+  end
+
+  defp comparable?(a, b), do: a.schemes == b.schemes and a.partial_schemes == b.partial_schemes
 
   @doc "The newest chained commit of the branch, with its totals, or nil."
   def latest(%Project{} = project, branch, opts \\ []) do

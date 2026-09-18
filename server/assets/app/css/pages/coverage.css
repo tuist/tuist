@@ -1,7 +1,9 @@
-/* The page and a commit's own view are two page roots (see
-   `coverage_live.html.heex`), laid out like every other dashboard page. */
+/* The three coverage pages — the default branch's glance, the branches
+   index, and one subject in detail — are page roots laid out like every
+   other dashboard page. */
 #coverage,
-#coverage-commit {
+#coverage-branches,
+#coverage-detail {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -40,17 +42,21 @@
   /* The table and the buttons that page it are one block, so the section's
      gap does not stack with the pagination's own margin. */
   & [data-part="commits-table"],
+  & [data-part="branches-table"],
+  & [data-part="files-table"],
   & [data-part="refs-table"] {
     display: flex;
     flex-direction: column;
   }
 
+  & [data-part="branches-section"] [data-part="filters"],
   & [data-part="refs-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }
 
   & [data-part="commits-section"],
+  & [data-part="branches-section"],
   & [data-part="refs-section"],
   & [data-part="comparison-section"],
   & [data-part="gates-section"],
@@ -92,9 +98,10 @@
   }
 }
 
-/* One commit against its baseline: a title block above the cards, as the
-   test run detail page has. */
-#coverage-commit {
+/* A branch, a pull request or a commit against its baseline: a title block
+   above the tabs, as the test run detail page has. */
+#coverage-branches,
+#coverage-detail {
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
@@ -110,9 +117,17 @@
     & > [data-part="subtitle"] {
       display: flex;
       flex-direction: row;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--noora-spacing-3);
       color: var(--noora-surface-label-secondary);
+
+      & [data-part="branches"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+      }
 
       & svg {
         width: 16px;
@@ -141,9 +156,11 @@
   }
 }
 
-/* Where the latest commit is thinnest: two lists side by side, as the Tests
-   page pairs its test case lists. */
-#coverage {
+/* Paired lists — where the latest commit is thinnest, and where coverage
+   rose and fell most — as the Tests page pairs its test case lists. */
+#coverage,
+#coverage-detail {
+  & [data-part="movements-sections"],
   & [data-part="gaps-sections"] {
     display: flex;
     flex-direction: row;
@@ -160,6 +177,7 @@
     }
   }
 
+  & [data-part="movement-section"],
   & [data-part="gaps-section"] {
     display: flex;
     flex-direction: column;
@@ -202,7 +220,7 @@
 /* A file's coverage as a bar and a percentage, and the schemes that measured
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,
-#coverage-commit {
+#coverage-detail {
   & [data-part="coverage-cell"] {
     display: flex;
     flex-grow: 1;
