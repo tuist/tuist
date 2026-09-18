@@ -17,6 +17,10 @@
     gap: var(--noora-spacing-4);
   }
 
+  & [data-part="analytics-section"] {
+    padding: 0;
+  }
+
   & [data-part="analytics-content"] {
     display: flex;
     flex-direction: column;
@@ -102,19 +106,38 @@
    above the tabs, as the test run detail page has. */
 #coverage-branches,
 #coverage-detail {
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
   & > [data-part="header"] {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
     gap: var(--noora-spacing-4);
 
-    & > [data-part="title"] {
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+    }
+
+    & [data-part="title"] {
       margin: 0;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
     }
 
-    & > [data-part="subtitle"] {
+    & [data-part="badges"] {
       display: flex;
       flex-direction: row;
       flex-wrap: wrap;
