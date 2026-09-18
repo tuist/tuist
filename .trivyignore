@@ -17,3 +17,33 @@
 CVE-2026-84349
 CVE-2026-84351
 CVE-2026-84357
+
+# Chromium vulnerabilities fixed upstream in 153.0.8010.47. Debian ships that
+# only in testing; bookworm-security still publishes 152.0.7977.82-1~deb12u1.
+# Same reachability argument as the block above: Chromium runs headless purely
+# to render Open Graph images from server-built templates with length-validated
+# text interpolations, never navigates to remote origins, has no Omnibox and no
+# extensions/WebView surface, and does not accept crafted files or workers.
+# Drop these entries once bookworm-security publishes 153.0.8010.47-1~deb12u1.
+CVE-2026-87431
+CVE-2026-87433
+CVE-2026-87444
+CVE-2026-87450
+CVE-2026-87460
+CVE-2026-87468
+CVE-2026-87471
+CVE-2026-87498
+CVE-2026-87499
+CVE-2026-87534
+CVE-2026-87544
+CVE-2026-87569
+CVE-2026-87570
+CVE-2026-87588
+CVE-2026-87612
+CVE-2026-87616
+CVE-2026-87636
+CVE-2026-91715
+CVE-2026-91720
+CVE-2026-91727
+CVE-2026-91732
+CVE-2026-91748
