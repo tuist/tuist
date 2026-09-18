@@ -558,7 +558,7 @@ defmodule Tuist.Billing do
       |> Enum.map(&%{price: &1})
 
     flat_prices =
-      case available_prices["enterprise"]["flat_monthly"] |> List.wrap() do
+      case List.wrap(available_prices["enterprise"]["flat_monthly"]) do
         [] ->
           []
 
