@@ -26,7 +26,7 @@ metadata:
     {{- include "atlas.clickhouseLabels" . | nindent 4 }}
 spec:
   serviceName: {{ include "atlas.clickhouseName" . }}
-  replicas: 1
+  replicas: {{ .Values.clickhouse.replicaCount | default 1 }}
   selector:
     matchLabels:
       {{- include "atlas.clickhouseSelectorLabels" . | nindent 6 }}
