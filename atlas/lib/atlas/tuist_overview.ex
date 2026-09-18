@@ -180,6 +180,37 @@ defmodule Atlas.TuistOverview do
     end
   end
 
+  @doc """
+  Measures a single overview metric for the given date window.
+
+  Returns the same shape as one entry of `measure/2` (`{:ok, %{...}}`,
+  `{:error, :not_configured}` or `{:error, reason}`), so it can back a
+  per-widget `assign_async` call in the LiveView without paying for the
+  slowest query up front.
+  """
+  def measure_metric(metric, range, opts \\ [])
+
+  def measure_metric(metric, {%Date{} = start_date, %Date{} = end_date}, opts) when metric in @all_metrics do
+    pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
+    ch_query = Keyword.get(opts, :ch_query, &TuistServer.clickhouse_query/2)
+    configured_fun = Keyword.get(opts, :configured?, &TuistServer.configured?/0)
+
+    days = date_range_days(start_date, end_date)
+    previous_start = Date.add(start_date, -days)
+    previous_end = Date.add(start_date, -1)
+
+    cond do
+      configured_fun.() ->
+        measure_metric(metric, {start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
+
+      Environment.dev?() ->
+        sample_measure(metric, start_date, end_date)
+
+      true ->
+        {:error, :not_configured}
+    end
+  end
+
   defp measure_metric(metric, current, previous, pg_query, _ch_query) when metric in @cumulative_metrics do
     cumulative_measure(cumulative_table(metric), current, previous, pg_query)
   end

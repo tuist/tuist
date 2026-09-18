@@ -2,14 +2,22 @@ defmodule AtlasWeb.OverviewLive do
   use AtlasWeb, :live_view
   use Noora
 
+  import AtlasWeb.Components.Skeleton
   import AtlasWeb.CoreComponents, only: []
   import AtlasWeb.Widget
 
   alias Atlas.TuistOverview
+  alias Phoenix.LiveView.AsyncResult
   alias Phoenix.LiveView.JS
 
   @widgets ~w(users organizations projects jobs cache_operations)
   @default_widget "users"
+
+  # Each metric's Postgres/ClickHouse query is measured on its own so the
+  # landing page can stream widgets in as they come back rather than waiting
+  # for the slowest one. Recent organizations gets its own async slot so the
+  # bottom table appears independently too.
+  @async_metrics [:users, :organizations, :projects, :jobs, :cache_operations]
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :page_title, gettext("Overview"))}
@@ -19,18 +27,80 @@ defmodule AtlasWeb.OverviewLive do
     {preset, {start_date, end_date}} = window_from_params(params)
     selected_widget = normalize_widget(params["widget"])
 
-    measurements = TuistOverview.measure({start_date, end_date})
-    recent_organizations = TuistOverview.recent_organizations()
+    range_changed? =
+      Map.get(socket.assigns, :start_date) != start_date or
+        Map.get(socket.assigns, :end_date) != end_date
 
-    {:noreply,
-     socket
-     |> assign(:selected_preset, preset)
-     |> assign(:start_date, start_date)
-     |> assign(:end_date, end_date)
-     |> assign(:date_range_period, {date_start_of(start_date), date_end_of(end_date)})
-     |> assign(:selected_widget, selected_widget)
-     |> assign(:measurements, measurements)
-     |> assign(:recent_organizations, recent_organizations)}
+    socket =
+      socket
+      |> assign(:selected_preset, preset)
+      |> assign(:start_date, start_date)
+      |> assign(:end_date, end_date)
+      |> assign(:date_range_period, {date_start_of(start_date), date_end_of(end_date)})
+      |> assign(:selected_widget, selected_widget)
+
+    socket =
+      if range_changed? do
+        socket
+        |> start_measurements(start_date, end_date)
+        |> maybe_start_recent_organizations()
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  defp start_measurements(socket, start_date, end_date) do
+    range = {start_date, end_date}
+
+    Enum.reduce(@async_metrics, socket, fn metric, acc ->
+      key = measurement_assign(metric)
+
+      acc
+      |> assign(key, AsyncResult.loading())
+      |> start_async(key, fn -> TuistOverview.measure_metric(metric, range) end)
+    end)
+  end
+
+  # Recent organizations doesn't depend on the date range, so only fetch it
+  # once for the LiveView's lifetime.
+  defp maybe_start_recent_organizations(socket) do
+    case Map.get(socket.assigns, :recent_organizations) do
+      nil ->
+        socket
+        |> assign(:recent_organizations, AsyncResult.loading())
+        |> start_async(:recent_organizations, fn -> TuistOverview.recent_organizations() end)
+
+      _existing ->
+        socket
+    end
+  end
+
+  def handle_async(key, {:ok, result}, socket)
+      when key in [
+             :measurement_users,
+             :measurement_organizations,
+             :measurement_projects,
+             :measurement_jobs,
+             :measurement_cache_operations,
+             :recent_organizations
+           ] do
+    async = Map.fetch!(socket.assigns, key)
+    {:noreply, assign(socket, key, AsyncResult.ok(async, result))}
+  end
+
+  def handle_async(key, {:exit, reason}, socket)
+      when key in [
+             :measurement_users,
+             :measurement_organizations,
+             :measurement_projects,
+             :measurement_jobs,
+             :measurement_cache_operations,
+             :recent_organizations
+           ] do
+    async = Map.fetch!(socket.assigns, key)
+    {:noreply, assign(socket, key, AsyncResult.failed(async, {:exit, reason}))}
   end
 
   def handle_event(
@@ -101,7 +171,7 @@ defmodule AtlasWeb.OverviewLive do
               id="overview-widget-users"
               widget="users"
               title={gettext("Users")}
-              measurement={@measurements.users}
+              measurement={@measurement_users}
               legend_color="primary"
               selected={@selected_widget == "users"}
               tooltip_description={gettext("Total number of Tuist user accounts.")}
@@ -110,7 +180,7 @@ defmodule AtlasWeb.OverviewLive do
               id="overview-widget-organizations"
               widget="organizations"
               title={gettext("Organizations")}
-              measurement={@measurements.organizations}
+              measurement={@measurement_organizations}
               legend_color="secondary"
               selected={@selected_widget == "organizations"}
               tooltip_description={gettext("Total number of Tuist organizations.")}
@@ -119,7 +189,7 @@ defmodule AtlasWeb.OverviewLive do
               id="overview-widget-projects"
               widget="projects"
               title={gettext("Projects")}
-              measurement={@measurements.projects}
+              measurement={@measurement_projects}
               legend_color="attention"
               selected={@selected_widget == "projects"}
               tooltip_description={gettext("Total number of Tuist projects across every account.")}
@@ -128,7 +198,7 @@ defmodule AtlasWeb.OverviewLive do
               id="overview-widget-jobs"
               widget="jobs"
               title={gettext("CI jobs")}
-              measurement={@measurements.jobs}
+              measurement={@measurement_jobs}
               legend_color="success"
               selected={@selected_widget == "jobs"}
               tooltip_description={
@@ -141,7 +211,7 @@ defmodule AtlasWeb.OverviewLive do
               id="overview-widget-cache-operations"
               widget="cache_operations"
               title={gettext("Cache operations")}
-              measurement={@measurements.cache_operations}
+              measurement={@measurement_cache_operations}
               legend_color="neutral"
               selected={@selected_widget == "cache_operations"}
               tooltip_description={
@@ -170,7 +240,7 @@ defmodule AtlasWeb.OverviewLive do
 
   defp render_recent_organizations(assigns) do
     case assigns.recent_organizations do
-      {:ok, rows} ->
+      %AsyncResult{ok?: true, result: {:ok, rows}} ->
         assigns = assign(assigns, :rows, rows)
 
         ~H"""
@@ -191,17 +261,33 @@ defmodule AtlasWeb.OverviewLive do
         </.table>
         """
 
-      {:error, :not_configured} ->
+      %AsyncResult{ok?: true, result: {:error, :not_configured}} ->
         ~H"""
         <div data-part="recent-organizations-empty">
           {gettext("Tuist server is not connected.")}
         </div>
         """
 
-      {:error, _reason} ->
+      %AsyncResult{ok?: true, result: {:error, _reason}} ->
         ~H"""
         <div data-part="recent-organizations-empty">
           {gettext("Recent organizations are temporarily unavailable.")}
+        </div>
+        """
+
+      %AsyncResult{failed: failure} when not is_nil(failure) ->
+        ~H"""
+        <div data-part="recent-organizations-empty">
+          {gettext("Recent organizations are temporarily unavailable.")}
+        </div>
+        """
+
+      _loading ->
+        ~H"""
+        <div data-part="recent-organizations-skeleton">
+          <.skeleton_box width="100%" height="44px" border_radius="8px" />
+          <.skeleton_box width="100%" height="44px" border_radius="8px" />
+          <.skeleton_box width="100%" height="44px" border_radius="8px" />
         </div>
         """
     end
@@ -222,7 +308,7 @@ defmodule AtlasWeb.OverviewLive do
 
   defp metric_widget(assigns) do
     case assigns.measurement do
-      {:ok, %{current_value: value, delta_pct: delta}} ->
+      %AsyncResult{ok?: true, result: {:ok, %{current_value: value, delta_pct: delta}}} ->
         assigns =
           assigns
           |> assign(:value, format_count(value))
@@ -243,7 +329,7 @@ defmodule AtlasWeb.OverviewLive do
         />
         """
 
-      {:error, :not_configured} ->
+      %AsyncResult{ok?: true, result: {:error, :not_configured}} ->
         ~H"""
         <.widget
           id={@id}
@@ -258,7 +344,7 @@ defmodule AtlasWeb.OverviewLive do
         />
         """
 
-      {:error, _reason} ->
+      %AsyncResult{ok?: true, result: {:error, _reason}} ->
         ~H"""
         <.widget
           id={@id}
@@ -272,12 +358,43 @@ defmodule AtlasWeb.OverviewLive do
           selected={@selected}
         />
         """
+
+      %AsyncResult{failed: failure} when not is_nil(failure) ->
+        ~H"""
+        <.widget
+          id={@id}
+          title={@title}
+          legend_color="destructive"
+          tooltip_description={@tooltip_description}
+          empty
+          empty_label={gettext("Unavailable")}
+          phx_click="select_widget"
+          phx_value_widget={@widget}
+          selected={@selected}
+        />
+        """
+
+      _loading ->
+        ~H"""
+        <.widget
+          id={@id}
+          title={@title}
+          legend_color={@legend_color}
+          tooltip_description={@tooltip_description}
+          loading
+          phx_click="select_widget"
+          phx_value_widget={@widget}
+          selected={@selected}
+        />
+        """
     end
   end
 
   defp render_selected_chart(assigns) do
-    case Map.get(assigns.measurements, String.to_existing_atom(assigns.selected_widget)) do
-      {:ok, %{series: [_ | _] = series}} ->
+    measurement = Map.fetch!(assigns, measurement_assign(String.to_existing_atom(assigns.selected_widget)))
+
+    case measurement do
+      %AsyncResult{ok?: true, result: {:ok, %{series: [_ | _] = series}}} ->
         assigns =
           assigns
           |> assign(:series_dates, Enum.map(series, fn {date, _value} -> Date.to_iso8601(date) end))
@@ -310,14 +427,34 @@ defmodule AtlasWeb.OverviewLive do
         </div>
         """
 
-      _other ->
+      %AsyncResult{ok?: true} ->
         ~H"""
         <div data-part="chart-empty">
           {gettext("No history available for this metric yet.")}
         </div>
         """
+
+      %AsyncResult{failed: failure} when not is_nil(failure) ->
+        ~H"""
+        <div data-part="chart-empty">
+          {gettext("No history available for this metric yet.")}
+        </div>
+        """
+
+      _loading ->
+        ~H"""
+        <div data-part="chart">
+          <.skeleton_chart />
+        </div>
+        """
     end
   end
+
+  defp measurement_assign(:users), do: :measurement_users
+  defp measurement_assign(:organizations), do: :measurement_organizations
+  defp measurement_assign(:projects), do: :measurement_projects
+  defp measurement_assign(:jobs), do: :measurement_jobs
+  defp measurement_assign(:cache_operations), do: :measurement_cache_operations
 
   defp chart_type("jobs"), do: "bar"
   defp chart_type("cache_operations"), do: "bar"

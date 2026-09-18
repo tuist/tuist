@@ -6,12 +6,16 @@ defmodule AtlasWeb.OverviewLiveTest do
 
   alias Atlas.TuistOverview
 
+  @render_async_timeout 1_000
+
   setup :set_mimic_from_context
   setup :verify_on_exit!
 
   setup do
     stub(TuistOverview, :recent_organizations, fn -> {:ok, []} end)
     stub(TuistOverview, :recent_organizations, fn _opts -> {:ok, []} end)
+    stub(TuistOverview, :measure_metric, fn metric, _range -> Map.fetch!(measurements(), metric) end)
+    stub(TuistOverview, :measure_metric, fn metric, _range, _opts -> Map.fetch!(measurements(), metric) end)
     :ok
   end
 
@@ -65,12 +69,21 @@ defmodule AtlasWeb.OverviewLiveTest do
     }
   end
 
-  test "renders every Tuist stat and the default widget's chart", %{conn: conn} do
-    stub(TuistOverview, :measure, fn _range, _opts -> measurements() end)
-    stub(TuistOverview, :measure, fn _range -> measurements() end)
+  test "renders a loading skeleton before async measurements resolve", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    # The third element of live/2 is the HTML snapshot from the connected
+    # mount, taken before async tasks resolve, so it captures the skeleton
+    # state.
+    {:ok, _view, html} = live(conn, ~p"/")
 
+    assert html =~ ~s|data-loading|
+    assert html =~ "atlas-loading-skeleton"
+  end
+
+  test "renders every Tuist stat and the default widget's chart", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
 
     assert has_element?(view, "#overview")
     assert has_element?(view, "#overview-widget-users [data-part='value']", "1,234")
@@ -84,11 +97,9 @@ defmodule AtlasWeb.OverviewLiveTest do
   end
 
   test "clicking a widget swaps in that metric's chart", %{conn: conn} do
-    stub(TuistOverview, :measure, fn _range -> measurements() end)
-    stub(TuistOverview, :measure, fn _range, _opts -> measurements() end)
-
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
 
     render_click(view, "select_widget", %{"widget" => "cache_operations"})
 
@@ -97,31 +108,30 @@ defmodule AtlasWeb.OverviewLiveTest do
   end
 
   test "shows an empty state when the Tuist server is not connected", %{conn: conn} do
-    stub(TuistOverview, :measure, fn _range -> Map.new(TuistOverview.metrics(), &{&1, {:error, :not_configured}}) end)
-
-    stub(TuistOverview, :measure, fn _range, _opts ->
-      Map.new(TuistOverview.metrics(), &{&1, {:error, :not_configured}})
-    end)
+    stub(TuistOverview, :measure_metric, fn _metric, _range -> {:error, :not_configured} end)
+    stub(TuistOverview, :measure_metric, fn _metric, _range, _opts -> {:error, :not_configured} end)
 
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
 
     assert has_element?(view, "#overview-widget-users [data-part='empty-label']", "Not connected")
   end
 
   test "reports an unavailable state for a single failed metric without hiding the rest", %{conn: conn} do
-    stub(TuistOverview, :measure, fn _range ->
-      measurements()
-      |> Map.put(:users, {:error, :timeout})
+    stub(TuistOverview, :measure_metric, fn
+      :users, _range -> {:error, :timeout}
+      metric, _range -> Map.fetch!(measurements(), metric)
     end)
 
-    stub(TuistOverview, :measure, fn _range, _opts ->
-      measurements()
-      |> Map.put(:users, {:error, :timeout})
+    stub(TuistOverview, :measure_metric, fn
+      :users, _range, _opts -> {:error, :timeout}
+      metric, _range, _opts -> Map.fetch!(measurements(), metric)
     end)
 
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
 
     assert has_element?(view, "#overview-widget-users [data-part='empty-label']", "Unavailable")
     assert has_element?(view, "#overview-widget-organizations [data-part='value']", "56")
