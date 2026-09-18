@@ -90,6 +90,13 @@ server:
   config:
     atlasEmail:
       enabled: true
+    # Point server error reporting at the Atlas error-tracking ingest
+    # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
+    # field on the SENTRY 1P item was added alongside the existing
+    # `dsn` field, so rollback is `sentryDsn: dsn` on the same item.
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
@@ -394,14 +401,15 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
-      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
-      # `tuist-k8s-production` holds the Hive DSN under the default
+      # Points at the self-hosted Atlas ingest (../atlas) so Kura errors land in
+      # the Kura project on atlas.tuist.dev. The `kura-sentry-atlas` 1P item in
+      # `tuist-k8s-production` holds the Atlas DSN under the default
       # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
       # remoteRef whose item is missing fails the whole `kura-shared-secrets`
-      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
-      # flip this back to `kura-sentry` and reroll.
-      item: kura-sentry-hive
+      # sync. The prior `kura-sentry-hive` (Hive) and `kura-sentry` (hosted
+      # sentry.io) items are kept in the vault as rollbacks: flip this back to
+      # either and reroll.
+      item: kura-sentry-atlas
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
