@@ -43,7 +43,7 @@ image:
 # One replica, no autoscaling, no PodDisruptionBudget: HA isn't achievable
 # (or needed) on a single node, and a PDB would block node drains during
 # cluster upgrades.
-replicaCount: 2
+replicaCount: 1
 
 resources:
   requests:
@@ -59,7 +59,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 75
 
 pdb:
-  enabled: true
+  enabled: false
   minAvailable: 1
 
 service:
@@ -347,7 +347,11 @@ vector:
 # and configures per-environment resources and backups.
 clickhouse:
   enabled: true
-  replicaCount: 2
+  # Single replica: the atlas-production cluster has one worker node
+  # (7.8Gi allocatable), so two ClickHouse replicas cannot both schedule
+  # and the second PVC blocks the rollout. Revisit once the cluster grows
+  # a second general-pool worker.
+  replicaCount: 1
   image:
     repository: clickhouse/clickhouse-server
     tag: "26.1.2.11"
@@ -360,12 +364,15 @@ clickhouse:
   persistence:
     size: 100Gi
     storageClass: ""
+  # Sized to fit alongside atlas + atlas-postgres + vector on the single
+  # 4 CPU / 7.8Gi worker. The rolling-update surge for atlas web must
+  # still fit while ClickHouse holds its request.
   resources:
     requests:
-      cpu: 2
-      memory: 4Gi
+      cpu: 1
+      memory: 3Gi
     limits:
-      memory: 8Gi
+      memory: 6Gi
   nodeSelector: {}
   tolerations: []
   probes:
