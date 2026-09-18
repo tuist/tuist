@@ -143,7 +143,8 @@ func TestExecute(t *testing.T) {
 				t.Fatal(err)
 			}
 			buildsDir := filepath.Join(dir, "builds")
-			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir)
+			resultFile := filepath.Join(dir, "job-result")
+			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir, "--result-file", resultFile)
 			if scenario.infraFailure {
 				cmd.Env = append(os.Environ(), "PATH="+dir)
 			}
@@ -158,6 +159,18 @@ func TestExecute(t *testing.T) {
 			}
 			if outcome == nil {
 				t.Fatal("no completion report")
+			}
+			result, _ := os.ReadFile(resultFile)
+			wantResult := "failed"
+			switch {
+			case scenario.infraFailure:
+			case scenario.cancel || scenario.activeCancel:
+				wantResult = "canceled"
+			case scenario.exit == "0":
+				wantResult = "succeeded"
+			}
+			if string(result) != wantResult {
+				t.Errorf("result file = %q, want %q", result, wantResult)
 			}
 			if scenario.infraFailure {
 				if outcome["exit_status"] == float64(0) || states[len(states)-1] != "failed" {

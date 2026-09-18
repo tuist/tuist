@@ -91,7 +91,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `TUIST_RUNNER_STATE_DIR` so nothing platform-specific leaks in. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
   agent writes because it is started with `--enable-job-log-tmpfile` and
   deletes when the job ends — hence a `pre-exit` hook rather than
-  anything later.
+  anything later. `pre-exit` also writes the job's outcome (`succeeded`,
+  `failed` or `canceled`) to `job-result` in its state directory, ahead of
+  the credential check, for the cache-volume promote gate below. Only the
+  macOS teardown reads it.
 - `/Users/runner/work/<owner>/<repo>` — workspace path the JIT
   config sets via `work_folder: "/Users/runner/work"`; matches
   GitHub-hosted's `GITHUB_WORKSPACE`.
@@ -145,6 +148,29 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
+  Only a job that **succeeded** promotes. The gate is `JOB_PASSED` (zero exit AND
+  `read_job_result` = `succeeded`), not the agent's exit status, because no agent
+  exits non-zero for a failed or cancelled job. `run.sh` folds every Listener
+  code except a restart into 0, the Buildkite agent exits 0 after
+  `--disconnect-after-job`, and the GitLab executor exits 0 for job outcomes by
+  design. Gating on the exit status promoted failed and cancelled jobs, about one
+  in ten of one account's HEAD publishes in a week. GitHub's verdict is the
+  Listener's `_diag/Runner_*.log` line `finish job request for job <id> with
+  result: <Result>`, matched only at a `JobDispatcher` trace header, because a
+  later line echoes the job's display name. The Listener writes that line on both
+  its normal and its cancel/abandon path, with the value it reports to GitHub.
+  Buildkite's and GitLab's verdicts are `/var/log/tuist-runner/job-result`,
+  written by the `pre-exit` hook and by `tuist-gitlab-runner --result-file`. A
+  failed, cancelled or missing verdict withholds every promote-only step:
+  teardown prune, compaction, dirty marker and HEAD publish. The drain still runs
+  for every job. Three sources that look usable are not:
+  - the Worker's `Job result after all job steps finish` line is never written
+    when a job fails to initialize or its Worker crashes;
+  - `ACTIONS_RUNNER_RETURN_JOB_RESULT_FOR_HOSTED` returns 100 + the result, but
+    `run.sh` still folds that into 0, and the Listener reports `Succeeded` when
+    its dispatch throws;
+  - `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` runs as a job step before the result is
+    settled, and no status variable reaches it.
   Teardown order is load-bearing: **wait for the compilation cache's
   publications to reach the remote** (`drain_cas_publications`, below), sample
   the signals that need a live mount (fill
