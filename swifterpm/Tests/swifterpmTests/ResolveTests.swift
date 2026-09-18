@@ -646,6 +646,91 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func registryPinsKeepTheRestorationPathWhenCachedDirectoriesAreShared() async throws {
+        try await withTemporaryDirectory { root in
+            let (package, cache) = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true
+            )
+
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root,
+                    sharesCachedDirectories: true
+                )
+            )
+        }
+    }
+
+    @Test
+    func registryPinsUseTheNativeColdPathWhenCachedDirectoriesAreCopied() async throws {
+        try await withTemporaryDirectory { root in
+            let (package, cache) = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root,
+                    sharesCachedDirectories: false
+                )
+            )
+        }
+    }
+
+    @Test
+    func aMissingSourcePinUsesTheNativeColdPathEvenWhenCachedDirectoriesAreShared() async throws {
+        try await withTemporaryDirectory { root in
+            let (package, cache) = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: false
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root,
+                    sharesCachedDirectories: true
+                )
+            )
+        }
+    }
+
+    private func writeMixedRegistryAndSourceControlGraph(
+        root: URL,
+        cachesSourcePin: Bool
+    ) async throws -> (package: URL, cache: Cache) {
+        let package = root.appendingPathComponent("App")
+        try await writeMinimalPackageManifest(at: package, name: "App")
+        let cache = try await Cache(root: root.appendingPathComponent("cache"))
+        let sourcePin = ResolvedPin(
+            identity: "dependency",
+            kind: "remoteSourceControl",
+            location: "https://example.com/dependency.git",
+            state: .init(branch: nil, revision: "aaaaaaaa", version: "1.0.0")
+        )
+        let registryPin = ResolvedPin(
+            identity: "apple.swift-collections",
+            kind: "registry",
+            location: "",
+            state: .init(branch: nil, revision: nil, version: "1.1.4")
+        )
+        if cachesSourcePin {
+            let cachedSource = try cache.sourcePath(pin: sourcePin)
+            try await fileSystem.makeDirectory(
+                at: cachedSource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Dependency")
+        }
+        try await ResolvedFile.write(
+            packageDir: package,
+            resolved: .init(originHash: "origin", pins: [registryPin, sourcePin], version: 3)
+        )
+        return (package, cache)
+    }
+
     private func addCommitAndTag(at dependency: URL, tag: String) async throws {
         // Move the working tree forward by a commit so the new tag points at a
         // distinct commit — SwiftPM collapses same-commit tags into a single
