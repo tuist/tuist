@@ -11,10 +11,10 @@
 //
 // Two checks make the difference between this and a loop that counts pings.
 //
-// It reads the host's boot time every cycle and requires it to CHANGE. A host
+// It reads the host's boot session ID every cycle and requires it to CHANGE. A host
 // that stayed up the whole time answers every reachability probe, so "10/10
 // reachable" alone also passes when the outlet is wired to the wrong socket, or
-// when the plug reports a switch it did not perform. Only the boot clock moving
+// when the plug reports a switch it did not perform. Only a new boot session
 // proves the machine power-cycled.
 //
 // It refuses to start unless the host is configured to power on by itself
@@ -47,7 +47,7 @@ func main() {
 	outletID := flag.String("outlet", "0", "outlet/channel on that endpoint")
 	username := flag.String("plug-user", "", "endpoint HTTP user (Shelly Gen2 assumes admin)")
 	target := flag.String("target", "", "the host the outlet feeds, as host or host:port (default port 22)")
-	sshUser := flag.String("ssh-user", "tuist", "login used for the boot-clock and autorestart checks")
+	sshUser := flag.String("ssh-user", "tuist", "login used for the boot-session and autorestart checks")
 	cycles := flag.Int("cycles", 10, "how many consecutive cycles must succeed")
 	settle := flag.Duration("settle", 10*time.Second, "how long the outlet is held down; matches the controller's default")
 	bootTimeout := flag.Duration("boot-timeout", 5*time.Minute, "how long a host may take to answer after power returns")
@@ -265,7 +265,7 @@ func (b *bench) oneCycle(ctx context.Context, cycle int) cycleResult {
 
 	before, err := b.bootID(ctx)
 	if err != nil {
-		c.Err = fmt.Errorf("read boot clock before the cut: %w", err)
+		c.Err = fmt.Errorf("read boot session before the cut: %w", err)
 		return c
 	}
 
@@ -326,12 +326,12 @@ func (b *bench) oneCycle(ctx context.Context, cycle int) cycleResult {
 
 	after, err := b.bootID(ctx)
 	if err != nil {
-		c.Err = fmt.Errorf("read boot clock after the cut: %w", err)
+		c.Err = fmt.Errorf("read boot session after the cut: %w", err)
 		return c
 	}
 	// The check the whole harness exists for.
 	if after == before {
-		c.Err = fmt.Errorf("boot clock did not move (%s): the host answered but never rebooted, "+
+		c.Err = fmt.Errorf("boot session did not change (%s): the host answered but never rebooted, "+
 			"so the outlet is not the one feeding it", after)
 		return c
 	}
@@ -407,7 +407,7 @@ func (r *result) passed(want int, wantLoad bool) bool {
 		}
 		loaded = loaded || c.UnderLoad
 	}
-	// Every cycle must have produced a DISTINCT boot clock. Repeats mean a
+	// Every cycle must have produced a DISTINCT boot session. Repeats mean a
 	// cycle's "reboot" was the same boot as another's.
 	if len(r.bootIDs) != want {
 		return false
@@ -451,7 +451,7 @@ func (r *result) report() string {
 	}
 
 	distinct := len(r.bootIDs)
-	fmt.Fprintf(&b, "distinct boot clocks: %d across %d cycle(s)", distinct, len(r.cycles))
+	fmt.Fprintf(&b, "distinct boot sessions: %d across %d cycle(s)", distinct, len(r.cycles))
 	if distinct != len(r.cycles) {
 		fmt.Fprint(&b, "  <-- a cycle did not actually reboot the host")
 	}
@@ -531,12 +531,16 @@ func (s *sshRunner) run(ctx context.Context, remote string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// bootID reads the kernel's boot timestamp, which is constant for the life of a
-// boot and changes on every one. Uptime would work too, but it is a moving
-// number: comparing two samples of it means reasoning about how much time the
-// bench itself spent, and a short uptime is not proof of a NEW boot.
+// bootID reads the kernel's per-boot session UUID, which is minted at boot and
+// never changes until the next one.
+//
+// Not kern.boottime: that is derived from the wall clock minus uptime, so it
+// moves when the clock is stepped after boot. On the BER1 prototype it shifted
+// by two seconds within a minute of a boot, with no reboot in between, and a
+// moved value is exactly what this bench reads as proof that a cut rebooted the
+// host.
 func (s *sshRunner) bootID(ctx context.Context) (string, error) {
-	return s.run(ctx, "sysctl -n kern.boottime")
+	return s.run(ctx, "sysctl -n kern.bootsessionuuid")
 }
 
 func (s *sshRunner) autorestart(ctx context.Context) (bool, error) {

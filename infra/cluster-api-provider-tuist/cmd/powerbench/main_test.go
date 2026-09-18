@@ -22,7 +22,7 @@ import (
 
 // fakeRack is fake Shelly Gen2 firmware plus the machine on the other side of
 // the outlet. Switching the outlet off makes the machine unreachable; switching
-// it on boots it, which yields a new boot clock.
+// it on boots it, which yields a new boot session.
 type fakeRack struct {
 	mu sync.Mutex
 
@@ -149,7 +149,7 @@ func TestTenCyclesPassWithADistinctBootPerCycle(t *testing.T) {
 		t.Fatalf("a clean 10-cycle run did not pass:\n%s", res.report())
 	}
 	if len(res.bootIDs) != 10 {
-		t.Fatalf("got %d distinct boot clocks across 10 cycles: %v", len(res.bootIDs), res.bootIDs)
+		t.Fatalf("got %d distinct boot sessions across 10 cycles: %v", len(res.bootIDs), res.bootIDs)
 	}
 	if f.loads != 1 {
 		t.Fatalf("workload started %d times, want exactly 1", f.loads)
@@ -164,7 +164,7 @@ func TestTenCyclesPassWithADistinctBootPerCycle(t *testing.T) {
 	if loaded.LoadWatts <= loaded.IdleWatts {
 		t.Fatalf("load draw %.1f W did not exceed idle draw %.1f W", loaded.LoadWatts, loaded.IdleWatts)
 	}
-	if !strings.Contains(res.report(), "distinct boot clocks: 10 across 10 cycle(s)") {
+	if !strings.Contains(res.report(), "distinct boot sessions: 10 across 10 cycle(s)") {
 		t.Fatalf("report does not state the boot-clock count:\n%s", res.report())
 	}
 
@@ -190,8 +190,8 @@ func TestAHostThatAnswersWithoutRebootingFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("run passed against a host that never rebooted")
 	}
-	if !strings.Contains(err.Error(), "boot clock did not move") {
-		t.Fatalf("error does not name the boot clock: %v", err)
+	if !strings.Contains(err.Error(), "boot session did not change") {
+		t.Fatalf("error does not name the boot session: %v", err)
 	}
 	if res.passed(10, false) {
 		t.Fatal("passed() accepted a run whose host never rebooted")
