@@ -1,15 +1,9 @@
-#coverage {
+#coverage,
+#coverage-commit {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
-
-  & > [data-part="page"],
-  & > [data-part="pull-request"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-  }
 
   & [data-part="title"] {
     margin: 0;
@@ -17,7 +11,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="pull-request"] > [data-part="header"] {
+  & > [data-part="header"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-4);
@@ -36,8 +30,7 @@
     }
   }
 
-  & > [data-part="page"] > [data-part="filters"],
-  & > [data-part="pull-request"] > [data-part="filters"] {
+  & > [data-part="filters"] {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
