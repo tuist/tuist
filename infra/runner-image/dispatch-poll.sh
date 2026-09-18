@@ -920,7 +920,7 @@ prune_cas_stores() {
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
     return 0
   }
-  # The per-generation budget the host staged, from the same marker
+  # The budget the host staged, from the same marker
   # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
   # prunes against whatever limit the store already carries rather than
   # inventing one.

@@ -277,10 +277,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
   (verified both ways — same digest when reversed). Taking the baseline first
   makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. A pruned store settles at ~2x its per-generation limit
-  (primary + the demoted upstream, which is the warm cache), which is why
-  `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
-  `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. The guest is staged the whole
+  `casGib` allowance: llcas and the prune rotate a store once its primary passes
+  half the limit, so the limit already covers the primary and the demoted
+  upstream, which is the warm cache. `setup_cas_store` also exports
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
