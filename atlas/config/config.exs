@@ -7,6 +7,8 @@
 # General application configuration
 import Config
 
+config :mdex_native, syntax_highlighter: :lumis
+
 # Configure the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

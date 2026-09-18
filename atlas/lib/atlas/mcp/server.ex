@@ -41,6 +41,16 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateEmailSubscriber
   alias Atlas.MCP.Tools.CreateEngineeringDomain
   alias Atlas.MCP.Tools.CreateEngineeringProject
+  alias Atlas.MCP.Tools.CreatePostmortem
+  alias Atlas.MCP.Tools.CreatePostmortemActionItem
+  alias Atlas.MCP.Tools.DeletePostmortem
+  alias Atlas.MCP.Tools.DeletePostmortemActionItem
+  alias Atlas.MCP.Tools.GetPostmortem
+  alias Atlas.MCP.Tools.GetPostmortemActionItem
+  alias Atlas.MCP.Tools.ListPostmortemActionItems
+  alias Atlas.MCP.Tools.ListPostmortems
+  alias Atlas.MCP.Tools.UpdatePostmortem
+  alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateFeatureInterest
   alias Atlas.MCP.Tools.CreateFinancing
   alias Atlas.MCP.Tools.CreateInsurancePolicy
@@ -417,6 +427,16 @@ defmodule Atlas.MCP.Server do
     CreateEngineeringProject,
     UpdateEngineeringProject,
     DeleteEngineeringProject,
+    ListPostmortems,
+    GetPostmortem,
+    CreatePostmortem,
+    UpdatePostmortem,
+    DeletePostmortem,
+    ListPostmortemActionItems,
+    GetPostmortemActionItem,
+    CreatePostmortemActionItem,
+    UpdatePostmortemActionItem,
+    DeletePostmortemActionItem,
     ListEngineeringDomains,
     GetEngineeringDomain,
     CreateEngineeringDomain,
