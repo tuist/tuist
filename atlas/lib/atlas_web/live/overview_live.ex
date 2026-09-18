@@ -77,26 +77,28 @@ defmodule AtlasWeb.OverviewLive do
     end
   end
 
-  def handle_async(key, {:ok, result}, socket) when key in [
-        :measurement_users,
-        :measurement_organizations,
-        :measurement_projects,
-        :measurement_jobs,
-        :measurement_cache_operations,
-        :recent_organizations
-      ] do
+  def handle_async(key, {:ok, result}, socket)
+      when key in [
+             :measurement_users,
+             :measurement_organizations,
+             :measurement_projects,
+             :measurement_jobs,
+             :measurement_cache_operations,
+             :recent_organizations
+           ] do
     async = Map.fetch!(socket.assigns, key)
     {:noreply, assign(socket, key, AsyncResult.ok(async, result))}
   end
 
-  def handle_async(key, {:exit, reason}, socket) when key in [
-        :measurement_users,
-        :measurement_organizations,
-        :measurement_projects,
-        :measurement_jobs,
-        :measurement_cache_operations,
-        :recent_organizations
-      ] do
+  def handle_async(key, {:exit, reason}, socket)
+      when key in [
+             :measurement_users,
+             :measurement_organizations,
+             :measurement_projects,
+             :measurement_jobs,
+             :measurement_cache_operations,
+             :recent_organizations
+           ] do
     async = Map.fetch!(socket.assigns, key)
     {:noreply, assign(socket, key, AsyncResult.failed(async, {:exit, reason}))}
   end
