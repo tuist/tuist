@@ -121,8 +121,8 @@
 
 .tuist-docs [data-part="feature-card"] [data-part="supported-icon"] {
   display: inline-flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   width: 16px;
   height: 16px;
 
