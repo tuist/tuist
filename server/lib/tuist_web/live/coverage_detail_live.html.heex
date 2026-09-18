@@ -322,20 +322,20 @@
           <.text_cell label={row.scheme} />
         </:col>
         <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
-          <.totals_cell totals={
-            if row.coverage,
-              do: %{
-                covered_lines: row.covered_lines,
-                executable_lines: row.executable_lines,
-                partial: row.partial
-              }
-          } />
+          <.coverage_change_cell coverage={row.coverage} delta={row.delta} />
         </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Baseline")}>
-          <.text_cell label={if row.baseline_coverage, do: "#{row.baseline_coverage}%", else: "—"} />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-          <.change_cell delta={row.delta} />
+        <:col :let={row} label={dgettext("dashboard_tests", "Run")}>
+          <.badge_cell
+            :if={row.coverage}
+            style="light-fill"
+            color={if row.partial, do: "warning", else: "success"}
+            label={
+              if row.partial,
+                do: dgettext("dashboard_tests", "Partial"),
+                else: dgettext("dashboard_tests", "Full")
+            }
+          />
+          <.text_cell :if={is_nil(row.coverage)} label="—" />
         </:col>
       </.table>
     </.card_section>
