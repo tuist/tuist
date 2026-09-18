@@ -14,18 +14,22 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
-  test "puts the starting journeys first in the guides sidebar" do
-    [%Sidebar.Group{label: nil, items: [chooser]} | rest] = Sidebar.guides_tree()
+  test "puts install and the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: nil, items: [install, chooser]} | rest] = Sidebar.guides_tree()
+
+    assert install.label == "Install Tuist"
+    assert install.slug == "/en/guides/install-tuist"
+    assert install.icon == "download"
 
     assert chooser.label == "Get started"
     assert chooser.slug == "/en/guides/get-started"
     assert chooser.icon == "bulb"
 
     assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
-             {"Observe", "/en/guides/get-started/observability"},
-             {"Optimize", "/en/guides/get-started/optimization"},
-             {"Run", "/en/guides/get-started/tuist-runners"},
-             {"Ask", "/en/guides/get-started/ask"}
+             {"Xcode project", "/en/guides/get-started/existing-xcode-project"},
+             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
+             {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Bazel project", "/en/guides/get-started/bazel-project"}
            ]
 
     refute Enum.any?(rest, &(&1.label == "Guides"))

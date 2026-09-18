@@ -2,35 +2,35 @@
 {
   "title": "Get started",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Choose the Tuist starting path that matches the outcome you want: observability, optimization, managed runners, or coding-agent context."
+  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, or Bazel."
 }
 ---
 # Get started {#get-started}
 
-Start with the outcome you want. Each path includes the next steps for Xcode and Gradle where they differ, and you can adopt the paths independently or combine them over time.
+Pick the path that matches how your app is built today. Each one walks through what to install, how to enable caching, insights, and testing features, and how to verify the setup end-to-end. You can adopt them independently, or combine them if you ship on more than one platform.
 
-## Observe {#observe}
+## Xcode project {#existing-xcode-project}
 
-Understand build and test performance with insights into duration, failures, flaky behavior, and regressions.
+Keep your existing Xcode project or workspace and add Tuist capabilities one at a time. No project generation required.
 
-<.localized_link href="/guides/get-started/observability">Explore build and test insights →</.localized_link>
+<.localized_link href="/guides/get-started/existing-xcode-project">Start with an Xcode project →</.localized_link>
 
-## Optimize {#optimize}
+## Generated Xcode project {#generated-xcode-project}
 
-Reduce build and test times by reusing build work, running only tests affected by a change, and distributing longer test suites.
+Let Tuist define and generate your Xcode project from Swift manifests. Generated projects compress the complexity of modular Xcode projects into a concise, declarative description of the graph, and are a strict requirement for the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link>.
 
-<.localized_link href="/guides/get-started/optimization">Optimize your workflow →</.localized_link>
+<.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
-## Run {#tuist-runners}
+## Gradle project {#gradle-project}
 
-Run your continuous integration and continuous delivery automations on managed macOS and Linux runners, close to the same cache used by developer machines.
+Connect a Gradle project to Tuist's remote cache, build insights, and test insights through the `dev.tuist` Gradle plugin.
 
-<.localized_link href="/guides/get-started/tuist-runners">Run on Tuist →</.localized_link>
+<.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
 
-## Ask {#ask}
+## Bazel project {#bazel-project}
 
-Give coding agents access to project, build, test, cache, and bundle context so they can answer questions and help your team make informed decisions.
+Point a Bazel workspace at Tuist's Remote Execution API cache and Build Event Service to share cache hits and insights across your team and CI.
 
-<.localized_link href="/guides/get-started/ask">Ask about your project →</.localized_link>
+<.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-If you are unsure which goal applies, start with Observe or Ask. Both can help identify the bottleneck that costs the team the most time. You can add the other paths without undoing the first integration.
+Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>.

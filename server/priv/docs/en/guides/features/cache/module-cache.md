@@ -11,9 +11,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <.localized_link href="/guides/features/projects">generated project</.localized_link>
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-
+> - A <.localized_link href="/guides/features/projects">generated project</.localized_link>. The module cache reads the project graph Tuist keeps behind `Project.swift` to hash targets and substitute their binaries.
 
 Tuist Module Cache provides a powerful way to optimize build times by caching your modules as binaries (`.xcframework`s) and sharing them across different environments. This capability allows you to leverage previously generated binaries, reducing the need for repeated compilation and speeding up the development process.
 
@@ -24,13 +22,11 @@ Tuist Module Cache provides a powerful way to optimize build times by caching yo
 >
 > Compilation cache settings aren't part of module cache hashes, so turning the Xcode cache on or off keeps the binaries you already warmed. On Xcode 27 and later, the prefix mapping settings that come with it are hashed. See <.localized_link href="/guides/features/cache/xcode-cache#module-cache-hashes">module cache hashes</.localized_link>.
 
-
 ## Warming {#warming}
 
 Tuist efficiently <.localized_link href="/guides/features/projects/hashing">utilizes hashes</.localized_link> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
 
 This operation, known as *"warming,"* produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
-
 
 ```bash
 tuist cache
@@ -74,7 +70,6 @@ tuist test
 > [!WARNING]
 > Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using `--cache-profile none`.
 
-
 ## Cache profiles {#cache-profiles}
 
 Tuist supports cache profiles to control how aggressively targets are replaced with cached binaries when generating projects.
@@ -108,7 +103,6 @@ tuist generate --cache-profile none
 >
 > The `--no-binary-cache` flag is deprecated. Use `--cache-profile none` instead. The deprecated flag still works for backwards compatibility.
 
-
 Precedence when resolving the effective behavior (highest to lowest):
 
 1. `--cache-profile none`
@@ -134,7 +128,6 @@ Cached library `.xcframework`s preserve the metadata needed by generated project
 > **Upstream Dependencies**
 >
 > When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
-
 
 ## Analytics {#analytics}
 
@@ -200,12 +193,10 @@ We recommend having a CI job that **runs in every commit in the main branch** to
 >
 > Run `tuist cache` in a dedicated CI step without subsequent steps that depend on the generated workspace. Since `tuist cache` modifies the workspace for cache building purposes, any CI steps that need the workspace should run `tuist generate` first to get a fresh, usable workspace.
 
-
 > [!TIP]
 > **Cache Warming Uses Binaries**
 >
 > The `tuist cache` command also makes use of the binary cache to speed up the warming.
-
 
 The following are some examples of common workflows:
 

@@ -1,7 +1,7 @@
 ---
 {
   "title": "GitHub Actions",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
+  "titleTemplate": ":title · CI providers · Runners · Features · Guides · Tuist",
   "description": "Run your first GitHub Actions job on Tuist Runners: connect GitHub, point runs-on at a Tuist profile, and watch it in the dashboard."
 }
 ---
@@ -11,14 +11,6 @@
 > **Invite-only**
 >
 > Tuist Runners are currently invite-only. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
-
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - Your project <.localized_link href="/guides/integrations/gitforge/github">connected to a GitHub organization</.localized_link>
-
 
 Running a job on the fleet takes three changes: connect GitHub, point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and push.
 
