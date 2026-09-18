@@ -7,13 +7,16 @@ defmodule Atlas.Engineering.Projects do
 
   import Ecto.Query
 
+  alias Atlas.Audit
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Domains.GitHubRepository
   alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Projects.Project
   alias Atlas.Engineering.Projects.ProjectDomain
   alias Atlas.Engineering.Projects.Webhook
+  alias Atlas.Engineering.Projects.Webhooks
   alias Atlas.Repo
+  alias Ecto.Multi
 
   def list_projects do
     Project
@@ -53,51 +56,123 @@ defmodule Atlas.Engineering.Projects do
   end
 
   def create_project(attrs) do
-    with {:ok, project} <-
-           %Project{}
-           |> Project.changeset(attrs)
-           |> Repo.insert() do
-      # Mint a default DSN so any Sentry-compatible SDK can start reporting.
-      _ = Errors.ensure_default_key(project)
-      {:ok, project}
+    Multi.new()
+    |> Multi.insert(:project, Project.changeset(%Project{}, attrs))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{project: project}} ->
+        audit_project("project.created", project)
+        # Mint a default DSN so any Sentry-compatible SDK can start reporting.
+        _ = Errors.ensure_default_key(project)
+        {:ok, project}
+
+      {:error, :project, changeset, _changes} ->
+        {:error, changeset}
     end
   end
 
-  def create_repository_for_project(%Project{id: project_id}, attrs) do
-    %GitHubRepository{}
-    |> GitHubRepository.changeset(put_project_id(attrs, project_id))
-    |> Repo.insert()
+  def create_repository_for_project(%Project{id: project_id} = project, attrs) do
+    Multi.new()
+    |> Multi.insert(
+      :repository,
+      GitHubRepository.changeset(%GitHubRepository{}, put_project_id(attrs, project_id))
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{repository: repository}} ->
+        audit_project("project.repository_linked", project, %{
+          "repository_id" => repository.id,
+          "owner" => repository.owner,
+          "name" => repository.name
+        })
+
+        {:ok, repository}
+
+      {:error, :repository, changeset, _changes} ->
+        {:error, changeset}
+    end
   end
 
   def update_project(%Project{} = project, attrs) do
-    project
-    |> Project.changeset(attrs)
-    |> Repo.update()
-  end
+    Multi.new()
+    |> Multi.update(:project, Project.changeset(project, attrs))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{project: updated}} ->
+        audit_project("project.updated", updated)
+        {:ok, updated}
 
-  def delete_project(%Project{} = project), do: Repo.delete(project)
-
-  def delete_repository_from_project(%Project{id: project_id}, repository_id) when is_binary(repository_id) do
-    case Repo.get_by(GitHubRepository, id: repository_id, project_id: project_id) do
-      %GitHubRepository{} = repository -> Repo.delete(repository)
-      nil -> {:error, :not_found}
+      {:error, :project, changeset, _changes} ->
+        {:error, changeset}
     end
   end
 
-  def unlink_domain_from_project(%Project{id: project_id}, domain_id) when is_binary(domain_id) do
-    ProjectDomain
-    |> where([link], link.project_id == ^project_id and link.domain_id == ^domain_id)
-    |> Repo.delete_all()
+  def delete_project(%Project{} = project) do
+    Multi.new()
+    |> Multi.delete(:project, project)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{project: deleted}} ->
+        audit_project("project.deleted", deleted)
+        {:ok, deleted}
 
-    :ok
+      {:error, :project, changeset, _changes} ->
+        {:error, changeset}
+    end
   end
 
-  def link_domain_to_project(%Project{id: project_id}, domain_id) when is_binary(domain_id) do
+  def delete_repository_from_project(%Project{id: project_id} = project, repository_id) when is_binary(repository_id) do
+    case Repo.get_by(GitHubRepository, id: repository_id, project_id: project_id) do
+      %GitHubRepository{} = repository ->
+        Multi.new()
+        |> Multi.delete(:repository, repository)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{repository: deleted}} ->
+            audit_project("project.repository_unlinked", project, %{
+              "repository_id" => deleted.id,
+              "owner" => deleted.owner,
+              "name" => deleted.name
+            })
+
+            {:ok, deleted}
+
+          {:error, :repository, changeset, _changes} ->
+            {:error, changeset}
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def unlink_domain_from_project(%Project{id: project_id} = project, domain_id) when is_binary(domain_id) do
+    Multi.new()
+    |> Multi.delete_all(
+      :links,
+      from(link in ProjectDomain,
+        where: link.project_id == ^project_id and link.domain_id == ^domain_id
+      )
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, _changes} ->
+        audit_project("project.domain_unlinked", project, %{"domain_id" => domain_id})
+        :ok
+
+      {:error, _step, _reason, _changes} ->
+        :ok
+    end
+  end
+
+  def link_domain_to_project(%Project{id: project_id} = project, domain_id) when is_binary(domain_id) do
     case Repo.get(Domain, domain_id) do
       %Domain{} = domain ->
         now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-        Repo.insert_all(
+        Multi.new()
+        |> Multi.insert_all(
+          :link,
           ProjectDomain,
           [
             %{
@@ -110,8 +185,15 @@ defmodule Atlas.Engineering.Projects do
           on_conflict: :nothing,
           conflict_target: [:project_id, :domain_id]
         )
+        |> Repo.transaction()
+        |> case do
+          {:ok, _changes} ->
+            audit_project("project.domain_linked", project, %{"domain_id" => domain.id})
+            {:ok, domain}
 
-        {:ok, domain}
+          {:error, _step, changeset, _changes} ->
+            {:error, changeset}
+        end
 
       nil ->
         {:error, :not_found}
@@ -155,6 +237,39 @@ defmodule Atlas.Engineering.Projects do
     |> MapSet.new()
   end
 
+  def create_webhook(%Project{} = project, attrs) do
+    case Webhooks.create(project, attrs) do
+      {:ok, {webhook, token}} = ok ->
+        audit_project("project.webhook_created", project, %{
+          "webhook_id" => webhook.id,
+          "source" => Atom.to_string(webhook.source),
+          "name" => webhook.name
+        })
+
+        _ = token
+        ok
+
+      {:error, _changeset} = error ->
+        error
+    end
+  end
+
+  def delete_webhook(%Project{} = project, %Webhook{} = webhook) do
+    case Webhooks.delete(webhook) do
+      {:ok, deleted} ->
+        audit_project("project.webhook_deleted", project, %{
+          "webhook_id" => deleted.id,
+          "source" => Atom.to_string(deleted.source),
+          "name" => deleted.name
+        })
+
+        {:ok, deleted}
+
+      {:error, _changeset} = error ->
+        error
+    end
+  end
+
   # Follow-up: wire Grafana webhook ingest once Atlas grows its own alert source.
   def ingest_webhook(:grafana, %Project{} = _project, %Webhook{} = _webhook, _payload) do
     {:error, :not_implemented}
@@ -168,5 +283,14 @@ defmodule Atlas.Engineering.Projects do
     else
       Map.put(attrs, :project_id, project_id)
     end
+  end
+
+  defp audit_project(action, %Project{} = project, metadata \\ %{}) do
+    Audit.record(action, %{
+      target_type: "engineering_project",
+      target_id: project.id,
+      target_label: project.name,
+      metadata: metadata
+    })
   end
 end
