@@ -103,12 +103,11 @@ defmodule TuistWeb.CoverageLive do
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     points = History.branch_points(project, branch, period_opts(socket))
     latest = List.last(points)
-    first = List.first(points)
 
     socket
     |> assign(:points, points)
     |> assign(:latest, latest)
-    |> assign(:trend, if(latest && first && latest != first, do: Float.round(latest.coverage - first.coverage, 1)))
+    |> assign(:trend, period_trend(points))
   end
 
   defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
