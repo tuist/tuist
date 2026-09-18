@@ -454,7 +454,10 @@
     <.card_section :if={@patch_rows != []} data-part="patch-section">
       <.table id="coverage-patch-table" rows={@patch_rows}>
         <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-          <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+          <.text_and_description_cell
+            label={Path.basename(file.path)}
+            description={parent_dir(file.path)}
+          />
         </:col>
         <:col :let={file} label={dgettext("dashboard_tests", "Changed lines")}>
           <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
@@ -471,7 +474,10 @@
       <h3 data-part="section-title">{dgettext("dashboard_tests", "Not counted")}</h3>
       <.table id="coverage-skipped-table" rows={@skipped_rows}>
         <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-          <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+          <.text_and_description_cell
+            label={Path.basename(file.path)}
+            description={parent_dir(file.path)}
+          />
         </:col>
         <:col :let={file} label={dgettext("dashboard_tests", "Why")}>
           <.text_cell label={skipped_reason_label(file.reason)} />
@@ -649,7 +655,10 @@
         <div data-part="files-table">
           <.table id="coverage-files-table" rows={@file_rows}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+              <.text_and_description_cell
+                label={Path.basename(file.path)}
+                description={parent_dir(file.path)}
+              />
             </:col>
             <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
               <.text_cell label={
@@ -692,7 +701,10 @@
       <.card_section :if={@unmeasured_files != []} data-part="files-section">
         <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
           <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+            <.text_and_description_cell
+              label={Path.basename(file.path)}
+              description={parent_dir(file.path)}
+            />
           </:col>
         </.table>
       </.card_section>

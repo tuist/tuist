@@ -168,7 +168,10 @@ defmodule TuistWeb.Coverage.Components do
           </div>
           <.table :if={@least_covered != []} id="coverage-gap-files-table" rows={@least_covered}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+              <.text_and_description_cell
+                label={Path.basename(file.path)}
+                description={parent_dir(file.path)}
+              />
             </:col>
             <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
@@ -189,7 +192,10 @@ defmodule TuistWeb.Coverage.Components do
           </div>
           <.table :if={@unmeasured != []} id="coverage-unmeasured-files-table" rows={@unmeasured}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+              <.text_and_description_cell
+                label={Path.basename(file.path)}
+                description={parent_dir(file.path)}
+              />
             </:col>
           </.table>
           <div :if={@unmeasured == []} data-part="empty">
@@ -220,9 +226,10 @@ defmodule TuistWeb.Coverage.Components do
       </div>
       <.table :if={@rows != []} id={"coverage-#{@id}-table"} rows={@rows}>
         <:col :let={row} label={@label}>
-          <%!-- The directory is left to the full listing: a highlight is a
-               name and where its coverage went, in half a card. --%>
-          <.text_cell label={Path.basename(row.name)} />
+          <.text_and_description_cell
+            label={Path.basename(row.name)}
+            description={parent_dir(row.name)}
+          />
         </:col>
         <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
           <div data-part="cell" data-type="badge">
