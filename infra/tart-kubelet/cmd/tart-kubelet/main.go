@@ -140,13 +140,11 @@ func main() {
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
-		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache). "+
-			"This is the CAS's FOOTPRINT allowance within that shared image: it sets the CAS's share of "+
-			"--cache-volume-cap-gib, and the binary cache gets the rest minus a filesystem reserve (max(2 GiB, 5%)), "+
-			"so the two pruners never over-commit the one image. The guest is given HALF of it as "+
-			"COMPILATION_CACHE_LIMIT_SIZE, because that setting bounds one GENERATION and a store keeps two (a "+
-			"primary plus the demoted upstream that is still the warm cache) — so budget this for what the store "+
-			"should OCCUPY, not for what one generation may reach. Persisted across VMs, riding the binary "+
+		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache) "+
+			"when this is > 0. The CAS and the binary cache share --cache-volume-cap-gib less a reserve "+
+			"(max(2 GiB, 20%)) that is the room a job has before anything prunes, and the guest divides that budget "+
+			"by what each cache holds. This value is the CAS's share of the fixed split that runner images older "+
+			"than that division apply, the binary cache getting the rest. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
