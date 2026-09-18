@@ -1,3 +1,5 @@
+/* The page and a commit's own view are two page roots (see
+   `coverage_live.html.heex`), laid out like every other dashboard page. */
 #coverage,
 #coverage-commit {
   display: flex;
@@ -5,36 +7,17 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
-  & [data-part="title"] {
-    margin: 0;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-  }
-
-  & > [data-part="header"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
-
-    & > [data-part="subtitle"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      color: var(--noora-surface-label-secondary);
-
-      & svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
-  }
-
   & > [data-part="filters"] {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="analytics-content"] {
+    display: flex;
+    flex-direction: column;
     gap: var(--noora-spacing-4);
   }
 
@@ -54,27 +37,105 @@
     }
   }
 
-  & [data-part="commits-section"],
-  & [data-part="refs-section"],
-  & [data-part="gates-section"],
-  & [data-part="comparison-section"] {
+  & [data-part="refs-section"] [data-part="filters"] {
     display: flex;
-    flex-direction: column;
     gap: var(--noora-spacing-6);
   }
 
-  & [data-part="analytics-content"] {
+  & [data-part="commits-section"],
+  & [data-part="refs-section"],
+  & [data-part="comparison-section"],
+  & [data-part="gates-section"],
+  & [data-part="runs-section"],
+  & [data-part="patch-section"],
+  & [data-part="skipped-section"],
+  & [data-part="schemes-section"],
+  & [data-part="targets-section"],
+  & [data-part="files-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-4);
+    gap: var(--noora-spacing-8);
+  }
+
+  & .noora-card {
+    overflow-x: hidden;
+  }
+
+  & .noora-chart {
+    height: 200px;
   }
 
   & [data-part="analytics-chart"] {
     display: flex;
     flex-direction: column;
+    gap: var(--noora-spacing-7);
     padding: var(--noora-spacing-5);
   }
 
+  & > [data-part="analytics"],
+  & [data-part="refs"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & .noora-pagination-group {
+    margin-top: var(--noora-spacing-7);
+  }
+}
+
+/* One commit against its baseline: a title block above the cards, as the
+   test run detail page has. */
+#coverage-commit {
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+
+      & svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+  }
+
+  & [data-part="section-title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+  }
+
+  & [data-part="verdict"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+}
+
+/* Where the latest commit is thinnest: two lists side by side, as the Tests
+   page pairs its test case lists. */
+#coverage {
   & [data-part="gaps-sections"] {
     display: flex;
     flex-direction: row;
@@ -94,7 +155,7 @@
   & [data-part="gaps-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-8);
 
     & > [data-part="header"] {
       display: flex;
@@ -108,14 +169,13 @@
         color: var(--noora-surface-label-primary);
       }
 
-      & > [data-part="count"] {
+      & > [data-part="count"],
+      & > [data-part="link"] {
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-body-small);
       }
 
       & > [data-part="link"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-body-small);
         text-decoration: none;
 
         &:hover {
@@ -123,60 +183,18 @@
         }
       }
     }
-  }
 
-  & [data-part="verdict"] {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--noora-spacing-4);
-
-    & > [data-part="description"] {
+    & > [data-part="empty"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-medium);
     }
   }
+}
 
-  & [data-part="empty"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-medium);
-  }
-
-  & [data-part="refs-section"] > [data-part="filters"] {
-    display: flex;
-    gap: var(--noora-spacing-6);
-  }
-
-  & .noora-chart {
-    height: 200px;
-  }
-
-  & .noora-card {
-    overflow-x: hidden;
-  }
-
-  & .noora-dropdown-item:not([data-selected]) svg {
-    visibility: hidden;
-  }
-
-  & [data-part="section-title"] {
-    margin: 0;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-  }
-
-  & [data-part="coverage-file-link"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-body-medium);
-    text-decoration: none;
-    word-break: break-all;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
+/* A file's coverage as a bar and a percentage, and the schemes that measured
+   a commit as a row of badges: table cells with no Noora equivalent. */
+#coverage,
+#coverage-commit {
   & [data-part="coverage-cell"] {
     display: flex;
     flex-grow: 1;
@@ -197,7 +215,35 @@
     }
   }
 
-  & .noora-pagination-group {
-    margin-top: var(--noora-spacing-7);
+  & [data-part="cell"] > [data-part="tags"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+  }
+
+  /* A gate's result is a badge and, when it could not be evaluated, the
+     reason beside it. */
+  & [data-part="cell"][data-type="badge"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="sublabel"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="coverage-file-link"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    text-decoration: none;
+    word-break: break-all;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
