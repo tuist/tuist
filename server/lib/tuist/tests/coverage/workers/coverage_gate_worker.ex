@@ -157,14 +157,14 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
     do: "#{coverage}% (no baseline: #{Comparison.reason_text(reason)})"
 
   defp total_text(%{commit: %{coverage: coverage}, total_delta: delta, baseline: baseline}),
-    do: "#{coverage}% (#{signed(delta)} pp against #{baseline.coverage}% at `#{short(baseline.commit)}`)"
+    do: "#{coverage}% (#{signed(delta)}% against #{baseline.coverage}% at `#{short(baseline.commit)}`)"
 
   defp scheme_total(%{coverage: nil}), do: "—"
   defp scheme_total(%{partial: true, coverage: coverage}), do: "#{coverage}% (partial)"
   defp scheme_total(%{coverage: coverage}), do: "#{coverage}%"
 
   defp scheme_delta(%{delta: delta, baseline_coverage: baseline}) when is_float(delta),
-    do: "#{signed(delta)} pp (#{baseline}%)"
+    do: "#{signed(delta)}% (#{baseline}%)"
 
   defp scheme_delta(_row), do: "—"
 
@@ -185,11 +185,11 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
   defp gate_label(:max_total_drop), do: "Maximum total drop"
 
   defp threshold_label(%{gate: :min_patch_coverage, threshold: threshold}), do: "#{threshold}%"
-  defp threshold_label(%{gate: :max_total_drop, threshold: threshold}), do: "#{threshold} pp"
+  defp threshold_label(%{gate: :max_total_drop, threshold: threshold}), do: "#{threshold}%"
 
   defp value_label(%{value: nil}), do: "—"
   defp value_label(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
-  defp value_label(%{gate: :max_total_drop, value: value}), do: "#{signed(value)} pp"
+  defp value_label(%{gate: :max_total_drop, value: value}), do: "#{signed(value)}%"
 
   defp status_label(%{status: :passed}), do: "✅"
   defp status_label(%{status: :failed}), do: "❌"

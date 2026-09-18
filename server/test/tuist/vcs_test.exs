@@ -474,7 +474,7 @@ defmodule Tuist.VCSTest do
       assert body =~ """
              | Coverage | Change | Patch | Gaps |
              |:-:|:-:|:-:|:-:|
-             | 50.0% | -50.0 pp (100.0% at base) | 0.0% (0/2) | `Sources/A.swift` |
+             | 50.0% | -50.0% (100.0% at base) | 0.0% (0/2) | `Sources/A.swift` |
              """
 
       assert body =~ "has not signalled completion"

@@ -120,9 +120,9 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
       assert params.status == "completed"
       assert params.conclusion == "success"
       assert params.output.title == "Coverage gates passed"
-      assert params.output.summary =~ "| 83.3% (-16.7 pp against 100.0% at `b`) | 50.0% (1 of 2 changed lines) | none |"
+      assert params.output.summary =~ "| 83.3% (-16.7% against 100.0% at `b`) | 50.0% (1 of 2 changed lines) | none |"
       assert params.output.summary =~ "| Minimum patch coverage | 50.0% | 50.0% | ✅ |"
-      assert params.output.summary =~ "| Maximum total drop | 20.0 pp | -16.7 pp | ✅ |"
+      assert params.output.summary =~ "| Maximum total drop | 20.0% | -16.7% | ✅ |"
       assert params.output.summary =~ "[View the commit's coverage](https://tuist.dev/"
       {:ok, %{"id" => 1}}
     end)
@@ -145,7 +145,7 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     expect(Client, :create_check_run, fn params ->
       assert params.conclusion == "failure"
       assert params.output.summary =~ "| Minimum patch coverage | 50.0% | 0.0% | ❌ |"
-      assert params.output.summary =~ "| Maximum total drop | 20.0 pp | -33.3 pp | ❌ |"
+      assert params.output.summary =~ "| Maximum total drop | 20.0% | -33.3% | ❌ |"
       assert params.output.summary =~ "| `Sources/A.swift` |"
       {:ok, %{"id" => 1}}
     end)
