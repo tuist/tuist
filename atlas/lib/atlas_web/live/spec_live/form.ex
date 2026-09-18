@@ -192,18 +192,6 @@ defmodule AtlasWeb.SpecLive.Form do
                 />
               </.dropdown>
             </div>
-            <div data-part="select-field">
-              <span>{dgettext("specs", "Visibility")}</span>
-              <.select
-                id="spec-visibility"
-                name={@form[:visibility].name}
-                value={to_string(@form[:visibility].value)}
-                label={dgettext("specs", "Choose visibility")}
-              >
-                <:item value="public" label={dgettext("specs", "Public")} />
-                <:item value="private" label={dgettext("specs", "Private")} />
-              </.select>
-            </div>
             <div data-part="form-actions">
               <.button
                 label={

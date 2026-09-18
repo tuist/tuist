@@ -87,6 +87,20 @@ defmodule AtlasWeb.SpecLive.Index do
 
   defp status_label(status), do: status |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
 
+  defp status_color(:draft), do: "neutral"
+  defp status_color(:proposed), do: "primary"
+  defp status_color(:approved), do: "success"
+  defp status_color(:in_progress), do: "attention"
+  defp status_color(:shipped), do: "success"
+  defp status_color(:paused), do: "warning"
+  defp status_color(:rejected), do: "destructive"
+  defp status_color(:archived), do: "neutral"
+  defp status_color(_status), do: "neutral"
+
+  defp author_name(%{created_by_user: %{name: name}}) when is_binary(name) and name != "", do: name
+  defp author_name(%{created_by_user: %{email: email}}) when is_binary(email), do: email
+  defp author_name(_spec), do: dgettext("specs", "Unknown")
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -145,8 +159,37 @@ defmodule AtlasWeb.SpecLive.Index do
                 icon="file_text"
               />
             </:col>
+            <:col :let={spec} label={dgettext("specs", "Author")}>
+              <div data-part="author-cell">
+                <.text_and_description_cell label={author_name(spec)} />
+              </div>
+            </:col>
+            <:col :let={spec} label={dgettext("specs", "Domains")}>
+              <div data-part="cell" data-type="badge">
+                <div data-part="spec-table-domains-cell">
+                  <span
+                    :if={spec.domains == []}
+                    data-part="empty-domains"
+                  >
+                    {dgettext("specs", "No domains")}
+                  </span>
+                  <.badge
+                    :for={domain <- spec.domains}
+                    label={domain.name}
+                    color="neutral"
+                    style="light-fill"
+                    size="large"
+                  />
+                </div>
+              </div>
+            </:col>
             <:col :let={spec} label={dgettext("specs", "Status")}>
-              <.text_and_description_cell label={status_label(spec.status)} />
+              <.badge
+                label={status_label(spec.status)}
+                color={status_color(spec.status)}
+                style="light-fill"
+                size="large"
+              />
             </:col>
             <:col :let={spec} label={dgettext("specs", "Updated")}>
               <.time_cell time={spec.updated_at} />

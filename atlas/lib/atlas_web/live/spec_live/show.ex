@@ -7,6 +7,7 @@ defmodule AtlasWeb.SpecLive.Show do
   import AtlasWeb.CoreComponents, only: []
 
   alias Atlas.Engineering.Specs
+  alias Atlas.Engineering.Specs.Spec
   alias AtlasWeb.Markdown
 
   @impl true
@@ -58,6 +59,28 @@ defmodule AtlasWeb.SpecLive.Show do
     end
   end
 
+  def handle_event("change_status", %{"value" => value}, socket) do
+    status = String.to_existing_atom(value)
+
+    if status in Spec.statuses() do
+      case Specs.update_spec(socket.assigns.spec, %{"status" => value}, socket.assigns.current_user) do
+        {:ok, _spec} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("specs", "Status updated."))
+           |> reload_spec()}
+
+        {:error, :unauthorized} ->
+          {:noreply, put_flash(socket, :error, dgettext("specs", "You cannot edit this spec."))}
+
+        {:error, _changeset} ->
+          {:noreply, put_flash(socket, :error, dgettext("specs", "Could not update status."))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("delete_spec", _params, socket) do
     case Specs.delete_spec(socket.assigns.spec, socket.assigns.current_user) do
       {:ok, _spec} ->
@@ -95,6 +118,19 @@ defmodule AtlasWeb.SpecLive.Show do
           <p :if={@spec.summary}>{@spec.summary}</p>
         </div>
         <div data-part="header-actions">
+          <div :if={@can_edit?} data-part="status-menu">
+            <.dropdown
+              id="spec-status-dropdown"
+              label={status_label(@spec.status)}
+              on_select="change_status"
+            >
+              <.dropdown_item
+                :for={status <- Spec.statuses()}
+                value={to_string(status)}
+                label={status_label(status)}
+              />
+            </.dropdown>
+          </div>
           <.button
             :if={@can_edit?}
             label={dgettext("specs", "Edit")}
@@ -188,6 +224,17 @@ defmodule AtlasWeb.SpecLive.Show do
     </section>
     """
   end
+
+  defp status_label(:draft), do: dgettext("specs", "Draft")
+  defp status_label(:proposed), do: dgettext("specs", "Proposed")
+  defp status_label(:approved), do: dgettext("specs", "Approved")
+  defp status_label(:paused), do: dgettext("specs", "Paused")
+  defp status_label(:rejected), do: dgettext("specs", "Rejected")
+  defp status_label(:in_progress), do: dgettext("specs", "In progress")
+  defp status_label(:shipped), do: dgettext("specs", "Shipped")
+  defp status_label(:archived), do: dgettext("specs", "Archived")
+
+  defp status_label(status), do: status |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
 
   defp comment_author(%{user: %{name: name}}) when is_binary(name) and name != "", do: name
   defp comment_author(%{user: %{email: email}}) when is_binary(email), do: email
