@@ -1214,7 +1214,7 @@ read_job_result() {
 # detached image, so "dirty" describes the bytes that would actually be promoted.
 #
 # Gating on the job's result carries it to the host so a failed or cancelled run
-# never promotes its branch to the account's master — the host's own `tart run`
+# never promotes its branch to the account's master. The host's own `tart run`
 # clean-exit signal reflects the VM halting, not the job's conclusion, so it
 # can't make this call on its own. Mirrors the gate in report_volume_head so
 # local promote and HEAD publish agree.
@@ -1850,7 +1850,7 @@ HOOK
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
-      # JOB_PASSED gates promotion — only a job that succeeded advances the master.
+      # JOB_PASSED gates promotion: only a job that succeeded advances the master.
       # If the CAS feature was turned off, drop its stale store from the image
       # BEFORE the image is measured, so the removal promotes a cleaned master
       # instead of masters carrying dead CAS bytes forever.
