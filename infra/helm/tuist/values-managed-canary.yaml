@@ -53,6 +53,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-canary` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
