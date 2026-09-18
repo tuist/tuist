@@ -169,6 +169,45 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
   end
 
+  test "a growth waiting behind older shrinks is applied first", %{account: account} do
+    # A shrink costs nothing while it waits; a growth leaves the account
+    # evicting content it still needs. With one apply left in the hour, it
+    # goes to the growth the sweep opens now, not the shrink opened earlier.
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..4 do
+      other = AccountsFixtures.organization_fixture().account
+
+      Repo.insert!(%ClaimProposal{
+        account_id: other.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: DateTime.add(now, -600, :second)
+      })
+    end
+
+    Repo.insert!(%ClaimProposal{
+      account_id: AccountsFixtures.organization_fixture().account.id,
+      region: "us-east",
+      direction: :shrink,
+      current_claim_size: "50Gi",
+      recommended_claim_size: "25Gi",
+      inserted_at: DateTime.add(now, -3_600, :second)
+    })
+
+    account_id = account.id
+
+    expect(Kura, :apply_claim_proposal, fn %ClaimProposal{direction: :grow, account_id: ^account_id}, "automatic" ->
+      {:ok, %{claim_size: "20Gi", raised: [], lowered: []}}
+    end)
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+  end
+
   test "operator applies do not consume the unattended budget", %{account: account} do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
