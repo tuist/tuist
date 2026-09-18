@@ -12,6 +12,7 @@ import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistREAPI
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -43,7 +44,8 @@ struct CacheStorageFactoryTests {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             serverAuthenticationController: serverAuthenticationController,
             serverEnvironmentService: serverEnvironmentService,
-            cacheURLStore: cacheURLStore
+            cacheURLStore: cacheURLStore,
+            validateREAPI: { _ in }
         )
     }
 
@@ -56,7 +58,7 @@ struct CacheStorageFactoryTests {
         let got = try await subject.cacheStorage(config: .test(fullHandle: nil))
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
     }
 
     @Test
@@ -85,7 +87,18 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
+        }
+    }
+
+    @Test
+    func legacyModeKeepsLocalStorageOnExactHashes() async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+            let local = try await subject.cacheLocalStorage()
+            let configured = try await subject.cacheStorage(config: .test(fullHandle: nil))
+            #expect(local is CacheLocalStorage)
+            #expect(configured is CacheStorage)
         }
     }
 
@@ -113,7 +126,8 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect(got is CacheStorage)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
         }
     }
 
@@ -131,7 +145,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
     }
 
     @Test
@@ -186,7 +200,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            #expect((got as? CacheStorage)?.remoteStorage != nil)
+            #expect((await payloadStorage(got))?.remoteStorage != nil)
             verify(serverAuthenticationController)
                 .authenticationToken(
                     serverURL: .value(Constants.URLs.production),
@@ -221,7 +235,7 @@ struct CacheStorageFactoryTests {
         // Then
         // A rejected refresh has already cost the user their credentials, so the
         // warning keeps pointing at the sign-in that gets the remote cache back.
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: Invalid token",
         ])
@@ -248,7 +262,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: The refreshing of the access and refresh token pair for the URL https://tuist.dev failed after 15 seconds.",
         ])
@@ -275,7 +289,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: an unexpected error (TokenCarryingError)",
         ])
@@ -300,7 +314,7 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
-        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect((await payloadStorage(got))?.remoteStorage == nil)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
             "No authentication token for https://tuist.dev was found. Skipping the remote cache and continuing with the local one.",
         ])
@@ -328,5 +342,35 @@ struct CacheStorageFactoryTests {
                 )
             )
         }
+    }
+
+    @Test(.withScopedAlertController(), .withMockedEnvironment(), arguments: [false, true])
+    func unsupportedEndpointsAndKillSwitchKeepLocalModules(disabled: Bool) async throws {
+        Environment.mocked?.variables["TUIST_REAPI_MODULE_CACHE"] = disabled ? "0" : nil
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.user(accessToken: .test(token: "token"), refreshToken: .test(token: "refresh")))
+        given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any).willReturn(URL(string: "http://127.0.0.1:1")!)
+        let factory = CacheStorageFactory(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            serverAuthenticationController: serverAuthenticationController,
+            serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
+            validateREAPI: { _ in
+                #expect(!disabled)
+                throw REAPICacheError.unsupportedEndpoint
+            }
+        )
+        let result = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+        #expect(result is BinaryCacheStorage)
+        #expect((await payloadStorage(result))?.remoteStorage != nil)
+        #expect(AlertController.current.warnings().count == (disabled ? 0 : 1))
+    }
+
+    private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {
+        if let indexed = storage as? BinaryCacheStorage {
+            return await indexed.selectiveTestsStorage as? CacheStorage
+        }
+        return storage as? CacheStorage
     }
 }

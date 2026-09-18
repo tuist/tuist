@@ -188,6 +188,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .external(name: "SwiftProtobuf"),
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.appleArchiver.targetName),
                     .external(name: "Path"),
@@ -241,6 +243,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                     .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -269,6 +275,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .external(name: "SwiftProtobuf"),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -1161,6 +1169,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .reapi:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "libzstd"),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOSSL"),
                     .target(name: Module.logging.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
@@ -2017,6 +2031,7 @@ public enum Module: String, CaseIterable {
             case .hasher:
                 [
                     .target(name: Module.core.targetName),
+                    .target(name: Module.threadSafe.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.environment.targetName),
@@ -2031,6 +2046,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),

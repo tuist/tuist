@@ -14,6 +14,26 @@ import TuistEnvironmentTesting
 struct BinaryCachePrunerTests {
     private let fileSystem = FileSystem()
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func operationAdmissionInventoriesOnceAndPreservesNewAndResolvedEntries() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_CACHE_MAX_BYTES"] = "3500000"
+        let binaries = try await seedEntries(count: 3, in: directory)
+        let provider = MockCacheDirectoriesProviding()
+        given(provider).cacheDirectory(for: .value(.binaries)).willReturn(binaries)
+        let pruner = BinaryCachePruner(cacheDirectoriesProvider: provider)
+        let admission = try await pruner.admission(preserving: ["hash0"])
+        let newEntry = binaries.appending(component: "new")
+        try await fileSystem.writeText("newly admitted output", at: newEntry)
+        for _ in 0 ..< 100 {
+            #expect(await admission.admit(10000))
+        }
+        #expect(try await fileSystem.exists(binaries.appending(component: "hash0")))
+        #expect(try await fileSystem.exists(newEntry))
+        #expect(try await fileSystem.glob(directory: binaries, include: ["hash*"]).collect().count == 2)
+        verify(provider).cacheDirectory(for: .value(.binaries)).called(1)
+    }
+
     @Test(.inTemporaryDirectory)
     func pruneToBudget_evictsEntriesToMakeRoomForIncomingArtifacts() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
