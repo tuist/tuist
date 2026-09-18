@@ -93,17 +93,15 @@ defmodule Atlas.TuistOverviewTest do
       end
 
       pg_query = fn sql, _opts ->
-        cond do
-          String.contains?(sql, "FROM cache_events") ->
-            {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "200"}]}}
-
-          true ->
-            {:ok,
-             %{
-               "rows" => [
-                 %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
-               ]
-             }}
+        if String.contains?(sql, "FROM cache_events") do
+          {:ok, %{"rows" => [%{"day" => "2026-09-10", "c" => "200"}]}}
+        else
+          {:ok,
+           %{
+             "rows" => [
+               %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
+             ]
+           }}
         end
       end
 

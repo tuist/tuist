@@ -227,7 +227,11 @@ defmodule Atlas.TuistOverview do
 
     case pg_query.(sql, limit: 5000) do
       {:ok, %{"rows" => rows}} ->
-        series = Enum.map(rows, fn row -> {parse_date(row["day"]), to_integer(row["c"])} end)
+        series =
+          rows
+          |> Enum.map(fn row -> {parse_date(row["day"]), to_integer(row["c"])} end)
+          |> Enum.filter(fn {day, _c} -> match?(%Date{}, day) end)
+
         {:ok, Enum.reduce(series, 0, fn {_d, c}, acc -> acc + c end), series}
 
       {:error, reason} ->
