@@ -76,6 +76,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListCoverageBranches,
     Tools.GetPullRequestCoverage,
     Tools.GetCommitCoverage,
+    Tools.ListCommitCoverageFiles,
+    Tools.GetCommitCoverageFile,
     Tools.GetCommitCoverageComparison,
     Tools.ListCoverageHistory,
     Tools.GetTestCaseRun,

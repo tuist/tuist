@@ -4,10 +4,12 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
 
   alias Tuist.MCP.Components.Tools.GetCommitCoverage
   alias Tuist.MCP.Components.Tools.GetCommitCoverageComparison
+  alias Tuist.MCP.Components.Tools.GetCommitCoverageFile
   alias Tuist.MCP.Components.Tools.GetPullRequestCoverage
   alias Tuist.MCP.Components.Tools.GetTestRunCoverage
   alias Tuist.MCP.Components.Tools.GetTestRunCoverageComparison
   alias Tuist.MCP.Components.Tools.GetTestRunCoverageFile
+  alias Tuist.MCP.Components.Tools.ListCommitCoverageFiles
   alias Tuist.MCP.Components.Tools.ListCoverageBranches
   alias Tuist.MCP.Components.Tools.ListCoverageHistory
   alias Tuist.MCP.Components.Tools.ListTestRunCoverageFiles
@@ -184,6 +186,38 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     assert result["total_delta"] == -33.3
 
     assert %{"isError" => true} = GetCommitCoverage.call(conn, Map.put(handles(account, project), "git_commit_sha", "q"))
+  end
+
+  test "list_commit_coverage_files and get_commit_coverage_file read a commit's files", %{
+    conn: conn,
+    account: account,
+    project: project
+  } do
+    result = call(ListCommitCoverageFiles, conn, Map.put(handles(account, project), "git_commit_sha", "p"))
+
+    # Least covered first, and the union of the commit's runs.
+    assert Enum.map(result["files"], &{&1["path"], &1["coverage"]}) == [
+             {"Sources/A.swift", 50.0},
+             {"Sources/B.swift", 100.0}
+           ]
+
+    assert result["pagination_metadata"]["total_count"] == 2
+
+    result =
+      call(
+        GetCommitCoverageFile,
+        conn,
+        Map.merge(handles(account, project), %{"git_commit_sha" => "p", "path" => "Sources/A.swift"})
+      )
+
+    assert result["coverage"] == 50.0
+    assert result["uncovered_ranges"] == [[3, 4]]
+
+    assert %{"isError" => true} =
+             GetCommitCoverageFile.call(
+               conn,
+               Map.merge(handles(account, project), %{"git_commit_sha" => "p", "path" => "Sources/Nothing.swift"})
+             )
   end
 
   test "list_coverage_history lists a branch's commits, measured or not", %{
