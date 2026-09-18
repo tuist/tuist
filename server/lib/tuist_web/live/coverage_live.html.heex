@@ -2,19 +2,10 @@
   <div :if={@live_action in [:pull_request, :commit]} data-part="pull-request">
     <div data-part="header">
       <.button
-        label={
-          if @live_action == :pull_request,
-            do: dgettext("dashboard_tests", "Code coverage"),
-            else: dgettext("dashboard_tests", "History")
-        }
+        label={dgettext("dashboard_tests", "Code coverage")}
         variant="secondary"
         size="medium"
-        navigate={
-          if @live_action == :pull_request,
-            do: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage",
-            else:
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage?tab=history"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
       >
         <:icon_left><.icon name="arrow_left" /></:icon_left>
       </.button>
@@ -275,6 +266,71 @@
         </.table>
       </.card_section>
     </.card>
+    <%!-- Coverage gates --%>
+    <.card
+      :if={@gate_verdict}
+      title={dgettext("dashboard_tests", "Coverage gates")}
+      icon="circle_check"
+      data-part="gates-card"
+    >
+      <.card_section data-part="gates-section">
+        <div data-part="verdict">
+          <.badge
+            label={verdict_label(@gate_verdict, @comparison.commit.complete)}
+            color={verdict_color(@gate_verdict, @comparison.commit.complete)}
+            style="light-fill"
+            size="large"
+          />
+          <span data-part="description">
+            {if @comparison.commit.complete,
+              do:
+                dgettext(
+                  "dashboard_tests",
+                  "Reported to the pull request as the %{check} check. A run landing later joins the commit's coverage and leaves the verdict as it is.",
+                  check: Tuist.Tests.Coverage.Gates.check_name()
+                ),
+              else:
+                dgettext(
+                  "dashboard_tests",
+                  "The %{check} check stays pending until this commit's coverage pipeline signals completion with `tuist coverage complete`.",
+                  check: Tuist.Tests.Coverage.Gates.check_name()
+                )}
+          </span>
+        </div>
+        <.table
+          :if={@gate_verdict.checks != []}
+          id="coverage-gates-table"
+          rows={gate_rows(@gate_verdict)}
+        >
+          <:col :let={check} label={dgettext("dashboard_tests", "Gate")}>
+            <.text_cell label={gate_label(check.gate)} sublabel={gate_threshold(check)} />
+          </:col>
+          <:col :let={check} label={dgettext("dashboard_tests", "This commit")}>
+            <.text_cell label={gate_value(check)} />
+          </:col>
+          <:col :let={check} label={dgettext("dashboard_tests", "Result")}>
+            <div data-part="cell" data-type="text">
+              <.badge
+                style="light-fill"
+                size="small"
+                color={gate_status_color(check.status)}
+                label={gate_status_label(check.status)}
+              />
+              <span :if={Map.get(check, :reason)} data-part="label">
+                {reason_label(check.reason)}
+              </span>
+            </div>
+          </:col>
+        </.table>
+        <div :if={@gate_verdict.checks == []} data-part="empty">
+          {dgettext(
+            "dashboard_tests",
+            "Gates are enabled but no threshold is set, so nothing is held to anything."
+          )}
+        </div>
+      </.card_section>
+    </.card>
+
     <.card
       :if={@comparison.patch.status == :available and (@patch_rows != [] or @skipped_rows != [])}
       title={dgettext("dashboard_tests", "Changed files")}
@@ -349,27 +405,8 @@
   </div>
 
   <div :if={@live_action not in [:pull_request, :commit]} data-part="page">
-    <h1 data-part="title">{dgettext("dashboard_tests", "Code Coverage")}</h1>
-    <.tab_menu_horizontal>
-      <.tab_menu_horizontal_item
-        :for={
-          {tab, label} <- [
-            {"overview", dgettext("dashboard_tests", "Overview")},
-            {"branches", dgettext("dashboard_tests", "Branches")},
-            {"history", dgettext("dashboard_tests", "History")},
-            {"files", dgettext("dashboard_tests", "Files and targets")},
-            {"runs", dgettext("dashboard_tests", "Runs")}
-          ]
-        }
-        label={label}
-        selected={@tab == tab}
-        patch={"?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")}"}
-      />
-    </.tab_menu_horizontal>
-
     <div data-part="filters">
       <.dropdown
-        :if={@tab in ["overview", "history", "files"]}
         id="coverage-branch-dropdown"
         label={@branch}
         secondary_text={dgettext("dashboard_tests", "Branch:")}
@@ -385,54 +422,33 @@
           :for={branch <- Enum.uniq([@selected_project.default_branch | @branches])}
           value={branch}
           label={branch}
-          patch={"?#{@uri.query |> Query.put("branch", branch) |> Query.drop("scheme") |> Query.drop("page")}"}
+          patch={"?#{@uri.query |> Query.put("branch", branch) |> Query.drop("commits-page")}"}
           data-selected={@branch == branch}
         >
           <:right_icon :if={@branch == branch}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
       <.dropdown
-        :if={@tab == "overview" and @schemes != []}
         id="coverage-scheme-dropdown"
         label={@scheme || dgettext("dashboard_tests", "Any")}
-        secondary_text={dgettext("dashboard_tests", "Scheme:")}
+        secondary_text={"#{scheme_label(@selected_project)}:"}
       >
         <.dropdown_item
-          :for={scheme <- [nil | @schemes]}
-          value={scheme || ""}
-          label={scheme || dgettext("dashboard_tests", "Any")}
-          patch={"?#{@uri.query |> Query.put("scheme", scheme || "") |> Query.drop("page")}"}
+          value="any"
+          label={dgettext("dashboard_tests", "Any")}
+          patch={"?#{Query.drop(@uri.query, "scheme")}"}
+          data-selected={is_nil(@scheme)}
+        >
+          <:right_icon :if={is_nil(@scheme)}><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          :for={scheme <- @schemes}
+          value={scheme}
+          label={scheme}
+          patch={"?#{Query.put(@uri.query, "scheme", scheme)}"}
           data-selected={@scheme == scheme}
         >
           <:right_icon :if={@scheme == scheme}><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        :if={@tab == "runs"}
-        id="coverage-runs-kind-dropdown"
-        label={
-          case @runs_kind do
-            "full" -> dgettext("dashboard_tests", "Full")
-            "partial" -> dgettext("dashboard_tests", "Partial")
-            _ -> dgettext("dashboard_tests", "Any")
-          end
-        }
-        secondary_text={dgettext("dashboard_tests", "Coverage:")}
-      >
-        <.dropdown_item
-          :for={
-            {kind, label} <- [
-              {"any", dgettext("dashboard_tests", "Any")},
-              {"full", dgettext("dashboard_tests", "Full")},
-              {"partial", dgettext("dashboard_tests", "Partial")}
-            ]
-          }
-          value={kind}
-          label={label}
-          patch={"?#{@uri.query |> Query.put("coverage", kind) |> Query.drop("after") |> Query.drop("before")}"}
-          data-selected={@runs_kind == kind}
-        >
-          <:right_icon :if={@runs_kind == kind}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
       <.date_picker
@@ -479,32 +495,32 @@
       </.date_picker>
     </div>
 
-    <%!-- Overview --%>
+    <%!-- Analytics --%>
     <.card
-      :if={@tab == "overview"}
-      title={dgettext("dashboard_tests", "Coverage of %{branch}", branch: @branch)}
+      title={dgettext("dashboard_tests", "Analytics")}
       icon="chart_arcs"
-      data-part="overview-card"
+      data-part="analytics"
     >
-      <.card_section :if={@latest} data-part="overview-section">
+      <.card_section :if={@latest} data-part="analytics-widgets-section">
         <div data-part="widgets">
           <.widget
             id="widget-coverage"
-            title={dgettext("dashboard_tests", "Line coverage")}
+            title={dgettext("dashboard_tests", "Code coverage")}
             description={
               if @scheme,
                 do:
                   dgettext(
                     "dashboard_tests",
-                    "Share of executable lines covered by %{scheme} at the latest commit of %{branch}.",
+                    "Share of executable lines %{scheme} covered at the latest measured commit of %{branch}.",
                     scheme: @scheme,
                     branch: @branch
                   ),
                 else:
                   dgettext(
                     "dashboard_tests",
-                    "Share of executable lines covered by any run at the latest commit of %{branch}.",
-                    branch: @branch
+                    "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}.",
+                    branch: @branch,
+                    sha: short_sha(@latest.git_commit_sha)
                   )
             }
             value={"#{@latest.coverage}%"}
@@ -516,7 +532,10 @@
             id="widget-coverage-covered-lines"
             title={dgettext("dashboard_tests", "Covered lines")}
             description={
-              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
+              dgettext(
+                "dashboard_tests",
+                "Lines that commit's tests ran at least once."
+              )
             }
             value={format_number(@latest.covered_lines)}
           />
@@ -524,24 +543,27 @@
             id="widget-coverage-executable-lines"
             title={dgettext("dashboard_tests", "Executable lines")}
             description={
-              dgettext("dashboard_tests", "Lines the compiler instrumented for coverage.")
+              dgettext(
+                "dashboard_tests",
+                "Lines the compiler instrumented for coverage at that commit."
+              )
             }
             value={format_number(@latest.executable_lines)}
           />
           <.widget
-            id="widget-coverage-baseline"
-            title={dgettext("dashboard_tests", "Latest commit")}
+            id="widget-coverage-unmeasured-files"
+            title={dgettext("dashboard_tests", "Unmeasured files")}
             description={
               dgettext(
                 "dashboard_tests",
-                "Measured by %{schemes}, %{when}. Pull requests are compared with this branch's commits.",
-                schemes: Enum.join(@latest.schemes, ", "),
-                when: Tuist.Utilities.DateFormatter.from_now(@latest.inserted_at)
+                "Files Git knows at that commit that no scheme compiled, so nothing measured them."
               )
             }
-            value={short_sha(@latest.git_commit_sha)}
+            value={format_number(Map.get(@latest, :unmeasured_files_count) || 0)}
           />
         </div>
+      </.card_section>
+      <.card_section :if={@latest} data-part="analytics-card-chart-section">
         <.chart
           id="coverage-chart"
           type="line"
@@ -577,7 +599,7 @@
             %{
               color: "var:noora-chart-tertiary",
               data: Enum.map(@points, &[NaiveDateTime.to_iso8601(&1.inserted_at), &1.coverage]),
-              name: dgettext("dashboard_tests", "Line coverage"),
+              name: dgettext("dashboard_tests", "Code coverage"),
               type: "line",
               smooth: 0.1,
               symbol: "circle",
@@ -587,33 +609,6 @@
           y_axis_min={0}
           y_axis_max={100}
         />
-        <.table
-          id="coverage-points-table"
-          rows={Enum.reverse(@points) |> Enum.map(&Map.put(&1, :id, &1.git_commit_sha))}
-          row_navigate={
-            fn point ->
-              url(
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{point.git_commit_sha}"
-              )
-            end
-          }
-        >
-          <:col :let={point} label={dgettext("dashboard_tests", "Commit")}>
-            <.text_cell label={short_sha(point.git_commit_sha)} />
-          </:col>
-          <:col :let={point} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={point.covered_lines} executable={point.executable_lines} />
-          </:col>
-          <:col :let={point} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(point.covered_lines)} / #{format_number(point.executable_lines)}"} />
-          </:col>
-          <:col :let={point} label={dgettext("dashboard_tests", "Measured by")}>
-            <.measured_by_cell commit={point} />
-          </:col>
-          <:col :let={point} label={dgettext("dashboard_tests", "Measured")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(point.inserted_at)} />
-          </:col>
-        </.table>
       </.card_section>
       <.coverage_empty
         :if={is_nil(@latest)}
@@ -623,81 +618,20 @@
           )
         }
         get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-        data-part="empty-overview"
+        data-part="empty-analytics"
       />
     </.card>
 
-    <%!-- Branches --%>
+    <%!-- Commits --%>
     <.card
-      :if={@tab == "branches"}
-      title={dgettext("dashboard_tests", "Branches")}
-      icon="git_branch"
-      data-part="branches-card"
-    >
-      <.card_section :if={@branch_rows != []} data-part="branches-section">
-        <.table id="coverage-branches-table" rows={@branch_rows}>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Branch")}>
-            <div data-part="cell" data-type="text">
-              <.link
-                data-part="coverage-file-link"
-                patch={"?#{@uri.query |> Query.put("tab", "overview") |> Query.put("branch", branch.git_branch)}"}
-              >
-                {branch.git_branch}
-              </.link>
-            </div>
-          </:col>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={branch.covered_lines} executable={branch.executable_lines} />
-          </:col>
-          <:col
-            :let={branch}
-            label={
-              dgettext("dashboard_tests", "Against %{branch}",
-                branch: @selected_project.default_branch
-              )
-            }
-          >
-            <.change_cell delta={branch.delta} />
-          </:col>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Head commit")}>
-            <div data-part="cell" data-type="text">
-              <.link
-                data-part="coverage-file-link"
-                navigate={
-                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{branch.git_commit_sha}"
-                }
-              >
-                {short_sha(branch.git_commit_sha)}
-              </.link>
-            </div>
-          </:col>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Measured by")}>
-            <.measured_by_cell commit={branch} />
-          </:col>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Measured")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(branch.inserted_at)} />
-          </:col>
-        </.table>
-      </.card_section>
-      <.coverage_empty
-        :if={@branch_rows == []}
-        title={dgettext("dashboard_tests", "No branch has a measured commit in this period")}
-        get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-        data-part="empty-branches"
-      />
-    </.card>
-
-    <%!-- History --%>
-    <.card
-      :if={@tab == "history"}
-      title={dgettext("dashboard_tests", "History of %{branch}", branch: @branch)}
+      title={dgettext("dashboard_tests", "Commits")}
       icon="git_commit"
-      data-part="history-card"
+      data-part="commits"
     >
-      <.card_section :if={@history_rows != []} data-part="history-section">
+      <.card_section :if={@commit_rows != []} data-part="commits-section">
         <.alert
-          :if={@history_ordered_by == :time}
-          id="coverage-history-time-order"
+          :if={@commits_ordered_by == :time}
+          id="coverage-commits-time-order"
           status="information"
           type="secondary"
           size="small"
@@ -709,8 +643,8 @@
           }
         />
         <.table
-          id="coverage-history-table"
-          rows={@history_rows}
+          id="coverage-commits-table"
+          rows={@commit_rows}
           row_navigate={
             fn row ->
               if row.measured,
@@ -730,28 +664,23 @@
               covered={row.covered_lines}
               executable={row.executable_lines}
             />
-            <.text_cell
-              :if={not row.measured}
-              label={dgettext("dashboard_tests", "Not measured")}
-            />
+            <.text_cell :if={not row.measured} label="—" />
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
             <.change_cell delta={row.change} />
           </:col>
-          <:col :let={row} label={dgettext("dashboard_tests", "Measured by")}>
+          <:col :let={row} label={"#{scheme_label(@selected_project)}s"}>
             <.measured_by_cell :if={row.measured} commit={row} />
             <.text_cell :if={not row.measured} label="—" />
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
             <div data-part="cell" data-type="text">
               <.badge
-                :if={row.measured}
                 style="light-fill"
                 size="small"
                 color={completeness_color(row)}
                 label={completeness_label(row)}
               />
-              <span :if={not row.measured} data-part="label">—</span>
             </div>
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
@@ -762,172 +691,204 @@
             } />
           </:col>
         </.table>
+        <.pagination_group
+          :if={@commits_meta.total_pages > 1}
+          current_page={@commits_meta.current_page}
+          number_of_pages={@commits_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "commits-page", page)}" end}
+        />
       </.card_section>
       <.coverage_empty
-        :if={@history_rows == []}
+        :if={@commit_rows == []}
         title={
-          dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-            branch: @branch
-          )
+          dgettext("dashboard_tests", "No commit of %{branch} in this period", branch: @branch)
         }
         get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-        data-part="empty-history"
+        data-part="empty-commits"
       />
     </.card>
 
-    <%!-- Files and targets --%>
-    <div :if={@tab == "files"} data-part="files">
-      <.alert
-        :if={@latest}
-        id="coverage-files-run"
-        status="information"
-        type="secondary"
-        size="small"
-        title={
-          dgettext(
-            "dashboard_tests",
-            "At the latest measured commit of %{branch}, %{sha} (%{when}), across %{schemes}.",
-            branch: @branch,
-            sha: short_sha(@latest.git_commit_sha),
-            when: Tuist.Utilities.DateFormatter.from_now(@latest.inserted_at),
-            schemes: Enum.join(@latest.schemes, ", ")
-          )
-        }
-      />
-      <.card
-        :if={@latest}
-        title={dgettext("dashboard_tests", "Targets")}
-        icon="stack_2"
-        data-part="targets-card"
-      >
-        <.card_section data-part="targets-section">
-          <.table id="coverage-targets-table" rows={@targets}>
-            <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
-              <.text_cell label={target.name} />
-            </:col>
-            <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-              <.text_cell label={format_number(target.files_count)} />
-            </:col>
-            <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
-              <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
-            </:col>
-            <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
-              <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
-            </:col>
-          </.table>
-        </.card_section>
-      </.card>
-      <.card
-        :if={@latest}
-        title={dgettext("dashboard_tests", "Least covered files")}
-        icon="file"
-        data-part="files-card"
-      >
-        <.card_section data-part="files-section">
-          <.table id="coverage-files-table" rows={@files}>
+    <%!-- Coverage gaps --%>
+    <.card
+      :if={@latest}
+      title={dgettext("dashboard_tests", "Coverage gaps")}
+      icon="chart_dots"
+      data-part="gaps"
+    >
+      <div data-part="gaps-sections">
+        <.card_section data-part="gaps-section">
+          <div data-part="header">
+            <span data-part="title">
+              {dgettext("dashboard_tests", "Least covered files")}
+            </span>
+            <.link
+              data-part="link"
+              navigate={
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{@latest.git_commit_sha}"
+              }
+            >
+              {dgettext("dashboard_tests", "View all")}
+            </.link>
+          </div>
+          <.table id="coverage-gap-files-table" rows={@gap_files}>
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <div data-part="cell" data-type="text">
-                <.link
-                  data-part="coverage-file-link"
-                  navigate={
-                    ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{hd(@latest.test_run_ids)}?tab=coverage&coverage-file=#{file.path}"
-                  }
-                >
-                  {file.path}
-                </.link>
-              </div>
-            </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
-              <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
+              <.text_cell label={Path.basename(file.path)} sublabel={Path.dirname(file.path)} />
             </:col>
             <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
             </:col>
           </.table>
-          <.pagination_group
-            :if={@files_meta.total_pages > 1}
-            current_page={@files_meta.current_page}
-            number_of_pages={@files_meta.total_pages}
-            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
-          />
+          <div :if={@gap_files == []} data-part="empty">
+            {dgettext("dashboard_tests", "No file was measured at this commit.")}
+          </div>
         </.card_section>
-      </.card>
-      <.card
-        :if={is_nil(@latest)}
-        title={dgettext("dashboard_tests", "Files and targets")}
-        icon="file"
-        data-part="files-card"
-      >
+        <.card_section data-part="gaps-section">
+          <div data-part="header">
+            <span data-part="title">
+              {dgettext("dashboard_tests", "Files nothing measured")}
+            </span>
+            <span data-part="count">
+              {dgettext("dashboard_tests", "%{count} in total",
+                count: format_number(Map.get(@latest, :unmeasured_files_count) || 0)
+              )}
+            </span>
+          </div>
+          <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
+            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+              <.text_cell label={Path.basename(file.path)} sublabel={Path.dirname(file.path)} />
+            </:col>
+          </.table>
+          <div :if={@unmeasured_files == []} data-part="empty">
+            {dgettext("dashboard_tests", "Every file Git knows at this commit was measured.")}
+          </div>
+        </.card_section>
+      </div>
+    </.card>
+
+    <%!-- Branches and pull requests --%>
+    <.card
+      title={dgettext("dashboard_tests", "Branches and pull requests")}
+      icon="git_branch"
+      data-part="refs"
+    >
+      <.card_section data-part="refs-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-refs-filter-form"
+            phx-change="search-refs"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-refs"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@refs_search}
+            />
+          </.form>
+        </div>
+        <div :if={@ref_rows != []} data-part="refs-table">
+          <.table
+            id="coverage-refs-table"
+            rows={@ref_rows}
+            row_navigate={
+              fn ref ->
+                if ref.kind == "pull_request",
+                  do:
+                    url(
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/pull-requests/#{ref.pull_request_number}"
+                    ),
+                  else:
+                    url(
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{ref.git_commit_sha}"
+                    )
+              end
+            }
+          >
+            <:col :let={ref} label={dgettext("dashboard_tests", "Branch or pull request")}>
+              <.text_cell
+                label={ref.name}
+                sublabel={
+                  if ref.kind == "pull_request" and ref.git_branch != "",
+                    do: ref.git_branch,
+                    else: nil
+                }
+              />
+            </:col>
+            <:col :let={ref} label={dgettext("dashboard_tests", "Kind")}>
+              <div data-part="cell" data-type="text">
+                <.badge
+                  style="light-fill"
+                  size="small"
+                  color={if ref.kind == "pull_request", do: "information", else: "neutral"}
+                  label={ref_kind_label(ref.kind)}
+                />
+              </div>
+            </:col>
+            <:col :let={ref} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={ref.covered_lines} executable={ref.executable_lines} />
+            </:col>
+            <:col
+              :let={ref}
+              label={
+                dgettext("dashboard_tests", "Against %{branch}",
+                  branch: @selected_project.default_branch
+                )
+              }
+            >
+              <.change_cell delta={ref.delta} />
+            </:col>
+            <:col :let={ref} label={dgettext("dashboard_tests", "Latest commit")}>
+              <.text_cell label={short_sha(ref.git_commit_sha)} />
+            </:col>
+            <:col :let={ref} label={"#{scheme_label(@selected_project)}s"}>
+              <.measured_by_cell commit={ref} />
+            </:col>
+            <:col :let={ref} label={dgettext("dashboard_tests", "Status")}>
+              <div data-part="cell" data-type="text">
+                <.badge
+                  style="light-fill"
+                  size="small"
+                  color={completeness_color(ref)}
+                  label={completeness_label(ref)}
+                />
+              </div>
+            </:col>
+            <:col :let={ref} label={dgettext("dashboard_tests", "Measured")}>
+              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(ref.ran_at)} />
+            </:col>
+          </.table>
+          <.pagination_group
+            :if={@refs_meta.total_pages > 1}
+            current_page={@refs_meta.current_page}
+            number_of_pages={@refs_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "refs-page", page)}" end}
+          />
+        </div>
         <.coverage_empty
+          :if={@ref_rows == [] and @refs_search != ""}
           title={
-            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-              branch: @branch
+            dgettext("dashboard_tests", "No branch or pull request matches %{search}",
+              search: @refs_search
+            )
+          }
+          data-part="empty-refs"
+        />
+        <.coverage_empty
+          :if={@ref_rows == [] and @refs_search == ""}
+          title={
+            dgettext(
+              "dashboard_tests",
+              "No branch or pull request gathered coverage in this period"
             )
           }
           get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-          data-part="empty-files"
-        />
-      </.card>
-    </div>
-
-    <%!-- Runs --%>
-    <.card
-      :if={@tab == "runs"}
-      title={dgettext("dashboard_tests", "Runs with coverage")}
-      icon="dashboard"
-      data-part="runs-card"
-    >
-      <.card_section :if={@runs != []} data-part="runs-section">
-        <.table
-          id="coverage-runs-table"
-          rows={@runs}
-          row_navigate={
-            fn run ->
-              url(
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.id}?tab=coverage"
-              )
-            end
-          }
-        >
-          <:col :let={run} label={dgettext("dashboard_tests", "Scheme")}>
-            <.text_cell label={
-              if run.scheme == "", do: dgettext("dashboard_tests", "Unknown"), else: run.scheme
-            } />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
-            <.totals_cell totals={@totals_by_run[run.id]} />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Branch")}>
-            <.text_cell
-              icon="git_branch"
-              label={
-                if run.git_branch == "",
-                  do: dgettext("dashboard_tests", "Unknown"),
-                  else: run.git_branch
-              }
-            />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Commit")}>
-            <.text_cell label={short_sha(run.git_commit_sha)} />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
-          </:col>
-        </.table>
-        <.pagination
-          uri={@uri}
-          has_previous_page={@runs_meta.has_previous_page?}
-          has_next_page={@runs_meta.has_next_page?}
-          start_cursor={@runs_meta.start_cursor}
-          end_cursor={@runs_meta.end_cursor}
+          data-part="empty-refs"
         />
       </.card_section>
-      <.coverage_empty
-        :if={@runs == []}
-        title={dgettext("dashboard_tests", "No run gathered coverage in this period")}
-        get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-        data-part="empty-runs"
-      />
     </.card>
   </div>
 </div>

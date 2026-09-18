@@ -157,6 +157,180 @@ defmodule Tuist.Tests.Coverage.History do
     |> Map.new(&{&1.git_commit_sha, Map.delete(&1, :git_commit_sha)})
   end
 
+  @doc """
+  One page of the branch's commits, newest first: the commits of
+  `branch_history/3` that the period holds, unmeasured ones included, so the
+  list and the chart describe the same stretch of the branch. `page` is
+  1-based, `page_size` is 20 by default, and `walk_limit` (1000) bounds how
+  far back the branch is walked. Chaining and each commit's `change` against
+  the commit chained before it are computed over the whole walk, so neither
+  depends on the window's edge or on where a page was cut.
+  """
+  def commit_page(%Project{} = project, branch, opts \\ []) do
+    {page, opts} = Keyword.pop(opts, :page, 1)
+    {page_size, opts} = Keyword.pop(opts, :page_size, 20)
+    {walk_limit, opts} = Keyword.pop(opts, :walk_limit, 1000)
+    page = max(page, 1)
+
+    history = branch_history(project, branch, Keyword.put(opts, :limit, walk_limit))
+    commits = history.commits |> with_changes() |> Enum.filter(&in_period?(&1, opts))
+    total_pages = max(1, ceil(length(commits) / page_size))
+    page = min(page, total_pages)
+
+    %{
+      commits: commits |> Enum.drop((page - 1) * page_size) |> Enum.take(page_size),
+      ordered_by: history.ordered_by,
+      page: page,
+      page_size: page_size,
+      total_pages: total_pages,
+      total_count: length(commits)
+    }
+  end
+
+  # Each chained commit's difference from the one chained before it, computed
+  # over the whole walk so a page does not depend on where it was cut.
+  defp with_changes(commits) do
+    commits
+    |> Enum.reverse()
+    |> Enum.map_reduce(nil, fn commit, previous ->
+      change = if commit.chained and previous, do: Float.round(commit.coverage - previous.coverage, 1)
+      {Map.put(commit, :change, change), if(commit.chained, do: commit, else: previous)}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  defp in_period?(%{committed_at: nil}, _opts), do: true
+
+  defp in_period?(%{committed_at: committed_at}, opts) do
+    committed_at = naive(committed_at)
+    since = opts |> Keyword.get(:since) |> naive()
+    until = opts |> Keyword.get(:until) |> naive()
+
+    (is_nil(since) or NaiveDateTime.compare(committed_at, since) != :lt) and
+      (is_nil(until) or NaiveDateTime.compare(committed_at, until) != :gt)
+  end
+
+  defp naive(nil), do: nil
+  defp naive(%DateTime{} = datetime), do: DateTime.to_naive(datetime)
+  defp naive(%NaiveDateTime{} = datetime), do: datetime
+
+  @doc """
+  The branches and pull requests with a measured commit in the period, the
+  most recently measured first: one row per ref with its newest measured
+  commit and that commit's totals, which is where the page's list of refs
+  sends the reader. A pull request is a ref of its own, since its commits
+  belong to it until it is merged.
+
+  `search` narrows by branch name or pull request number, `page` and
+  `page_size` paginate (20 by default). `delta` is the difference from the
+  default branch's newest chained commit, nil unless both sides measured the
+  same set, since anything else only compares per scheme.
+  """
+  def refs(%Project{} = project, opts \\ []) do
+    {page, opts} = Keyword.pop(opts, :page, 1)
+    {page_size, opts} = Keyword.pop(opts, :page_size, 20)
+    {search, opts} = Keyword.pop(opts, :search)
+    page = max(page, 1)
+
+    query = refs_query(project.id, search, opts)
+    total = ClickHouseRepo.one(from(r in subquery(query), select: count())) || 0
+    total_pages = max(1, ceil(total / page_size))
+    page = min(page, total_pages)
+
+    [rows, default] =
+      Tuist.Tasks.parallel_tasks([
+        fn ->
+          query
+          |> limit(^page_size)
+          |> offset(^((page - 1) * page_size))
+          |> ClickHouseRepo.all()
+          |> Enum.map(&with_coverage/1)
+        end,
+        fn -> latest(project, project.default_branch, opts) end
+      ])
+
+    %{
+      refs: Enum.map(rows, &with_delta(&1, default, project.default_branch)),
+      page: page,
+      page_size: page_size,
+      total_pages: total_pages,
+      total_count: total
+    }
+  end
+
+  # The default branch is the baseline, so it has no difference of its own.
+  defp with_delta(%{kind: "branch", name: branch} = ref, _default, branch), do: Map.put(ref, :delta, nil)
+
+  defp with_delta(ref, nil, _default_branch), do: Map.put(ref, :delta, nil)
+
+  defp with_delta(ref, default, _default_branch) do
+    comparable = ref.schemes == default.schemes and ref.partial_schemes == default.partial_schemes
+
+    Map.put(ref, :delta, if(comparable, do: Float.round(ref.coverage - default.coverage, 1)))
+  end
+
+  defp refs_query(project_id, search, opts) do
+    runs =
+      from(t in subquery(runs_query(project_id, opts)),
+        where: t.git_commit_sha != "" and (t.is_pull_request == true or t.git_branch != ""),
+        select: %{
+          kind: fragment("if(?, 'pull_request', 'branch')", t.is_pull_request),
+          name:
+            fragment(
+              "if(?, concat('#', toString(?)), ?)",
+              t.is_pull_request,
+              t.pull_request_number,
+              t.git_branch
+            ),
+          pull_request_number: t.pull_request_number,
+          git_branch: t.git_branch,
+          base_branch: t.base_branch,
+          git_commit_sha: t.git_commit_sha,
+          ran_at: t.ran_at
+        }
+      )
+
+    query =
+      from(r in subquery(runs),
+        join: c in subquery(Commits.commits_query(project_id)),
+        on: c.git_commit_sha == r.git_commit_sha,
+        group_by: [r.kind, r.name],
+        select: %{
+          kind: r.kind,
+          name: r.name,
+          pull_request_number: fragment("argMax(?, ?)", r.pull_request_number, r.ran_at),
+          git_branch: fragment("argMax(?, ?)", r.git_branch, r.ran_at),
+          base_branch: fragment("argMax(?, ?)", r.base_branch, r.ran_at),
+          git_commit_sha: fragment("argMax(?, ?)", r.git_commit_sha, r.ran_at),
+          ran_at: max(r.ran_at),
+          covered_lines: fragment("argMax(?, ?)", c.covered_lines, r.ran_at),
+          executable_lines: fragment("argMax(?, ?)", c.executable_lines, r.ran_at),
+          files_count: fragment("argMax(?, ?)", c.files_count, r.ran_at),
+          unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, r.ran_at),
+          schemes: fragment("argMax(?, ?)", c.schemes, r.ran_at),
+          partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, r.ran_at),
+          complete: fragment("argMax(?, ?)", c.complete, r.ran_at),
+          completeness: fragment("argMax(?, ?)", c.completeness, r.ran_at)
+        },
+        order_by: [desc: max(r.ran_at)]
+      )
+
+    # A pull request is listed by its number, so its branch name is matched too:
+    # the reader knows the branch they pushed, not always the number it got.
+    case search do
+      blank when blank in [nil, ""] ->
+        query
+
+      search ->
+        from(r in query,
+          where:
+            fragment("positionCaseInsensitive(?, ?) > 0", r.name, ^search) or
+              fragment("positionCaseInsensitive(?, ?) > 0", r.git_branch, ^search)
+        )
+    end
+  end
+
   @doc "The newest chained commit of the branch, with its totals, or nil."
   def latest(%Project{} = project, branch, opts \\ []) do
     project

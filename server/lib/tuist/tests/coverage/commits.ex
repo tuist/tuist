@@ -233,9 +233,39 @@ defmodule Tuist.Tests.Coverage.Commits do
   # listing has everything Git tracks; only files of the kinds the coverage
   # tool instruments can be "unmeasured"), minus the excluded paths and the
   # files some run measured.
-  defp unmeasured_files_count(_project_id, repository_id, _sha, _run_ids, _excluded) when repository_id in [nil, 0], do: 0
+  @doc """
+  The files the commit's listing holds that no run measured, in path order:
+  the gap the page names, and the count published with the commit. `limit`
+  caps the list (50 by default). Empty for a commit without a listing, or
+  one the project has no coverage for.
+  """
+  def unmeasured_files(%Project{} = project, sha, opts \\ []) do
+    case summary(project.id, sha) do
+      nil ->
+        []
 
-  defp unmeasured_files_count(project_id, repository_id, sha, run_ids, excluded) do
+      summary ->
+        project.id
+        |> unmeasured_paths(
+          summary.git_repository_id,
+          sha,
+          summary.test_run_ids,
+          ExcludedPaths.pattern_for_project(project)
+        )
+        |> Enum.sort()
+        |> Enum.take(Keyword.get(opts, :limit, 50))
+    end
+  end
+
+  defp unmeasured_files_count(project_id, repository_id, sha, run_ids, excluded),
+    do: length(unmeasured_paths(project_id, repository_id, sha, run_ids, excluded))
+
+  # A listed file counts as unmeasured only when it shares an extension with
+  # something the runs did measure: the listing holds the whole repository,
+  # and a language no scheme compiles is not a gap in this project's coverage.
+  defp unmeasured_paths(_project_id, repository_id, _sha, _run_ids, _excluded) when repository_id in [nil, 0], do: []
+
+  defp unmeasured_paths(project_id, repository_id, sha, run_ids, excluded) do
     if GitHistory.listing_stored?(repository_id, sha) do
       measured = report_paths(project_id, run_ids)
 
@@ -246,19 +276,19 @@ defmodule Tuist.Tests.Coverage.Commits do
         |> Enum.uniq()
 
       if extensions == [] do
-        0
+        []
       else
         pattern = ExcludedPaths.pattern(Enum.map(extensions, &("**/*" <> &1)))
         listed = repository_id |> GitHistory.commit_files(sha, match: pattern) |> Enum.map(& &1.path)
         excluded_regex = ExcludedPaths.compile(excluded)
         measured = MapSet.new(measured)
 
-        Enum.count(listed, fn path ->
+        Enum.filter(listed, fn path ->
           not MapSet.member?(measured, path) and not ExcludedPaths.excluded?(excluded_regex, path)
         end)
       end
     else
-      0
+      []
     end
   end
 

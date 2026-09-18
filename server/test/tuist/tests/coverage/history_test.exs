@@ -177,4 +177,135 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert History.pull_request_commits(project.id, 9) == []
     end
   end
+
+  describe "commit_page/3" do
+    test "pages through the branch's commits and keeps each one's change across the cut", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("b", ["a"], 1),
+          CoverageFixtures.commit("c", ["b"], 2),
+          CoverageFixtures.commit("d", ["c"], 3)
+        ],
+        branch_heads: [{"main", "d"}]
+      )
+
+      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00]}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "d", ran_at: ~N[2026-09-04 10:00:00]}, [1, 1, 1, 0])
+
+      first = History.commit_page(project, "main", page: 1, page_size: 2)
+
+      assert first.total_count == 4
+      assert first.total_pages == 2
+      assert first.ordered_by == :graph
+
+      assert Enum.map(first.commits, &{&1.git_commit_sha, &1.measured, &1.change}) ==
+               [{"d", true, 25.0}, {"c", false, nil}]
+
+      second = History.commit_page(project, "main", page: 2, page_size: 2)
+
+      # b's change is against a, which page 2 does not hold: the walk decides
+      # it, not the page.
+      assert Enum.map(second.commits, &{&1.git_commit_sha, &1.change}) == [{"b", 25.0}, {"a", nil}]
+
+      # A page past the end comes back as the last one rather than empty.
+      assert History.commit_page(project, "main", page: 9, page_size: 2).page == 2
+    end
+
+    test "holds only the commits the period covers", %{project: project, account: account} do
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("old", [], 0),
+          CoverageFixtures.commit("new", ["old"], 60 * 24 * 10)
+        ],
+        branch_heads: [{"main", "new"}]
+      )
+
+      run(project, account, %{git_commit_sha: "old", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "new", ran_at: ~N[2026-09-11 10:00:00]}, [1, 1, 0, 0])
+
+      page = History.commit_page(project, "main", since: ~N[2026-09-05 00:00:00], until: ~N[2026-09-30 00:00:00])
+
+      assert Enum.map(page.commits, & &1.git_commit_sha) == ["new"]
+      assert page.total_count == 1
+    end
+  end
+
+  describe "refs/2" do
+    setup %{project: project, account: account} do
+      run(project, account, %{git_commit_sha: "m", ran_at: ~N[2026-09-01 10:00:00]}, [1, 1, 0, 0])
+
+      run(
+        project,
+        account,
+        %{git_commit_sha: "f", git_branch: "feature/widgets", ran_at: ~N[2026-09-02 10:00:00]},
+        [1, 1, 1, 0]
+      )
+
+      run(
+        project,
+        account,
+        %{
+          git_commit_sha: "p",
+          git_branch: "feature/gates",
+          is_pull_request: true,
+          pull_request_number: 42,
+          base_branch: "main",
+          ran_at: ~N[2026-09-03 10:00:00]
+        },
+        [1, 1, 1, 1]
+      )
+
+      :ok
+    end
+
+    test "lists branches and pull requests against the default branch, newest first", %{project: project} do
+      page = History.refs(project)
+
+      assert page.total_count == 3
+
+      assert Enum.map(page.refs, &{&1.kind, &1.name, &1.coverage, &1.delta}) == [
+               {"pull_request", "#42", 100.0, 50.0},
+               {"branch", "feature/widgets", 75.0, 25.0},
+               {"branch", "main", 50.0, nil}
+             ]
+
+      assert [%{git_branch: "feature/gates", base_branch: "main", git_commit_sha: "p", pull_request_number: 42} | _] =
+               page.refs
+    end
+
+    test "narrows them by branch name or pull request number, and pages", %{project: project} do
+      assert Enum.map(History.refs(project, search: "widgets").refs, & &1.name) == ["feature/widgets"]
+      assert Enum.map(History.refs(project, search: "#42").refs, & &1.name) == ["#42"]
+      # A pull request is also found by the branch it was pushed from.
+      assert Enum.map(History.refs(project, search: "gates").refs, & &1.name) == ["#42"]
+      assert History.refs(project, search: "nothing").refs == []
+
+      first = History.refs(project, page_size: 2)
+      assert length(first.refs) == 2
+      assert first.total_pages == 2
+      assert Enum.map(History.refs(project, page: 2, page_size: 2).refs, & &1.name) == ["main"]
+    end
+
+    test "leaves the difference out when the two sides measured different sets", %{
+      project: project,
+      account: account
+    } do
+      run(
+        project,
+        account,
+        %{git_commit_sha: "s", git_branch: "feature/partial", partial: true, ran_at: ~N[2026-09-04 10:00:00]},
+        [1, 1, 1, 1]
+      )
+
+      assert %{name: "feature/partial", coverage: 100.0, delta: nil, partial_schemes: ["App"]} =
+               Enum.find(History.refs(project).refs, &(&1.name == "feature/partial"))
+    end
+  end
 end
