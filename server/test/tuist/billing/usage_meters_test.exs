@@ -103,6 +103,8 @@ defmodule Tuist.Billing.UsageMetersTest do
     test "reads Kura downloads by cache and marks traffic from runner cache regions", %{account: account} do
       insert_kura_event(%{account_id: account.id, artifact_kind: "module", bytes: 1_000, request_count: 2})
       insert_kura_event(%{account_id: account.id, artifact_kind: "reapi", bytes: 300, request_count: 3})
+      insert_kura_event(%{account_id: account.id, artifact_kind: "nx", bytes: 40, request_count: 4})
+      insert_kura_event(%{account_id: account.id, artifact_kind: "metro", bytes: 60, request_count: 6})
 
       insert_kura_event(%{
         account_id: account.id,
@@ -116,7 +118,9 @@ defmodule Tuist.Billing.UsageMetersTest do
              |> UsageMeters.cache_downloads(@period_start, @period_end)
              |> Enum.sort_by(& &1.cache) == [
                %{date: ~D[2026-05-01], cache: :bazel, runners: false, bytes: 300, requests: 3},
+               %{date: ~D[2026-05-01], cache: :metro, runners: false, bytes: 60, requests: 6},
                %{date: ~D[2026-05-01], cache: :module, runners: false, bytes: 1_000, requests: 2},
+               %{date: ~D[2026-05-01], cache: :nx, runners: false, bytes: 40, requests: 4},
                %{date: ~D[2026-05-01], cache: :xcode, runners: true, bytes: 500, requests: 5}
              ]
     end

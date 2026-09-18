@@ -145,10 +145,6 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-01],
       usage_through: ~D[2026-08-21],
       cache: %{
-        caches: [
-          %{id: "module", cache: :module, bytes: 80_000_000_000, requests: 900_000},
-          %{id: "xcode", cache: :xcode, bytes: 60_000_000_000, requests: 400_000}
-        ],
         downloads: %{
           quantity: 140_000_000_000,
           runner_quantity: 60_000_000_000,
@@ -224,7 +220,7 @@ defmodule TuistWeb.UsageLiveTest do
       refute has_element?(lv, "#widget-cache-charge", "Billed")
 
       downloads = "[data-part='cache-usage-card'] [data-kind='downloads']"
-      assert has_element?(lv, downloads, "Module cache")
+      refute has_element?(lv, downloads, "Module cache")
       assert has_element?(lv, downloads, "140.0 GB downloaded")
       assert has_element?(lv, downloads, "Tuist Runners traffic at half")
       assert has_element?(lv, downloads, "−10.50")
@@ -239,6 +235,19 @@ defmodule TuistWeb.UsageLiveTest do
       assert has_element?(lv, "[data-kind='not-billed-test-cases']", "4M run on Tuist Runners")
       assert has_element?(lv, "[data-kind='passing-test-cases']", "5M included")
       refute has_element?(lv, "[data-part='test-insights-usage-card']", "Billed this period")
+    end
+
+    test "replaces the cache traffic cards with the cache usage card", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
+      reject(&Tuist.Kura.Usage.totals/4)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='cache-usage-card']")
+      refute has_element?(lv, "[data-part='kura-traffic']")
+      refute has_element?(lv, "[data-part='kura-traffic-by-region-card']")
     end
 
     test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
@@ -270,7 +279,7 @@ defmodule TuistWeb.UsageLiveTest do
 
       assert has_element?(lv, "#widget-cache-downloads", "2.0 GB")
       assert has_element?(lv, "#widget-cache-requests", "12")
-      assert has_element?(lv, "[data-kind='downloads']", "Module cache")
+      assert has_element?(lv, "[data-kind='downloads']", "2.0 GB downloaded")
     end
   end
 
@@ -651,16 +660,22 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
-  describe "caches_by/2" do
-    test "orders each receipt's caches by its own quantity and leaves out unused ones" do
-      caches = [
-        %{id: "module", cache: :module, bytes: 900, requests: 10},
-        %{id: "xcode", cache: :xcode, bytes: 100, requests: 500},
-        %{id: "gradle", cache: :gradle, bytes: 0, requests: 20}
-      ]
+  describe "cache_chart_series/1" do
+    test "stacks one series per cache, largest first, then the projection" do
+      cache = %{
+        days: [
+          %{date: ~D[2026-08-20], cache: :xcode, dollars: 1.0},
+          %{date: ~D[2026-08-20], cache: :module, dollars: 3.0},
+          %{date: ~D[2026-08-21], cache: :nx, dollars: 0.5}
+        ],
+        projected_days: [%{date: ~D[2026-08-22], dollars: 4.5}]
+      }
 
-      assert Enum.map(UsageLive.caches_by(caches, :bytes), & &1.cache) == [:module, :xcode]
-      assert Enum.map(UsageLive.caches_by(caches, :requests), & &1.cache) == [:xcode, :gradle, :module]
+      series = UsageLive.cache_chart_series(cache)
+
+      assert Enum.map(series, & &1.name) == ["Module cache", "Xcode cache", "Nx cache", "Projected"]
+      assert Enum.all?(series, &(&1.stack == "spend"))
+      assert UsageLive.cache_chart_options(UsageLive.usage_chart_dates(cache)).legend.top == "bottom"
     end
   end
 

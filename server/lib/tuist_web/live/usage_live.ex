@@ -63,19 +63,8 @@ defmodule TuistWeb.UsageLive do
           }
         } = socket
       ) do
-    {start_dt, end_dt} = period = selected_period(periods, params["period"])
+    period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
-
-    # The page reports one billing period, so the cache traffic beside
-    # the runner usage is scoped to the same window rather than to a
-    # range of its own. Daily buckets: a period is a month, and an hourly
-    # bucket over a month is unreadable.
-    base_opts = [bucket: :day]
-    egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
-    ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
-    requests_opts = Keyword.put(base_opts, :metric, :requests)
-
-    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
 
     runner_breakdown = Allowance.period_breakdown(account, period)
 
@@ -90,19 +79,37 @@ defmodule TuistWeb.UsageLive do
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_usage_pricing(usage_based_pricing, account, period)
-     |> assign_async(
-       [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
-       fn ->
-         {:ok,
-          %{
-            totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
-            egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
-            ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
-            requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
-            per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
-          }}
-       end
-     )}
+     |> assign_cache_traffic(usage_based_pricing, account, period)}
+  end
+
+  defp assign_cache_traffic(socket, true, _account, _period), do: socket
+
+  defp assign_cache_traffic(socket, false, account, {start_dt, end_dt}) do
+    # The page reports one billing period, so the cache traffic beside
+    # the runner usage is scoped to the same window rather than to a
+    # range of its own. Daily buckets: a period is a month, and an hourly
+    # bucket over a month is unreadable.
+    base_opts = [bucket: :day]
+    egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
+    ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
+    requests_opts = Keyword.put(base_opts, :metric, :requests)
+
+    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
+
+    assign_async(
+      socket,
+      [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
+      fn ->
+        {:ok,
+         %{
+           totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
+           egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
+           ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
+           requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
+           per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
+         }}
+      end
+    )
   end
 
   defp assign_usage_pricing(socket, false, _account, _period), do: assign(socket, :usage_pricing, nil)
@@ -189,22 +196,7 @@ defmodule TuistWeb.UsageLive do
     {axis_formatter, tooltip_format} = formatters_for(selected_widget)
 
     %{
-      legend: %{
-        left: "left",
-        top: "bottom",
-        orient: "horizontal",
-        textStyle: %{
-          color: "var:noora-surface-label-secondary",
-          fontFamily: "monospace",
-          fontWeight: 400,
-          fontSize: 10,
-          lineHeight: 12
-        },
-        icon:
-          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-        itemWidth: 8,
-        itemHeight: 4
-      },
+      legend: chart_legend(),
       grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
       xAxis: %{
         boundaryGap: false,
@@ -227,6 +219,25 @@ defmodule TuistWeb.UsageLive do
       # Always daily now: the window is a billing period, so there is no
       # hourly preset left to format for.
       tooltip: tooltip_format
+    }
+  end
+
+  defp chart_legend do
+    %{
+      left: "left",
+      top: "bottom",
+      orient: "horizontal",
+      textStyle: %{
+        color: "var:noora-surface-label-secondary",
+        fontFamily: "monospace",
+        fontWeight: 400,
+        fontSize: 10,
+        lineHeight: 12
+      },
+      icon:
+        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+      itemWidth: 8,
+      itemHeight: 4
     }
   end
 
@@ -497,7 +508,20 @@ defmodule TuistWeb.UsageLive do
   def money_label(nil), do: "—"
   def money_label(money), do: CldrHelpers.format_money(money)
 
-  @cache_colors ["primary", "secondary", "tertiary", "quaternary", "p50"]
+  @cache_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
+
+  @doc """
+  The runner chart's options with a legend, because the cache receipts do not
+  break the charge down by cache.
+  """
+  def cache_chart_options(dates) do
+    dates
+    |> runner_chart_options()
+    |> Map.merge(%{
+      legend: chart_legend(),
+      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}
+    })
+  end
 
   @doc """
   Every date a usage pricing chart draws, spend and projection alike.
@@ -564,15 +588,6 @@ defmodule TuistWeb.UsageLive do
     Enum.map(dates, fn date -> [date, Float.round(Map.get(per_day, date, 0) / 1, 2)] end)
   end
 
-  @doc """
-  The caches with any usage of `field`, largest first.
-  """
-  def caches_by(caches, field) do
-    caches
-    |> Enum.filter(&(Map.fetch!(&1, field) > 0))
-    |> Enum.sort_by(&Map.fetch!(&1, field), :desc)
-  end
-
   def download_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
 
   def request_rate_label,
@@ -584,6 +599,8 @@ defmodule TuistWeb.UsageLive do
   def cache_label(:xcode), do: dgettext("dashboard_usage", "Xcode cache")
   def cache_label(:gradle), do: dgettext("dashboard_usage", "Gradle cache")
   def cache_label(:bazel), do: dgettext("dashboard_usage", "Bazel cache")
+  def cache_label(:nx), do: dgettext("dashboard_usage", "Nx cache")
+  def cache_label(:metro), do: dgettext("dashboard_usage", "Metro cache")
   def cache_label(_cache), do: dgettext("dashboard_usage", "Other caches")
 
   @doc """

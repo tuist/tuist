@@ -91,7 +91,6 @@ defmodule Tuist.Billing.UsagePricing do
     days = cache_days(rows)
 
     %{
-      caches: caches(rows),
       downloads: downloads,
       requests: requests,
       gross: Money.add(downloads.gross, requests.gross),
@@ -146,21 +145,6 @@ defmodule Tuist.Billing.UsagePricing do
       included_credit: Money.subtract(cost.(metered), cost.(billable)),
       charge: cost.(billable)
     }
-  end
-
-  defp caches(rows) do
-    rows
-    |> Enum.group_by(& &1.cache)
-    |> Enum.map(fn {cache, cache_rows} ->
-      %{
-        id: to_string(cache),
-        cache: cache,
-        bytes: cache_rows |> Enum.map(& &1.bytes) |> Enum.sum(),
-        requests: cache_rows |> Enum.map(& &1.requests) |> Enum.sum()
-      }
-    end)
-    |> Enum.reject(&(&1.bytes == 0 and &1.requests == 0))
-    |> Enum.sort_by(&{-&1.bytes, -&1.requests})
   end
 
   defp cache_days(rows) do

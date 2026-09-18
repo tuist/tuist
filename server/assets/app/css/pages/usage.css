@@ -135,15 +135,6 @@
           color: var(--noora-surface-label-secondary);
         }
 
-        &[data-kind="detail"] {
-          padding-left: var(--noora-spacing-4);
-
-          & > dt,
-          & > dd {
-            font: var(--noora-font-body-small);
-          }
-        }
-
         &[data-kind="total"] {
           border-top: 1px solid var(--noora-surface-border-primary);
           padding-top: var(--noora-spacing-3);

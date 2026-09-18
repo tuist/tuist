@@ -210,7 +210,7 @@
             id="cache-spend-chart"
             type="bar"
             extra_options={
-              TuistWeb.UsageLive.runner_chart_options(
+              TuistWeb.UsageLive.cache_chart_options(
                 TuistWeb.UsageLive.usage_chart_dates(pricing.cache)
               )
             }
@@ -225,14 +225,6 @@
               <span data-part="shape">{TuistWeb.UsageLive.download_rate_label()}</span>
             </div>
             <dl data-part="lines">
-              <div
-                :for={cache <- TuistWeb.UsageLive.caches_by(pricing.cache.caches, :bytes)}
-                data-part="line"
-                data-kind="detail"
-              >
-                <dt>{TuistWeb.UsageLive.cache_label(cache.cache)}</dt>
-                <dd>{TuistWeb.UsageLive.format_bytes(cache.bytes)}</dd>
-              </div>
               <div data-part="line">
                 <dt>
                   {dgettext("dashboard_usage", "%{size} downloaded",
@@ -273,14 +265,6 @@
               <span data-part="shape">{TuistWeb.UsageLive.request_rate_label()}</span>
             </div>
             <dl data-part="lines">
-              <div
-                :for={cache <- TuistWeb.UsageLive.caches_by(pricing.cache.caches, :requests)}
-                data-part="line"
-                data-kind="detail"
-              >
-                <dt>{TuistWeb.UsageLive.cache_label(cache.cache)}</dt>
-                <dd>{CldrHelpers.format_number(cache.requests)}</dd>
-              </div>
               <div data-part="line">
                 <dt>
                   {dgettext("dashboard_usage", "%{count} requests",
@@ -448,6 +432,7 @@
   </.card>
 
   <.card
+    :if={not @usage_based_pricing}
     title={dgettext("dashboard_usage", "Cache traffic")}
     icon="chart_column"
     data-part="kura-traffic"
@@ -557,6 +542,7 @@
   </.card>
 
   <.card
+    :if={not @usage_based_pricing}
     title={dgettext("dashboard_usage", "Traffic by region")}
     icon="server"
     data-part="kura-traffic-by-region-card"

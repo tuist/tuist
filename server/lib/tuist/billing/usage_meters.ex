@@ -28,7 +28,7 @@ defmodule Tuist.Billing.UsageMeters do
   from a Tuist Runners cache region.
 
   Returns `%{date, cache, runners, bytes, requests}` rows, where `cache` is one
-  of `:module`, `:xcode`, `:gradle`, `:bazel`, or `:other`.
+  of `:module`, `:xcode`, `:gradle`, `:bazel`, `:nx`, `:metro`, or `:other`.
   """
   def cache_downloads(account_id, %DateTime{} = period_start, %DateTime{} = period_end) when is_integer(account_id) do
     kura_downloads(account_id, period_start, period_end) ++
@@ -189,6 +189,8 @@ defmodule Tuist.Billing.UsageMeters do
   defp cache("xcode"), do: :xcode
   defp cache("gradle"), do: :gradle
   defp cache("reapi"), do: :bazel
+  defp cache("nx"), do: :nx
+  defp cache("metro"), do: :metro
   defp cache(_artifact_kind), do: :other
 
   defp to_naive(%DateTime{} = datetime), do: datetime |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
