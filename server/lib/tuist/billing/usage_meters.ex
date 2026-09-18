@@ -21,23 +21,17 @@ defmodule Tuist.Billing.UsageMeters do
   alias Tuist.Tests.TestCaseRunByTestRun
 
   @project_ids_chunk_size 5_000
-  @caches %{
-    "module" => :module,
-    "xcode" => :xcode,
-    "gradle" => :gradle,
-    "reapi" => :bazel,
-    "nx" => :nx,
-    "metro" => :metro
-  }
+  @cache_artifact_kinds ~w(module xcode gradle reapi nx metro)
   @runner_job_lookback_days 7
 
   @doc """
-  Cache downloads per UTC day, split by cache and by whether they were served
+  Cache downloads per UTC day, split by project and by whether they were served
   from a Tuist Runners cache region.
 
-  Returns `%{date, cache, runners, bytes, requests}` rows, where `cache` is one
-  of `:module`, `:xcode`, `:gradle`, `:bazel`, `:nx`, or `:metro`. Kura
-  artifact kinds outside that list are not counted.
+  Returns `%{date, project_id, runners, bytes, requests}` rows. `project_id` is
+  `0` for Kura traffic that did not resolve to a project. Kura artifact kinds
+  other than the module, Xcode, Gradle, Bazel, Nx, and Metro caches are not
+  counted.
   """
   def cache_downloads(account_id, %DateTime{} = period_start, %DateTime{} = period_end) when is_integer(account_id) do
     kura_downloads(account_id, period_start, period_end) ++
@@ -53,6 +47,7 @@ defmodule Tuist.Billing.UsageMeters do
         where: e.window_start >= ^to_naive(period_start) and e.window_start < ^to_naive(period_end),
         group_by: e.event_id,
         select: %{
+          project_id: fragment("argMax(?, ?)", e.project_id, e.inserted_at),
           artifact_kind: fragment("argMax(?, ?)", e.artifact_kind, e.inserted_at),
           region: fragment("argMax(?, ?)", e.region, e.inserted_at),
           window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
@@ -62,11 +57,11 @@ defmodule Tuist.Billing.UsageMeters do
       )
 
     from(e in subquery(deduped),
-      where: e.artifact_kind in ^Map.keys(@caches),
-      group_by: [fragment("toDate(?)", e.window_start), e.artifact_kind, e.region],
+      where: e.artifact_kind in ^@cache_artifact_kinds,
+      group_by: [fragment("toDate(?)", e.window_start), e.project_id, e.region],
       select: %{
         date: fragment("toDate(?)", e.window_start),
-        artifact_kind: e.artifact_kind,
+        project_id: e.project_id,
         region: e.region,
         bytes: fragment("sum(?)", e.bytes),
         requests: fragment("sum(?)", e.request_count)
@@ -76,7 +71,7 @@ defmodule Tuist.Billing.UsageMeters do
     |> Enum.map(fn row ->
       %{
         date: row.date,
-        cache: Map.fetch!(@caches, row.artifact_kind),
+        project_id: row.project_id,
         runners: row.region in runner_regions,
         bytes: to_integer(row.bytes),
         requests: to_integer(row.requests)
@@ -94,9 +89,10 @@ defmodule Tuist.Billing.UsageMeters do
           where: fragment("? IN (?)", e.project_id, type(^project_ids, {:array, :integer})),
           where: e.action == "download",
           where: e.inserted_at >= ^to_naive(period_start) and e.inserted_at < ^to_naive(period_end),
-          group_by: fragment("toDate(?)", e.inserted_at),
+          group_by: [fragment("toDate(?)", e.inserted_at), e.project_id],
           select: %{
             date: fragment("toDate(?)", e.inserted_at),
+            project_id: e.project_id,
             bytes: fragment("sum(?)", e.size),
             requests: fragment("count()")
           }
@@ -104,7 +100,13 @@ defmodule Tuist.Billing.UsageMeters do
       )
     end)
     |> Enum.map(fn row ->
-      %{date: row.date, cache: :xcode, runners: false, bytes: to_integer(row.bytes), requests: to_integer(row.requests)}
+      %{
+        date: row.date,
+        project_id: row.project_id,
+        runners: false,
+        bytes: to_integer(row.bytes),
+        requests: to_integer(row.requests)
+      }
     end)
   end
 
@@ -183,6 +185,13 @@ defmodule Tuist.Billing.UsageMeters do
     Enum.reduce(rows, %{}, fn row, acc ->
       Map.update(acc, {row.date, row.status}, to_integer(row.count), &(&1 + to_integer(row.count)))
     end)
+  end
+
+  @doc """
+  The names of the projects `account_id` owns, keyed by id.
+  """
+  def project_names(account_id) when is_integer(account_id) do
+    Map.new(Repo.all(from(p in Project, where: p.account_id == ^account_id, select: {p.id, p.name})))
   end
 
   defp project_ids(account_id) do

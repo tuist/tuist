@@ -172,7 +172,7 @@ defmodule TuistWeb.UsageLiveTest do
         gross: Money.new(6_200, :USD),
         charge: cache_charge,
         billed: if(billed?, do: cache_charge),
-        days: [%{date: ~D[2026-08-20], cache: :module, bytes: 4_000_000_000, requests: 50_000}],
+        days: [%{date: ~D[2026-08-20], project: "ios", bytes: 4_000_000_000, requests: 50_000}],
         charge_days: [
           %{date: ~D[2026-08-20], meter: :egress, dollars: 1.4},
           %{date: ~D[2026-08-20], meter: :requests, dollars: 0.5}
@@ -724,9 +724,9 @@ defmodule TuistWeb.UsageLiveTest do
       %{
         cache: %{
           days: [
-            %{date: ~D[2026-08-20], cache: :xcode, bytes: 1_000, requests: 900},
-            %{date: ~D[2026-08-20], cache: :module, bytes: 3_000, requests: 100},
-            %{date: ~D[2026-08-21], cache: :nx, bytes: 500, requests: 50}
+            %{date: ~D[2026-08-20], project: "android", bytes: 1_000, requests: 900},
+            %{date: ~D[2026-08-20], project: "ios", bytes: 3_000, requests: 100},
+            %{date: ~D[2026-08-21], project: nil, bytes: 500, requests: 50}
           ],
           charge_days: [
             %{date: ~D[2026-08-20], meter: :egress, dollars: 2.0},
@@ -746,13 +746,13 @@ defmodule TuistWeb.UsageLiveTest do
       assert [_, _, [~D[2026-08-22], 1.13]] = projected.data
     end
 
-    test "splits egress and requests by cache, largest first", %{cache: cache} do
+    test "splits egress and requests by project, largest first", %{cache: cache} do
       assert Enum.map(UsageLive.cache_chart_series(cache, "egress"), & &1.name) ==
-               ["Module cache", "Xcode cache", "Nx cache", "Projected"]
+               ["ios", "android", "Unknown project", "Projected"]
 
-      assert [xcode | _] = UsageLive.cache_chart_series(cache, "requests")
-      assert xcode.name == "Xcode cache"
-      assert [[~D[2026-08-20], 900], [~D[2026-08-21], 0], [~D[2026-08-22], 0]] = xcode.data
+      assert [android | _] = UsageLive.cache_chart_series(cache, "requests")
+      assert android.name == "android"
+      assert [[~D[2026-08-20], 900], [~D[2026-08-21], 0], [~D[2026-08-22], 0]] = android.data
     end
 
     test "formats the axis for the selected view", %{cache: cache} do
@@ -761,6 +761,7 @@ defmodule TuistWeb.UsageLiveTest do
       assert UsageLive.cache_chart_options(dates, "egress").yAxis.axisLabel.formatter == "fn:formatBytes"
       assert UsageLive.cache_chart_options(dates, "requests").tooltip.valueFormat == "fn:formatNumber"
       assert UsageLive.cache_chart_options(dates, "charge").legend.top == "bottom"
+      assert UsageLive.cache_chart_options(dates, "egress").legend == %{show: false}
     end
   end
 

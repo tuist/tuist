@@ -100,15 +100,40 @@ defmodule Tuist.Billing.UsageMetersTest do
   end
 
   describe "cache_downloads/3" do
-    test "reads Kura downloads by cache, skips unknown kinds, and marks runner cache regions", %{account: account} do
-      insert_kura_event(%{account_id: account.id, artifact_kind: "module", bytes: 1_000, request_count: 2})
-      insert_kura_event(%{account_id: account.id, artifact_kind: "reapi", bytes: 300, request_count: 3})
-      insert_kura_event(%{account_id: account.id, artifact_kind: "nx", bytes: 40, request_count: 4})
-      insert_kura_event(%{account_id: account.id, artifact_kind: "metro", bytes: 60, request_count: 6})
-      insert_kura_event(%{account_id: account.id, artifact_kind: "xcframework", bytes: 9_000, request_count: 9})
+    test "reads Kura downloads by project, skips unknown kinds, and marks runner cache regions", %{
+      account: account,
+      project: project
+    } do
+      insert_kura_event(%{
+        account_id: account.id,
+        project_id: project.id,
+        artifact_kind: "module",
+        bytes: 1_000,
+        request_count: 2
+      })
 
       insert_kura_event(%{
         account_id: account.id,
+        project_id: project.id,
+        artifact_kind: "reapi",
+        bytes: 300,
+        request_count: 3
+      })
+
+      insert_kura_event(%{
+        account_id: account.id,
+        project_id: project.id,
+        artifact_kind: "nx",
+        bytes: 40,
+        request_count: 4
+      })
+
+      insert_kura_event(%{account_id: account.id, artifact_kind: "metro", bytes: 60, request_count: 6})
+      insert_kura_event(%{account_id: account.id, project_id: project.id, artifact_kind: "xcframework", bytes: 9_000})
+
+      insert_kura_event(%{
+        account_id: account.id,
+        project_id: project.id,
         artifact_kind: "xcode",
         region: "scw-fr-par-runners",
         bytes: 500,
@@ -117,12 +142,10 @@ defmodule Tuist.Billing.UsageMetersTest do
 
       assert account.id
              |> UsageMeters.cache_downloads(@period_start, @period_end)
-             |> Enum.sort_by(& &1.cache) == [
-               %{date: ~D[2026-05-01], cache: :bazel, runners: false, bytes: 300, requests: 3},
-               %{date: ~D[2026-05-01], cache: :metro, runners: false, bytes: 60, requests: 6},
-               %{date: ~D[2026-05-01], cache: :module, runners: false, bytes: 1_000, requests: 2},
-               %{date: ~D[2026-05-01], cache: :nx, runners: false, bytes: 40, requests: 4},
-               %{date: ~D[2026-05-01], cache: :xcode, runners: true, bytes: 500, requests: 5}
+             |> Enum.sort_by(&{&1.project_id, &1.runners}) == [
+               %{date: ~D[2026-05-01], project_id: 0, runners: false, bytes: 60, requests: 6},
+               %{date: ~D[2026-05-01], project_id: project.id, runners: false, bytes: 1_340, requests: 9},
+               %{date: ~D[2026-05-01], project_id: project.id, runners: true, bytes: 500, requests: 5}
              ]
     end
 
@@ -164,8 +187,16 @@ defmodule Tuist.Billing.UsageMetersTest do
       insert_cas_event(%{project_id: other_project.id, size: 8_000})
 
       assert UsageMeters.cache_downloads(account.id, @period_start, @period_end) == [
-               %{date: ~D[2026-05-01], cache: :xcode, runners: false, bytes: 1_000, requests: 2}
+               %{date: ~D[2026-05-01], project_id: project.id, runners: false, bytes: 1_000, requests: 2}
              ]
+    end
+  end
+
+  describe "project_names/1" do
+    test "names the account's projects by id", %{account: account, project: project} do
+      ProjectsFixtures.project_fixture()
+
+      assert UsageMeters.project_names(account.id) == %{project.id => project.name}
     end
   end
 

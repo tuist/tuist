@@ -517,11 +517,11 @@ defmodule TuistWeb.UsageLive do
   def money_label(nil), do: "—"
   def money_label(money), do: CldrHelpers.format_money(money)
 
-  @cache_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
-
   @doc """
   Chart options for the cache usage card's selected view: money for the
-  charge, bytes for egress, and a plain count for requests.
+  charge, bytes for egress, and a plain count for requests. Only the charge
+  view has a legend; the project views name each project in the tooltip, like
+  the runner chart does with repositories.
   """
   def cache_chart_options(dates, view) do
     {formatter, value_format} =
@@ -533,13 +533,15 @@ defmodule TuistWeb.UsageLive do
 
     dates
     |> runner_chart_options()
-    |> Map.merge(%{
-      legend: chart_legend(),
-      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true},
-      tooltip: %{valueFormat: value_format}
-    })
+    |> Map.merge(cache_chart_legend(view))
+    |> Map.put(:tooltip, %{valueFormat: value_format})
     |> put_in([:yAxis, :axisLabel, :formatter], formatter)
   end
+
+  defp cache_chart_legend("charge"),
+    do: %{legend: chart_legend(), grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true}}
+
+  defp cache_chart_legend(_view), do: %{}
 
   @doc """
   Every date a usage pricing chart draws, spend and projection alike.
@@ -582,11 +584,17 @@ defmodule TuistWeb.UsageLive do
     dates = usage_chart_dates(cache)
 
     days
-    |> Enum.group_by(& &1.cache)
-    |> Enum.sort_by(fn {_cache, rows} -> -Enum.sum(Enum.map(rows, &Map.fetch!(&1, field))) end)
+    |> Enum.group_by(& &1.project)
+    |> Enum.sort_by(fn {_project, rows} -> -Enum.sum(Enum.map(rows, &Map.fetch!(&1, field))) end)
     |> Enum.with_index()
-    |> Enum.map(fn {{cache, rows}, index} ->
-      bar_series(cache_label(cache), Enum.at(@cache_colors, rem(index, length(@cache_colors))), dates, rows, field)
+    |> Enum.map(fn {{project, rows}, index} ->
+      bar_series(
+        project_label(project),
+        Enum.at(@repository_colors, rem(index, length(@repository_colors))),
+        dates,
+        rows,
+        field
+      )
     end)
     |> Kernel.++(projected_series(cache.projected_days, dates, field))
   end
@@ -667,12 +675,8 @@ defmodule TuistWeb.UsageLive do
 
   def passing_test_case_rate_label, do: "$2 " <> dgettext("dashboard_usage", "per million")
 
-  def cache_label(:module), do: dgettext("dashboard_usage", "Module cache")
-  def cache_label(:xcode), do: dgettext("dashboard_usage", "Xcode cache")
-  def cache_label(:gradle), do: dgettext("dashboard_usage", "Gradle cache")
-  def cache_label(:bazel), do: dgettext("dashboard_usage", "Bazel cache")
-  def cache_label(:nx), do: dgettext("dashboard_usage", "Nx cache")
-  def cache_label(:metro), do: dgettext("dashboard_usage", "Metro cache")
+  def project_label(nil), do: dgettext("dashboard_usage", "Unknown project")
+  def project_label(project), do: project
 
   @doc """
   The heading of a usage pricing charge. Only an account with a subscription

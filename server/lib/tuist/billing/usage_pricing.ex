@@ -69,12 +69,18 @@ defmodule Tuist.Billing.UsagePricing do
       period_start: DateTime.to_date(period_start),
       period_end: DateTime.to_date(period_end),
       usage_through: DateTime.to_date(usage_end),
-      cache: cache_breakdown(cache_rows, subscribed, {period_start, period_end, usage_end}),
+      cache:
+        cache_breakdown(
+          cache_rows,
+          UsageMeters.project_names(account.id),
+          subscribed,
+          {period_start, period_end, usage_end}
+        ),
       tests: tests_breakdown(test_rows, subscribed, {period_start, period_end, usage_end})
     }
   end
 
-  defp cache_breakdown(rows, subscribed, {period_start, period_end, usage_end}) do
+  defp cache_breakdown(rows, project_names, subscribed, {period_start, period_end, usage_end}) do
     totals = cache_totals(rows)
 
     egress =
@@ -96,7 +102,7 @@ defmodule Tuist.Billing.UsagePricing do
       gross: Money.add(egress.gross, requests.gross),
       charge: charge,
       billed: if(subscribed, do: charge),
-      days: cache_days(rows),
+      days: cache_days(rows, project_names),
       charge_days: charge_days,
       projected_days:
         projected_days(
@@ -155,18 +161,18 @@ defmodule Tuist.Billing.UsagePricing do
     }
   end
 
-  defp cache_days(rows) do
+  defp cache_days(rows, project_names) do
     rows
-    |> Enum.group_by(&{&1.date, &1.cache})
-    |> Enum.map(fn {{date, cache}, cache_rows} ->
+    |> Enum.group_by(&{&1.date, Map.get(project_names, &1.project_id)})
+    |> Enum.map(fn {{date, project}, project_rows} ->
       %{
         date: date,
-        cache: cache,
-        bytes: cache_rows |> Enum.map(& &1.bytes) |> Enum.sum(),
-        requests: cache_rows |> Enum.map(& &1.requests) |> Enum.sum()
+        project: project,
+        bytes: project_rows |> Enum.map(& &1.bytes) |> Enum.sum(),
+        requests: project_rows |> Enum.map(& &1.requests) |> Enum.sum()
       }
     end)
-    |> Enum.sort_by(&{Date.to_erl(&1.date), &1.cache})
+    |> Enum.sort_by(&{Date.to_erl(&1.date), &1.project || ""})
   end
 
   defp charge_days(rows) do

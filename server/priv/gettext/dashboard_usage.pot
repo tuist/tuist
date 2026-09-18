@@ -16,7 +16,7 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:571
+#: lib/tuist_web/live/usage_live.ex:573
 #: lib/tuist_web/live/usage_live.html.heex:205
 #: lib/tuist_web/live/usage_live.html.heex:258
 #: lib/tuist_web/live/usage_live.html.heex:309
@@ -39,7 +39,7 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:564
+#: lib/tuist_web/live/usage_live.ex:566
 #: lib/tuist_web/live/usage_live.html.heex:190
 #: lib/tuist_web/live/usage_live.html.heex:254
 #: lib/tuist_web/live/usage_live.html.heex:269
@@ -57,8 +57,8 @@ msgstr ""
 
 #: lib/tuist_web/live/usage_live.ex:391
 #: lib/tuist_web/live/usage_live.ex:392
-#: lib/tuist_web/live/usage_live.ex:716
-#: lib/tuist_web/live/usage_live.ex:717
+#: lib/tuist_web/live/usage_live.ex:720
+#: lib/tuist_web/live/usage_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -78,7 +78,7 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:724
+#: lib/tuist_web/live/usage_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
@@ -103,7 +103,7 @@ msgstr ""
 msgid "At the standard rate, before the free tier"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:682
+#: lib/tuist_web/live/usage_live.ex:686
 #: lib/tuist_web/live/usage_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Billed"
@@ -154,7 +154,7 @@ msgstr ""
 msgid "%{count} minutes run"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:690
+#: lib/tuist_web/live/usage_live.ex:694
 #: lib/tuist_web/live/usage_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
@@ -216,7 +216,7 @@ msgid "since the previous period"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.ex:384
-#: lib/tuist_web/live/usage_live.ex:608
+#: lib/tuist_web/live/usage_live.ex:616
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr ""
@@ -231,7 +231,7 @@ msgstr ""
 msgid "Covered by your trial"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:687
+#: lib/tuist_web/live/usage_live.ex:691
 #: lib/tuist_web/live/usage_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -278,11 +278,6 @@ msgstr ""
 msgid "%{size} included"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:673
-#, elixir-autogen, elixir-format
-msgid "Bazel cache"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
@@ -293,12 +288,12 @@ msgstr ""
 msgid "Cache usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:681
+#: lib/tuist_web/live/usage_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "Estimated"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:689
+#: lib/tuist_web/live/usage_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr ""
@@ -315,38 +310,28 @@ msgstr ""
 msgid "Free"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:672
-#, elixir-autogen, elixir-format
-msgid "Gradle cache"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.ex:670
-#, elixir-autogen, elixir-format
-msgid "Module cache"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.html.heex:390
 #: lib/tuist_web/live/usage_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "Not billed"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:712
+#: lib/tuist_web/live/usage_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:704
+#: lib/tuist_web/live/usage_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:698
+#: lib/tuist_web/live/usage_live.ex:702
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:601
+#: lib/tuist_web/live/usage_live.ex:609
 #: lib/tuist_web/live/usage_live.html.heex:380
 #: lib/tuist_web/live/usage_live.html.heex:424
 #, elixir-autogen, elixir-format
@@ -358,39 +343,24 @@ msgstr ""
 msgid "Test insights usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:685
+#: lib/tuist_web/live/usage_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:671
-#, elixir-autogen, elixir-format
-msgid "Xcode cache"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.ex:666
+#: lib/tuist_web/live/usage_live.ex:674
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:663
+#: lib/tuist_web/live/usage_live.ex:671
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:668
+#: lib/tuist_web/live/usage_live.ex:676
 #, elixir-autogen, elixir-format
 msgid "per million"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.ex:675
-#, elixir-autogen, elixir-format
-msgid "Metro cache"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.ex:674
-#, elixir-autogen, elixir-format
-msgid "Nx cache"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:161
@@ -432,4 +402,9 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:678
+#, elixir-autogen, elixir-format
+msgid "Unknown project"
 msgstr ""

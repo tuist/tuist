@@ -16,12 +16,13 @@ defmodule Tuist.Billing.UsagePricingTest do
     stub(Billing, :get_current_active_subscription, fn _account -> nil end)
     stub(UsageMeters, :cache_downloads, fn _account_id, _start, _end -> [] end)
     stub(UsageMeters, :test_case_runs, fn _account_id, _start, _end -> [] end)
+    stub(UsageMeters, :project_names, fn _account_id -> %{1 => "ios", 2 => "android"} end)
 
     %{account: account}
   end
 
   defp cache_row(attrs),
-    do: Map.merge(%{date: ~D[2026-05-10], cache: :module, runners: false, bytes: 0, requests: 0}, attrs)
+    do: Map.merge(%{date: ~D[2026-05-10], project_id: 1, runners: false, bytes: 0, requests: 0}, attrs)
 
   defp test_row(attrs), do: Map.merge(%{date: ~D[2026-05-10], status: "success", runners: false, count: 0}, attrs)
 
@@ -31,8 +32,8 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       expect(UsageMeters, :cache_downloads, fn ^account_id, @period_start, @period_end ->
         [
-          cache_row(%{cache: :module, bytes: 3_999_999, requests: 10}),
-          cache_row(%{cache: :xcode, runners: true, bytes: 2_000_001, requests: 7})
+          cache_row(%{bytes: 3_999_999, requests: 10}),
+          cache_row(%{project_id: 2, runners: true, bytes: 2_000_001, requests: 7})
         ]
       end)
 
@@ -97,8 +98,8 @@ defmodule Tuist.Billing.UsagePricingTest do
     test "counts runner traffic at half before the shared allowance", %{account: account} do
       stub(UsageMeters, :cache_downloads, fn _, _, _ ->
         [
-          cache_row(%{cache: :module, bytes: 80_000_000_000, requests: 900_000}),
-          cache_row(%{cache: :xcode, runners: true, bytes: 60_000_000_000, requests: 400_000})
+          cache_row(%{bytes: 80_000_000_000, requests: 900_000}),
+          cache_row(%{project_id: 2, runners: true, bytes: 60_000_000_000, requests: 400_000})
         ]
       end)
 
@@ -159,12 +160,18 @@ defmodule Tuist.Billing.UsagePricingTest do
       usage_end = ~U[2026-05-11 00:00:00.000000Z]
 
       expect(UsageMeters, :cache_downloads, fn ^account_id, @period_start, ^usage_end ->
-        [cache_row(%{date: ~D[2026-05-10], bytes: 10_000_000_000, requests: 1_000})]
+        [
+          cache_row(%{date: ~D[2026-05-10], bytes: 6_000_000_000, requests: 600}),
+          cache_row(%{date: ~D[2026-05-10], project_id: 0, bytes: 4_000_000_000, requests: 400})
+        ]
       end)
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
-      assert breakdown.cache.days == [%{date: ~D[2026-05-10], cache: :module, bytes: 10_000_000_000, requests: 1_000}]
+      assert breakdown.cache.days == [
+               %{date: ~D[2026-05-10], project: nil, bytes: 4_000_000_000, requests: 400},
+               %{date: ~D[2026-05-10], project: "ios", bytes: 6_000_000_000, requests: 600}
+             ]
 
       assert breakdown.cache.charge_days == [
                %{date: ~D[2026-05-10], meter: :egress, dollars: 3.5},
