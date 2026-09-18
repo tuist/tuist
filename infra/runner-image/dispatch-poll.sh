@@ -1038,9 +1038,9 @@ EOF
 # within_room caps a cache's share ($1) at what the budget ($2) leaves beside the
 # other cache, which holds $3 bytes. Each cache is pruned only by its own pruner
 # and only when that runs, so the other can hold more than its share: the binary
-# cache until the job's `tuist` next prunes it, the compilation cache down to its
-# last generation, which a prune cannot collect. Handing that room out twice is
-# how the image fills to ENOSPC. The cap never goes below CACHE_SPLIT_FLOOR_BYTES,
+# cache until the job's `tuist` next prunes it, the compilation cache because a
+# prune keeps a store's newest generations even past a limit that just shrank.
+# Handing that room out twice is how the image fills to ENOSPC. The cap never goes below CACHE_SPLIT_FLOOR_BYTES,
 # so a cache crowded out this way still works while the other shrinks back.
 within_room() {
   local share="$1" room=$(($2 - $3))

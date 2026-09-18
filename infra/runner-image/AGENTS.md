@@ -261,7 +261,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`within_room`): the compilation cache's limit is capped at the budget less
   what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
   after the attach prune, capped at the budget less what the store holds once
-  pruned, since a prune cannot collect a store's last generation. The two
+  pruned, since a prune keeps a store's newest generations even past a limit
+  that just shrank. The two
   limits therefore never add up to more than the budget. A cache that stops
   being used gives its space back only as fast as its own pruner collects it:
   the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
