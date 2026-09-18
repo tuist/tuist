@@ -5,12 +5,12 @@ defmodule Tuist.Tests.Coverage.Report do
   a sentence, so an agent can act on them without reading the dashboard.
   """
 
-  alias Tuist.Tests
+  alias Tuist.GitHistory
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Test
 
-  @doc "A run's coverage: totals, targets, where it sits in Git history and its baseline."
+  @doc "A run's coverage: totals, targets, where it sits in Git history and its commit's baseline."
   def run(project, %Test{} = run, summary) do
     Map.merge(
       %{
@@ -25,15 +25,43 @@ defmodule Tuist.Tests.Coverage.Report do
         coverage: Coverage.percentage(summary.covered_lines, summary.executable_lines),
         execution_mode: run.execution_mode,
         targets: Enum.map(Coverage.targets_for_run(run.project_id, run.id), &target/1),
-        git_history: git_history(run)
+        git_history: git_history(project, run)
       },
       baseline(project, run)
     )
   end
 
+  @doc """
+  A commit's coverage (`Tuist.Tests.Coverage.Commits.summary/2` with its
+  targets): the union of its runs, its measured set, whether it is
+  complete, and its baseline or the reason there is none.
+  """
+  def commit(project, summary, targets) do
+    Map.merge(
+      %{
+        git_commit_sha: summary.git_commit_sha,
+        covered_lines: summary.covered_lines,
+        executable_lines: summary.executable_lines,
+        coverage: summary.coverage,
+        files_count: summary.files_count,
+        unmeasured_files_count: summary.unmeasured_files_count,
+        schemes: summary.schemes,
+        partial_schemes: summary.partial_schemes,
+        partial: summary.partial_schemes != [],
+        complete: summary.complete,
+        completeness: summary.completeness,
+        test_run_ids: summary.test_run_ids,
+        measured_at: iso8601(summary.inserted_at),
+        targets: Enum.map(targets, &target/1)
+      },
+      baseline(project, Comparison.from_commit(project, summary.git_commit_sha))
+    )
+  end
+
   @doc "Where a run sits in the repository's history, as the client or the provider recorded it."
-  def git_history(%Test{} = run) do
+  def git_history(project, %Test{} = run) do
     %{
+      git_dirty: run.git_dirty,
       base_branch: run.base_branch,
       merge_base_sha: run.merge_base_sha,
       is_pull_request: run.is_pull_request,
@@ -41,14 +69,14 @@ defmodule Tuist.Tests.Coverage.Report do
       git_object_format: run.git_object_format,
       history_source: run.history_source,
       history_fallback_reason: run.history_fallback_reason,
-      tracked_files_count: Tests.tracked_files_count(run.project_id, run.id),
-      tracked_files_truncated: run.tracked_files_truncated
+      tracked_files_count: tracked_files_count(project, run),
+      commit_files_listed: listing_stored?(run)
     }
   end
 
-  @doc "The run's baseline, or the reason there is none, under `baseline` and `baseline_reason`."
-  def baseline(project, %Test{} = run) do
-    case Comparison.baseline(project, run) do
+  @doc "The head's baseline, or the reason there is none, under `baseline` and `baseline_reason`."
+  def baseline(project, head) do
+    case Comparison.baseline(project, head) do
       {:ok, baseline} -> %{baseline: baseline_map(baseline), baseline_reason: nil}
       {:error, reason} -> %{baseline: nil, baseline_reason: reason(reason)}
     end
@@ -57,10 +85,11 @@ defmodule Tuist.Tests.Coverage.Report do
   @doc "A comparison (`Tuist.Tests.Coverage.Comparison.compare/3`) as the API returns it."
   def comparison(comparison) do
     %{
-      run: comparison.run,
+      commit: comparison.commit,
       baseline: comparison.baseline && baseline_map(comparison.baseline),
       baseline_reason: comparison.baseline_reason && reason(comparison.baseline_reason),
       total_delta: comparison.total_delta,
+      schemes: comparison.schemes,
       targets:
         Enum.map(
           comparison.targets,
@@ -76,7 +105,7 @@ defmodule Tuist.Tests.Coverage.Report do
     }
   end
 
-  @doc "One of a run's files with its line counts, least covered first when listed."
+  @doc "One of a commit's files with its line counts, least covered first when listed."
   def file(file) do
     %{
       path: file.path,
@@ -99,48 +128,82 @@ defmodule Tuist.Tests.Coverage.Report do
     })
   end
 
-  @doc "A branch's newest full run (`Tuist.Tests.Coverage.History.branches/3`)."
+  @doc "A commit of a branch's history (`Tuist.Tests.Coverage.History.branch_history/3`)."
+  def history_commit(row) do
+    Map.merge(
+      %{
+        git_commit_sha: row.git_commit_sha,
+        depth: row.depth,
+        committed_at: iso8601(Map.get(row, :committed_at)),
+        measured: row.measured,
+        chained: row.chained
+      },
+      if(row.measured, do: measurement(row), else: %{})
+    )
+  end
+
+  @doc "A branch's head measurement (`Tuist.Tests.Coverage.History.branches/2`)."
   def branch(row) do
-    %{
+    Map.merge(measurement(row), %{
       git_branch: row.git_branch,
-      test_run_id: row.test_run_id,
+      chained: row.chained,
+      ordered_by: Atom.to_string(row.ordered_by),
+      delta: row.delta
+    })
+  end
+
+  @doc "A pull request's commit with coverage (`Tuist.Tests.Coverage.History.pull_request_commits/3`)."
+  def pull_request_commit(row) do
+    Map.merge(measurement(row), %{
+      git_branch: row.git_branch,
+      base_branch: row.base_branch,
+      ran_at: iso8601(row.ran_at)
+    })
+  end
+
+  defp measurement(row) do
+    %{
       git_commit_sha: row.git_commit_sha,
-      ran_at: iso8601(row.ran_at),
       covered_lines: row.covered_lines,
       executable_lines: row.executable_lines,
       coverage: row.coverage,
-      delta: row.delta
-    }
-  end
-
-  @doc "A pull request's run with coverage (`Tuist.Tests.Coverage.History.pull_request_runs/3`)."
-  def pull_request_run(row) do
-    %{
-      test_run_id: row.test_run_id,
-      scheme: row.scheme,
-      git_branch: row.git_branch,
-      base_branch: row.base_branch,
-      git_commit_sha: row.git_commit_sha,
-      ran_at: iso8601(row.ran_at),
-      partial: row.partial,
-      covered_lines: row.covered_lines,
-      executable_lines: row.executable_lines,
-      coverage: row.coverage
+      schemes: row.schemes,
+      partial_schemes: row.partial_schemes,
+      partial: row.partial_schemes != [],
+      complete: row.complete,
+      completeness: row.completeness,
+      test_run_ids: row.test_run_ids,
+      measured_at: iso8601(Map.get(row, :inserted_at))
     }
   end
 
   defp target(target), do: Map.put(target, :coverage, Coverage.percentage(target.covered_lines, target.executable_lines))
 
+  defp tracked_files_count(project, %Test{git_repository_id: repository_id, git_commit_sha: sha})
+       when is_integer(repository_id) and repository_id > 0 and is_binary(sha) and sha != "",
+       do: length(GitHistory.tracked_files(project, repository_id, sha))
+
+  defp tracked_files_count(_project, _run), do: 0
+
+  defp listing_stored?(%Test{git_repository_id: repository_id, git_commit_sha: sha})
+       when is_integer(repository_id) and repository_id > 0 and is_binary(sha) and sha != "",
+       do: GitHistory.listing_stored?(repository_id, sha)
+
+  defp listing_stored?(_run), do: false
+
   defp baseline_map(baseline) do
     %{
-      test_run_id: baseline.test_run_id,
       commit: baseline.commit,
       branch: baseline.branch,
       depth: baseline.depth,
-      ran_at: iso8601(baseline.ran_at),
+      measured_at: iso8601(baseline.inserted_at),
       covered_lines: baseline.covered_lines,
       executable_lines: baseline.executable_lines,
-      coverage: Coverage.percentage(baseline.covered_lines, baseline.executable_lines)
+      coverage: Coverage.percentage(baseline.covered_lines, baseline.executable_lines),
+      schemes: baseline.schemes,
+      partial_schemes: baseline.partial_schemes,
+      complete: baseline.complete,
+      test_run_ids: baseline.test_run_ids
     }
   end
 

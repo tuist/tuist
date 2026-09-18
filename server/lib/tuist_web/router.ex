@@ -791,12 +791,20 @@ defmodule TuistWeb.Router do
             get "/runs/:test_run_id/files", CoverageController, :list_run_files
             get "/runs/:test_run_id/file", CoverageController, :show_run_file
             get "/runs/:test_run_id/comparison", CoverageController, :show_run_comparison
+            get "/history", CoverageController, :list_history
+            get "/commits/:git_commit_sha", CoverageController, :show_commit
+            get "/commits/:git_commit_sha/files", CoverageController, :list_commit_files
+            get "/commits/:git_commit_sha/file", CoverageController, :show_commit_file
+            get "/commits/:git_commit_sha/comparison", CoverageController, :show_commit_comparison
+            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
           end
 
           scope "/git-history" do
             get "/settings", GitHistoryController, :settings
             post "/commits/missing", GitHistoryController, :missing_commits
             post "/commits", GitHistoryController, :upload_commits
+            post "/listings/missing", GitHistoryController, :missing_listings
+            post "/listings", GitHistoryController, :upload_listing
           end
 
           scope "/shards" do
@@ -1409,6 +1417,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs", TestRunsLive
       live "/tests/coverage", CoverageLive
       live "/tests/coverage/pull-requests/:pull_request_number", CoverageLive, :pull_request
+      live "/tests/coverage/commits/:git_commit_sha", CoverageLive, :commit
       live "/tests/test-runs/:test_run_id", TestRunLive
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive

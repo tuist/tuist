@@ -382,22 +382,10 @@ defmodule TuistWeb.API.TestsController do
            },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
-           tracked_files: %Schema{
-             type: :array,
-             description:
-               "The files matched by the project's tracked-file globs (see `getGitHistorySettings`), with the Git blob each had at the run's commit: the evidence a later run must match to reuse this run's coverage.",
-             items: %Schema{
-               type: :object,
-               properties: %{
-                 path: %Schema{type: :string, description: "Relative to the repository root."},
-                 git_blob_id: %Schema{type: :string, description: "The file's Git blob at the run's commit."}
-               },
-               required: [:path, :git_blob_id]
-             }
-           },
-           tracked_files_truncated: %Schema{
+           git_dirty: %Schema{
              type: :boolean,
-             description: "Whether the client stopped listing tracked files at the server's limit."
+             description:
+               "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
            },
            execution_mode: %Schema{
              type: :string,
@@ -966,8 +954,8 @@ defmodule TuistWeb.API.TestsController do
           history_source: Map.get(params, :history_source),
           history_fallback_reason: Map.get(params, :history_fallback_reason),
           changed_files: Map.get(params, :changed_files, []),
-          tracked_files: Map.get(params, :tracked_files, []),
-          tracked_files_truncated: Map.get(params, :tracked_files_truncated),
+          git_dirty: Map.get(params, :git_dirty),
+          git_remote_url_origin: Map.get(params, :git_remote_url_origin),
           execution_mode: Map.get(params, :execution_mode),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           ci_run_id: Map.get(params, :ci_run_id),

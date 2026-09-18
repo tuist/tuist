@@ -29,11 +29,15 @@ defmodule Tuist.GitHistory.Completion do
     budget = settings.provider_page_budget
 
     with {:ok, base_branch, notes} <- base_branch(project, connection, run, pull_request_number, provider),
-         true <- head != "" || {:error, "the run has no commit sha"} do
+         true <- head != "" || {:error, "the run has no commit sha"},
+         repository_id when is_integer(repository_id) <-
+           repository_id(project, run) || {:error, "the connected repository is unknown"} do
+      run = %{run | git_repository_id: repository_id}
       {merge_base, notes} = compare_and_record(connection, run, base_branch, head, budget, provider, notes)
       notes = backfill_graph(connection, run, merge_base, settings, budget, provider, notes)
 
       Tests.update_test_history(run, %{
+        git_repository_id: repository_id,
         base_branch: base_branch,
         merge_base_sha: merge_base || run.merge_base_sha || "",
         is_pull_request: run.is_pull_request == true or pull_request_number != nil,
@@ -47,6 +51,12 @@ defmodule Tuist.GitHistory.Completion do
         Tests.update_test_history(run, %{history_fallback_reason: "provider: #{format(reason)}"})
     end
   end
+
+  # The repository the run named, else the connected one: the provider only
+  # answers for the latter, and `Tuist.GitHistory.enqueue_completion/2` left
+  # runs from another repository alone.
+  defp repository_id(_project, %Test{git_repository_id: id}) when is_integer(id) and id > 0, do: id
+  defp repository_id(project, _run), do: GitHistory.repository_id_for_connection(project)
 
   # The pull request number the client sent, or the one in a
   # `refs/pull/<n>/...` ref.
@@ -76,7 +86,7 @@ defmodule Tuist.GitHistory.Completion do
   defp compare_and_record(connection, run, base_branch, head, budget, provider, notes) do
     case provider.compare(connection, base_branch, head, page_budget: budget) do
       {:ok, %{merge_base_sha: merge_base} = compare} ->
-        GitHistory.record_commits(run.project_id, object_format(run, head), compare.commits)
+        GitHistory.record_commits(run.git_repository_id, object_format(run, head), compare.commits)
         if compare.files != [] and not changed_files_stored?(run), do: Tests.create_test_changed_files(run, compare.files)
 
         notes = if compare.truncated, do: notes ++ ["compare truncated by the page budget"], else: notes
@@ -97,7 +107,7 @@ defmodule Tuist.GitHistory.Completion do
       start in [nil, ""] ->
         notes ++ ["no merge base to walk history from"]
 
-      GitHistory.known?(run.project_id, start) and ancestry_deep_enough?(run.project_id, start) ->
+      GitHistory.known?(run.git_repository_id, start) and ancestry_deep_enough?(run.git_repository_id, start) ->
         notes
 
       true ->
@@ -105,7 +115,7 @@ defmodule Tuist.GitHistory.Completion do
 
         case provider.history(connection, start, page_budget: budget, since: since) do
           {:ok, commits} ->
-            GitHistory.record_commits(run.project_id, object_format(run, start), commits)
+            GitHistory.record_commits(run.git_repository_id, object_format(run, start), commits)
             notes
 
           {:error, reason} ->
@@ -116,8 +126,8 @@ defmodule Tuist.GitHistory.Completion do
 
   # A merge base whose ancestry the graph already follows for a while needs
   # no more pages; one that dead-ends at once is a fresh start.
-  defp ancestry_deep_enough?(project_id, sha) do
-    length(GitHistory.ancestors(project_id, sha, max_depth: 50)) > 1
+  defp ancestry_deep_enough?(repository_id, sha) do
+    length(GitHistory.ancestors(repository_id, sha, max_depth: 50)) > 1
   end
 
   defp changed_files_stored?(%Test{id: id, project_id: project_id}) do

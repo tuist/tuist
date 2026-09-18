@@ -2,12 +2,14 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.GitHistory
+  alias Tuist.MCP.Components.Tools.GetCommitCoverage
+  alias Tuist.MCP.Components.Tools.GetCommitCoverageComparison
   alias Tuist.MCP.Components.Tools.GetPullRequestCoverage
   alias Tuist.MCP.Components.Tools.GetTestRunCoverage
   alias Tuist.MCP.Components.Tools.GetTestRunCoverageComparison
   alias Tuist.MCP.Components.Tools.GetTestRunCoverageFile
   alias Tuist.MCP.Components.Tools.ListCoverageBranches
+  alias Tuist.MCP.Components.Tools.ListCoverageHistory
   alias Tuist.MCP.Components.Tools.ListTestRunCoverageFiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -18,10 +20,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id, default_branch: "main")
     stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
 
-    GitHistory.record_commits(project.id, "sha1", [
-      %{sha: "b", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
-      %{sha: "p", parents: ["b"], committed_at: ~U[2026-09-01 01:00:00Z]}
-    ])
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("b", [], 0), CoverageFixtures.commit("p", ["b"], 1)])
 
     base =
       CoverageFixtures.run_with_coverage(
@@ -65,7 +64,9 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     JSON.decode!(text)
   end
 
-  test "get_test_run_coverage gives the totals, targets, history and baseline", %{conn: conn, pr: pr, base: base} do
+  defp handles(account, project), do: %{"account_handle" => account.name, "project_handle" => project.name}
+
+  test "get_test_run_coverage gives the totals, targets, history and its commit's baseline", %{conn: conn, pr: pr} do
     result = call(GetTestRunCoverage, conn, %{"test_run_id" => pr.id})
 
     assert {result["coverage"], result["partial"], result["covered_lines"], result["executable_lines"]} ==
@@ -74,7 +75,8 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     assert [%{"name" => "App", "files_count" => 2, "coverage" => 66.7}] = result["targets"]
     assert result["git_history"]["merge_base_sha"] == "b"
     assert result["git_history"]["history_source"] == "client"
-    assert result["baseline"]["test_run_id"] == base.id
+    assert result["git_history"]["git_dirty"] == false
+    assert result["baseline"]["commit"] == "b"
     assert result["baseline"]["depth"] == 0
     assert result["baseline_reason"] == nil
   end
@@ -141,11 +143,13 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     assert %{"isError" => true} = GetTestRunCoverageFile.call(conn, %{"test_run_id" => pr.id, "path" => "Missing.swift"})
   end
 
-  test "get_test_run_coverage_comparison gives the deltas, patch coverage and gaps", %{conn: conn, pr: pr} do
+  test "get_test_run_coverage_comparison compares the run's commit with its baseline", %{conn: conn, pr: pr} do
     result = call(GetTestRunCoverageComparison, conn, %{"test_run_id" => pr.id})
 
+    assert result["commit"]["sha"] == "p"
     assert result["total_delta"] == -33.3
     assert result["baseline"]["commit"] == "b"
+    assert [%{"scheme" => "App", "coverage" => 66.7, "baseline_coverage" => 100.0, "delta" => -33.3}] = result["schemes"]
     assert [%{"name" => "App", "delta" => -33.3}] = result["targets"]
 
     assert [%{"path" => "Sources/A.swift", "coverage" => 50.0, "baseline_coverage" => 100.0, "delta" => -50.0}] =
@@ -160,56 +164,84 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     assert result["gaps"] == [%{"path" => "Sources/A.swift", "executable_lines" => 2}]
   end
 
-  test "list_coverage_branches compares every branch with the default one", %{
-    conn: conn,
-    account: account,
-    project: project
-  } do
-    CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 0])], %{
-      git_branch: "feature",
-      git_commit_sha: "f",
-      ran_at: NaiveDateTime.utc_now()
-    })
-
-    result =
-      call(ListCoverageBranches, conn, %{
-        "account_handle" => account.name,
-        "project_handle" => project.name,
-        "days" => 3650
-      })
-
-    assert result["scheme"] == "App"
-
-    assert Enum.map(result["branches"], &{&1["git_branch"], &1["coverage"], &1["delta"]}) == [
-             {"feature", 50.0, -50.0},
-             {"main", 100.0, 0.0}
-           ]
-  end
-
-  test "get_pull_request_coverage lists the pull request's runs and compares the newest", %{
+  test "get_commit_coverage and get_commit_coverage_comparison describe a commit", %{
     conn: conn,
     account: account,
     project: project,
     pr: pr
   } do
+    result = call(GetCommitCoverage, conn, Map.put(handles(account, project), "git_commit_sha", "p"))
+
+    assert {result["coverage"], result["schemes"], result["partial_schemes"], result["complete"]} ==
+             {66.7, ["App"], [], false}
+
+    assert result["test_run_ids"] == [pr.id]
+    assert result["unmeasured_files_count"] == 0
+    assert [%{"name" => "App"}] = result["targets"]
+    assert result["baseline"]["commit"] == "b"
+
+    result = call(GetCommitCoverageComparison, conn, Map.put(handles(account, project), "git_commit_sha", "p"))
+    assert result["total_delta"] == -33.3
+
+    assert %{"isError" => true} = GetCommitCoverage.call(conn, Map.put(handles(account, project), "git_commit_sha", "q"))
+  end
+
+  test "list_coverage_history lists a branch's commits, measured or not", %{
+    conn: conn,
+    account: account,
+    project: project
+  } do
+    Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "feature", "p")
+
     result =
-      call(GetPullRequestCoverage, conn, %{
-        "account_handle" => account.name,
-        "project_handle" => project.name,
-        "pull_request_number" => 5
-      })
+      call(ListCoverageHistory, conn, Map.merge(handles(account, project), %{"branch" => "feature", "days" => 3650}))
+
+    assert result["ordered_by"] == "graph"
+
+    assert Enum.map(result["commits"], &{&1["git_commit_sha"], &1["measured"], &1["chained"], &1["coverage"]}) == [
+             {"p", true, true, 66.7},
+             {"b", true, true, 100.0}
+           ]
+  end
+
+  test "list_coverage_branches compares every branch's head with the default one", %{
+    conn: conn,
+    account: account,
+    project: project
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 0])], %{
+      git_branch: "other",
+      git_commit_sha: "f",
+      ran_at: NaiveDateTime.utc_now()
+    })
+
+    result = call(ListCoverageBranches, conn, Map.put(handles(account, project), "days", 3650))
+
+    assert Enum.map(result["branches"], &{&1["git_branch"], &1["coverage"], &1["delta"]}) == [
+             {"other", 50.0, -50.0},
+             {"feature", 66.7, -33.3},
+             {"main", 100.0, 0.0}
+           ]
+  end
+
+  test "get_pull_request_coverage lists the pull request's commits and compares the newest", %{
+    conn: conn,
+    account: account,
+    project: project,
+    pr: pr
+  } do
+    result = call(GetPullRequestCoverage, conn, Map.put(handles(account, project), "pull_request_number", 5))
 
     assert result["pull_request_number"] == 5
-    assert [%{"test_run_id" => run_id, "scheme" => "App", "partial" => false}] = result["runs"]
+
+    assert [%{"git_commit_sha" => "p", "schemes" => ["App"], "partial" => false, "test_run_ids" => [run_id]}] =
+             result["commits"]
+
     assert run_id == pr.id
-    assert result["comparison"]["run"]["id"] == pr.id
+    assert result["comparison"]["commit"]["sha"] == "p"
     assert result["comparison"]["total_delta"] == -33.3
 
     assert %{"isError" => true} =
-             GetPullRequestCoverage.call(conn, %{
-               "account_handle" => account.name,
-               "project_handle" => project.name,
-               "pull_request_number" => 99
-             })
+             GetPullRequestCoverage.call(conn, Map.put(handles(account, project), "pull_request_number", 99))
   end
 end

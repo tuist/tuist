@@ -16,61 +16,129 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", counts)], attrs)
   end
 
-  describe "branch_points/4 and latest/4" do
-    test "give one point per commit from the newest full run of the scheme", %{project: project, account: account} do
+  describe "branch_history/3, branch_points/3 and latest/3" do
+    test "list the commits measured on the branch in the order they were measured when the graph has no head", %{
+      project: project,
+      account: account
+    } do
       run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0, 0, 0])
       run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00]}, [1, 1, 0, 0])
-      newest_b = run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 11:00:00]}, [1, 1, 1, 0])
+      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 11:00:00]}, [1, 1, 1, 0])
       run(project, account, %{git_commit_sha: "c", ran_at: ~N[2026-09-03 10:00:00], partial: true}, [1, 1, 1, 1])
       run(project, account, %{git_commit_sha: "c", ran_at: ~N[2026-09-03 10:00:00], scheme: "Other"}, [1, 1, 1, 1])
       run(project, account, %{git_commit_sha: "d", ran_at: ~N[2026-09-04 10:00:00], git_branch: "feature"}, [0, 0, 0, 0])
 
-      points = History.branch_points(project.id, "main", "App")
+      history = History.branch_history(project, "main")
+      assert history.ordered_by == :time
 
-      assert Enum.map(points, &{&1.git_commit_sha, &1.coverage}) == [{"a", 25.0}, {"b", 75.0}]
-      assert Enum.at(points, 1).test_run_id == newest_b.id
+      # b unions its two runs; c measured another set (App partially, plus
+      # Other) so it does not chain.
+      assert Enum.map(history.commits, &{&1.git_commit_sha, &1.coverage, &1.chained}) ==
+               [{"c", 100.0, false}, {"b", 75.0, true}, {"a", 25.0, true}]
 
-      assert %{git_commit_sha: "b", coverage: 75.0} = History.latest(project.id, "main", "App")
-      assert History.latest(project.id, "main", "Missing") == nil
+      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 25.0}, {"b", 75.0}]
 
-      assert [%{git_commit_sha: "a"}] =
-               History.branch_points(project.id, "main", "App", until: ~N[2026-09-01 23:00:00])
+      assert %{git_commit_sha: "b", coverage: 75.0, schemes: ["App"]} = History.latest(project, "main")
+      assert History.latest(project, "missing") == nil
+
+      assert History.schemes(project, "main") ==
+               [%{scheme: "App", commits_count: 3}, %{scheme: "Other", commits_count: 1}]
     end
 
-    test "list the schemes with full runs, most runs first", %{project: project, account: account} do
-      run(project, account, %{git_commit_sha: "a"}, [1])
-      run(project, account, %{git_commit_sha: "b"}, [1])
-      run(project, account, %{git_commit_sha: "b", scheme: "Other"}, [1])
-      run(project, account, %{git_commit_sha: "c", scheme: "Partial", partial: true}, [1])
+    test "walk the graph from the branch's head, unmeasured commits included", %{
+      project: project,
+      account: account
+    } do
+      # main: a → b → c → m, where m merges e (off b); feature f off c.
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("b", ["a"], 1),
+          CoverageFixtures.commit("c", ["b"], 2),
+          CoverageFixtures.commit("e", ["b"], 3),
+          CoverageFixtures.commit("m", ["c", "e"], 4),
+          CoverageFixtures.commit("f", ["c"], 5)
+        ],
+        branch_heads: [{"main", "m"}, {"feature", "f"}]
+      )
 
-      assert History.schemes(project.id, "main") == [%{scheme: "App", runs_count: 2}, %{scheme: "Other", runs_count: 1}]
+      run(project, account, %{git_commit_sha: "a"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "e", git_branch: "side"}, [1, 1, 1, 1])
+      run(project, account, %{git_commit_sha: "m"}, [1, 1, 0, 0])
+      # Measured on the pull request, on main's chain once merged.
+      run(project, account, %{git_commit_sha: "f", git_branch: "feature"}, [1, 1, 1, 0])
+
+      history = History.branch_history(project, "main")
+      assert history.ordered_by == :graph
+
+      assert Enum.map(history.commits, &{&1.git_commit_sha, &1.depth, &1.measured}) ==
+               [{"m", 0, true}, {"c", 1, false}, {"b", 2, false}, {"a", 3, true}]
+
+      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 25.0}, {"m", 50.0}]
+
+      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f", "c", "b", "a"]
+    end
+
+    test "narrow the points to one scheme's own totals", %{project: project, account: account} do
+      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00], scheme: "Other"}, [0, 0, 0, 1])
+      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00]}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [0, 0, 0, 1])
+
+      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 50.0}, {"b", 75.0}]
+
+      assert Enum.map(History.branch_points(project, "main", scheme: "App"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 25.0}, {"b", 50.0}]
+
+      assert Enum.map(History.branch_points(project, "main", scheme: "Other"), & &1.coverage) == [25.0, 25.0]
+    end
+
+    test "chain a complete commit whatever it measured", %{project: project, account: account} do
+      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0])
+      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [1, 1])
+
+      assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a"]
+
+      Tuist.Tests.Coverage.Commits.signal_complete(project, "b")
+      assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a", "b"]
     end
   end
 
-  describe "branches/3" do
-    test "gives every branch's newest full run with its distance from the default branch", %{
+  describe "branches/2" do
+    test "gives every branch's head commit with its distance from the default branch", %{
       project: project,
       account: account
     } do
       run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 1, 0, 0])
       run(project, account, %{git_commit_sha: "f1", git_branch: "feature", ran_at: ~N[2026-09-02 10:00:00]}, [1, 0, 0, 0])
       run(project, account, %{git_commit_sha: "f2", git_branch: "feature", ran_at: ~N[2026-09-03 10:00:00]}, [1, 1, 1, 0])
-      run(project, account, %{git_commit_sha: "p", git_branch: "partial", partial: true}, [1, 1, 1, 1])
+
+      run(
+        project,
+        account,
+        %{git_commit_sha: "p", git_branch: "partial", ran_at: ~N[2026-08-31 10:00:00], partial: true},
+        [1, 1, 1, 1]
+      )
 
       assert [
-               %{git_branch: "feature", git_commit_sha: "f2", coverage: 75.0, delta: 25.0},
-               %{git_branch: "main", git_commit_sha: "a", coverage: 50.0, delta: +0.0}
-             ] = History.branches(project, "App")
+               %{git_branch: "feature", git_commit_sha: "f2", coverage: 75.0, delta: 25.0, ordered_by: :time},
+               %{git_branch: "main", git_commit_sha: "a", coverage: 50.0, delta: +0.0},
+               %{git_branch: "partial", git_commit_sha: "p", coverage: 100.0, delta: 50.0, partial_schemes: ["App"]}
+             ] = History.branches(project)
     end
 
-    test "has no delta without a default branch run", %{project: project, account: account} do
+    test "has no delta without a default branch measurement", %{project: project, account: account} do
       run(project, account, %{git_commit_sha: "f1", git_branch: "feature"}, [1, 0])
-      assert [%{git_branch: "feature", delta: nil}] = History.branches(project, "App")
+      assert [%{git_branch: "feature", delta: nil}] = History.branches(project)
     end
   end
 
-  describe "pull_requests/2 and pull_request_runs/3" do
-    test "list the newest run per pull request and scheme, partial ones included", %{
+  describe "pull_request_commits/3" do
+    test "lists the pull request's measured commits, newest first, with what measured them", %{
       project: project,
       account: account
     } do
@@ -78,50 +146,35 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       run(project, account, Map.merge(pr, %{git_commit_sha: "p1", ran_at: ~N[2026-09-01 10:00:00]}), [1, 0])
 
-      newest =
-        run(project, account, Map.merge(pr, %{git_commit_sha: "p2", ran_at: ~N[2026-09-02 10:00:00], partial: true}), [
-          1,
-          1
-        ])
+      run(project, account, Map.merge(pr, %{git_commit_sha: "p2", ran_at: ~N[2026-09-02 10:00:00], partial: true}), [1, 1])
 
-      other =
-        run(project, account, Map.merge(pr, %{git_commit_sha: "p2", scheme: "Other", ran_at: ~N[2026-09-02 09:00:00]}), [
-          0,
-          1
-        ])
+      run(project, account, Map.merge(pr, %{git_commit_sha: "p2", scheme: "Other", ran_at: ~N[2026-09-02 09:00:00]}), [
+        0,
+        1
+      ])
 
       run(
         project,
         account,
-        %{
-          git_branch: "fix",
-          is_pull_request: true,
-          pull_request_number: 8,
-          git_commit_sha: "q",
-          ran_at: ~N[2026-09-03 10:00:00]
-        },
+        %{git_branch: "fix", is_pull_request: true, pull_request_number: 8, git_commit_sha: "q"},
         [1, 1, 1, 1]
       )
 
       run(project, account, %{git_commit_sha: "m"}, [1])
 
-      {rows, count} = History.pull_requests(project.id)
+      assert [
+               %{
+                 git_commit_sha: "p2",
+                 coverage: 100.0,
+                 schemes: ["App", "Other"],
+                 partial_schemes: ["App"],
+                 base_branch: "main"
+               },
+               %{git_commit_sha: "p1", coverage: 50.0, schemes: ["App"], partial_schemes: []}
+             ] = History.pull_request_commits(project.id, 7)
 
-      assert count == 3
-
-      assert Enum.map(rows, &{&1.pull_request_number, &1.scheme, &1.test_run_id, &1.partial, &1.coverage}) == [
-               {8, "App", rows |> Enum.at(0) |> Map.get(:test_run_id), false, 100.0},
-               {7, "App", newest.id, true, 100.0},
-               {7, "Other", other.id, false, 50.0}
-             ]
-
-      assert {[%{pull_request_number: 7}], 3} = History.pull_requests(project.id, page: 2, page_size: 1)
-
-      assert Enum.map(History.pull_request_runs(project.id, 7), &{&1.git_commit_sha, &1.scheme}) == [
-               {"p2", "App"},
-               {"p2", "Other"},
-               {"p1", "App"}
-             ]
+      assert [%{git_commit_sha: "q"}] = History.pull_request_commits(project.id, 8)
+      assert History.pull_request_commits(project.id, 9) == []
     end
   end
 end

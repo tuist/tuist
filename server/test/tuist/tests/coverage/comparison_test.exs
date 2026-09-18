@@ -1,11 +1,10 @@
 defmodule Tuist.Tests.Coverage.ComparisonTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
-  alias Tuist.GitHistory
   alias Tuist.Projects
-  alias Tuist.Tests
   alias Tuist.Tests.Coverage.Comparison
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -16,18 +15,14 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
 
   # main: a → b → c; a pull request commit p branches off b; e is a stray
   # commit whose parent the graph does not know.
-  defp seed_history(project) do
-    GitHistory.record_commits(project.id, "sha1", [
-      commit("a", [], 0),
-      commit("b", ["a"], 1),
-      commit("c", ["b"], 2),
-      commit("p", ["b"], 3),
-      commit("e", ["x"], 4)
+  defp seed_history(account) do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("a", [], 0),
+      CoverageFixtures.commit("b", ["a"], 1),
+      CoverageFixtures.commit("c", ["b"], 2),
+      CoverageFixtures.commit("p", ["b"], 3),
+      CoverageFixtures.commit("e", ["x"], 4)
     ])
-  end
-
-  defp commit(sha, parents, minutes) do
-    %{sha: sha, parents: parents, committed_at: DateTime.add(~U[2026-09-01 00:00:00Z], minutes * 60, :second)}
   end
 
   defp file(path, blob, targets, counts) do
@@ -43,49 +38,23 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
     }
   end
 
-  defp run(project, account, attrs) do
-    {:ok, run} =
-      Tests.create_test(
-        Map.merge(
-          %{
-            id: UUIDv7.generate(),
-            project_id: project.id,
-            account_id: account.id,
-            duration: 1000,
-            status: "success",
-            scheme: "App",
-            git_branch: "main",
-            ran_at: NaiveDateTime.utc_now(),
-            is_ci: true,
-            test_modules: []
-          },
-          attrs
-        )
-      )
-
-    {:ok, run} = Tests.get_test(run.id)
-    run
-  end
-
   defp main_run(project, account, sha, files, attrs \\ %{}) do
-    run(
+    CoverageFixtures.run_with_coverage(
       project,
       account,
+      files,
       Map.merge(
-        %{
-          git_commit_sha: sha,
-          ran_at: NaiveDateTime.add(~N[2026-09-01 00:00:00], hd(String.to_charlist(sha)), :minute),
-          xcode_coverage: %{partial: false, files: files}
-        },
+        %{git_commit_sha: sha, ran_at: NaiveDateTime.add(~N[2026-09-01 00:00:00], hd(String.to_charlist(sha)), :minute)},
         attrs
       )
     )
   end
 
   defp pr_run(project, account, files, attrs \\ %{}) do
-    run(
+    CoverageFixtures.run_with_coverage(
       project,
       account,
+      files,
       Map.merge(
         %{
           git_branch: "feature",
@@ -94,10 +63,9 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
           merge_base_sha: "b",
           is_pull_request: true,
           pull_request_number: 7,
-          history_source: "client",
-          xcode_coverage: %{partial: Map.get(attrs, :partial, false), files: files}
+          history_source: "client"
         },
-        Map.delete(attrs, :partial)
+        attrs
       )
     )
   end
@@ -112,67 +80,70 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
   end
 
   describe "baseline/2" do
-    test "is the full run at the merge base when there is one", %{project: project, account: account} do
-      seed_history(project)
+    test "is the measured commit at the merge base when there is one", %{project: project, account: account} do
+      seed_history(account)
       main_run(project, account, "a", base_files())
-      at_base = main_run(project, account, "b", base_files())
+      main_run(project, account, "b", base_files())
       pr = pr_run(project, account, base_files())
 
       assert {:ok, baseline} = Comparison.baseline(project, pr)
-      assert {baseline.test_run_id, baseline.commit, baseline.depth, baseline.branch} == {at_base.id, "b", 0, "main"}
+      assert {baseline.commit, baseline.depth, baseline.branch, baseline.schemes} == {"b", 0, "main", ["App"]}
       assert {baseline.covered_lines, baseline.executable_lines} == {6, 8}
     end
 
-    test "walks back to the nearest ancestor with a full run", %{project: project, account: account} do
-      seed_history(project)
-      at_a = main_run(project, account, "a", base_files())
+    test "walks back along first parents to the nearest measured ancestor", %{project: project, account: account} do
+      seed_history(account)
+      main_run(project, account, "a", base_files())
       pr = pr_run(project, account, base_files())
 
-      assert {:ok, %{test_run_id: run_id, commit: "a", depth: 1}} = Comparison.baseline(project, pr)
-      assert run_id == at_a.id
+      assert {:ok, %{commit: "a", depth: 1}} = Comparison.baseline(project, pr)
     end
 
-    test "prefers the newest full run of a commit and ignores partial and other schemes", %{
+    test "takes a commit as one measurement whatever measured it, and refuses one measured unlike the head", %{
       project: project,
       account: account
     } do
-      seed_history(project)
-      _older = main_run(project, account, "b", base_files(), %{ran_at: ~N[2026-09-01 00:00:00]})
-      newest = main_run(project, account, "b", base_files(), %{ran_at: ~N[2026-09-01 01:00:00]})
-      _partial = main_run(project, account, "b", base_files(), %{xcode_coverage: %{partial: true, files: base_files()}})
-      _other_scheme = main_run(project, account, "b", base_files(), %{scheme: "Other", ran_at: ~N[2026-09-02 00:00:00]})
+      seed_history(account)
+      main_run(project, account, "b", base_files(), %{ran_at: ~N[2026-09-01 00:00:00]})
+      main_run(project, account, "b", base_files(), %{ran_at: ~N[2026-09-01 01:00:00], partial: true})
+      main_run(project, account, "b", base_files(), %{scheme: "Other", ran_at: ~N[2026-09-02 00:00:00]})
       pr = pr_run(project, account, base_files())
 
-      assert {:ok, %{test_run_id: run_id}} = Comparison.baseline(project, pr)
-      assert run_id == newest.id
+      assert {:error,
+              %{kind: :measured_set_mismatch, commit: "b", schemes: ["App"], baseline_schemes: ["App", "Other"]} = reason} =
+               Comparison.baseline(project, pr)
+
+      assert Comparison.reason_text(reason) == "commit `b` measured `App`, `Other` where this commit measured `App`"
+
+      pr_run(project, account, base_files(), %{scheme: "Other"})
+      assert {:ok, %{commit: "b", schemes: ["App", "Other"], partial_schemes: []}} = Comparison.baseline(project, pr)
     end
 
-    test "compares a run on the base branch with the commit before it, never with itself", %{
+    test "compares a commit on the base branch with its first parent, never with itself", %{
       project: project,
       account: account
     } do
-      seed_history(project)
+      seed_history(account)
       at_a = main_run(project, account, "a", base_files())
       at_b = main_run(project, account, "b", base_files())
 
-      assert {:ok, %{test_run_id: run_id, commit: "a", depth: 1}} = Comparison.baseline(project, at_b)
-      assert run_id == at_a.id
-      # The only other full run is on a descendant, which is no baseline.
-      assert {:error, %{kind: :no_ancestor_run, commit: "a"}} = Comparison.baseline(project, at_a)
+      assert {:ok, %{commit: "a", depth: 0}} = Comparison.baseline(project, at_b)
+      # The first commit has no parent in the graph, and a descendant is no baseline.
+      assert {:error, %{kind: :no_history, commit: "a"}} = Comparison.baseline(project, at_a)
     end
 
     test "says why there is no baseline", %{project: project, account: account} do
       pr = pr_run(project, account, base_files())
-      assert {:error, %{kind: :no_full_runs, base_branch: "main", scheme: "App"}} = Comparison.baseline(project, pr)
+      assert {:error, %{kind: :no_measured_commits, base_branch: "main"}} = Comparison.baseline(project, pr)
 
-      # A full run exists, but the merge base is not in the graph.
+      # A measured commit exists, but the merge base is not in the graph.
       main_run(project, account, "a", base_files())
       assert {:error, %{kind: :no_history, commit: "b"}} = Comparison.baseline(project, pr)
 
-      # The graph knows the merge base, but no full run is on an ancestor.
-      seed_history(project)
+      # The graph knows the merge base, but no measured commit is on its ancestry.
+      seed_history(account)
       stray = pr_run(project, account, base_files(), %{merge_base_sha: "e", git_commit_sha: "e"})
-      assert {:error, %{kind: :no_ancestor_run, commit: "e"}} = Comparison.baseline(project, stray)
+      assert {:error, %{kind: :no_ancestor_commit, commit: "e"}} = Comparison.baseline(project, stray)
 
       # A pull request whose merge base the client could not find, and whose
       # base branch head is unknown too.
@@ -182,19 +153,27 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert {:error, %{kind: :no_merge_base, detail: "shallow clone"}} = Comparison.baseline(project, orphan)
 
       # With the base branch head recorded, the merge base comes from the graph.
-      GitHistory.record_branch_head(project.id, "main", "c")
+      Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "main", "c")
       assert {:ok, %{commit: "a", depth: 1}} = Comparison.baseline(project, orphan)
+    end
+
+    test "has no baseline for a run without a repository", %{project: project, account: account} do
+      run = pr_run(project, account, base_files(), %{git_remote_url_origin: nil})
+      assert {:error, %{kind: :no_history, commit: "p"}} = Comparison.baseline(project, run)
     end
   end
 
-  describe "compare/3 on a full run" do
+  describe "compare/3 on a fully measured commit" do
     setup %{project: project, account: account} do
-      seed_history(project)
+      seed_history(account)
       main_run(project, account, "b", base_files())
       :ok
     end
 
-    test "gives the total, target and file deltas, patch coverage and gaps", %{project: project, account: account} do
+    test "gives the total, scheme, target and file deltas, patch coverage and gaps", %{
+      project: project,
+      account: account
+    } do
       pr =
         pr_run(
           project,
@@ -218,12 +197,18 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
 
       comparison = Comparison.compare(project, pr)
 
-      assert comparison.run.partial == false
-      assert {comparison.run.covered_lines, comparison.run.executable_lines, comparison.run.coverage} == {6, 13, 46.2}
+      assert {comparison.commit.sha, comparison.commit.partial, comparison.commit.schemes} == {"p", false, ["App"]}
+
+      assert {comparison.commit.covered_lines, comparison.commit.executable_lines, comparison.commit.coverage} ==
+               {6, 13, 46.2}
+
       assert comparison.baseline.commit == "b"
       assert comparison.baseline.coverage == 75.0
       assert comparison.baseline_reason == nil
       assert comparison.total_delta == -28.8
+
+      assert [%{scheme: "App", coverage: 46.2, baseline_coverage: 75.0, delta: -28.8, partial: false}] =
+               comparison.schemes
 
       assert [
                %{name: "Calculator", coverage: 36.4, baseline_coverage: 66.7, delta: -30.3},
@@ -249,6 +234,35 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.gaps == [%{path: "Sources/New.swift", executable_lines: 3}]
     end
 
+    test "unions the runs that measured the commit: a line any of them covered is covered", %{
+      project: project,
+      account: account
+    } do
+      pr_run(project, account, [file("Sources/Add.swift", "add1", ["Calculator"], [1, 1, 0, 0])], %{
+        ran_at: ~N[2026-09-02 00:00:00]
+      })
+
+      pr =
+        pr_run(project, account, [file("Sources/Add.swift", "add1", ["Calculator"], [0, 0, 1, 0])], %{
+          scheme: "Other",
+          ran_at: ~N[2026-09-02 01:00:00]
+        })
+
+      comparison = Comparison.compare(project, pr)
+
+      assert {comparison.commit.covered_lines, comparison.commit.executable_lines} == {3, 4}
+      assert comparison.commit.schemes == ["App", "Other"]
+      # The baseline only measured App, so the whole is not compared; each scheme's own total is.
+      assert comparison.baseline == nil
+      assert comparison.baseline_reason.kind == :measured_set_mismatch
+      assert comparison.total_delta == nil
+
+      assert Enum.map(comparison.schemes, &{&1.scheme, &1.coverage, &1.baseline_coverage, &1.delta}) == [
+               {"App", 50.0, nil, nil},
+               {"Other", 25.0, nil, nil}
+             ]
+    end
+
     test "leaves the excluded paths out of both sides and lists the changed ones as excluded", %{
       project: project,
       account: account
@@ -271,7 +285,7 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
 
       comparison = Comparison.compare(project, pr)
 
-      assert {comparison.run.covered_lines, comparison.run.executable_lines} == {4, 6}
+      assert {comparison.commit.covered_lines, comparison.commit.executable_lines} == {4, 6}
       assert {comparison.baseline.covered_lines, comparison.baseline.executable_lines} == {4, 6}
       assert comparison.total_delta == +0.0
       assert Enum.map(comparison.targets, & &1.name) == ["Calculator"]
@@ -288,7 +302,10 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.gaps == []
     end
 
-    test "leaves out of the patch the files it cannot map to the run's lines", %{project: project, account: account} do
+    test "leaves out of the patch the files it cannot map to the commit's lines", %{
+      project: project,
+      account: account
+    } do
       pr =
         pr_run(
           project,
@@ -331,7 +348,11 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
 
     test "reports the missing history instead of an empty patch", %{project: project, account: account} do
       pr =
-        pr_run(project, account, base_files(), %{history_source: "none", history_fallback_reason: "not a git checkout"})
+        pr_run(project, account, base_files(), %{
+          history_source: "none",
+          merge_base_sha: "",
+          history_fallback_reason: "not a git checkout"
+        })
 
       comparison = Comparison.compare(project, pr)
       assert comparison.patch == %{status: :unavailable, reason: :no_history, detail: "not a git checkout"}
@@ -350,22 +371,26 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.patch.status == :available
     end
 
-    test "words an unknown commit plainly", %{project: project, account: account} do
-      run = run(project, account, %{git_commit_sha: "", xcode_coverage: %{partial: false, files: base_files()}})
+    test "describes a run without a commit alone", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, base_files(), %{git_commit_sha: ""})
 
       assert {:error, %{kind: :no_history, commit: ""} = reason} = Comparison.baseline(project, run)
-      assert Comparison.reason_text(reason) == "the run's commit is unknown"
+      assert Comparison.reason_text(reason) == "the commit is unknown"
+
+      comparison = Comparison.compare(project, run)
+      assert {comparison.commit.sha, comparison.commit.coverage, comparison.baseline} == {"", 75.0, nil}
+      assert comparison.patch.reason == :no_history
     end
 
-    test "is nil for a run without coverage", %{project: project, account: account} do
-      run = run(project, account, %{git_commit_sha: "c"})
+    test "is nil for a commit without coverage", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [], %{git_commit_sha: "c"})
       assert Comparison.compare(project, run) == nil
     end
   end
 
-  describe "compare/3 on a partial run" do
+  describe "compare/3 on a partially measured commit" do
     setup %{project: project, account: account} do
-      seed_history(project)
+      seed_history(account)
       main_run(project, account, "b", base_files())
 
       pr =
@@ -390,9 +415,13 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
     test "has no total delta and compares only the files some test executed", %{project: project, pr: pr} do
       comparison = Comparison.compare(project, pr)
 
-      assert comparison.run.partial
+      assert comparison.commit.partial
+      assert comparison.commit.partial_schemes == ["App"]
       assert comparison.baseline.commit == "b"
       assert comparison.total_delta == nil
+
+      assert [%{scheme: "App", partial: true, coverage: 16.7, baseline_coverage: 75.0, delta: nil}] =
+               comparison.schemes
 
       assert [
                %{name: "Calculator", delta: -41.7},

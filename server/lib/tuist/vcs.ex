@@ -23,7 +23,6 @@ defmodule Tuist.VCS do
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
-  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
@@ -874,47 +873,64 @@ defmodule Tuist.VCS do
       get_coverage_body(%{test_runs: test_runs, test_run_url: test_run_url, project: project})
   end
 
-  # One row per run that gathered coverage: the total and how it compares with
-  # the baseline, the patch coverage, and the changed files no test executed.
-  # A run whose baseline could not be resolved says why rather than comparing
-  # against another run. Nothing when no run gathered coverage.
-  defp get_coverage_body(%{test_runs: test_runs, test_run_url: test_run_url, project: project}) do
-    if FeatureFlags.xcode_coverage_enabled?(project.account) do
-      totals = Coverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id))
+  # The commit's coverage: the union of the runs that measured it against
+  # its baseline, the patch coverage and the changed files no test executed,
+  # then a row per scheme with its own total, since two schemes measure
+  # different slices and only matching sets compare as a whole. A commit
+  # whose baseline could not be resolved says why rather than comparing
+  # against another commit. Nothing when no run gathered coverage.
+  defp get_coverage_body(%{test_runs: test_runs, project: project}) do
+    with true <- FeatureFlags.xcode_coverage_enabled?(project.account),
+         sha when is_binary(sha) and sha != "" <-
+           test_runs |> Enum.map(& &1.git_commit_sha) |> Enum.find(&(&1 not in [nil, ""])),
+         comparison when not is_nil(comparison) <- Comparison.compare(project, Comparison.from_commit(project, sha)) do
+      commit_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/coverage/commits/#{sha}")
 
-      rows =
-        test_runs
-        |> Enum.filter(&Map.has_key?(totals, &1.id))
-        |> Enum.map_join("", fn test_run ->
-          comparison = Comparison.compare(project, test_run, run_summary: Map.fetch!(totals, test_run.id))
-          scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-          coverage_url = test_run_url.(%{project: project, test_run: test_run}) <> "?tab=coverage"
-
-          "| [#{scheme}](#{coverage_url}) | #{coverage_total_text(comparison)} | #{coverage_delta_text(comparison)} | #{coverage_patch_text(comparison)} | #{coverage_gaps_text(comparison)} |\n"
+      scheme_rows =
+        Enum.map_join(comparison.schemes, "", fn row ->
+          "| `#{row.scheme}` | #{scheme_total_text(row)} | #{scheme_delta_text(row)} |\n"
         end)
 
-      if rows == "" do
-        ""
-      else
-        "\n**Coverage**\n\n" <>
-          "| Scheme | Coverage | Change | Patch | Gaps |\n" <>
-          "|:-:|:-:|:-:|:-:|:-:|\n" <>
-          rows
-      end
+      "\n**Coverage** at [#{String.slice(sha, 0, 7)}](#{commit_url})\n\n" <>
+        "| Coverage | Change | Patch | Gaps |\n" <>
+        "|:-:|:-:|:-:|:-:|\n" <>
+        "| #{coverage_total_text(comparison)} | #{coverage_delta_text(comparison)} | #{coverage_patch_text(comparison)} | #{coverage_gaps_text(comparison)} |\n" <>
+        if(length(comparison.schemes) > 1,
+          do: "\n| Scheme | Coverage | Change |\n|:-:|:-:|:-:|\n" <> scheme_rows,
+          else: ""
+        ) <>
+        coverage_completeness_text(comparison)
     else
-      ""
+      _ -> ""
     end
   end
 
-  defp coverage_total_text(%{run: %{partial: true, coverage: coverage}}), do: "#{coverage}% (partial)"
-  defp coverage_total_text(%{run: %{coverage: coverage}}), do: "#{coverage}%"
+  defp coverage_total_text(%{commit: %{partial: true, coverage: coverage}}), do: "#{coverage}% (partial)"
+  defp coverage_total_text(%{commit: %{coverage: coverage}}), do: "#{coverage}%"
 
   defp coverage_delta_text(%{total_delta: delta, baseline: baseline}) when is_float(delta) do
     "#{signed_delta(delta)} pp (#{baseline.coverage}% at #{String.slice(baseline.commit, 0, 7)})"
   end
 
-  defp coverage_delta_text(%{run: %{partial: true}}), do: "not compared (partial run)"
+  defp coverage_delta_text(%{commit: %{partial: true}, baseline: baseline}) when not is_nil(baseline),
+    do: "not compared (some tests were skipped)"
+
   defp coverage_delta_text(%{baseline_reason: reason}), do: "no baseline: #{Comparison.reason_text(reason)}"
+
+  defp scheme_total_text(%{coverage: nil}), do: "—"
+  defp scheme_total_text(%{partial: true, coverage: coverage}), do: "#{coverage}% (partial)"
+  defp scheme_total_text(%{coverage: coverage}), do: "#{coverage}%"
+
+  defp scheme_delta_text(%{delta: delta, baseline_coverage: baseline}) when is_float(delta),
+    do: "#{signed_delta(delta)} pp (#{baseline}%)"
+
+  defp scheme_delta_text(%{baseline_coverage: nil}), do: "not measured at the baseline"
+  defp scheme_delta_text(_row), do: "not compared"
+
+  defp coverage_completeness_text(%{commit: %{complete: true}}), do: ""
+
+  defp coverage_completeness_text(_comparison),
+    do: "\n_The commit's coverage pipeline has not signalled completion; more runs may still land._\n"
 
   defp coverage_patch_text(%{patch: %{status: :available, executable_lines: 0}}), do: "no changed lines"
 

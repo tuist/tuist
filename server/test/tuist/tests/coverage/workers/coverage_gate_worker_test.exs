@@ -3,9 +3,9 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.GitHistory
   alias Tuist.GitHub.Client
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Workers.CoverageGateWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -31,10 +31,7 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     stub(Environment, :github_app_configured?, fn -> true end)
     stub(Environment, :app_url, fn opts -> "https://tuist.dev#{Keyword.get(opts, :path, "")}" end)
 
-    GitHistory.record_commits(project.id, "sha1", [
-      %{sha: "b", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
-      %{sha: "p", parents: ["b"], committed_at: ~U[2026-09-01 01:00:00Z]}
-    ])
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("b", [], 0), CoverageFixtures.commit("p", ["b"], 1)])
 
     CoverageFixtures.run_with_coverage(
       project,
@@ -75,16 +72,17 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     )
   end
 
-  defp perform(project, run) do
-    CoverageGateWorker.perform(%Oban.Job{args: %{"project_id" => project.id, "test_run_id" => run.id}})
+  defp perform(project, trigger, sha \\ "p") do
+    CoverageGateWorker.perform(%Oban.Job{
+      args: %{"project_id" => project.id, "git_commit_sha" => sha, "git_ref" => "refs/pull/9/merge", "trigger" => trigger}
+    })
   end
 
-  test "posts a passing check run on the pull request's head commit", %{project: project, account: account} do
-    run =
-      pr_run(project, account, [
-        CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 0]),
-        CoverageFixtures.file("Sources/B.swift", [1, 1])
-      ])
+  test "posts a pending check on the pull request's head until the commit signals completion", %{
+    project: project,
+    account: account
+  } do
+    pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 0])])
 
     expect(Client, :get_pull_request, fn %{pr_number: 9, repository_full_handle: "tuist/tuist"} ->
       {:ok, %{"head" => %{"sha" => "head-sha"}}}
@@ -93,30 +91,58 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     expect(Client, :create_check_run, fn params ->
       assert params.name == "tuist/coverage"
       assert params.head_sha == "head-sha"
+      assert params.status == "in_progress"
+      refute Map.has_key?(params, :conclusion) and params.conclusion
+      assert params.external_id == "p"
+      assert params.details_url == "https://tuist.dev/#{project.account.name}/#{project.name}/tests/coverage/commits/p"
+      assert params.output.title == "Waiting for the coverage pipeline to finish"
+      assert params.output.summary =~ "Coverage so far: 75.0% over `App`"
+      {:ok, %{"id" => 1}}
+    end)
+
+    assert :ok == perform(project, "run")
+  end
+
+  test "posts the verdict on the signal, and leaves it alone when more runs land", %{
+    project: project,
+    account: account
+  } do
+    pr_run(project, account, [
+      CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 0]),
+      CoverageFixtures.file("Sources/B.swift", [1, 1])
+    ])
+
+    stub(Client, :get_pull_request, fn _ -> {:error, :not_found} end)
+    Commits.recompute(project, "p", complete: true, completeness: "signal")
+
+    expect(Client, :create_check_run, fn params ->
+      assert params.head_sha == "p"
+      assert params.status == "completed"
       assert params.conclusion == "success"
-      assert params.external_id == run.id
-      assert params.details_url =~ "/tests/test-runs/#{run.id}?tab=coverage"
       assert params.output.title == "Coverage gates passed"
       assert params.output.summary =~ "| 83.3% (-16.7 pp against 100.0% at `b`) | 50.0% (1 of 2 changed lines) | none |"
       assert params.output.summary =~ "| Minimum patch coverage | 50.0% | 50.0% | ✅ |"
       assert params.output.summary =~ "| Maximum total drop | 20.0 pp | -16.7 pp | ✅ |"
+      assert params.output.summary =~ "[View the commit's coverage](https://tuist.dev/"
       {:ok, %{"id" => 1}}
     end)
 
-    assert :ok == perform(project, run)
+    assert :ok == perform(project, "signal")
+
+    # A run reporting after the signal joins the commit but never reposts the check.
+    reject(&Client.create_check_run/1)
+    assert :ok == perform(project, "run")
   end
 
   test "fails the check when a gate is broken", %{project: project, account: account} do
-    run =
-      pr_run(project, account, [
-        CoverageFixtures.file("Sources/A.swift", [1, 1, 0, 0]),
-        CoverageFixtures.file("Sources/B.swift", [1, 1])
-      ])
+    pr_run(project, account, [
+      CoverageFixtures.file("Sources/A.swift", [1, 1, 0, 0]),
+      CoverageFixtures.file("Sources/B.swift", [1, 1])
+    ])
 
     stub(Client, :get_pull_request, fn _ -> {:error, :not_found} end)
 
     expect(Client, :create_check_run, fn params ->
-      assert params.head_sha == "p"
       assert params.conclusion == "failure"
       assert params.output.summary =~ "| Minimum patch coverage | 50.0% | 0.0% | ❌ |"
       assert params.output.summary =~ "| Maximum total drop | 20.0 pp | -33.3 pp | ❌ |"
@@ -124,39 +150,35 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
       {:ok, %{"id" => 1}}
     end)
 
-    assert :ok == perform(project, run)
+    assert :ok == perform(project, "signal")
   end
 
   test "is neutral when there is no baseline and the patch is unavailable", %{project: project, account: account} do
-    run =
-      pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])], %{
-        merge_base_sha: "unknown",
-        partial: true
-      })
+    pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])], %{
+      merge_base_sha: "unknown",
+      partial: true
+    })
 
     stub(Client, :get_pull_request, fn _ -> {:error, :not_found} end)
 
     expect(Client, :create_check_run, fn params ->
       assert params.conclusion == "neutral"
       assert params.output.title == "Coverage gates could not be evaluated"
-      assert params.output.summary =~ "100.0% (partial run, not compared)"
-      assert params.output.summary =~ "unavailable: the run skipped tests"
-      assert params.output.summary =~ "⚪ the run skipped tests"
+      assert params.output.summary =~ "100.0% (no baseline: commit `unknown` is not in the repository's Git history)"
+      assert params.output.summary =~ "unavailable: some tests were skipped"
+      assert params.output.summary =~ "⚪ some tests were skipped"
       {:ok, %{"id" => 1}}
     end)
 
-    assert :ok == perform(project, run)
+    assert :ok == perform(project, "signal")
   end
 
-  test "posts nothing when the gates are off", %{project: project, account: account} do
-    {:ok, project} = Projects.update_project(project, %{coverage_gates_enabled: false})
-    run = pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])])
-
+  test "posts nothing when the gates are off or the commit was never measured", %{project: project, account: account} do
     reject(&Client.create_check_run/1)
-    assert :ok == perform(project, run)
-  end
+    assert :ok == perform(project, "signal", "unmeasured")
 
-  test "waits for a run that is not stored yet", %{project: project} do
-    assert {:snooze, 30} == perform(project, %{id: UUIDv7.generate()})
+    {:ok, project} = Projects.update_project(project, %{coverage_gates_enabled: false})
+    pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])])
+    assert :ok == perform(project, "signal")
   end
 end

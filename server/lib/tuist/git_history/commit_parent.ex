@@ -9,7 +9,7 @@ defmodule Tuist.GitHistory.CommitParent do
 
   @primary_key false
   schema "git_commit_parents" do
-    field :project_id, :integer
+    field :repository_id, :integer
     field :child_sha, :string
     field :parent_sha, :string
     field :position, :integer

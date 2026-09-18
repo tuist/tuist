@@ -15,6 +15,7 @@ defmodule TuistWeb.API.CoverageController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Report
@@ -129,11 +130,25 @@ defmodule TuistWeb.API.CoverageController do
       kind: %Schema{
         type: :string,
         description:
-          "`no_merge_base`, `no_history`, `no_full_runs` or `no_ancestor_run` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage."
+          "`no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage."
       },
       message: %Schema{type: :string}
     },
     required: [:kind, :message]
+  }
+
+  @measured_set_properties %{
+    schemes: %Schema{type: :array, items: %Schema{type: :string}, description: "The schemes that measured the commit."},
+    partial_schemes: %Schema{
+      type: :array,
+      items: %Schema{type: :string},
+      description: "The schemes only measured by runs that skipped tests on purpose."
+    },
+    complete: %Schema{
+      type: :boolean,
+      description: "Whether the commit's coverage pipeline is known to have finished (`completeness` says how)."
+    },
+    test_run_ids: %Schema{type: :array, items: %Schema{type: :string, format: :uuid}}
   }
 
   @baseline %Schema{
@@ -141,21 +156,31 @@ defmodule TuistWeb.API.CoverageController do
     type: :object,
     nullable: true,
     description:
-      "The newest full run of the same scheme on the base branch, at the run's merge base or the nearest ancestor of it in the project's Git history.",
-    properties: %{
-      test_run_id: %Schema{type: :string, format: :uuid},
-      commit: %Schema{type: :string, description: "The commit the baseline run tested."},
-      branch: %Schema{type: :string, description: "The base branch the baseline was taken from."},
-      depth: %Schema{
-        type: :integer,
-        description: "How many commits before the merge base the baseline commit is (0 at the merge base)."
-      },
-      ran_at: %Schema{type: :string, format: :"date-time"},
-      covered_lines: %Schema{type: :integer},
-      executable_lines: %Schema{type: :integer},
-      coverage: %Schema{type: :number, description: "Line coverage, in percent."}
-    },
-    required: [:test_run_id, :commit, :branch, :depth, :covered_lines, :executable_lines, :coverage]
+      "The nearest measured ancestor of the commit's merge base with its base branch (for a commit on the base branch, of its first parent), walked first-parent through the repository's Git history, that measured the same schemes.",
+    properties:
+      Map.merge(@measured_set_properties, %{
+        commit: %Schema{type: :string, description: "The baseline commit."},
+        branch: %Schema{type: :string, description: "The base branch the baseline was taken from."},
+        depth: %Schema{
+          type: :integer,
+          description: "How many commits before the start of the walk the baseline commit is (0 at the merge base)."
+        },
+        measured_at: %Schema{type: :string, format: :"date-time"},
+        covered_lines: %Schema{type: :integer},
+        executable_lines: %Schema{type: :integer},
+        coverage: %Schema{type: :number, description: "Line coverage, in percent."}
+      }),
+    required: [
+      :commit,
+      :branch,
+      :depth,
+      :covered_lines,
+      :executable_lines,
+      :coverage,
+      :schemes,
+      :partial_schemes,
+      :complete
+    ]
   }
 
   @git_history %Schema{
@@ -163,6 +188,11 @@ defmodule TuistWeb.API.CoverageController do
     type: :object,
     description: "Where the run sits in the repository's history, as the client or the VCS provider recorded it.",
     properties: %{
+      git_dirty: %Schema{
+        type: :boolean,
+        description:
+          "Whether the checkout had uncommitted changes: the run then measured code that is not the commit's and stays at run level, never joining the commit's coverage."
+      },
       base_branch: %Schema{type: :string, description: "The branch the run's commit will merge into; empty when unknown."},
       merge_base_sha: %Schema{type: :string, description: "The merge base with the base branch; empty when unknown."},
       is_pull_request: %Schema{type: :boolean},
@@ -172,9 +202,19 @@ defmodule TuistWeb.API.CoverageController do
       history_fallback_reason: %Schema{
         type: :string,
         description: "What could not be collected, and why; empty when everything was."
+      },
+      tracked_files_count: %Schema{
+        type: :integer,
+        description:
+          "How many files of the commit's listing the project's tracked-file globs match (dependency manifests, generator configuration, fixtures, snapshots)."
+      },
+      commit_files_listed: %Schema{
+        type: :boolean,
+        description: "Whether the commit's file listing (every tracked file with its blob) is stored."
       }
     },
     required: [
+      :git_dirty,
       :base_branch,
       :merge_base_sha,
       :is_pull_request,
@@ -321,26 +361,54 @@ defmodule TuistWeb.API.CoverageController do
     title: "CoverageComparison",
     type: :object,
     properties: %{
-      run: %Schema{
+      commit: %Schema{
         type: :object,
+        description: "The commit's coverage: the union of every run that measured it.",
         properties: %{
-          id: %Schema{type: :string, format: :uuid},
+          sha: %Schema{type: :string, description: "Empty for a run without a commit, described alone."},
           partial: %Schema{
             type: :boolean,
-            description: "Whether the run left tests out on purpose; a partial run has no total delta."
+            description: "Whether any scheme was only measured by runs that skipped tests; there is then no total delta."
           },
           covered_lines: %Schema{type: :integer},
           executable_lines: %Schema{type: :integer},
-          coverage: %Schema{type: :number}
+          coverage: %Schema{type: :number},
+          schemes: %Schema{type: :array, items: %Schema{type: :string}},
+          partial_schemes: %Schema{type: :array, items: %Schema{type: :string}},
+          complete: %Schema{type: :boolean},
+          completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."}
         },
-        required: [:id, :partial, :covered_lines, :executable_lines, :coverage]
+        required: [:sha, :partial, :covered_lines, :executable_lines, :coverage, :schemes, :partial_schemes]
       },
       baseline: @baseline,
       baseline_reason: @reason,
       total_delta: %Schema{
         type: :number,
         nullable: true,
-        description: "Percentage points against the baseline; null on a partial run or without a baseline."
+        description:
+          "Percentage points against the baseline; null when the commit measured a scheme partially, the baseline measured a different set of schemes, or there is no baseline."
+      },
+      schemes: %Schema{
+        type: :array,
+        description:
+          "Each scheme's own total at the commit and at the baseline: two schemes measure different slices, so only matching sets compare as a whole.",
+        items: %Schema{
+          type: :object,
+          properties: %{
+            scheme: %Schema{type: :string},
+            partial: %Schema{type: :boolean, nullable: true},
+            covered_lines: %Schema{type: :integer, nullable: true},
+            executable_lines: %Schema{type: :integer, nullable: true},
+            coverage: %Schema{
+              type: :number,
+              nullable: true,
+              description: "Null when only the baseline measured the scheme."
+            },
+            baseline_coverage: %Schema{type: :number, nullable: true},
+            delta: %Schema{type: :number, nullable: true, description: "Null when either side is partial or missing."}
+          },
+          required: [:scheme, :coverage, :baseline_coverage, :delta]
+        }
       },
       targets: %Schema{
         type: :array,
@@ -363,7 +431,7 @@ defmodule TuistWeb.API.CoverageController do
         }
       }
     },
-    required: [:run, :baseline, :baseline_reason, :total_delta, :targets, :files, :patch, :gaps]
+    required: [:commit, :baseline, :baseline_reason, :total_delta, :schemes, :targets, :files, :patch, :gaps]
   }
 
   @run_coverage %Schema{
@@ -401,6 +469,112 @@ defmodule TuistWeb.API.CoverageController do
     ]
   }
 
+  @commit_coverage %Schema{
+    title: "CommitCoverage",
+    type: :object,
+    description: "A commit's coverage: the union of every run that measured it, its measured set and its baseline.",
+    properties:
+      Map.merge(@measured_set_properties, %{
+        git_commit_sha: %Schema{type: :string},
+        covered_lines: %Schema{type: :integer},
+        executable_lines: %Schema{type: :integer},
+        coverage: %Schema{type: :number, description: "Line coverage over the measured product files, in percent."},
+        files_count: %Schema{type: :integer, description: "Product files some run measured."},
+        unmeasured_files_count: %Schema{
+          type: :integer,
+          description:
+            "Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the listing is not stored."
+        },
+        partial: %Schema{type: :boolean},
+        completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."},
+        measured_at: %Schema{type: :string, format: :"date-time"},
+        targets: %Schema{type: :array, items: @target},
+        baseline: @baseline,
+        baseline_reason: @reason
+      }),
+    required: [
+      :git_commit_sha,
+      :covered_lines,
+      :executable_lines,
+      :coverage,
+      :files_count,
+      :unmeasured_files_count,
+      :schemes,
+      :partial_schemes,
+      :partial,
+      :complete,
+      :completeness,
+      :test_run_ids,
+      :targets,
+      :baseline,
+      :baseline_reason
+    ]
+  }
+
+  @measurement_properties Map.merge(@measured_set_properties, %{
+                            git_commit_sha: %Schema{type: :string},
+                            covered_lines: %Schema{type: :integer},
+                            executable_lines: %Schema{type: :integer},
+                            coverage: %Schema{type: :number},
+                            partial: %Schema{type: :boolean},
+                            completeness: %Schema{type: :string},
+                            measured_at: %Schema{type: :string, format: :"date-time", nullable: true}
+                          })
+
+  @history_commit %Schema{
+    title: "CoverageHistoryCommit",
+    type: :object,
+    description:
+      "A commit of a branch's history, newest first, measured or not. A measured commit chains into the trend when it is complete or measured the same schemes as the previous chained one.",
+    properties:
+      Map.merge(@measurement_properties, %{
+        depth: %Schema{type: :integer, description: "Commits from the branch's head (0 at the head)."},
+        committed_at: %Schema{type: :string, format: :"date-time", nullable: true},
+        measured: %Schema{type: :boolean},
+        chained: %Schema{type: :boolean}
+      }),
+    required: [:git_commit_sha, :depth, :measured, :chained]
+  }
+
+  @branch %Schema{
+    title: "CoverageBranch",
+    type: :object,
+    description: "A branch's head commit measurement and its difference from the default branch.",
+    properties:
+      Map.merge(@measurement_properties, %{
+        git_branch: %Schema{type: :string},
+        chained: %Schema{type: :boolean},
+        ordered_by: %Schema{
+          type: :string,
+          enum: ["graph", "time"],
+          description:
+            "Whether the branch's commits come from the Git graph or, without a recorded head, from the runs' time order."
+        },
+        delta: %Schema{
+          type: :number,
+          nullable: true,
+          description: "Percentage points against the default branch's head; null when either side is unchained."
+        }
+      }),
+    required: [:git_branch, :git_commit_sha, :covered_lines, :executable_lines, :coverage, :chained, :ordered_by, :delta]
+  }
+
+  @pull_request_commit %Schema{
+    title: "PullRequestCoverageCommit",
+    type: :object,
+    properties:
+      Map.merge(@measurement_properties, %{
+        git_branch: %Schema{type: :string},
+        base_branch: %Schema{type: :string},
+        ran_at: %Schema{type: :string, format: :"date-time", nullable: true}
+      }),
+    required: [:git_commit_sha, :git_branch, :base_branch, :covered_lines, :executable_lines, :coverage, :complete]
+  }
+
+  @sha_parameter [
+    git_commit_sha: [in: :path, type: :string, required: true, description: "The commit SHA."]
+  ]
+
   @pagination %Schema{
     type: :object,
     properties: %{
@@ -415,13 +589,13 @@ defmodule TuistWeb.API.CoverageController do
   @not_found_responses %{
     unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
     forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-    not_found: {"The run was not found, or gathered no coverage", "application/json", Error}
+    not_found: {"The run or commit was not found, or gathered no coverage", "application/json", Error}
   }
 
   operation(:show_run,
     summary: "Get a test run's code coverage.",
     description:
-      "The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its baseline (the newest full run of the same scheme on the base branch at the merge base or the nearest ancestor of it) or why there is none.",
+      "The run's line coverage over its product files (test code is excluded), its targets least covered first, where the run sits in Git history, and its commit's baseline or why there is none. A run is one measurement of its commit; `getCommitCoverage` has the commit's union.",
     operation_id: "getTestRunCoverage",
     parameters: @path_parameters ++ @run_id_parameter,
     responses: Map.put(@not_found_responses, :ok, {"The run's coverage", "application/json", @run_coverage})
@@ -499,9 +673,9 @@ defmodule TuistWeb.API.CoverageController do
   end
 
   operation(:show_run_comparison,
-    summary: "Compare a test run's coverage with its baseline.",
+    summary: "Compare a test run's commit with its baseline.",
     description:
-      "The total delta (full runs only), the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another run.",
+      "The comparison of the run's commit (the union of every run that measured it) with its baseline: the total delta when both measured the same schemes fully, each scheme's own totals, the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps: changed files no test executed. When no baseline can be resolved the comparison says why instead of comparing with another commit. A run without a commit is described alone.",
     operation_id: "getTestRunCoverageComparison",
     parameters: @path_parameters ++ @run_id_parameter,
     responses: Map.put(@not_found_responses, :ok, {"The comparison", "application/json", @comparison})
@@ -513,102 +687,219 @@ defmodule TuistWeb.API.CoverageController do
     end)
   end
 
-  operation(:list_branches,
-    summary: "List every branch's newest full-run coverage.",
+  operation(:show_commit,
+    summary: "Get a commit's code coverage.",
     description:
-      "For the given scheme (by default the one with most full runs on the default branch), every branch with a full run in the period, newest first, with its difference from the default branch in percentage points.",
-    operation_id: "listCoverageBranches",
+      "The commit's line coverage as the union of every run that measured it (a line is covered when any run covered it; a file counts once however many schemes compiled it), which schemes measured it and which only partially, whether its coverage pipeline signalled completion, its targets least covered first, and its baseline or why there is none.",
+    operation_id: "getCommitCoverage",
+    parameters: @path_parameters ++ @sha_parameter,
+    responses: Map.put(@not_found_responses, :ok, {"The commit's coverage", "application/json", @commit_coverage})
+  )
+
+  def show_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+    with_commit_coverage(conn, sha, fn summary ->
+      json(conn, Report.commit(project, summary, Commits.targets(project.id, sha)))
+    end)
+  end
+
+  operation(:list_commit_files,
+    summary: "List a commit's files with their coverage, least covered first.",
+    operation_id: "listCommitCoverageFiles",
+    parameters:
+      @path_parameters ++
+        @sha_parameter ++
+        [
+          page: [in: :query, type: :integer, required: false, description: "The page number, starting at 1."],
+          page_size: [
+            in: :query,
+            type: :integer,
+            required: false,
+            description: "Files per page (default 20, at most 100)."
+          ]
+        ],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The files", "application/json",
+         %Schema{
+           title: "CommitCoverageFiles",
+           type: :object,
+           properties: %{files: %Schema{type: :array, items: @coverage_file}, pagination_metadata: @pagination},
+           required: [:files, :pagination_metadata]
+         }}
+      )
+  )
+
+  def list_commit_files(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha} = params) do
+    page = max(Map.get(params, :page) || 1, 1)
+    page_size = params |> Map.get(:page_size) |> Kernel.||(20) |> max(1) |> min(100)
+
+    with_commit_coverage(conn, sha, fn _summary ->
+      {files, count} = Commits.list_files(project.id, sha, page, page_size)
+
+      json(conn, %{
+        files: Enum.map(files, &Report.file/1),
+        pagination_metadata: %{
+          current_page: page,
+          page_size: page_size,
+          total_count: count,
+          total_pages: max(1, ceil(count / page_size))
+        }
+      })
+    end)
+  end
+
+  operation(:show_commit_file,
+    summary: "Get one file's coverage at a commit, line by line, merged across the runs that measured it.",
+    operation_id: "getCommitCoverageFile",
+    parameters:
+      @path_parameters ++
+        @sha_parameter ++
+        [path: [in: :query, type: :string, required: true, description: "The file's repository-relative path."]],
+    responses: Map.put(@not_found_responses, :ok, {"The file's coverage", "application/json", @file_detail})
+  )
+
+  def show_commit_file(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha, path: path}) do
+    with_commit_coverage(conn, sha, fn _summary ->
+      case Commits.file_detail(project.id, sha, path) do
+        nil -> not_found(conn, "The commit has no coverage for #{path}")
+        detail -> json(conn, Report.file_detail(detail))
+      end
+    end)
+  end
+
+  operation(:show_commit_comparison,
+    summary: "Compare a commit's coverage with its baseline.",
+    description:
+      "The commit against the nearest measured ancestor of its merge base with the base branch (its first parent for a commit on the base branch): the total delta when both measured the same schemes fully, each scheme's own totals, the per-target and per-file deltas, the patch coverage of the changed lines with the files not counted and why, and the gaps. When no baseline can be resolved the comparison says why instead of comparing with another commit.",
+    operation_id: "getCommitCoverageComparison",
+    parameters: @path_parameters ++ @sha_parameter,
+    responses: Map.put(@not_found_responses, :ok, {"The comparison", "application/json", @comparison})
+  )
+
+  def show_commit_comparison(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+    with_commit_coverage(conn, sha, fn _summary ->
+      json(conn, Report.comparison(Comparison.compare(project, Comparison.from_commit(project, sha))))
+    end)
+  end
+
+  operation(:complete_commit,
+    summary: "Signal that a commit's coverage pipeline finished.",
+    description:
+      "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete, it chains into its branch's trend, and the pull request's `tuist/coverage` check run, pending until now, gets its verdict. Runs landing afterwards join the commit's coverage but leave the check as it was. Meant for a final CI job that depends on every test job (`tuist coverage complete`).",
+    operation_id: "completeCommitCoverage",
+    parameters: @path_parameters ++ @sha_parameter,
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The commit's coverage, complete", "application/json", @commit_coverage}
+      )
+  )
+
+  def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+    case Commits.signal_complete(project, sha) do
+      nil -> not_found(conn, "No run of commit #{sha} gathered coverage")
+      summary -> json(conn, Report.commit(project, summary, Commits.targets(project.id, sha)))
+    end
+  end
+
+  operation(:list_history,
+    summary: "List a branch's commits with their coverage, newest first.",
+    description:
+      "The commits of the branch from the repository's Git graph (first-parent from the recorded head; without a head, the measured commits labelled with the branch in time order), measured or not, so a drop between two measured commits is attributed to the unmeasured ones between them rather than to the later one. A measured commit chains into the trend when its pipeline signalled completion or it measured the same schemes as the previous chained commit.",
+    operation_id: "listCoverageHistory",
     parameters:
       @path_parameters ++
         [
-          scheme: [
+          branch: [in: :query, type: :string, required: false, description: "The branch; the default branch by default."],
+          days: [in: :query, type: :integer, required: false, description: "How many days back to look (default 30)."],
+          limit: [
             in: :query,
-            type: :string,
+            type: :integer,
             required: false,
-            description: "The scheme to report; figures are never pooled across schemes."
-          ],
-          days: [in: :query, type: :integer, required: false, description: "How many days back to look (default 30)."]
+            description: "How many commits, from the head (default 100, at most 500)."
+          ]
         ],
-    responses: %{
-      ok:
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The commits", "application/json",
+         %Schema{
+           title: "CoverageHistory",
+           type: :object,
+           properties: %{
+             branch: %Schema{type: :string},
+             ordered_by: %Schema{type: :string, enum: ["graph", "time"]},
+             commits: %Schema{type: :array, items: @history_commit}
+           },
+           required: [:branch, :ordered_by, :commits]
+         }}
+      )
+  )
+
+  def list_history(%{assigns: %{selected_project: project}} = conn, params) do
+    branch = Map.get(params, :branch) || project.default_branch
+    days = params |> Map.get(:days) |> Kernel.||(30) |> max(1)
+    limit = params |> Map.get(:limit) |> Kernel.||(100) |> max(1) |> min(500)
+
+    history =
+      History.branch_history(project, branch,
+        since: NaiveDateTime.add(NaiveDateTime.utc_now(), -days, :day),
+        limit: limit
+      )
+
+    json(conn, %{
+      branch: branch,
+      ordered_by: Atom.to_string(history.ordered_by),
+      commits: Enum.map(history.commits, &Report.history_commit/1)
+    })
+  end
+
+  operation(:list_branches,
+    summary: "List every branch's head coverage.",
+    description:
+      "Every branch with a measured commit in the period, newest first, with its head commit's coverage (the union of the runs that measured it), the schemes that measured it, and its difference from the default branch's head in percentage points when both chain into their trends.",
+    operation_id: "listCoverageBranches",
+    parameters:
+      @path_parameters ++
+        [days: [in: :query, type: :integer, required: false, description: "How many days back to look (default 30)."]],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
         {"The branches", "application/json",
          %Schema{
            title: "CoverageBranches",
            type: :object,
-           properties: %{
-             scheme: %Schema{
-               type: :string,
-               nullable: true,
-               description: "The scheme reported; null when no full run exists."
-             },
-             branches: %Schema{
-               type: :array,
-               items: %Schema{
-                 type: :object,
-                 properties: %{
-                   git_branch: %Schema{type: :string},
-                   test_run_id: %Schema{type: :string, format: :uuid},
-                   git_commit_sha: %Schema{type: :string},
-                   ran_at: %Schema{type: :string, format: :"date-time"},
-                   covered_lines: %Schema{type: :integer},
-                   executable_lines: %Schema{type: :integer},
-                   coverage: %Schema{type: :number},
-                   delta: %Schema{
-                     type: :number,
-                     nullable: true,
-                     description: "Against the default branch's newest full run; null when it has none."
-                   }
-                 },
-                 required: [
-                   :git_branch,
-                   :test_run_id,
-                   :git_commit_sha,
-                   :ran_at,
-                   :covered_lines,
-                   :executable_lines,
-                   :coverage,
-                   :delta
-                 ]
-               }
-             }
-           },
-           required: [:scheme, :branches]
-         }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project was not found", "application/json", Error}
-    }
+           properties: %{branches: %Schema{type: :array, items: @branch}},
+           required: [:branches]
+         }}
+      )
   )
 
   def list_branches(%{assigns: %{selected_project: project}} = conn, params) do
     days = params |> Map.get(:days) |> Kernel.||(30) |> max(1)
-    opts = [since: NaiveDateTime.add(NaiveDateTime.utc_now(), -days, :day)]
-
-    scheme =
-      Map.get(params, :scheme) ||
-        case History.schemes(project.id, project.default_branch, opts) do
-          [%{scheme: scheme} | _] -> scheme
-          [] -> nil
-        end
-
-    branches = if scheme, do: History.branches(project, scheme, opts), else: []
-    json(conn, %{scheme: scheme, branches: Enum.map(branches, &Report.branch/1)})
+    branches = History.branches(project, since: NaiveDateTime.add(NaiveDateTime.utc_now(), -days, :day))
+    json(conn, %{branches: Enum.map(branches, &Report.branch/1)})
   end
 
   operation(:show_pull_request,
     summary: "Get a pull request's code coverage against its baseline.",
     description:
-      "Every run of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `test_run_id`) with its baseline: deltas, patch coverage and gaps.",
+      "Every commit of the pull request that gathered coverage, newest first, and the comparison of one of them (the newest, or `git_commit_sha`) with its baseline: deltas, patch coverage and gaps.",
     operation_id: "getPullRequestCoverage",
     parameters:
       @path_parameters ++
         [
           pull_request_number: [in: :path, type: :integer, required: true, description: "The pull request number."],
-          test_run_id: [
+          git_commit_sha: [
             in: :query,
-            schema: %Schema{type: :string, format: :uuid},
+            type: :string,
             required: false,
-            description: "The run to compare; the newest by default."
+            description: "The commit to compare; the newest by default."
           ]
         ],
     responses:
@@ -621,62 +912,36 @@ defmodule TuistWeb.API.CoverageController do
            type: :object,
            properties: %{
              pull_request_number: %Schema{type: :integer},
-             runs: %Schema{
-               type: :array,
-               items: %Schema{
-                 type: :object,
-                 properties: %{
-                   test_run_id: %Schema{type: :string, format: :uuid},
-                   scheme: %Schema{type: :string},
-                   git_branch: %Schema{type: :string},
-                   base_branch: %Schema{type: :string},
-                   git_commit_sha: %Schema{type: :string},
-                   ran_at: %Schema{type: :string, format: :"date-time"},
-                   partial: %Schema{type: :boolean},
-                   covered_lines: %Schema{type: :integer},
-                   executable_lines: %Schema{type: :integer},
-                   coverage: %Schema{type: :number}
-                 },
-                 required: [
-                   :test_run_id,
-                   :scheme,
-                   :git_branch,
-                   :base_branch,
-                   :git_commit_sha,
-                   :ran_at,
-                   :partial,
-                   :covered_lines,
-                   :executable_lines,
-                   :coverage
-                 ]
-               }
-             },
+             commits: %Schema{type: :array, items: @pull_request_commit},
              comparison: @comparison
            },
-           required: [:pull_request_number, :runs, :comparison]
+           required: [:pull_request_number, :commits, :comparison]
          }}
       )
   )
 
   def show_pull_request(%{assigns: %{selected_project: project}} = conn, %{pull_request_number: number} = params) do
-    runs = History.pull_request_runs(project.id, number)
-    selected = Enum.find(runs, List.first(runs), &(&1.test_run_id == Map.get(params, :test_run_id)))
+    commits = History.pull_request_commits(project.id, number)
+    selected = Enum.find(commits, List.first(commits), &(&1.git_commit_sha == Map.get(params, :git_commit_sha)))
 
-    with false <- is_nil(selected),
-         {:ok, run} <- Tests.get_test(selected.test_run_id) do
-      summary = %{
-        partial: selected.partial,
-        covered_lines: selected.covered_lines,
-        executable_lines: selected.executable_lines
-      }
+    case selected do
+      nil ->
+        not_found(conn, "No test run of pull request ##{number} gathered coverage")
 
-      json(conn, %{
-        pull_request_number: number,
-        runs: Enum.map(runs, &Report.pull_request_run/1),
-        comparison: Report.comparison(Comparison.compare(project, run, run_summary: summary))
-      })
-    else
-      _ -> not_found(conn, "No test run of pull request ##{number} gathered coverage")
+      selected ->
+        json(conn, %{
+          pull_request_number: number,
+          commits: Enum.map(commits, &Report.pull_request_commit/1),
+          comparison:
+            Report.comparison(Comparison.compare(project, Comparison.from_commit(project, selected.git_commit_sha)))
+        })
+    end
+  end
+
+  defp with_commit_coverage(%{assigns: %{selected_project: project}} = conn, sha, fun) do
+    case Commits.summary(project.id, sha) do
+      nil -> not_found(conn, "No run of commit #{sha} gathered coverage")
+      summary -> fun.(summary)
     end
   end
 

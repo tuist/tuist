@@ -16,7 +16,8 @@ defmodule Tuist.Tests.CoverageFile do
   compiled the file; readers merge them. Rows written by one report share
   `inserted_at`, and only each shard's latest report counts, so a retried or
   reprocessed shard replaces what it reported before. `partial` is whether the
-  shard left tests out on purpose.
+  shard left tests out on purpose. `git_commit_sha` is the run's commit, so a
+  commit's coverage is read straight off its rows.
   """
   use Ecto.Schema
 
@@ -35,6 +36,7 @@ defmodule Tuist.Tests.CoverageFile do
     field :git_blob_id, Ch, type: "String"
     field :targets, Ch, type: "Array(LowCardinality(String))"
     field :is_test, :boolean, default: false
+    field :git_commit_sha, Ch, type: "String", default: ""
     field :covered_lines, Ch, type: "UInt32"
     field :executable_lines, Ch, type: "UInt32"
     field :line_numbers, Ch, type: "Array(UInt32)"

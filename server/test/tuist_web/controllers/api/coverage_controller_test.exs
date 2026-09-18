@@ -3,7 +3,6 @@ defmodule TuistWeb.API.CoverageControllerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.GitHistory
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -37,9 +36,9 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
   describe "reading coverage" do
     setup %{user: user, project: project} do
-      GitHistory.record_commits(project.id, "sha1", [
-        %{sha: "b", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
-        %{sha: "p", parents: ["b"], committed_at: ~U[2026-09-01 01:00:00Z]}
+      CoverageFixtures.seed_history(user.account, [
+        CoverageFixtures.commit("b", [], 0),
+        CoverageFixtures.commit("p", ["b"], 1)
       ])
 
       base =
@@ -78,12 +77,14 @@ defmodule TuistWeb.API.CoverageControllerTest do
       %{base: base, pr: pr, prefix: "/api/projects/#{user.account.name}/#{project.name}/tests/coverage"}
     end
 
-    test "a run's coverage, files, one file and comparison", %{conn: conn, prefix: prefix, pr: pr, base: base} do
+    test "a run's coverage, files, one file and its commit's comparison", %{conn: conn, prefix: prefix, pr: pr} do
       run = conn |> get("#{prefix}/runs/#{pr.id}") |> json_response(:ok)
       assert {run["coverage"], run["partial"]} == {66.7, false}
       assert [%{"name" => "App", "coverage" => 66.7}] = run["targets"]
       assert run["git_history"]["merge_base_sha"] == "b"
-      assert run["baseline"]["test_run_id"] == base.id
+      assert run["git_history"]["git_dirty"] == false
+      assert run["baseline"]["commit"] == "b"
+      assert run["baseline"]["schemes"] == ["App"]
 
       files = conn |> get("#{prefix}/runs/#{pr.id}/files?page_size=1") |> json_response(:ok)
       assert [%{"path" => "Sources/A.swift", "coverage" => 50.0}] = files["files"]
@@ -100,31 +101,61 @@ defmodule TuistWeb.API.CoverageControllerTest do
       assert file["uncovered_ranges"] == [[3, 4]]
 
       comparison = conn |> get("#{prefix}/runs/#{pr.id}/comparison") |> json_response(:ok)
+      assert comparison["commit"]["sha"] == "p"
       assert comparison["total_delta"] == -33.3
+      assert [%{"scheme" => "App", "delta" => -33.3}] = comparison["schemes"]
       assert comparison["patch"]["status"] == "available"
       assert comparison["gaps"] == [%{"path" => "Sources/A.swift", "executable_lines" => 2}]
     end
 
-    test "branches and a pull request", %{conn: conn, prefix: prefix, pr: pr} do
-      branches = conn |> get("#{prefix}/branches?days=3650") |> json_response(:ok)
-      assert branches["scheme"] == "App"
+    test "a commit's coverage, files, one file, comparison and completion", %{conn: conn, prefix: prefix, pr: pr} do
+      commit = conn |> get("#{prefix}/commits/p") |> json_response(:ok)
+      assert {commit["coverage"], commit["schemes"], commit["complete"]} == {66.7, ["App"], false}
+      assert commit["test_run_ids"] == [pr.id]
+      assert [%{"name" => "App", "coverage" => 66.7}] = commit["targets"]
+      assert commit["baseline"]["commit"] == "b"
 
-      assert [%{"git_branch" => "feature", "delta" => -33.3}, %{"git_branch" => "main", "delta" => +0.0}] =
-               branches["branches"]
+      files = conn |> get("#{prefix}/commits/p/files?page_size=1") |> json_response(:ok)
+      assert [%{"path" => "Sources/A.swift", "coverage" => 50.0}] = files["files"]
+      assert files["pagination_metadata"]["total_count"] == 2
+
+      file = conn |> get("#{prefix}/commits/p/file?path=Sources/A.swift") |> json_response(:ok)
+      assert file["uncovered_ranges"] == [[3, 4]]
+
+      comparison = conn |> get("#{prefix}/commits/p/comparison") |> json_response(:ok)
+      assert comparison["total_delta"] == -33.3
+      assert comparison["baseline"]["commit"] == "b"
+
+      completed = conn |> post("#{prefix}/commits/p/complete") |> json_response(:ok)
+      assert {completed["complete"], completed["completeness"]} == {true, "signal"}
+      assert conn |> get("#{prefix}/commits/p") |> json_response(:ok) |> Map.get("complete") == true
+    end
+
+    test "history, branches and a pull request", %{conn: conn, prefix: prefix} do
+      history = conn |> get("#{prefix}/history?branch=main&days=3650") |> json_response(:ok)
+      assert history["ordered_by"] == "time"
+      assert [%{"git_commit_sha" => "b", "measured" => true, "chained" => true, "coverage" => 100.0}] = history["commits"]
+
+      branches = conn |> get("#{prefix}/branches?days=3650") |> json_response(:ok)
+
+      assert [
+               %{"git_branch" => "feature", "git_commit_sha" => "p", "delta" => -33.3, "ordered_by" => "time"},
+               %{"git_branch" => "main", "delta" => +0.0}
+             ] = branches["branches"]
 
       pull_request = conn |> get("#{prefix}/pull-requests/5") |> json_response(:ok)
-      assert [%{"test_run_id" => run_id}] = pull_request["runs"]
-      assert run_id == pr.id
+      assert [%{"git_commit_sha" => "p", "schemes" => ["App"]}] = pull_request["commits"]
       assert pull_request["comparison"]["baseline"]["commit"] == "b"
     end
 
-    test "answers 404 for a missing run, a run without coverage, a missing file and a pull request without runs", %{
-      conn: conn,
-      prefix: prefix,
-      pr: pr,
-      user: user,
-      project: project
-    } do
+    test "answers 404 for a missing run, a run without coverage, a missing file, an unmeasured commit and a pull request without runs",
+         %{
+           conn: conn,
+           prefix: prefix,
+           pr: pr,
+           user: user,
+           project: project
+         } do
       assert conn |> get("#{prefix}/runs/#{UUIDv7.generate()}") |> json_response(:not_found)
 
       {:ok, bare} =
@@ -144,6 +175,8 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
       assert conn |> get("#{prefix}/runs/#{bare.id}/comparison") |> json_response(:not_found)
       assert conn |> get("#{prefix}/runs/#{pr.id}/file?path=Missing.swift") |> json_response(:not_found)
+      assert conn |> get("#{prefix}/commits/q") |> json_response(:not_found)
+      assert conn |> post("#{prefix}/commits/q/complete") |> json_response(:not_found)
       assert conn |> get("#{prefix}/pull-requests/99") |> json_response(:not_found)
     end
   end

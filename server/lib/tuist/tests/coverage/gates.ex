@@ -1,13 +1,18 @@
 defmodule Tuist.Tests.Coverage.Gates do
   @moduledoc """
-  Coverage gates: the per-project thresholds a pull request's coverage is
-  held to, reported as a GitHub check run and never mandatory on their own.
-  Off by default.
+  Coverage gates: the per-project thresholds a pull request commit's
+  coverage is held to, reported as one GitHub check run per commit and never
+  mandatory on their own. Off by default.
 
   Two gates exist: a minimum patch coverage, and a maximum drop of the total
-  against the baseline. A gate that cannot be evaluated, because there is no
-  baseline or the patch is unavailable on a partial run, is neutral rather
-  than failed, and the check says why.
+  against the baseline. The check stays **pending until the commit's
+  coverage pipeline signals completion** (`Tuist.Tests.Coverage.Commits.signal_complete/2`),
+  since whether every run has reported cannot be read off the data; a project
+  whose pipeline never signals cannot use gates. Once posted, the verdict is
+  the commit's: a run landing after the signal joins the commit's coverage
+  but leaves the check as it was. A gate that cannot be evaluated, because
+  there is no comparable baseline or the patch is unavailable on a partial
+  measurement, is neutral rather than failed, and the check says why.
   """
 
   alias Tuist.Projects.Project
@@ -81,7 +86,7 @@ defmodule Tuist.Tests.Coverage.Gates do
     }
   end
 
-  defp drop_check(threshold, %{run: %{partial: true}}) do
+  defp drop_check(threshold, %{commit: %{partial: true}, baseline: baseline}) when not is_nil(baseline) do
     %{gate: :max_total_drop, threshold: threshold, value: nil, status: :neutral, reason: %{kind: :partial_run}}
   end
 
@@ -90,15 +95,30 @@ defmodule Tuist.Tests.Coverage.Gates do
   end
 
   @doc """
-  Schedules the check run for a run's coverage, once every shard reported
-  and the totals are published. Nothing is scheduled for a project without
-  gates or for a run that is not a pull request.
+  Schedules the check run for a pull request run's commit once the run's
+  coverage is published: a pending check until the commit signals
+  completion. Nothing is scheduled for a project without gates, a run that
+  is not a pull request's, or a run without a commit or from a dirty
+  checkout.
   """
-  def enqueue(%Project{coverage_gates_enabled: true}, %Test{is_pull_request: true} = run) do
-    %{project_id: run.project_id, test_run_id: run.id}
+  def enqueue(%Project{coverage_gates_enabled: true, id: project_id}, %Test{is_pull_request: true} = run) do
+    if is_binary(run.git_commit_sha) and run.git_commit_sha != "" and not run.git_dirty do
+      %{project_id: project_id, git_commit_sha: run.git_commit_sha, git_ref: run.git_ref, trigger: "run"}
+      |> CoverageGateWorker.new()
+      |> Oban.insert()
+    else
+      :skipped
+    end
+  end
+
+  def enqueue(_project, _run), do: :skipped
+
+  @doc "Schedules the check run's verdict, once the commit's coverage pipeline signalled completion."
+  def enqueue_signal(%Project{coverage_gates_enabled: true, id: project_id}, sha) do
+    %{project_id: project_id, git_commit_sha: sha, trigger: "signal"}
     |> CoverageGateWorker.new()
     |> Oban.insert()
   end
 
-  def enqueue(_project, _run), do: :skipped
+  def enqueue_signal(_project, _sha), do: :skipped
 end

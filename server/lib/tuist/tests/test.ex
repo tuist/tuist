@@ -50,7 +50,11 @@ defmodule Tuist.Tests.Test do
     field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
     field :history_source, Ch, type: "LowCardinality(String)", default: ""
     field :history_fallback_reason, Ch, type: "String", default: ""
-    field :tracked_files_truncated, :boolean, default: false
+    # The repository the remote identified (`Tuist.GitHistory.Repository`), and
+    # whether the checkout had uncommitted changes: a dirty run measured code
+    # that is not the commit's, so it never joins the commit's coverage.
+    field :git_repository_id, Ch, type: "Int64", default: 0
+    field :git_dirty, :boolean, default: false
     field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
@@ -108,7 +112,8 @@ defmodule Tuist.Tests.Test do
       :git_object_format,
       :history_source,
       :history_fallback_reason,
-      :tracked_files_truncated,
+      :git_repository_id,
+      :git_dirty,
       :execution_mode,
       :ran_at,
       :inserted_at,

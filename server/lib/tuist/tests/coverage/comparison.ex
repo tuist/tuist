@@ -1,34 +1,45 @@
 defmodule Tuist.Tests.Coverage.Comparison do
   @moduledoc """
-  A test run's coverage against its baseline: the newest full run of the
-  same scheme on the base branch, at the run's merge base or the nearest
-  ancestor of it the project's commit graph knows (`Tuist.GitHistory`).
+  A commit's coverage against its baseline: the nearest measured ancestor of
+  the commit's merge base with its base branch, walked first-parent through
+  the repository's commit graph (`Tuist.GitHistory`).
 
-  What can be compared depends on the run:
+  The comparison is always commit against ancestor. A pull request's commit
+  starts from its merge base with the base branch, so the branch's own
+  earlier pushes are never the baseline (they lie between the merge base and
+  the head); a commit on the base branch itself starts from its first
+  parent, so it is compared with the previous state of the branch. Nothing
+  is stored to make that so: the skip set belongs to the pair of head and
+  base, and a fast-forward merge, a stacked branch or a rebase would break a
+  stored mark.
 
-    * A **full** run compares its total, its targets and its files with the
-      baseline's.
-    * A **partial** run (selective testing, `-only-testing`) has no total
-      delta: the tests it skipped would read as coverage lost. Its files are
-      compared only where some test executed the file in the run, the one
-      sign that the file's tests ran.
-    * **Patch coverage** is the share of the changed executable lines the
-      run covered, from the run's per-line counts and the hunks the client
-      recorded against the merge base (`Tuist.Tests.TestRunChangedFile`). It
-      is exact on a full run. On a partial run it is valid only when every
-      changed file's tests ran, which the run cannot prove, so it is off
-      unless the project turned it on (`coverage_patch_partial_runs`).
+  What can be compared depends on how the two commits were measured
+  (`Tuist.Tests.Coverage.Commits`):
+
+    * The **total** and its delta only when both commits measured the same
+      schemes and the head measured every one of them fully: a missing or
+      partial scheme would read as coverage lost. Per scheme, the totals are
+      always shown side by side.
+    * **Targets and files** are compared over the union of each commit's
+      runs; on a head with partial schemes, only files some test executed.
+    * **Patch coverage** is the share of the changed executable lines any of
+      the head's runs covered, from the per-line counts and the hunks the
+      client recorded against the merge base (`Tuist.Tests.TestRunChangedFile`).
+      It is exact when the head measured fully; on partial measurements it is
+      valid only when every changed file's tests ran, which the run cannot
+      prove, so it is off unless the project turned it on
+      (`coverage_patch_partial_runs`).
     * **Gaps** are the changed files with executable lines in their hunks
       that no test executed.
 
   Both sides leave out the paths the project excludes now
-  (`Tuist.Tests.Coverage.ExcludedPaths`): the baseline's totals are recomputed
-  from its files when they are still retained, so a change to the exclusions
-  never reads as coverage gained or lost. Changed files the exclusions match
-  are listed among the patch's skipped files as `excluded`.
+  (`Tuist.Tests.Coverage.ExcludedPaths`): totals are recomputed from the
+  retained files, so a change to the exclusions never reads as coverage
+  gained or lost. Changed files the exclusions match are listed among the
+  patch's skipped files as `excluded`.
 
   When no baseline can be resolved, the comparison says why rather than
-  comparing against some other run.
+  comparing against some other commit.
   """
 
   import Ecto.Query
@@ -37,129 +48,366 @@ defmodule Tuist.Tests.Coverage.Comparison do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestRunChangedFile
 
   @doc """
-  Resolves the baseline of a run: `{:ok, baseline}` with the baseline run's
-  id, commit, totals and its distance in commits from the run's merge base,
-  or `{:error, reason}` where `reason` is a map with a `:kind` and what it
-  concerns.
-
-  Kinds: `:no_merge_base` (a pull request whose merge base is unknown),
-  `:no_history` (the commit to walk from is not in the project's commit
-  graph), `:no_full_runs` (the base branch has no full run of the scheme in
-  the window) and `:no_ancestor_run` (it has, but none on an ancestor within
-  the window's commits).
+  Where a commit stands for a comparison: what `baseline/2` and `compare/3`
+  need to know about the head, taken from a run (`from_run/2`) or given by a
+  caller that has a commit and a base branch.
   """
-  def baseline(%Project{} = project, %Test{} = run) do
-    settings = GitHistory.settings(project)
-    base_branch = base_branch(project, run)
-
-    candidates = candidate_runs(project.id, run, base_branch, settings.window_days)
-
-    with {:ok, start_sha} <- start_sha(project, run, base_branch),
-         :ok <- ensure_candidates(candidates, run, base_branch, settings),
-         {:ok, {sha, depth}} <- nearest_candidate(project.id, run, start_sha, base_branch, candidates, settings) do
-      {:ok, Map.merge(Map.fetch!(candidates, sha), %{commit: sha, depth: depth, branch: base_branch})}
-    end
+  def from_run(%Project{} = project, %Test{} = run) do
+    %{
+      project_id: project.id,
+      sha: run.git_commit_sha || "",
+      repository_id: run.git_repository_id || 0,
+      base_branch: base_branch(project, run.base_branch),
+      is_pull_request: run.is_pull_request == true,
+      pull_request_number: run.pull_request_number || 0,
+      git_ref: run.git_ref || "",
+      merge_base_sha: run.merge_base_sha || "",
+      history_fallback_reason: run.history_fallback_reason || "",
+      run_ids: []
+    }
   end
 
   @doc """
-  The run's coverage next to its baseline's, with the deltas the run's kind
-  allows, its patch coverage and its gaps. `run_summary` is
-  `Tuist.Tests.Coverage.run_summary/2` for the run, so a caller that already
-  has it does not pay for it twice.
+  The same for a commit: its runs say what base branch it was measured
+  against, whether it was a pull request and its merge base (the newest run
+  that knows wins).
   """
-  def compare(%Project{} = project, %Test{} = run, opts \\ []) do
-    excluded = ExcludedPaths.pattern_for_project(project)
+  def from_commit(%Project{} = project, sha) do
+    runs = commit_runs(project.id, sha)
+    with_history = Enum.filter(runs, &(&1.merge_base_sha != "" or &1.base_branch != ""))
+    known = List.last(with_history) || List.last(runs) || %{}
 
-    summary =
-      Keyword.get_lazy(opts, :run_summary, fn -> Coverage.run_summary(run.project_id, run.id, excluded: excluded) end)
+    %{
+      project_id: project.id,
+      sha: sha,
+      repository_id: runs |> Enum.map(& &1.git_repository_id) |> Enum.max(fn -> 0 end),
+      base_branch: base_branch(project, Map.get(known, :base_branch)),
+      is_pull_request: Enum.any?(runs, & &1.is_pull_request),
+      pull_request_number: runs |> Enum.map(& &1.pull_request_number) |> Enum.max(fn -> 0 end),
+      git_ref: Map.get(known, :git_ref) || "",
+      merge_base_sha: Map.get(known, :merge_base_sha) || "",
+      history_fallback_reason: Map.get(known, :history_fallback_reason) || "",
+      run_ids: Enum.map(runs, & &1.id)
+    }
+  end
 
-    if is_nil(summary) do
-      nil
-    else
-      {baseline, baseline_reason} =
-        case baseline(project, run) do
-          {:ok, baseline} -> {baseline, nil}
-          {:error, reason} -> {nil, reason}
-        end
+  @doc """
+  Resolves the baseline of a head (`from_run/2` or `from_commit/2`):
+  `{:ok, baseline}` with the baseline commit, its totals, its measured set
+  and its distance in commits from the start of the walk, or
+  `{:error, reason}` where `reason` is a map with a `:kind` and what it
+  concerns.
 
-      partial = summary.partial
+  Kinds: `:no_history` (the head has no commit, or the commit to walk from
+  is not in the repository's graph), `:no_merge_base` (a pull request whose
+  merge base is unknown), `:no_measured_commits` (no measured commit within
+  the window at all), `:no_ancestor_commit` (some, but none on the ancestry
+  within the window's commits) and `:measured_set_mismatch` (the nearest
+  measured ancestor measured a different set of schemes, so a total would
+  compare unlike with unlike).
+  """
+  def baseline(%Project{} = project, %Test{} = run), do: baseline(project, from_run(project, run))
 
-      run_files = Coverage.merged_files(run.project_id, run.id, excluded: excluded)
+  def baseline(%Project{} = project, %{sha: _} = head) do
+    settings = GitHistory.settings(project)
+    candidates = candidate_commits(project.id, head.sha, settings.window_days)
 
-      baseline_files =
-        if baseline, do: Coverage.merged_files(run.project_id, baseline.test_run_id, excluded: excluded), else: []
-
-      baseline = baseline && with_retained_totals(baseline, baseline_files)
-
-      Map.merge(
-        %{
-          run: %{
-            id: run.id,
-            partial: partial,
-            covered_lines: summary.covered_lines,
-            executable_lines: summary.executable_lines,
-            coverage: Coverage.percentage(summary.covered_lines, summary.executable_lines)
-          },
-          baseline:
-            baseline &&
-              Map.put(baseline, :coverage, Coverage.percentage(baseline.covered_lines, baseline.executable_lines)),
-          baseline_reason: baseline_reason,
-          total_delta:
-            if baseline && not partial do
-              delta(
-                Coverage.percentage(summary.covered_lines, summary.executable_lines),
-                Coverage.percentage(baseline.covered_lines, baseline.executable_lines)
-              )
-            end,
-          targets: target_deltas(run_files, baseline_files, baseline, partial),
-          files: file_deltas(run_files, baseline_files, baseline, partial)
-        },
-        patch(project, run, partial, run_files)
-      )
+    with {:ok, start_sha} <- start_sha(head),
+         :ok <- ensure_candidates(candidates, head, settings),
+         {:ok, {sha, depth}} <- nearest_candidate(head, start_sha, candidates, settings),
+         {:ok, baseline} <- comparable(Map.fetch!(candidates, sha), head) do
+      {:ok, Map.merge(baseline, %{commit: sha, depth: depth, branch: head.base_branch})}
     end
   end
 
-  # The published totals of a run predate any later change to the exclusions;
-  # its files, while retained, give the totals under the current ones.
-  defp with_retained_totals(baseline, []), do: baseline
+  # A pull request is compared from its merge base; a commit on the base
+  # branch itself from its first parent, so the comparison is with the
+  # previous state of the branch and never with itself.
+  defp start_sha(%{sha: ""} = head), do: {:error, %{kind: :no_history, commit: "", detail: head.history_fallback_reason}}
 
-  defp with_retained_totals(baseline, files) do
-    Map.merge(baseline, %{
+  defp start_sha(%{repository_id: 0} = head),
+    do: {:error, %{kind: :no_history, commit: head.sha, detail: head.history_fallback_reason}}
+
+  defp start_sha(%{is_pull_request: true} = head) do
+    cond do
+      head.merge_base_sha != "" ->
+        {:ok, head.merge_base_sha}
+
+      branch_head = GitHistory.branch_head(head.repository_id, head.base_branch) ->
+        case GitHistory.merge_base(head.repository_id, head.sha, branch_head) do
+          nil -> {:error, %{kind: :no_merge_base, base_branch: head.base_branch, detail: head.history_fallback_reason}}
+          sha -> {:ok, sha}
+        end
+
+      true ->
+        {:error, %{kind: :no_merge_base, base_branch: head.base_branch, detail: head.history_fallback_reason}}
+    end
+  end
+
+  defp start_sha(head) do
+    case GitHistory.first_parent(head.repository_id, head.sha) do
+      nil -> {:error, %{kind: :no_history, commit: head.sha, detail: head.history_fallback_reason}}
+      parent -> {:ok, parent}
+    end
+  end
+
+  defp ensure_candidates(candidates, head, settings) do
+    if map_size(candidates) == 0 do
+      {:error, %{kind: :no_measured_commits, base_branch: head.base_branch, window_days: settings.window_days}}
+    else
+      :ok
+    end
+  end
+
+  defp nearest_candidate(head, start_sha, candidates, settings) do
+    cond do
+      Map.has_key?(candidates, start_sha) ->
+        {:ok, {start_sha, 0}}
+
+      not GitHistory.known?(head.repository_id, start_sha) ->
+        {:error, %{kind: :no_history, commit: start_sha, detail: head.history_fallback_reason}}
+
+      true ->
+        head.repository_id
+        |> GitHistory.first_parent_chain(start_sha, max_depth: settings.window_commits)
+        |> Enum.find(fn {sha, _depth, _at} -> Map.has_key?(candidates, sha) end)
+        |> case do
+          nil ->
+            {:error,
+             %{
+               kind: :no_ancestor_commit,
+               commit: start_sha,
+               base_branch: head.base_branch,
+               window_commits: settings.window_commits
+             }}
+
+          {sha, depth, _at} ->
+            {:ok, {sha, depth}}
+        end
+    end
+  end
+
+  # The head's measured set is only known once its runs are published; a
+  # head with no published commit yet (a run compared before the fold) is
+  # compared with whatever the ancestor measured.
+  defp comparable(candidate, head) do
+    case Commits.summary_for(head) do
+      %{schemes: schemes} when schemes != candidate.schemes ->
+        {:error,
+         %{
+           kind: :measured_set_mismatch,
+           commit: candidate.git_commit_sha,
+           schemes: schemes,
+           baseline_schemes: candidate.schemes
+         }}
+
+      _ ->
+        {:ok, candidate}
+    end
+  end
+
+  # The measured commits within the window, keyed by SHA.
+  # A commit is never its own baseline.
+  defp candidate_commits(project_id, head_sha, window_days) do
+    since = NaiveDateTime.add(NaiveDateTime.utc_now(), -window_days, :day)
+
+    from(c in subquery(Commits.commits_query(project_id)),
+      where: c.inserted_at >= ^since and c.git_commit_sha != ^head_sha
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.git_commit_sha, &1})
+  end
+
+  @doc """
+  The commit's coverage next to its baseline's, with the deltas the
+  measurements allow, per-scheme totals, its patch coverage and its gaps.
+  Nil when nothing measured the commit. Accepts a run (compared as its
+  commit; a run without a commit is described alone, with the reason) or a
+  head from `from_commit/2`.
+  """
+  def compare(project, head, opts \\ [])
+
+  def compare(%Project{} = project, %Test{git_commit_sha: sha} = run, opts) when sha in [nil, ""] do
+    excluded = ExcludedPaths.pattern_for_project(project)
+
+    case Keyword.get_lazy(opts, :run_summary, fn -> Coverage.run_summary(run.project_id, run.id, excluded: excluded) end) do
+      nil ->
+        nil
+
+      summary ->
+        %{
+          commit:
+            commit_figure("", summary.partial, summary.covered_lines, summary.executable_lines, [run.scheme || ""], []),
+          baseline: nil,
+          baseline_reason: %{kind: :no_history, commit: "", detail: run.history_fallback_reason},
+          total_delta: nil,
+          schemes: [],
+          targets: [],
+          files: [],
+          patch: %{status: :unavailable, reason: :no_history, detail: run.history_fallback_reason},
+          gaps: []
+        }
+    end
+  end
+
+  def compare(%Project{} = project, %Test{} = run, opts),
+    do: compare(project, from_commit(project, run.git_commit_sha), opts)
+
+  def compare(%Project{} = project, %{sha: sha} = head, _opts) do
+    case Commits.summary(project.id, sha) || Commits.recompute(project, sha) do
+      nil -> nil
+      summary -> compare_summary(project, head, summary)
+    end
+  end
+
+  defp compare_summary(project, %{sha: sha} = head, summary) do
+    excluded = ExcludedPaths.pattern_for_project(project)
+
+    {baseline, baseline_reason} =
+      case baseline(project, head) do
+        {:ok, baseline} -> {baseline, nil}
+        {:error, reason} -> {nil, reason}
+      end
+
+    partial = summary.partial_schemes != []
+    head_files = Commits.merged_files(project.id, sha, excluded: excluded)
+    baseline_files = if baseline, do: Commits.merged_files(project.id, baseline.commit, excluded: excluded), else: []
+    baseline = baseline && with_retained_totals(baseline, baseline_files)
+    head_totals = with_retained_totals(summary, head_files)
+
+    commit =
+      sha
+      |> commit_figure(
+        partial,
+        head_totals.covered_lines,
+        head_totals.executable_lines,
+        summary.schemes,
+        summary.partial_schemes
+      )
+      |> Map.merge(%{complete: summary.complete, completeness: summary.completeness})
+
+    Map.merge(
+      %{
+        commit: commit,
+        baseline:
+          baseline && Map.put(baseline, :coverage, Coverage.percentage(baseline.covered_lines, baseline.executable_lines)),
+        baseline_reason: baseline_reason,
+        total_delta: total_delta(commit, baseline, partial),
+        schemes: scheme_rows(project.id, sha, baseline && baseline.commit),
+        targets: target_deltas(head_files, baseline_files, baseline, partial),
+        files: file_deltas(head_files, baseline_files, baseline, partial)
+      },
+      patch(project, head, partial, head_files)
+    )
+  end
+
+  # The whole is compared only when the head measured every scheme fully.
+  defp total_delta(_commit, nil, _partial), do: nil
+  defp total_delta(_commit, _baseline, true), do: nil
+
+  defp total_delta(commit, baseline, false),
+    do: delta(commit.coverage, Coverage.percentage(baseline.covered_lines, baseline.executable_lines))
+
+  defp commit_figure(sha, partial, covered, executable, schemes, partial_schemes) do
+    %{
+      sha: sha,
+      partial: partial,
+      covered_lines: covered,
+      executable_lines: executable,
+      coverage: Coverage.percentage(covered, executable),
+      schemes: schemes,
+      partial_schemes: partial_schemes
+    }
+  end
+
+  # The published totals predate any later change to the exclusions; the
+  # files, while retained, give the totals under the current ones.
+  defp with_retained_totals(figure, []), do: figure
+
+  defp with_retained_totals(figure, files) do
+    Map.merge(figure, %{
       covered_lines: files |> Enum.map(& &1.covered_lines) |> Enum.sum(),
       executable_lines: files |> Enum.map(& &1.executable_lines) |> Enum.sum()
     })
   end
 
+  # Each scheme's own total at the head and at the baseline: the rows shown
+  # under "any scheme", where a pooled total would compare unlike sets.
+  defp scheme_rows(project_id, sha, baseline_sha) do
+    head = totals_by_scheme(project_id, sha)
+    baseline = if baseline_sha, do: totals_by_scheme(project_id, baseline_sha), else: %{}
+
+    head
+    |> Map.keys()
+    |> MapSet.new()
+    |> MapSet.union(MapSet.new(Map.keys(baseline)))
+    |> Enum.sort()
+    |> Enum.map(fn scheme ->
+      current = Map.get(head, scheme)
+      previous = Map.get(baseline, scheme)
+      coverage = current && Coverage.percentage(current.covered_lines, current.executable_lines)
+      baseline_coverage = previous && Coverage.percentage(previous.covered_lines, previous.executable_lines)
+
+      %{
+        scheme: scheme,
+        partial: current && current.partial,
+        covered_lines: current && current.covered_lines,
+        executable_lines: current && current.executable_lines,
+        coverage: coverage,
+        baseline_coverage: baseline_coverage,
+        delta: scheme_delta(current, previous, coverage, baseline_coverage)
+      }
+    end)
+  end
+
+  # Two partial measurements, or a missing side, compare nothing.
+  defp scheme_delta(%{partial: false}, %{partial: false}, coverage, baseline_coverage),
+    do: delta(coverage, baseline_coverage)
+
+  defp scheme_delta(_current, _previous, _coverage, _baseline_coverage), do: nil
+
+  # Per scheme, the newest full run's totals, or the newest partial one's.
+  defp totals_by_scheme(project_id, sha) do
+    project_id
+    |> Commits.runs(sha)
+    |> Enum.group_by(& &1.scheme)
+    |> Map.new(fn {scheme, runs} ->
+      run = Enum.max_by(runs, &{not &1.partial, &1.ran_at}, fn _a, _b -> true end)
+      {scheme, %{covered_lines: run.covered_lines, executable_lines: run.executable_lines, partial: run.partial}}
+    end)
+  end
+
   @doc """
-  Patch coverage and gaps alone, for a run whose baseline is not needed:
+  Patch coverage and gaps alone, for a head whose baseline is not needed:
   `%{patch: ..., gaps: [...]}`. `patch.status` is `:available` with the
   counts, or `:unavailable` with a `:reason` (`:partial_run`, `:no_history`,
-  `:truncated`).
+  `:truncated`). `partial` is whether the head measured any scheme partially.
   """
-  def patch(%Project{} = project, %Test{} = run, partial, run_files \\ nil) do
+  def patch(%Project{} = project, %{sha: sha} = head, partial, head_files \\ nil) do
     excluded = ExcludedPaths.pattern_for_project(project)
-    run_files = run_files || Coverage.merged_files(run.project_id, run.id, excluded: excluded)
-    changed = changed_files(run.project_id, run.id)
+    head_files = head_files || Commits.merged_files(project.id, sha, excluded: excluded)
+    changed = changed_files_for_commit(project.id, sha)
 
     cond do
       partial and not project.coverage_patch_partial_runs ->
         %{patch: %{status: :unavailable, reason: :partial_run}, gaps: []}
 
-      changed == [] and not history_collected?(run) ->
-        %{patch: %{status: :unavailable, reason: :no_history, detail: run.history_fallback_reason}, gaps: []}
+      changed == [] and head.merge_base_sha == "" ->
+        %{patch: %{status: :unavailable, reason: :no_history, detail: head.history_fallback_reason}, gaps: []}
 
       true ->
-        patch_from_changes(run, changed, run_files, excluded)
+        patch_from_changes(project.id, sha, changed, head_files, excluded)
     end
   end
 
-  defp patch_from_changes(run, changed, run_files, excluded_pattern) do
-    files_by_path = Map.new(run_files, &{&1.path, &1})
+  defp patch_from_changes(project_id, sha, changed, head_files, excluded_pattern) do
+    files_by_path = Map.new(head_files, &{&1.path, &1})
     excluded_regex = ExcludedPaths.compile(excluded_pattern)
 
     {excluded_by_project, changed} =
@@ -170,8 +418,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
     {candidates, excluded} =
       Enum.split_with(changed, fn file -> not file.truncated and Map.has_key?(files_by_path, file.path) end)
 
-    lines_by_path =
-      Coverage.line_counts(run.project_id, run.id, Enum.map(candidates, & &1.path), excluded: excluded_pattern)
+    lines_by_path = Commits.line_counts(project_id, sha, Enum.map(candidates, & &1.path), excluded: excluded_pattern)
 
     {files, skipped} =
       Enum.reduce(candidates, {[], []}, fn file, {files, skipped} ->
@@ -238,8 +485,6 @@ defmodule Tuist.Tests.Coverage.Comparison do
     }
   end
 
-  defp history_collected?(%Test{history_source: source}), do: source not in [nil, "", "none"]
-
   @doc """
   A sentence for a reason a baseline or a patch is missing (the maps
   `baseline/2` and `patch/4` return), for the PR comment and the check run.
@@ -248,33 +493,58 @@ defmodule Tuist.Tests.Coverage.Comparison do
   def reason_text(%{kind: :no_merge_base, base_branch: branch} = reason),
     do: with_detail("the merge base with `#{branch}` is unknown", reason)
 
-  def reason_text(%{kind: :no_history, commit: ""} = reason), do: with_detail("the run's commit is unknown", reason)
+  def reason_text(%{kind: :no_history, commit: ""} = reason), do: with_detail("the commit is unknown", reason)
 
   def reason_text(%{kind: :no_history, commit: sha} = reason),
-    do: with_detail("commit `#{String.slice(sha, 0, 7)}` is not in the project's Git history", reason)
+    do: with_detail("commit `#{String.slice(sha, 0, 7)}` is not in the repository's Git history", reason)
 
-  def reason_text(%{kind: :no_full_runs, base_branch: branch, scheme: scheme, window_days: days}),
-    do: "no full coverage run of `#{scheme}` on `#{branch}` in the last #{days} days"
+  def reason_text(%{kind: :no_measured_commits, base_branch: branch, window_days: days}),
+    do: "no measured commit on `#{branch}` in the last #{days} days"
 
-  def reason_text(%{kind: :no_ancestor_run, base_branch: branch, commit: sha, window_commits: commits}),
-    do: "no full run on `#{branch}` within #{commits} commits before `#{String.slice(sha, 0, 7)}`"
+  def reason_text(%{kind: :no_ancestor_commit, base_branch: branch, commit: sha, window_commits: commits}),
+    do: "no measured commit on `#{branch}` within #{commits} commits before `#{String.slice(sha, 0, 7)}`"
 
-  def reason_text(%{reason: :partial_run}), do: "the run skipped tests"
-  def reason_text(%{kind: :partial_run}), do: "the run skipped tests"
+  def reason_text(%{kind: :measured_set_mismatch, commit: sha, schemes: schemes, baseline_schemes: baseline}),
+    do:
+      "commit `#{String.slice(sha, 0, 7)}` measured #{schemes_text(baseline)} where this commit measured #{schemes_text(schemes)}"
+
+  def reason_text(%{reason: :partial_run}), do: "some tests were skipped"
+  def reason_text(%{kind: :partial_run}), do: "some tests were skipped"
 
   def reason_text(%{reason: :no_history} = reason),
     do: with_detail("the changed files are unknown, since the run's Git history was not collected", reason)
 
   def reason_text(_reason), do: "unknown"
 
+  defp schemes_text([]), do: "nothing"
+  defp schemes_text(schemes), do: Enum.map_join(schemes, ", ", &"`#{&1}`")
+
   defp with_detail(text, %{detail: detail}) when is_binary(detail) and detail != "", do: "#{text} (#{detail})"
   defp with_detail(text, _reason), do: text
 
   @doc "The files the run changed against its merge base, as the client recorded them."
-  def changed_files(project_id, test_run_id) do
+  def changed_files(project_id, test_run_id), do: changed_files_for_runs(project_id, [test_run_id])
+
+  @doc """
+  The files the commit changed against its merge base: what the newest of
+  the commit's runs that recorded any says.
+  """
+  def changed_files_for_commit(project_id, sha) do
+    project_id
+    |> commit_runs(sha)
+    |> Enum.reverse()
+    |> Enum.find_value([], fn run ->
+      case changed_files_for_runs(project_id, [run.id]) do
+        [] -> nil
+        files -> files
+      end
+    end)
+  end
+
+  defp changed_files_for_runs(project_id, test_run_ids) do
     ClickHouseRepo.all(
       from(f in TestRunChangedFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
+        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids,
         group_by: f.path,
         select: %{
           path: f.path,
@@ -290,16 +560,40 @@ defmodule Tuist.Tests.Coverage.Comparison do
     )
   end
 
-  defp target_deltas(run_files, baseline_files, baseline, partial) do
-    run_targets = totals_by_target(run_files)
+  # The commit's runs with their history columns, oldest first, one row per
+  # run whatever the history rewrites added.
+  defp commit_runs(project_id, sha) do
+    ClickHouseRepo.all(
+      from(t in Test,
+        where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
+        group_by: t.id,
+        having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+        select: %{
+          id: t.id,
+          git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
+          base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
+          merge_base_sha: fragment("argMax(?, ?)", t.merge_base_sha, t.inserted_at),
+          is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
+          pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
+          git_ref: fragment("any(?)", t.git_ref),
+          history_fallback_reason: fragment("argMax(?, ?)", t.history_fallback_reason, t.inserted_at),
+          ran_at: min(t.ran_at)
+        },
+        order_by: [asc: min(t.ran_at)]
+      )
+    )
+  end
+
+  defp target_deltas(head_files, baseline_files, baseline, partial) do
+    head_targets = totals_by_target(head_files)
     baseline_targets = totals_by_target(baseline_files)
 
-    run_targets
+    head_targets
     |> Map.keys()
     |> MapSet.new()
     |> MapSet.union(MapSet.new(Map.keys(baseline_targets)))
     |> Enum.map(fn name ->
-      current = Map.get(run_targets, name)
+      current = Map.get(head_targets, name)
       previous = Map.get(baseline_targets, name)
       entry(name, current, previous, baseline, partial)
     end)
@@ -320,23 +614,23 @@ defmodule Tuist.Tests.Coverage.Comparison do
   end
 
   # Only the files whose coverage moved, or that one side has and the other
-  # does not, are listed: the unchanged ones are the bulk of any run and say
-  # nothing about the change. On a partial run a file no test executed
-  # cannot be compared, and a file only the baseline has may simply not have
-  # been exercised, so neither is listed.
-  defp file_deltas(_run_files, _baseline_files, nil, _partial), do: []
+  # does not, are listed: the unchanged ones are the bulk of any commit and
+  # say nothing about the change. On a partial measurement a file no test
+  # executed cannot be compared, and a file only the baseline has may simply
+  # not have been exercised, so neither is listed.
+  defp file_deltas(_head_files, _baseline_files, nil, _partial), do: []
 
-  defp file_deltas(run_files, baseline_files, baseline, partial) do
-    run_by_path = Map.new(run_files, &{&1.path, &1})
+  defp file_deltas(head_files, baseline_files, baseline, partial) do
+    head_by_path = Map.new(head_files, &{&1.path, &1})
     baseline_by_path = Map.new(baseline_files, &{&1.path, &1})
 
-    run_by_path
+    head_by_path
     |> Map.keys()
     |> MapSet.new()
     |> MapSet.union(MapSet.new(Map.keys(baseline_by_path)))
     |> Enum.map(fn path ->
       path
-      |> entry(Map.get(run_by_path, path), Map.get(baseline_by_path, path), baseline, partial)
+      |> entry(Map.get(head_by_path, path), Map.get(baseline_by_path, path), baseline, partial)
       |> Map.put(:path, path)
     end)
     |> Enum.filter(fn entry ->
@@ -359,7 +653,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
       executable_lines: current && current.executable_lines,
       coverage: coverage,
       baseline_coverage: baseline_coverage,
-      delta: if(comparable?(current, baseline_coverage, partial), do: delta(coverage, baseline_coverage))
+      delta: if(comparable_entry?(current, baseline_coverage, partial), do: delta(coverage, baseline_coverage))
     }
   end
 
@@ -368,100 +662,14 @@ defmodule Tuist.Tests.Coverage.Comparison do
   defp percentage_of(%{covered_lines: covered, executable_lines: executable}),
     do: Coverage.percentage(covered, executable)
 
-  # On a partial run a file no test executed says nothing about the change.
-  defp comparable?(nil, _baseline_coverage, _partial), do: false
-  defp comparable?(_current, nil, _partial), do: false
-  defp comparable?(current, _baseline_coverage, partial), do: not partial or current.covered_lines > 0
+  # On a partial measurement a file no test executed says nothing about the change.
+  defp comparable_entry?(nil, _baseline_coverage, _partial), do: false
+  defp comparable_entry?(_current, nil, _partial), do: false
+  defp comparable_entry?(current, _baseline_coverage, partial), do: not partial or current.covered_lines > 0
 
   defp delta(current, previous), do: Float.round(current - previous, 1)
 
-  defp base_branch(%Project{default_branch: default_branch}, %Test{base_branch: base}) do
+  defp base_branch(%Project{default_branch: default_branch}, base) do
     if base in [nil, ""], do: default_branch, else: base
-  end
-
-  # A pull request is compared from its merge base; a run on the base branch
-  # itself from the commit before it, so the comparison is with the previous
-  # state of the branch and never with itself.
-  defp start_sha(project, %Test{is_pull_request: true} = run, base_branch) do
-    cond do
-      run.merge_base_sha not in [nil, ""] ->
-        {:ok, run.merge_base_sha}
-
-      head = GitHistory.branch_head(project.id, base_branch) ->
-        case GitHistory.merge_base(project.id, run.git_commit_sha, head) do
-          nil -> {:error, %{kind: :no_merge_base, base_branch: base_branch, detail: run.history_fallback_reason}}
-          sha -> {:ok, sha}
-        end
-
-      true ->
-        {:error, %{kind: :no_merge_base, base_branch: base_branch, detail: run.history_fallback_reason}}
-    end
-  end
-
-  defp start_sha(_project, %Test{git_commit_sha: sha}, _base_branch), do: {:ok, sha}
-
-  defp ensure_candidates(candidates, run, base_branch, settings) do
-    if map_size(candidates) == 0 do
-      {:error, %{kind: :no_full_runs, base_branch: base_branch, scheme: run.scheme, window_days: settings.window_days}}
-    else
-      :ok
-    end
-  end
-
-  defp nearest_candidate(project_id, run, start_sha, base_branch, candidates, settings) do
-    cond do
-      Map.has_key?(candidates, start_sha) ->
-        {:ok, {start_sha, 0}}
-
-      not GitHistory.known?(project_id, start_sha) ->
-        {:error, %{kind: :no_history, commit: start_sha, detail: run.history_fallback_reason}}
-
-      true ->
-        case GitHistory.nearest_ancestor(project_id, start_sha, Map.keys(candidates), max_depth: settings.window_commits) do
-          nil ->
-            {:error,
-             %{
-               kind: :no_ancestor_run,
-               commit: start_sha,
-               base_branch: base_branch,
-               window_commits: settings.window_commits
-             }}
-
-          found ->
-            {:ok, found}
-        end
-    end
-  end
-
-  # The newest full run per commit of the base branch with the run's scheme
-  # and build system, within the history window. A run on the base branch
-  # never counts as its own baseline.
-  defp candidate_runs(project_id, run, base_branch, window_days) do
-    since = NaiveDateTime.add(NaiveDateTime.utc_now(), -window_days, :day)
-
-    runs =
-      from(t in Test,
-        where: t.project_id == ^project_id and t.git_branch == ^base_branch and t.scheme == ^run.scheme,
-        where: t.build_system == ^run.build_system and t.ran_at >= ^since and t.id != ^run.id,
-        group_by: t.id,
-        select: %{id: t.id, git_commit_sha: fragment("any(?)", t.git_commit_sha), ran_at: min(t.ran_at)}
-      )
-
-    runs = if run.is_pull_request, do: runs, else: where(runs, [t], t.git_commit_sha != ^run.git_commit_sha)
-
-    from(c in subquery(Coverage.full_run_totals_query(project_id)),
-      join: t in subquery(runs),
-      on: t.id == c.test_run_id,
-      group_by: t.git_commit_sha,
-      select: %{
-        git_commit_sha: t.git_commit_sha,
-        test_run_id: type(fragment("argMax(?, ?)", c.test_run_id, t.ran_at), Ecto.UUID),
-        ran_at: max(t.ran_at),
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, t.ran_at),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, t.ran_at)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.git_commit_sha, Map.delete(&1, :git_commit_sha)})
   end
 end

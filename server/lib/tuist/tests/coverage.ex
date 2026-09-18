@@ -52,6 +52,7 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.CoverageFile
@@ -133,6 +134,7 @@ defmodule Tuist.Tests.Coverage do
         excluded_regex = ExcludedPaths.compile(excluded)
         folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others, excluded_regex)
         :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
+        Commits.enqueue_recompute(test)
 
         {{:ok, others.shards_count + 1 >= expected_shards},
          %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
@@ -206,7 +208,7 @@ defmodule Tuist.Tests.Coverage do
   # other file adds its counts and is let go. Excluded paths are stored and
   # counted as files, but add nothing to the totals.
   defp insert_files_and_fold(
-         %Test{id: test_run_id, project_id: project_id},
+         %Test{id: test_run_id, project_id: project_id} = test,
          coverage,
          shard_index,
          reported_at,
@@ -225,6 +227,7 @@ defmodule Tuist.Tests.Coverage do
           build_system: "xcode",
           shard_index: shard_index,
           partial: coverage.partial,
+          git_commit_sha: test.git_commit_sha || "",
           scope_kind: "run",
           scope_id: "",
           evidence_kind: "observed",
@@ -286,6 +289,7 @@ defmodule Tuist.Tests.Coverage do
         coverage_tool_version: test.xcode_version || "",
         git_object_format: folded.object_format,
         scheme: test.scheme || "",
+        git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
         partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
@@ -438,6 +442,8 @@ defmodule Tuist.Tests.Coverage do
       select: %{
         test_run_id: c.test_run_id,
         scheme: fragment("argMax(?, ?)", c.scheme, c.version),
+        build_system: fragment("argMax(?, ?)", c.build_system, c.version),
+        git_commit_sha: fragment("argMax(?, ?)", c.git_commit_sha, c.version),
         covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
         executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
         partial: fragment("argMax(?, ?)", c.partial, c.version)
@@ -492,6 +498,7 @@ defmodule Tuist.Tests.Coverage do
           coverage_tool_version: fragment("argMax(?, ?)", c.coverage_tool_version, c.version),
           git_object_format: fragment("argMax(?, ?)", c.git_object_format, c.version),
           scheme: fragment("argMax(?, ?)", c.scheme, c.version),
+          git_commit_sha: fragment("argMax(?, ?)", c.git_commit_sha, c.version),
           covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
           executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
           partial: fragment("argMax(?, ?)", c.partial, c.version),
@@ -519,6 +526,7 @@ defmodule Tuist.Tests.Coverage do
       end
 
     if rows != [], do: IngestRepo.insert_all(CoverageRun, rows)
+    rows |> Enum.map(& &1.git_commit_sha) |> Enum.uniq() |> Enum.each(&Commits.enqueue_recompute(project_id, &1))
 
     if length(runs) == batch_size, do: runs |> List.last() |> Map.fetch!(:test_run_id)
   end
@@ -680,7 +688,7 @@ defmodule Tuist.Tests.Coverage do
     end
   end
 
-  @retention_tables %{files: "coverage_files", runs: "coverage_runs"}
+  @retention_tables %{files: ["coverage_files", "git_commit_files"], runs: ["coverage_runs", "coverage_commits"]}
 
   @doc """
   Sets each coverage table's time-to-live to the configured retention (see
@@ -689,7 +697,7 @@ defmodule Tuist.Tests.Coverage do
   configuration changed.
   """
   def apply_retention do
-    for {kind, days} <- Environment.coverage_retention_days(), table = Map.fetch!(@retention_tables, kind) do
+    for {kind, days} <- Environment.coverage_retention_days(), table <- Map.fetch!(@retention_tables, kind) do
       IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
       {table, days}
     end
@@ -703,7 +711,8 @@ defmodule Tuist.Tests.Coverage do
   # has the file's lines (its archive entry was missing), the counts are the
   # report's, as in `merged_files_query/2`, and which lines ran is unknown:
   # `uncovered_ranges` is nil rather than empty.
-  defp detail(path, rows) do
+  @doc false
+  def detail(path, rows) do
     lines =
       rows
       |> Enum.flat_map(&Enum.zip(&1.line_numbers, &1.execution_counts))
@@ -777,26 +786,41 @@ defmodule Tuist.Tests.Coverage do
   end
 
   # The run-scoped rows of each shard's latest report.
-  defp report_files(project_id, test_run_id) do
+  defp report_files(project_id, test_run_id), do: report_files_for_runs(project_id, [test_run_id])
+
+  @doc """
+  The rows of the given runs' latest run-scoped report per shard: what every
+  reader of a run's, or a commit's, coverage starts from.
+  """
+  def report_files_for_runs(project_id, test_run_ids) do
     latest_reports =
       from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind == "run",
-        group_by: f.shard_index,
-        select: %{shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
+        group_by: [f.test_run_id, f.shard_index],
+        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
       )
 
     from(f in CoverageFile,
       join: r in subquery(latest_reports),
-      on: r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind == "run"
+      on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
+      where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run"
     )
   end
 
   # One row per path, its shards' reports merged: the lines are the union
   # across shards. A file whose archive entry was missing keeps the counts the
   # report gave it, since there are no lines to merge.
-  defp merged_files_query(project_id, test_run_id, excluded) do
-    from(f in without_excluded(report_files(project_id, test_run_id), excluded),
+  defp merged_files_query(project_id, test_run_id, excluded),
+    do: merged_files_query_for_runs(project_id, [test_run_id], excluded)
+
+  @doc """
+  Every product file of the given runs with their reports merged per path,
+  as `merged_files/3` reads one run: a line is covered when any report
+  covered it, a file counts once however many runs compiled it. What a
+  commit's coverage is: the union of the runs that measured it.
+  """
+  def merged_files_query_for_runs(project_id, test_run_ids, excluded) do
+    from(f in without_excluded(report_files_for_runs(project_id, test_run_ids), excluded),
       where: not f.is_test,
       group_by: f.path,
       select: %{
@@ -822,12 +846,14 @@ defmodule Tuist.Tests.Coverage do
     )
   end
 
-  defp excluded(project_id, opts) do
+  @doc false
+  def excluded(project_id, opts) do
     Keyword.get_lazy(opts, :excluded, fn -> ExcludedPaths.pattern_for_project(project_id) end)
   end
 
-  defp without_excluded(query, nil), do: query
-  defp without_excluded(query, pattern), do: from(f in query, where: not fragment("match(?, ?)", f.path, ^pattern))
+  @doc false
+  def without_excluded(query, nil), do: query
+  def without_excluded(query, pattern), do: from(f in query, where: not fragment("match(?, ?)", f.path, ^pattern))
 
   defp file_row(file) do
     functions = value(file, :functions, [])
