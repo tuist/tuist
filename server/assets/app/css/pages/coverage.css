@@ -281,6 +281,11 @@
     align-items: center;
     gap: var(--noora-spacing-3);
 
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+    }
+
     & > [data-part="sublabel"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-small);
