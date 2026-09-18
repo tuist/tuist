@@ -403,9 +403,9 @@ defmodule Tuist.VCSTest do
 
       account = Tuist.Repo.preload(project, :account).account
 
-      Tuist.GitHistory.record_commits(project.id, "sha1", [
-        %{sha: "base", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
-        %{sha: @git_commit_sha, parents: ["base"], committed_at: ~U[2026-09-01 01:00:00Z]}
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("base", [], 0),
+        CoverageFixtures.commit(@git_commit_sha, ["base"], 1)
       ])
 
       CoverageFixtures.run_with_coverage(
@@ -468,13 +468,18 @@ defmodule Tuist.VCSTest do
       # Then
       assert_received {:comment_body, body}
 
-      assert body =~ """
-             **Coverage**
+      assert body =~ "**Coverage** at [#{String.slice(@git_commit_sha, 0, 7)}]("
+      assert body =~ "/tests/coverage/commits/#{@git_commit_sha})"
 
-             | Scheme | Coverage | Change | Patch | Gaps |
-             |:-:|:-:|:-:|:-:|:-:|
-             | [App](https://tuist.dev/test_runs/#{pr_run.id}?tab=coverage) | 50.0% | -50.0 pp (100.0% at base) | 0.0% (0/2) | `Sources/A.swift` |
+      assert body =~ """
+             | Coverage | Change | Patch | Gaps |
+             |:-:|:-:|:-:|:-:|
+             | 50.0% | -50.0 pp (100.0% at base) | 0.0% (0/2) | `Sources/A.swift` |
              """
+
+      assert body =~ "has not signalled completion"
+      refute body =~ "| Scheme | Coverage | Change |"
+      assert pr_run.git_commit_sha == @git_commit_sha
     end
 
     test "creates a comment with ipa previews" do

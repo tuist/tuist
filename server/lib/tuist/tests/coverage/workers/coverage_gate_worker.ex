@@ -1,56 +1,85 @@
 defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
   @moduledoc """
-  Posts the `tuist/coverage` check run for a pull request's test run: the
-  run's coverage against its baseline, its patch coverage and gaps, and the
-  verdict of the project's gates (`Tuist.Tests.Coverage.Gates`). The check
-  targets the pull request's head commit, which GitHub resolves from the
-  run's `refs/pull/N/...` ref, and falls back to the run's commit.
+  Posts the `tuist/coverage` check run for a pull request commit. Triggered
+  by a run (`trigger: "run"`), it posts a pending check while the commit's
+  coverage pipeline is still running, and does nothing once the commit is
+  complete: the verdict is final. Triggered by the completion signal
+  (`trigger: "signal"`), it compares the commit with its baseline, evaluates
+  the project's gates (`Tuist.Tests.Coverage.Gates`) and posts the verdict.
+  The check targets the pull request's head commit, which GitHub resolves
+  from a `refs/pull/N/...` ref or the pull request number, and falls back to
+  the commit itself.
   """
   use Oban.Worker,
     queue: :default,
     max_attempts: 3,
-    unique: [keys: [:test_run_id], states: :incomplete, period: :infinity]
+    unique: [keys: [:project_id, :git_commit_sha, :trigger], states: :incomplete, period: :infinity]
 
   alias Tuist.Environment
   alias Tuist.GitHub.Client
   alias Tuist.Projects
   alias Tuist.Repo
-  alias Tuist.Tests
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.VCS
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"project_id" => project_id, "test_run_id" => test_run_id}}) do
-    with {:ok, run} <- Tests.get_test(test_run_id),
-         project when not is_nil(project) <- Projects.get_project_by_id(project_id),
+  def perform(%Oban.Job{args: %{"project_id" => project_id, "git_commit_sha" => sha} = args}) do
+    with project when not is_nil(project) <- Projects.get_project_by_id(project_id),
          project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
          true <- project.coverage_gates_enabled,
          true <- Projects.has_vcs_connection?(project),
          %{} <- VCS.github_app_credentials(project.vcs_connection.github_app_installation),
-         comparison when not is_nil(comparison) <- Comparison.compare(project, run) do
-      post_check_run(project, run, comparison, Gates.evaluate(project, comparison))
+         summary when not is_nil(summary) <- Commits.summary(project.id, sha) do
+      head = project |> Comparison.from_commit(sha) |> Map.put_new(:git_ref, args["git_ref"])
+
+      case {args["trigger"], summary.complete} do
+        {"signal", _} -> post_verdict(project, head, Comparison.compare(project, head))
+        {_, false} -> post_pending(project, head, summary)
+        {_, true} -> :ok
+      end
     else
-      {:error, :not_found} -> {:snooze, 30}
       _ -> :ok
     end
   end
 
-  defp post_check_run(project, run, comparison, verdict) do
-    account_name = project.account.name
-    details_url = Environment.app_url(path: "/#{account_name}/#{project.name}/tests/test-runs/#{run.id}?tab=coverage")
+  defp post_pending(project, head, summary) do
+    post_check_run(project, head, %{
+      status: "in_progress",
+      conclusion: nil,
+      output: %{
+        title: "Waiting for the coverage pipeline to finish",
+        summary:
+          "Coverage so far: #{summary.coverage}% over #{schemes_text(summary.schemes)}. " <>
+            "The gates are evaluated once the pipeline signals completion (`tuist coverage complete`).\n\n" <>
+            "[View the commit's coverage](#{details_url(project, head.sha)})"
+      }
+    })
+  end
 
-    params = %{
-      repository_full_handle: project.vcs_connection.repository_full_handle,
-      installation: project.vcs_connection.github_app_installation,
-      name: Gates.check_name(),
-      head_sha: head_sha(project, run),
+  defp post_verdict(project, head, nil), do: post_pending(project, head, %{coverage: 0.0, schemes: []})
+
+  defp post_verdict(project, head, comparison) do
+    verdict = Gates.evaluate(project, comparison)
+
+    post_check_run(project, head, %{
       status: "completed",
       conclusion: conclusion(verdict.conclusion),
-      output: %{title: title(verdict), summary: summary(comparison, verdict, details_url)},
-      details_url: details_url,
-      external_id: run.id
-    }
+      output: %{title: title(verdict), summary: summary(comparison, verdict, details_url(project, head.sha))}
+    })
+  end
+
+  defp post_check_run(project, head, params) do
+    params =
+      Map.merge(params, %{
+        repository_full_handle: project.vcs_connection.repository_full_handle,
+        installation: project.vcs_connection.github_app_installation,
+        name: Gates.check_name(),
+        head_sha: head_sha(project, head),
+        details_url: details_url(project, head.sha),
+        external_id: head.sha
+      })
 
     case Client.create_check_run(params) do
       {:ok, _} -> :ok
@@ -58,20 +87,33 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
     end
   end
 
-  defp head_sha(project, run) do
-    with "refs/pull/" <> rest <- run.git_ref || "",
-         {pr_number, _} <- Integer.parse(rest),
+  defp details_url(project, sha),
+    do: Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/coverage/commits/#{sha}")
+
+  defp head_sha(project, head) do
+    with number when is_integer(number) and number > 0 <- pull_request_number(head),
          {:ok, %{"head" => %{"sha" => head_sha}}} <-
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,
              installation: project.vcs_connection.github_app_installation,
-             pr_number: pr_number
+             pr_number: number
            }) do
       head_sha
     else
-      _ -> run.git_commit_sha
+      _ -> head.sha
     end
   end
+
+  defp pull_request_number(%{pull_request_number: number}) when is_integer(number) and number > 0, do: number
+
+  defp pull_request_number(%{git_ref: "refs/pull/" <> rest}) do
+    case Integer.parse(rest) do
+      {number, _} -> number
+      _ -> nil
+    end
+  end
+
+  defp pull_request_number(_head), do: nil
 
   defp conclusion(:success), do: "success"
   defp conclusion(:failure), do: "failure"
@@ -89,23 +131,42 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
         "| #{gate_label(check.gate)} | #{threshold_label(check)} | #{value_label(check)} | #{status_label(check)} |"
       end)
 
+    schemes =
+      if length(comparison.schemes) > 1 do
+        "\n| Scheme | Coverage | Change |\n|:-|:-:|:-:|\n" <>
+          Enum.map_join(comparison.schemes, "\n", fn row ->
+            "| `#{row.scheme}` | #{scheme_total(row)} | #{scheme_delta(row)} |"
+          end) <> "\n"
+      else
+        ""
+      end
+
     String.trim("""
     | Coverage | Patch | Gaps |
     |:-:|:-:|:-:|
     | #{total_text(comparison)} | #{patch_text(comparison.patch)} | #{gaps_text(comparison.gaps)} |
-    #{if checks != "", do: "\n| Gate | Threshold | Measured | Result |\n|:-|:-:|:-:|:-:|\n" <> checks <> "\n"}
-    [View the run's coverage](#{details_url})
+    #{schemes}#{if checks != "", do: "\n| Gate | Threshold | Measured | Result |\n|:-|:-:|:-:|:-:|\n" <> checks <> "\n"}
+    [View the commit's coverage](#{details_url})
     """)
   end
 
-  defp total_text(%{run: %{partial: true, coverage: coverage}, total_delta: nil}),
-    do: "#{coverage}% (partial run, not compared)"
+  defp total_text(%{commit: %{partial: true, coverage: coverage}, total_delta: nil, baseline: baseline})
+       when not is_nil(baseline), do: "#{coverage}% (some tests were skipped, not compared)"
 
-  defp total_text(%{run: %{coverage: coverage}, total_delta: nil, baseline_reason: reason}),
+  defp total_text(%{commit: %{coverage: coverage}, total_delta: nil, baseline_reason: reason}),
     do: "#{coverage}% (no baseline: #{Comparison.reason_text(reason)})"
 
-  defp total_text(%{run: %{coverage: coverage}, total_delta: delta, baseline: baseline}),
+  defp total_text(%{commit: %{coverage: coverage}, total_delta: delta, baseline: baseline}),
     do: "#{coverage}% (#{signed(delta)} pp against #{baseline.coverage}% at `#{short(baseline.commit)}`)"
+
+  defp scheme_total(%{coverage: nil}), do: "—"
+  defp scheme_total(%{partial: true, coverage: coverage}), do: "#{coverage}% (partial)"
+  defp scheme_total(%{coverage: coverage}), do: "#{coverage}%"
+
+  defp scheme_delta(%{delta: delta, baseline_coverage: baseline}) when is_float(delta),
+    do: "#{signed(delta)} pp (#{baseline}%)"
+
+  defp scheme_delta(_row), do: "—"
 
   defp patch_text(%{status: :available, executable_lines: 0}), do: "no changed executable lines"
 
@@ -116,6 +177,9 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
 
   defp gaps_text([]), do: "none"
   defp gaps_text(gaps), do: Enum.map_join(gaps, ", ", &"`#{&1.path}`")
+
+  defp schemes_text([]), do: "no scheme"
+  defp schemes_text(schemes), do: Enum.map_join(schemes, ", ", &"`#{&1}`")
 
   defp gate_label(:min_patch_coverage), do: "Minimum patch coverage"
   defp gate_label(:max_total_drop), do: "Maximum total drop"

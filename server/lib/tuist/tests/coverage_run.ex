@@ -21,6 +21,7 @@ defmodule Tuist.Tests.CoverageRun do
     field :coverage_tool_version, Ch, type: "LowCardinality(String)", default: ""
     field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
     field :scheme, Ch, type: "String", default: ""
+    field :git_commit_sha, Ch, type: "String", default: ""
     field :covered_lines, Ch, type: "UInt64"
     field :executable_lines, Ch, type: "UInt64"
     field :partial, :boolean, default: false

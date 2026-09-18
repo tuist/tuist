@@ -391,7 +391,7 @@ defmodule Tuist.Environment do
     deepen_budget_seconds: "TUIST_GIT_HISTORY_DEEPEN_BUDGET_SECONDS",
     upload_batch_size: "TUIST_GIT_HISTORY_UPLOAD_BATCH_SIZE",
     provider_page_budget: "TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET",
-    tracked_file_limit: "TUIST_GIT_HISTORY_TRACKED_FILE_LIMIT"
+    commit_file_limit: "TUIST_GIT_HISTORY_COMMIT_FILE_LIMIT"
   }
 
   @doc """

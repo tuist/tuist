@@ -133,6 +133,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         git_branch: Keyword.get(attrs, :git_branch, "main"),
         git_ref: Keyword.get(attrs, :git_ref),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+        git_remote_url_origin: Keyword.get(attrs, :git_remote_url_origin),
+        git_dirty: Keyword.get(attrs, :git_dirty),
         ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
         inserted_at: Keyword.get(attrs, :inserted_at),
         is_ci: Keyword.get(attrs, :is_ci, false),

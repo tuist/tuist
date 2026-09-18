@@ -1,15 +1,18 @@
 defmodule TuistWeb.API.GitHistoryController do
   @moduledoc """
   The client's side of `Tuist.GitHistory`: the settings that bound how much
-  history it collects, which commits the server still lacks, and the upload
-  of those commits. Uploads only add what is missing and repeating one changes
-  nothing, so a client can retry freely.
+  history it collects, which commits and commit listings the server still
+  lacks, and their upload. The repository is named by its remote URL, since
+  the graph belongs to the repository rather than to the project. Uploads
+  only add what is missing and repeating one changes nothing, so a client
+  can retry freely.
   """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
   alias Tuist.GitHistory
+  alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -29,10 +32,23 @@ defmodule TuistWeb.API.GitHistoryController do
 
   @sha %Schema{type: :string, description: "A commit SHA (40 hex digits, or 64 in a SHA-256 repository)."}
 
+  @repository_url %Schema{
+    type: :string,
+    description:
+      "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+  }
+
+  @common_responses %{
+    bad_request: {"The repository URL names no repository", "application/json", Error},
+    unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+    forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+    not_found: {"The project was not found", "application/json", Error}
+  }
+
   operation(:settings,
     summary: "Get the Git history settings in effect for a project.",
     description:
-      "How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, and how many commits to send per upload request. Server defaults with the project's overrides applied.",
+      "How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, how many commits to send per upload request, and how many files of a commit's tree to list. Server defaults with the project's overrides applied.",
     operation_id: "getGitHistorySettings",
     parameters: @path_parameters,
     responses: %{
@@ -49,25 +65,13 @@ defmodule TuistWeb.API.GitHistoryController do
                description: "How long the client may spend deepening a shallow clone to find the merge base."
              },
              upload_batch_size: %Schema{type: :integer, description: "How many commits to send per upload request."},
-             tracked_file_globs: %Schema{
-               type: :array,
-               items: %Schema{type: :string},
-               description:
-                 "Git pathspec globs, relative to the repository root, of the files whose identity a run's evidence depends on (dependency manifests, generator configuration, fixtures, snapshots). The client sends the matched files with their blobs as `tracked_files`."
-             },
-             tracked_file_limit: %Schema{
+             commit_file_limit: %Schema{
                type: :integer,
-               description: "How many tracked files to send; beyond it the run is marked `tracked_files_truncated`."
+               description:
+                 "How many files of a commit's tree to list (`uploadCommitListing`); beyond it the listing is marked truncated."
              }
            },
-           required: [
-             :window_days,
-             :window_commits,
-             :deepen_budget_seconds,
-             :upload_batch_size,
-             :tracked_file_globs,
-             :tracked_file_limit
-           ]
+           required: [:window_days, :window_commits, :deepen_budget_seconds, :upload_batch_size, :commit_file_limit]
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
@@ -83,15 +87,14 @@ defmodule TuistWeb.API.GitHistoryController do
       window_commits: settings.window_commits,
       deepen_budget_seconds: settings.deepen_budget_seconds,
       upload_batch_size: settings.upload_batch_size,
-      tracked_file_globs: settings.tracked_file_globs,
-      tracked_file_limit: settings.tracked_file_limit
+      commit_file_limit: settings.commit_file_limit
     })
   end
 
   operation(:missing_commits,
     summary: "Find which commits the server has not stored yet.",
     description:
-      "Given the SHAs of the commits a client can see, returns the ones the project's commit graph lacks, so the client uploads only those.",
+      "Given the SHAs of the commits a client can see, returns the ones the repository's commit graph lacks, so the client uploads only those.",
     operation_id: "findMissingCommits",
     parameters: @path_parameters,
     request_body:
@@ -99,32 +102,34 @@ defmodule TuistWeb.API.GitHistoryController do
        %Schema{
          title: "MissingCommitsRequest",
          type: :object,
-         properties: %{shas: %Schema{type: :array, items: @sha, maxItems: 10_000}},
-         required: [:shas]
+         properties: %{repository_url: @repository_url, shas: %Schema{type: :array, items: @sha, maxItems: 10_000}},
+         required: [:repository_url, :shas]
        }},
-    responses: %{
-      ok:
+    responses:
+      Map.put(
+        @common_responses,
+        :ok,
         {"The SHAs the server lacks", "application/json",
          %Schema{
            title: "MissingCommitsResponse",
            type: :object,
            properties: %{missing: %Schema{type: :array, items: @sha}},
            required: [:missing]
-         }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project was not found", "application/json", Error}
-    }
+         }}
+      )
   )
 
-  def missing_commits(%{assigns: %{selected_project: project}, body_params: %{shas: shas}} = conn, _params) do
-    json(conn, %{missing: GitHistory.missing_shas(project.id, shas)})
+  def missing_commits(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
+    case repository_id(project, body.repository_url) do
+      nil -> bad_request(conn)
+      repository_id -> json(conn, %{missing: GitHistory.missing_shas(repository_id, body.shas)})
+    end
   end
 
   operation(:upload_commits,
-    summary: "Upload commits to the project's commit graph.",
+    summary: "Upload commits to the repository's commit graph.",
     description:
-      "Adds commits and their parent edges to the project's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.",
+      "Adds commits and their parent edges to the repository's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.",
     operation_id: "uploadCommits",
     parameters: @path_parameters,
     request_body:
@@ -133,6 +138,7 @@ defmodule TuistWeb.API.GitHistoryController do
          title: "UploadCommitsRequest",
          type: :object,
          properties: %{
+           repository_url: @repository_url,
            object_format: %Schema{
              type: :string,
              enum: ["sha1", "sha256"],
@@ -161,28 +167,129 @@ defmodule TuistWeb.API.GitHistoryController do
              description: "The newest commit the client saw on each branch."
            }
          },
-         required: [:object_format, :commits]
+         required: [:repository_url, :object_format, :commits]
        }},
-    responses: %{
-      no_content: "The commits were stored",
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project was not found", "application/json", Error}
-    }
+    responses: Map.put(@common_responses, :no_content, "The commits were stored")
   )
 
   def upload_commits(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    commits =
-      Enum.map(body.commits, fn commit ->
-        %{sha: commit.sha, parents: commit.parents, committed_at: commit.committed_at}
-      end)
+    case repository_id(project, body.repository_url) do
+      nil ->
+        bad_request(conn)
 
-    GitHistory.record_commits(project.id, body.object_format, commits)
+      repository_id ->
+        commits =
+          Enum.map(body.commits, fn commit ->
+            %{sha: commit.sha, parents: commit.parents, committed_at: commit.committed_at}
+          end)
 
-    for head <- Map.get(body, :branch_heads) || [] do
-      GitHistory.record_branch_head(project.id, head.branch, head.sha)
+        GitHistory.record_commits(repository_id, body.object_format, commits)
+
+        for head <- Map.get(body, :branch_heads) || [] do
+          GitHistory.record_branch_head(repository_id, head.branch, head.sha)
+        end
+
+        send_resp(conn, :no_content, "")
     end
+  end
 
-    send_resp(conn, :no_content, "")
+  operation(:missing_listings,
+    summary: "Find which commits have no file listing stored yet.",
+    description:
+      "Given commit SHAs, returns the ones whose file listing (every file of the commit's tree with its blob) the server lacks, so a clean checkout uploads it once per commit. The listing is what coverage is measured against, where the project's tracked files are read, and what evidence reuse compares.",
+    operation_id: "findMissingCommitListings",
+    parameters: @path_parameters,
+    request_body:
+      {"The SHAs to check", "application/json",
+       %Schema{
+         title: "MissingCommitListingsRequest",
+         type: :object,
+         properties: %{repository_url: @repository_url, shas: %Schema{type: :array, items: @sha, maxItems: 1_000}},
+         required: [:repository_url, :shas]
+       }},
+    responses:
+      Map.put(
+        @common_responses,
+        :ok,
+        {"The SHAs whose listing the server lacks", "application/json",
+         %Schema{
+           title: "MissingCommitListingsResponse",
+           type: :object,
+           properties: %{missing: %Schema{type: :array, items: @sha}},
+           required: [:missing]
+         }}
+      )
+  )
+
+  def missing_listings(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
+    case repository_id(project, body.repository_url) do
+      nil -> bad_request(conn)
+      repository_id -> json(conn, %{missing: GitHistory.missing_listings(repository_id, body.shas)})
+    end
+  end
+
+  operation(:upload_listing,
+    summary: "Upload a commit's file listing.",
+    description:
+      "Stores the files of a commit's tree with their blobs, as `git ls-files --stage` lists them at a clean checkout, capped at the project's `commit_file_limit`. A large listing is sent in several requests; the last one carries `complete: true`, which records the listing as stored. Repeating a request changes nothing.",
+    operation_id: "uploadCommitListing",
+    parameters: @path_parameters,
+    request_body:
+      {"The listing", "application/json",
+       %Schema{
+         title: "UploadCommitListingRequest",
+         type: :object,
+         properties: %{
+           repository_url: @repository_url,
+           sha: @sha,
+           files: %Schema{
+             type: :array,
+             maxItems: 20_000,
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, description: "Relative to the repository root."},
+                 git_blob_id: %Schema{type: :string, description: "The file's blob at the commit."},
+                 mode: %Schema{type: :integer, description: "The Git file mode as an integer (33188 for 100644)."}
+               },
+               required: [:path, :git_blob_id]
+             }
+           },
+           complete: %Schema{type: :boolean, description: "Whether this request ends the listing (true by default)."},
+           truncated: %Schema{type: :boolean, description: "Whether the client stopped at the limit."},
+           files_count: %Schema{
+             type: :integer,
+             description: "How many files the whole listing has, sent with the last request."
+           }
+         },
+         required: [:repository_url, :sha, :files]
+       }},
+    responses: Map.put(@common_responses, :no_content, "The listing was stored")
+  )
+
+  def upload_listing(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
+    case repository_id(project, body.repository_url) do
+      nil ->
+        bad_request(conn)
+
+      repository_id ->
+        files = Enum.map(body.files, &%{path: &1.path, git_blob_id: &1.git_blob_id, mode: Map.get(&1, :mode)})
+
+        opts =
+          [complete: Map.get(body, :complete, true), truncated: Map.get(body, :truncated, false)] ++
+            case Map.get(body, :files_count) do
+              nil -> []
+              count -> [files_count: count]
+            end
+
+        GitHistory.record_listing(repository_id, body.sha, files, opts)
+        send_resp(conn, :no_content, "")
+    end
+  end
+
+  defp repository_id(project, url), do: GitHistory.repository_id(project.account_id, RemoteURL.strip_credentials(url))
+
+  defp bad_request(conn) do
+    conn |> put_status(:bad_request) |> json(%{message: "repository_url does not name a repository"})
   end
 end

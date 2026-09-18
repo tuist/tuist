@@ -20,11 +20,22 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
     the only files evidence may later rely on;
   - `git_object_format`, so SHA-1 and SHA-256 repositories never mix;
   - `scheme`, the configuration a run's totals belong to;
+  - `git_commit_sha` on both, so a commit's coverage (the union of its runs)
+    and the evidence at an ancestor are read without a join through
+    `test_runs`;
   - branch counters (`covered_branches`, `total_branches`, per-line
     `branch_*` arrays) that `xccov` never fills but JaCoCo and LCOV do;
   - time-to-live: file detail expires after `TUIST_COVERAGE_FILE_RETENTION_DAYS`
     (90 by default) and run totals after `TUIST_COVERAGE_RUN_RETENTION_DAYS`
     (365 by default).
+
+  Coverage is a property of a commit: `coverage_commits` holds the totals of
+  each measured commit over the union of its runs, with the measured set
+  (which schemes, each full or partial, and which runs) and whether the
+  measurement is complete, versioned like `coverage_runs` and retained like
+  it. `git_commit_files` is the commit's file listing (path and blob per file,
+  keyed by repository and commit), what coverage is measured against and where
+  tracked files and ancestor blobs are read; it expires with the file detail.
   """
   use Ecto.Migration
 
@@ -53,6 +64,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `git_blob_id` String,
       `targets` Array(LowCardinality(String)),
       `is_test` Bool DEFAULT false,
+      `git_commit_sha` String DEFAULT '',
       `covered_lines` UInt32,
       `executable_lines` UInt32,
       `line_numbers` Array(UInt32) CODEC(Delta, ZSTD(1)),
@@ -85,6 +97,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `coverage_tool_version` LowCardinality(String) DEFAULT '',
       `git_object_format` LowCardinality(String) DEFAULT '',
       `scheme` String DEFAULT '',
+      `git_commit_sha` String DEFAULT '',
       `covered_lines` UInt64,
       `executable_lines` UInt64,
       `partial` Bool DEFAULT false,
@@ -95,9 +108,51 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
     ORDER BY (project_id, test_run_id)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.runs} DAY
     """)
+
+    execute("""
+    CREATE TABLE IF NOT EXISTS coverage_commits
+    (
+      `project_id` Int64,
+      `git_commit_sha` String,
+      `git_repository_id` Int64 DEFAULT 0,
+      `build_system` LowCardinality(String) DEFAULT 'xcode',
+      `covered_lines` UInt64,
+      `executable_lines` UInt64,
+      `files_count` UInt32 DEFAULT 0,
+      `unmeasured_files_count` UInt32 DEFAULT 0,
+      `schemes` Array(String),
+      `partial_schemes` Array(String),
+      `test_run_ids` Array(UUID),
+      `complete` Bool DEFAULT false,
+      `completeness` LowCardinality(String) DEFAULT '',
+      `version` UInt64,
+      `inserted_at` DateTime64(6) DEFAULT now()
+    )
+    ENGINE = ReplacingMergeTree(version)
+    ORDER BY (project_id, git_commit_sha)
+    TTL toDateTime(inserted_at) + INTERVAL #{retention.runs} DAY
+    """)
+
+    execute("""
+    CREATE TABLE IF NOT EXISTS git_commit_files
+    (
+      `repository_id` Int64,
+      `sha` String,
+      `path` String,
+      `git_blob_id` String DEFAULT '',
+      `mode` UInt32 DEFAULT 0,
+      `inserted_at` DateTime64(6) DEFAULT now()
+    )
+    ENGINE = ReplacingMergeTree(inserted_at)
+    PARTITION BY toYYYYMM(inserted_at)
+    ORDER BY (repository_id, sha, path)
+    TTL toDateTime(inserted_at) + INTERVAL #{retention.files} DAY
+    """)
   end
 
   def down do
+    execute("DROP TABLE IF EXISTS git_commit_files")
+    execute("DROP TABLE IF EXISTS coverage_commits")
     execute("DROP TABLE IF EXISTS coverage_runs")
     execute("DROP TABLE IF EXISTS coverage_files")
   end

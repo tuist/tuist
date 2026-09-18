@@ -7,7 +7,10 @@ defmodule Tuist.IngestRepo.Migrations.AddGitHistoryToTestRuns do
   against, whether it ran for a pull request (and which), the repository's
   Git object format, and where the history came from (`history_source`:
   `client`, `provider`, `mixed` or `none`) with the reason anything is
-  missing. `test_run_changed_files` holds the files changed between the merge
+  missing; `git_repository_id` names the repository the remote identified
+  (`Tuist.GitHistory.Repository`, whose graph the run's commit belongs to)
+  and `git_dirty` whether the checkout had uncommitted changes, in which case
+  the run measured code that is not the commit's and stays at run level. `test_run_changed_files` holds the files changed between the merge
   base and the head, with the line ranges of their hunks and the blob each
   had at the head, so patch coverage can be computed against the run's own
   coverage rows. It expires with the coverage file detail.
@@ -28,7 +31,9 @@ defmodule Tuist.IngestRepo.Migrations.AddGitHistoryToTestRuns do
       ADD COLUMN IF NOT EXISTS pull_request_number UInt32 DEFAULT 0,
       ADD COLUMN IF NOT EXISTS git_object_format LowCardinality(String) DEFAULT '',
       ADD COLUMN IF NOT EXISTS history_source LowCardinality(String) DEFAULT '',
-      ADD COLUMN IF NOT EXISTS history_fallback_reason String DEFAULT ''
+      ADD COLUMN IF NOT EXISTS history_fallback_reason String DEFAULT '',
+      ADD COLUMN IF NOT EXISTS git_repository_id Int64 DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS git_dirty Bool DEFAULT false
     """)
 
     execute("""
@@ -63,7 +68,9 @@ defmodule Tuist.IngestRepo.Migrations.AddGitHistoryToTestRuns do
       DROP COLUMN IF EXISTS pull_request_number,
       DROP COLUMN IF EXISTS git_object_format,
       DROP COLUMN IF EXISTS history_source,
-      DROP COLUMN IF EXISTS history_fallback_reason
+      DROP COLUMN IF EXISTS history_fallback_reason,
+      DROP COLUMN IF EXISTS git_repository_id,
+      DROP COLUMN IF EXISTS git_dirty
     """)
   end
 end

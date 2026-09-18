@@ -22,7 +22,13 @@ defmodule Tuist.GitHistory.CompletionTest do
       |> Repo.preload(vcs_connection: :github_app_installation)
 
     stub(VCS, :github_app_credentials, fn _installation -> %{} end)
-    %{project: project, connection: project.vcs_connection, settings: GitHistory.settings(project)}
+
+    %{
+      project: project,
+      connection: project.vcs_connection,
+      settings: GitHistory.settings(project),
+      repository: GitHistory.repository_id_for_connection(project)
+    }
   end
 
   defp commit(sha, parents, minutes) do
@@ -32,7 +38,8 @@ defmodule Tuist.GitHistory.CompletionTest do
   test "fills the base branch, merge base, changed files and graph from the provider", %{
     project: project,
     connection: connection,
-    settings: settings
+    settings: settings,
+    repository: repository
   } do
     {:ok, run} =
       RunsFixtures.test_fixture(project_id: project.id, git_ref: "refs/pull/42/merge", git_commit_sha: "head")
@@ -66,8 +73,10 @@ defmodule Tuist.GitHistory.CompletionTest do
 
     {:ok, stored} = Tests.get_test(run.id)
     assert stored.merge_base_sha == "base"
+    # A run that named no remote is placed in the connected repository.
+    assert stored.git_repository_id == repository
 
-    assert GitHistory.ancestors(project.id, "head") == [{"head", 0}, {"mid", 1}, {"base", 2}, {"root", 3}]
+    assert GitHistory.ancestors(repository, "head") == [{"head", 0}, {"mid", 1}, {"base", 2}, {"root", 3}]
 
     assert Tuist.ClickHouseRepo.all(
              from(f in TestRunChangedFile, where: f.test_run_id == ^run.id, select: {f.path, f.hunk_starts, f.hunk_ends})
@@ -129,5 +138,16 @@ defmodule Tuist.GitHistory.CompletionTest do
 
     unconnected = Repo.preload(ProjectsFixtures.project_fixture(), vcs_connection: :github_app_installation)
     assert GitHistory.enqueue_completion(unconnected, partial_run) == :skipped
+
+    # A run from another repository than the connected one (a fork) is left alone.
+    {:ok, fork_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        history_source: "client",
+        git_remote_url_origin: "https://github.com/someone/tuist-fork"
+      )
+
+    assert fork_run.git_repository_id > 0
+    assert GitHistory.enqueue_completion(project, fork_run) == :skipped
   end
 end

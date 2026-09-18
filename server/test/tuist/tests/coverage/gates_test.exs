@@ -23,10 +23,11 @@ defmodule Tuist.Tests.Coverage.GatesTest do
   defp comparison(attrs) do
     Map.merge(
       %{
-        run: %{partial: false, coverage: 70.0},
+        commit: %{sha: "p", partial: false, coverage: 70.0, schemes: ["App"], partial_schemes: []},
         baseline: %{coverage: 72.0, commit: "b"},
         baseline_reason: nil,
         total_delta: -2.0,
+        schemes: [],
         patch: %{status: :available, covered_lines: 8, executable_lines: 10, coverage: 80.0},
         gaps: []
       },
@@ -70,16 +71,20 @@ defmodule Tuist.Tests.Coverage.GatesTest do
       no_baseline =
         comparison(%{
           baseline: nil,
-          baseline_reason: %{kind: :no_full_runs, base_branch: "main", scheme: "App", window_days: 90},
+          baseline_reason: %{kind: :no_measured_commits, base_branch: "main", window_days: 90},
           total_delta: nil,
           patch: %{status: :unavailable, reason: :partial_run}
         })
 
       assert %{conclusion: :neutral, checks: [patch, drop]} = Gates.evaluate(project, no_baseline)
       assert {patch.status, patch.reason} == {:neutral, %{status: :unavailable, reason: :partial_run}}
-      assert {drop.status, drop.reason.kind} == {:neutral, :no_full_runs}
+      assert {drop.status, drop.reason.kind} == {:neutral, :no_measured_commits}
 
-      partial = comparison(%{run: %{partial: true, coverage: 70.0}, total_delta: nil})
+      partial =
+        comparison(%{
+          commit: %{sha: "p", partial: true, coverage: 70.0, schemes: ["App"], partial_schemes: ["App"]},
+          total_delta: nil
+        })
 
       assert %{conclusion: :neutral, checks: [%{status: :passed}, %{status: :neutral, reason: %{kind: :partial_run}}]} =
                Gates.evaluate(project, partial)
@@ -91,24 +96,30 @@ defmodule Tuist.Tests.Coverage.GatesTest do
       assert %{conclusion: :failure} =
                Gates.evaluate(
                  project,
-                 comparison(%{total_delta: nil, baseline: nil, baseline_reason: %{kind: :no_full_runs}})
+                 comparison(%{total_delta: nil, baseline: nil, baseline_reason: %{kind: :no_measured_commits}})
                )
     end
   end
 
   describe "the follow-up of a published coverage" do
-    test "checks the gates and refreshes the comment of a pull request run", %{project: project, account: account} do
+    test "posts the commit's pending check and refreshes the comment of a pull request run", %{
+      project: project,
+      account: account
+    } do
       project = gated(project, %{coverage_gate_min_patch_coverage: 50.0})
 
-      run =
-        CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
-          is_pull_request: true,
-          pull_request_number: 3,
-          git_ref: "refs/pull/3/merge",
-          git_branch: "feature"
-        })
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        is_pull_request: true,
+        pull_request_number: 3,
+        git_ref: "refs/pull/3/merge",
+        git_branch: "feature"
+      })
 
-      assert_enqueued(worker: CoverageGateWorker, args: %{project_id: project.id, test_run_id: run.id})
+      assert_enqueued(
+        worker: CoverageGateWorker,
+        args: %{project_id: project.id, git_commit_sha: "abc123", git_ref: "refs/pull/3/merge", trigger: "run"}
+      )
+
       assert_enqueued(worker: CommentWorker, args: %{project_id: project.id, git_ref: "refs/pull/3/merge"})
     end
 
@@ -123,9 +134,23 @@ defmodule Tuist.Tests.Coverage.GatesTest do
       assert_enqueued(worker: CommentWorker, args: %{git_ref: "refs/pull/3/merge"})
     end
 
-    test "does nothing for a run on a branch", %{project: project, account: account} do
+    test "does nothing for a run on a branch, without a commit, or from a dirty checkout", %{
+      project: project,
+      account: account
+    } do
       project = gated(project, %{})
       CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{})
+
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        is_pull_request: true,
+        git_commit_sha: ""
+      })
+
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        is_pull_request: true,
+        git_dirty: true
+      })
+
       refute_enqueued(worker: CoverageGateWorker)
       refute_enqueued(worker: CommentWorker)
     end
@@ -134,13 +159,12 @@ defmodule Tuist.Tests.Coverage.GatesTest do
       project = gated(project, %{})
       plan = TuistTestSupport.Fixtures.ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
 
-      run =
-        CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
-          is_pull_request: true,
-          pull_request_number: 3,
-          shard_plan_id: plan.id,
-          shard_index: 0
-        })
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        is_pull_request: true,
+        pull_request_number: 3,
+        shard_plan_id: plan.id,
+        shard_index: 0
+      })
 
       refute_enqueued(worker: CoverageGateWorker)
 
@@ -161,7 +185,7 @@ defmodule Tuist.Tests.Coverage.GatesTest do
         xcode_coverage: %{partial: false, files: [CoverageFixtures.file("Sources/B.swift", [1])]}
       })
 
-      assert_enqueued(worker: CoverageGateWorker, args: %{test_run_id: run.id})
+      assert_enqueued(worker: CoverageGateWorker, args: %{git_commit_sha: "abc123", trigger: "run"})
     end
   end
 end

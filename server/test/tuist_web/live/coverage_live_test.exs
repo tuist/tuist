@@ -6,8 +6,6 @@ defmodule TuistWeb.CoverageLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.GitHistory
-  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -43,16 +41,21 @@ defmodule TuistWeb.CoverageLiveTest do
     )
   end
 
-  defp seed_history(project) do
-    GitHistory.record_commits(project.id, "sha1", [
-      %{sha: "a", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
-      %{sha: "b", parents: ["a"], committed_at: ~U[2026-09-01 01:00:00Z]},
-      %{sha: "p", parents: ["b"], committed_at: ~U[2026-09-01 02:00:00Z]}
-    ])
+  defp seed_history(organization, opts \\ []) do
+    CoverageFixtures.seed_history(
+      organization.account,
+      [
+        CoverageFixtures.commit("a", [], 0),
+        CoverageFixtures.commit("b", ["a"], 1),
+        CoverageFixtures.commit("c", ["b"], 2),
+        CoverageFixtures.commit("p", ["b"], 3)
+      ],
+      opts
+    )
   end
 
   describe "overview" do
-    test "shows the default branch's newest full run and its trend over the period", %{
+    test "shows the default branch's latest chained commit and its trend over the period", %{
       conn: conn,
       organization: organization,
       project: project
@@ -73,7 +76,7 @@ defmodule TuistWeb.CoverageLiveTest do
       refute has_element?(lv, "#coverage-points-table", "c")
     end
 
-    test "shows the empty state without a full run and hides the page without the flag", %{
+    test "shows the empty state without a measured commit and hides the page without the flag", %{
       conn: conn,
       organization: organization,
       project: project
@@ -89,8 +92,8 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
-  describe "branches" do
-    test "lists every branch's newest full run against the default branch", %{
+  describe "branches and history" do
+    test "lists every branch's head commit against the default branch", %{
       conn: conn,
       organization: organization,
       project: project
@@ -105,11 +108,28 @@ defmodule TuistWeb.CoverageLiveTest do
       assert table =~ "+25.0 pp"
       assert table =~ "main"
     end
+
+    test "lists the branch's commits from the graph, unmeasured ones included", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      seed_history(organization, branch_heads: [{"main", "c"}])
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
+      main_run(project, organization, "c", [file("Sources/A.swift", [1, 1, 1, 0])])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=history")
+
+      table = lv |> element("#coverage-history-table") |> render()
+      assert table =~ "Not measured"
+      assert table =~ "+50.0 pp"
+      refute has_element?(lv, "#coverage-history-time-order")
+    end
   end
 
-  describe "pull requests" do
+  describe "a commit and a pull request" do
     setup %{organization: organization, project: project} do
-      seed_history(project)
+      seed_history(organization)
       main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 1, 1]), file("Sources/B.swift", [1, 1])])
 
       pr =
@@ -139,20 +159,6 @@ defmodule TuistWeb.CoverageLiveTest do
       %{pr: pr}
     end
 
-    test "lists the pull requests with their change against the baseline", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?tab=pull-requests")
-
-      table = lv |> element("#coverage-pull-requests-table") |> render()
-      assert table =~ "#12"
-      assert table =~ "50.0%"
-      assert table =~ "-50.0 pp"
-    end
-
     test "shows a pull request's comparison, patch coverage and gaps", %{
       conn: conn,
       organization: organization,
@@ -167,6 +173,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#widget-pr-patch", "0.0%")
       assert has_element?(lv, "#widget-pr-gaps", "2")
       refute has_element?(lv, "#coverage-no-baseline")
+      assert has_element?(lv, "#coverage-incomplete")
 
       targets = lv |> element("#coverage-pr-targets-table") |> render()
       assert targets =~ "Calculator"
@@ -189,9 +196,27 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "a[href*='/tests/test-runs/#{pr.id}?tab=coverage']")
     end
 
+    test "shows a commit on its own page, complete once signalled", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
+
+      assert has_element?(lv, "#widget-pr-coverage", "50.0%")
+      assert has_element?(lv, "#coverage-incomplete")
+
+      Tuist.Tests.Coverage.Commits.signal_complete(project, "p")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/p")
+      refute has_element?(lv, "#coverage-incomplete")
+      assert lv |> element("[data-part='pull-request'] [data-part='subtitle']") |> render() =~ "Complete"
+    end
+
     test "says why there is no baseline", %{conn: conn, organization: organization, project: project} do
       pr_run(project, organization, [file("Sources/A.swift", [1, 1, 1, 1])], %{
         pull_request_number: 13,
+        git_commit_sha: "q",
         merge_base_sha: "zzz"
       })
 
@@ -199,19 +224,27 @@ defmodule TuistWeb.CoverageLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/13")
 
       assert has_element?(lv, "#coverage-no-baseline")
-      assert lv |> element("#coverage-no-baseline") |> render() =~ "commit zzz is not in the project"
+      assert lv |> element("#coverage-no-baseline") |> render() =~ "commit zzz is not in the repository"
       assert has_element?(lv, "#widget-pr-change", "No baseline")
     end
 
-    test "is not found for a pull request without coverage", %{conn: conn, organization: organization, project: project} do
+    test "is not found for a pull request or a commit without coverage", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
       assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/99")
+      end
+
+      assert_raise NotFoundError, fn ->
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/nothing")
       end
     end
   end
 
   describe "files and runs" do
-    test "lists the least covered files and the targets of the newest full run", %{
+    test "lists the least covered files and the targets at the latest commit", %{
       conn: conn,
       organization: organization,
       project: project

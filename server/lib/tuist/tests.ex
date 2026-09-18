@@ -26,6 +26,7 @@ defmodule Tuist.Tests do
   alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
@@ -60,7 +61,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
-  alias Tuist.Tests.TestRunTrackedFile
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
   alias Tuist.Webhooks.Dispatcher
@@ -532,7 +532,8 @@ defmodule Tuist.Tests do
     :git_object_format,
     :history_source,
     :history_fallback_reason,
-    :tracked_files_truncated,
+    :git_repository_id,
+    :git_dirty,
     :execution_mode
   ]
 
@@ -552,7 +553,10 @@ defmodule Tuist.Tests do
         attrs
       end
 
-    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
+    attrs =
+      attrs
+      |> Map.merge(StressNewTests.run_attrs(stress_new_tests))
+      |> Map.put(:git_repository_id, repository_id(attrs))
 
     with {:ok, test} <-
            %Test{}
@@ -567,7 +571,6 @@ defmodule Tuist.Tests do
       create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
-      create_run_tracked_files(test, Map.get(attrs, :tracked_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       Coverage.publish(test, xcode_coverage, shard_index, expected_shards)
@@ -622,26 +625,17 @@ defmodule Tuist.Tests do
   @doc "Stores the files a run changed against its merge base; see `Tuist.Tests.TestRunChangedFile`."
   def create_test_changed_files(%Test{} = test, files), do: create_run_changed_files(test, files)
 
-  @doc "The tracked files a run saw with their blobs, by path; see `Tuist.Tests.TestRunTrackedFile`."
-  def tracked_files(project_id, test_run_id) do
-    ClickHouseRepo.all(
-      from(f in TestRunTrackedFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
-        group_by: f.path,
-        select: %{path: f.path, git_blob_id: fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)},
-        order_by: f.path
-      )
-    )
-  end
-
-  @doc "How many tracked files a run recorded."
-  def tracked_files_count(project_id, test_run_id) do
-    ClickHouseRepo.one(
-      from(f in TestRunTrackedFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
-        select: fragment("uniqExact(?)", f.path)
-      )
-    ) || 0
+  # The repository the run's remote names, in the project's account, or 0 when
+  # the run reported no remote: a commit is only related to others through
+  # the repository's graph.
+  defp repository_id(attrs) do
+    with url when is_binary(url) and url != "" <- Map.get(attrs, :git_remote_url_origin),
+         %Project{account_id: account_id} <- Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
+         id when is_integer(id) <- GitHistory.repository_id(account_id, url) do
+      id
+    else
+      _ -> 0
+    end
   end
 
   defp insert_test_run(test, nil) do
@@ -725,24 +719,6 @@ defmodule Tuist.Tests do
   end
 
   defp create_run_changed_files(_test, _files), do: :ok
-
-  defp create_run_tracked_files(%Test{id: test_run_id, project_id: project_id}, [_ | _] = files) do
-    now = NaiveDateTime.utc_now()
-
-    TestRunTrackedFile.Buffer.insert_all(
-      Enum.map(files, fn file ->
-        %{
-          project_id: project_id,
-          test_run_id: test_run_id,
-          path: Map.fetch!(file, :path),
-          git_blob_id: Map.get(file, :git_blob_id) || "",
-          inserted_at: now
-        }
-      end)
-    )
-  end
-
-  defp create_run_tracked_files(_test, _files), do: :ok
 
   defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
     now = NaiveDateTime.utc_now()
