@@ -8477,6 +8477,9 @@ mod tests {
     /// otherwise have to catch below the root.
     #[test]
     fn a_root_the_proxy_stores_after_a_rotation_does_not_depend_on_the_upstream() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("store-node-upstream");
         let state = path_state_for(&dir.path());
         let child = store_probe_object(state, b"a child only the upstream holds");
