@@ -35,6 +35,7 @@ alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
 alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
+alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
 alias Atlas.Evidence
@@ -5838,8 +5839,6 @@ end)
 
 # Engineering postmortems: seed a couple of published incidents so the
 # /engineering/postmortems index has real content on a fresh local DB.
-alias Atlas.Engineering.Postmortems
-
 postmortem_author = Repo.get_by(User, email: "alex@atlas.dev")
 cache_domain = Repo.get_by(EngineeringDomain, name: "Cache")
 registry_domain = Repo.get_by(EngineeringDomain, name: "Registry")
@@ -5905,6 +5904,7 @@ postmortem_fixtures = [
 if postmortem_author do
   Enum.each(postmortem_fixtures, fn attrs ->
     domain_ids = attrs.domain_ids |> Enum.reject(&is_nil/1)
+
     payload = %{
       "body" => attrs.body,
       "visibility" => Atom.to_string(attrs.visibility),
@@ -5919,7 +5919,7 @@ if postmortem_author do
         pm.body |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ") == first_line
       end)
 
-    unless already_seeded? do
+    if !already_seeded? do
       {:ok, _postmortem} = Postmortems.publish_postmortem(payload, postmortem_author)
     end
   end)

@@ -78,20 +78,11 @@ defmodule Atlas.Engineering.Postmortems do
     |> Repo.get(id)
   end
 
-  def get_postmortem_by_number!(number),
-    do:
-      Postmortem
-      |> preload_postmortem()
-      |> Repo.get_by!(number: number)
+  def get_postmortem_by_number!(number), do: Postmortem |> preload_postmortem() |> Repo.get_by!(number: number)
 
-  def get_postmortem_by_number(number),
-    do:
-      Postmortem
-      |> preload_postmortem()
-      |> Repo.get_by(number: number)
+  def get_postmortem_by_number(number), do: Postmortem |> preload_postmortem() |> Repo.get_by(number: number)
 
-  def get_postmortem_by_reference(reference) when is_integer(reference),
-    do: get_postmortem_by_number(reference)
+  def get_postmortem_by_reference(reference) when is_integer(reference), do: get_postmortem_by_number(reference)
 
   def get_postmortem_by_reference(reference) when is_binary(reference) do
     reference
@@ -141,11 +132,9 @@ defmodule Atlas.Engineering.Postmortems do
     Ecto.Query.CastError -> {:error, :not_found}
   end
 
-  def change_postmortem(postmortem \\ %Postmortem{}, attrs \\ %{}),
-    do: Postmortem.changeset(postmortem, attrs)
+  def change_postmortem(postmortem \\ %Postmortem{}, attrs \\ %{}), do: Postmortem.changeset(postmortem, attrs)
 
-  def change_action_item(action_item \\ %ActionItem{}, attrs \\ %{}),
-    do: ActionItem.changeset(action_item, attrs)
+  def change_action_item(action_item \\ %ActionItem{}, attrs \\ %{}), do: ActionItem.changeset(action_item, attrs)
 
   def publish_postmortem(attrs, %User{} = user), do: persist_new_postmortem(attrs, user)
   def publish_postmortem(_attrs, _user), do: {:error, :unauthorized}
@@ -225,12 +214,7 @@ defmodule Atlas.Engineering.Postmortems do
     end
   end
 
-  def update_action_item(
-        %Postmortem{} = postmortem,
-        %ActionItem{} = action_item,
-        attrs,
-        %User{} = user
-      ) do
+  def update_action_item(%Postmortem{} = postmortem, %ActionItem{} = action_item, attrs, %User{} = user) do
     if action_item.postmortem_id == postmortem.id and can_edit?(postmortem, user) do
       action_item
       |> ActionItem.changeset(attrs)
@@ -269,12 +253,7 @@ defmodule Atlas.Engineering.Postmortems do
     set_action_item_completed(postmortem, action_item, is_nil(action_item.completed_at), user)
   end
 
-  def set_action_item_completed(
-        %Postmortem{} = postmortem,
-        %ActionItem{} = action_item,
-        completed,
-        %User{} = user
-      )
+  def set_action_item_completed(%Postmortem{} = postmortem, %ActionItem{} = action_item, completed, %User{} = user)
       when is_boolean(completed) do
     cond do
       action_item.postmortem_id != postmortem.id or not can_edit?(postmortem, user) ->
@@ -288,11 +267,10 @@ defmodule Atlas.Engineering.Postmortems do
     end
   end
 
-  def set_action_item_completed(_postmortem, _action_item, _completed, _user),
-    do: {:error, :unauthorized}
+  def set_action_item_completed(_postmortem, _action_item, _completed, _user), do: {:error, :unauthorized}
 
   defp persist_action_item_completion(postmortem, action_item, completed, user) do
-    completed_at = if completed, do: DateTime.utc_now() |> DateTime.truncate(:second), else: nil
+    completed_at = if completed, do: DateTime.utc_now() |> DateTime.truncate(:second)
 
     action =
       if completed,
@@ -418,8 +396,7 @@ defmodule Atlas.Engineering.Postmortems do
 
   defp apply_visibility(query, %User{}), do: query
 
-  defp apply_visibility(query, _user),
-    do: where(query, [postmortem], postmortem.visibility == :public)
+  defp apply_visibility(query, _user), do: where(query, [postmortem], postmortem.visibility == :public)
 
   defp apply_embedding_visibility(query, %User{}), do: query
 

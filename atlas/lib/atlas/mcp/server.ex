@@ -41,22 +41,14 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateEmailSubscriber
   alias Atlas.MCP.Tools.CreateEngineeringDomain
   alias Atlas.MCP.Tools.CreateEngineeringProject
-  alias Atlas.MCP.Tools.CreatePostmortem
-  alias Atlas.MCP.Tools.CreatePostmortemActionItem
-  alias Atlas.MCP.Tools.DeletePostmortem
-  alias Atlas.MCP.Tools.DeletePostmortemActionItem
-  alias Atlas.MCP.Tools.GetPostmortem
-  alias Atlas.MCP.Tools.GetPostmortemActionItem
-  alias Atlas.MCP.Tools.ListPostmortemActionItems
-  alias Atlas.MCP.Tools.ListPostmortems
-  alias Atlas.MCP.Tools.UpdatePostmortem
-  alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateFeatureInterest
   alias Atlas.MCP.Tools.CreateFinancing
   alias Atlas.MCP.Tools.CreateInsurancePolicy
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
+  alias Atlas.MCP.Tools.CreatePostmortem
+  alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
@@ -69,6 +61,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeletePostmortem
+  alias Atlas.MCP.Tools.DeletePostmortemActionItem
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
@@ -127,6 +121,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetPostmortem
+  alias Atlas.MCP.Tools.GetPostmortemActionItem
   alias Atlas.MCP.Tools.GetProjectErrorDsn
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
@@ -179,6 +175,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPostmortemActionItems
+  alias Atlas.MCP.Tools.ListPostmortems
   alias Atlas.MCP.Tools.ListProductTraces
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
   alias Atlas.MCP.Tools.ListSocialPostRevisions
@@ -242,6 +240,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
+  alias Atlas.MCP.Tools.UpdatePostmortem
+  alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.UpdateSocialChannelIdea
   alias Atlas.MCP.Tools.UpdateSocialPostRevision
   alias Atlas.MCP.Tools.UpdateSupportThread

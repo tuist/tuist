@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.GetPostmortemActionItem do
   @moduledoc "Fetches a single postmortem action item."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "get_postmortem_action_item",
     schema: %{
@@ -18,13 +16,14 @@ defmodule Atlas.MCP.Tools.GetPostmortemActionItem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"action_item" => PostmortemSerializers.action_item_schema()},
+      "properties" => %{"action_item" => Atlas.MCP.Tools.PostmortemSerializers.action_item_schema()},
       "required" => ["action_item"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "Fetch one action item when its postmortem is visible to the caller."

@@ -26,11 +26,7 @@ defmodule AtlasWeb.Markdown do
     render: [unsafe: false, hardbreaks: false],
     syntax_highlight: [
       formatter:
-        {:html_inline,
-         theme: "github_light",
-         pre_class: "atlas-codeblock",
-         italic: true,
-         include_highlights: true}
+        {:html_inline, theme: "github_light", pre_class: "atlas-codeblock", italic: true, include_highlights: true}
     ],
     sanitize: MDEx.Document.default_sanitize_options()
   ]
@@ -88,8 +84,8 @@ defmodule AtlasWeb.Markdown do
     ~H"""
     <.table id={@table.id} rows={@table.rows}>
       <:col
-        :for={{heading, column_index} <- Enum.with_index(@table.headings)}
         :let={row}
+        :for={{heading, column_index} <- Enum.with_index(@table.headings)}
         label={heading}
       >
         {Enum.at(row.cells, column_index)}
@@ -210,8 +206,7 @@ defmodule AtlasWeb.Markdown do
   defp node_text(%{nodes: nodes}) when is_list(nodes), do: Enum.map_join(nodes, &node_text/1)
   defp node_text(_node), do: ""
 
-  defp downshift_heading(%MDEx.Heading{level: level} = node),
-    do: %{node | level: min(level + 1, 6)}
+  defp downshift_heading(%MDEx.Heading{level: level} = node), do: %{node | level: min(level + 1, 6)}
 
   defp downshift_heading(node), do: node
 

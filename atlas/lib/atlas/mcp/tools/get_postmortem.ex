@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.GetPostmortem do
   @moduledoc "Fetches a postmortem by id or public number."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "get_postmortem",
     schema: %{
@@ -18,13 +16,14 @@ defmodule Atlas.MCP.Tools.GetPostmortem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"postmortem" => PostmortemSerializers.postmortem_schema()},
+      "properties" => %{"postmortem" => Atlas.MCP.Tools.PostmortemSerializers.postmortem_schema()},
       "required" => ["postmortem"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "Fetch one visible postmortem with its domains and action items."

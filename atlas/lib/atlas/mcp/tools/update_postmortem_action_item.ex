@@ -1,9 +1,6 @@
 defmodule Atlas.MCP.Tools.UpdatePostmortemActionItem do
   @moduledoc "Updates a postmortem action item's text or completion state."
 
-  alias Atlas.Engineering.Postmortems.ActionItem
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "update_postmortem_action_item",
     schema: %{
@@ -22,7 +19,7 @@ defmodule Atlas.MCP.Tools.UpdatePostmortemActionItem do
         },
         "priority" => %{
           "type" => "string",
-          "enum" => Enum.map(ActionItem.priorities(), &Atom.to_string/1),
+          "enum" => Enum.map(Atlas.Engineering.Postmortems.ActionItem.priorities(), &Atom.to_string/1),
           "description" => "Urgency of the follow-up work."
         },
         "completed" => %{
@@ -34,13 +31,15 @@ defmodule Atlas.MCP.Tools.UpdatePostmortemActionItem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"action_item" => PostmortemSerializers.action_item_schema()},
+      "properties" => %{"action_item" => Atlas.MCP.Tools.PostmortemSerializers.action_item_schema()},
       "required" => ["action_item"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
+  alias Atlas.Engineering.Postmortems.ActionItem
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description do

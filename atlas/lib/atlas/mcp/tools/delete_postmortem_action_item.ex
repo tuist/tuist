@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.DeletePostmortemActionItem do
   @moduledoc "Deletes a postmortem action item."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "delete_postmortem_action_item",
     schema: %{
@@ -18,13 +16,14 @@ defmodule Atlas.MCP.Tools.DeletePostmortemActionItem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"deleted_action_item" => PostmortemSerializers.action_item_schema()},
+      "properties" => %{"deleted_action_item" => Atlas.MCP.Tools.PostmortemSerializers.action_item_schema()},
       "required" => ["deleted_action_item"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "Delete a postmortem action item. Authenticated operators only."

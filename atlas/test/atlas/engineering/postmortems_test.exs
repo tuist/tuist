@@ -93,7 +93,12 @@ defmodule Atlas.Engineering.PostmortemsTest do
 
   test "creates, toggles and deletes an action item" do
     owner = user()
-    {:ok, postmortem} = Postmortems.publish_postmortem(%{"body" => "# a\n\nbb"}, owner)
+
+    {:ok, postmortem} =
+      Postmortems.publish_postmortem(
+        %{"body" => "# Title\n\nSome body text long enough to satisfy the validation."},
+        owner
+      )
 
     assert {:ok, %ActionItem{} = action_item} =
              Postmortems.create_action_item(

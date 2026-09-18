@@ -5,12 +5,12 @@ defmodule AtlasWeb.PostmortemLive.Show do
   use Noora
 
   import AtlasWeb.CoreComponents, only: []
-
   import Noora.CheckboxControl
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.Engineering.Postmortems.ActionItem
   alias AtlasWeb.Markdown
+  alias Phoenix.HTML.FormField
 
   @impl true
   def mount(%{"number" => number}, _session, socket) do
@@ -70,8 +70,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
       {:noreply, reload_postmortem(socket)}
     else
       _error ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
+        {:noreply, put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
     end
   end
 
@@ -107,8 +106,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
          |> assign_action_item_form(Map.put(changeset, :action, :validate))}
 
       nil ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
+        {:noreply, put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
     end
   end
 
@@ -126,8 +124,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
        |> reload_postmortem()}
     else
       _error ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
+        {:noreply, put_flash(socket, :error, dgettext("postmortems", "Action item not found."))}
     end
   end
 
@@ -172,7 +169,12 @@ defmodule AtlasWeb.PostmortemLive.Show do
     <section id="postmortems">
       <div data-part="header">
         <div data-part="title-group">
-          <h1>{dgettext("postmortems", "Postmortem #%{number} · %{title}", number: @postmortem.number, title: Postmortems.title(@postmortem))}</h1>
+          <h1>
+            {dgettext("postmortems", "Postmortem #%{number} · %{title}",
+              number: @postmortem.number,
+              title: Postmortems.title(@postmortem)
+            )}
+          </h1>
         </div>
         <div data-part="header-actions">
           <.button
@@ -200,7 +202,10 @@ defmodule AtlasWeb.PostmortemLive.Show do
             <div data-part="summary-item">
               <span data-part="label">{dgettext("postmortems", "Domains")}</span>
               <div :if={@postmortem.domains != []} data-part="domains">
-                <.link :for={domain <- @postmortem.domains} navigate={~p"/engineering/domains/#{domain.id}"}>
+                <.link
+                  :for={domain <- @postmortem.domains}
+                  navigate={~p"/engineering/domains/#{domain.id}"}
+                >
                   <.badge label={domain.name} color="neutral" style="light-fill" size="large" />
                 </.link>
               </div>
@@ -208,14 +213,23 @@ defmodule AtlasWeb.PostmortemLive.Show do
             </div>
             <div data-part="summary-item">
               <span data-part="label">{dgettext("postmortems", "Action items")}</span>
-              <span>{completed_action_item_count(@postmortem)}/{length(@postmortem.action_items)} {dgettext("postmortems", "complete")}</span>
+              <span>
+                {completed_action_item_count(@postmortem)}/{length(@postmortem.action_items)} {dgettext(
+                  "postmortems",
+                  "complete"
+                )}
+              </span>
             </div>
           </div>
         </.card_section>
       </.card>
       <.card icon="alert_triangle" title={dgettext("postmortems", "Postmortem")}>
         <.card_section>
-          <Markdown.content id={"postmortem-#{@postmortem.number}-body"} body={@postmortem.body} data-part="body" />
+          <Markdown.content
+            id={"postmortem-#{@postmortem.number}-body"}
+            body={@postmortem.body}
+            data-part="body"
+          />
         </.card_section>
       </.card>
       <.card icon="circle_check" title={dgettext("postmortems", "Action items")}>
@@ -230,30 +244,75 @@ defmodule AtlasWeb.PostmortemLive.Show do
             on_dismiss="close_new_action_item"
           >
             <:trigger :let={attrs}>
-              <.button label={dgettext("postmortems", "Add action item")} size="medium" variant="secondary" {attrs}>
+              <.button
+                label={dgettext("postmortems", "Add action item")}
+                size="medium"
+                variant="secondary"
+                {attrs}
+              >
                 <:icon_left><.circle_plus /></:icon_left>
               </.button>
             </:trigger>
             <:header_icon><.circle_check /></:header_icon>
             <.line_divider />
-            <.form for={@action_item_form} id="new-action-item" phx-submit="create_action_item" data-part="action-item-form">
-              <.text_input id="new-action-item-title" field={@action_item_form[:title]} label={dgettext("postmortems", "Title")} placeholder={dgettext("postmortems", "Describe the follow-up work")} />
-              <.action_item_priority_select id="new-action-item-priority" field={@action_item_form[:priority]} />
-              <.text_area field={@action_item_form[:description]} label={dgettext("postmortems", "Description (optional)")} rows={4} max_length={5_000} />
-              <.text_input field={@action_item_form[:resolution_url]} label={dgettext("postmortems", "Resolution link (optional)")} placeholder="https://github.com/tuist/tuist/pull/123" />
+            <.form
+              for={@action_item_form}
+              id="new-action-item"
+              phx-submit="create_action_item"
+              data-part="action-item-form"
+            >
+              <.text_input
+                id="new-action-item-title"
+                field={@action_item_form[:title]}
+                label={dgettext("postmortems", "Title")}
+                placeholder={dgettext("postmortems", "Describe the follow-up work")}
+              />
+              <.action_item_priority_select
+                id="new-action-item-priority"
+                field={@action_item_form[:priority]}
+              />
+              <.text_area
+                field={@action_item_form[:description]}
+                label={dgettext("postmortems", "Description (optional)")}
+                rows={4}
+                max_length={5_000}
+              />
+              <.text_input
+                field={@action_item_form[:resolution_url]}
+                label={dgettext("postmortems", "Resolution link (optional)")}
+                placeholder="https://github.com/tuist/tuist/pull/123"
+              />
             </.form>
             <.line_divider />
             <:footer>
               <.modal_footer>
-                <:action><.button label={dgettext("postmortems", "Cancel")} type="button" size="medium" variant="secondary" phx-click="close_new_action_item" /></:action>
-                <:action><.button label={dgettext("postmortems", "Add action item")} type="submit" form="new-action-item" size="medium" variant="primary" /></:action>
+                <:action>
+                  <.button
+                    label={dgettext("postmortems", "Cancel")}
+                    type="button"
+                    size="medium"
+                    variant="secondary"
+                    phx-click="close_new_action_item"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    label={dgettext("postmortems", "Add action item")}
+                    type="submit"
+                    form="new-action-item"
+                    size="medium"
+                    variant="primary"
+                  />
+                </:action>
               </.modal_footer>
             </:footer>
           </.modal>
         </:actions>
         <.card_section>
           <div data-part="action-items">
-            <p :if={@postmortem.action_items == []} data-part="empty-action-items">{dgettext("postmortems", "No action items have been added.")}</p>
+            <p :if={@postmortem.action_items == []} data-part="empty-action-items">
+              {dgettext("postmortems", "No action items have been added.")}
+            </p>
             <.table
               :if={@postmortem.action_items != []}
               id="postmortem-action-items-table"
@@ -266,17 +325,26 @@ defmodule AtlasWeb.PostmortemLive.Show do
                 <.action_item_cell action_item={action_item} can_edit?={@can_edit?} />
               </:col>
               <:col :let={action_item} label={dgettext("postmortems", "Priority")}>
-                <.badge_cell label={priority_label(action_item.priority)} color={priority_color(action_item.priority)} style="light-fill" />
+                <.badge_cell
+                  label={priority_label(action_item.priority)}
+                  color={priority_color(action_item.priority)}
+                  style="light-fill"
+                />
               </:col>
               <:col :let={action_item} label={dgettext("postmortems", "Status")}>
                 <.badge_cell
-                  label={if action_item.completed_at, do: dgettext("postmortems", "Completed"), else: dgettext("postmortems", "Open")}
+                  label={
+                    if action_item.completed_at,
+                      do: dgettext("postmortems", "Completed"),
+                      else: dgettext("postmortems", "Open")
+                  }
                   color={if action_item.completed_at, do: "success", else: "neutral"}
                   style="light-fill"
                 />
               </:col>
-              <:col :if={@can_edit?} :let={action_item} label="">
-                <% edit_form = action_item_form(action_item, @editing_action_item_id, @action_item_form) %>
+              <:col :let={action_item} :if={@can_edit?} label="">
+                <% edit_form =
+                  action_item_form(action_item, @editing_action_item_id, @action_item_form) %>
                 <.button_cell>
                   <:button>
                     <.modal
@@ -288,23 +356,72 @@ defmodule AtlasWeb.PostmortemLive.Show do
                       on_dismiss="close_action_item_modal"
                     >
                       <:trigger :let={attrs}>
-                        <.button label={dgettext("postmortems", "Edit action item")} title={dgettext("postmortems", "Edit action item")} type="button" size="large" variant="secondary" icon_only={true} {attrs}>
+                        <.button
+                          label={dgettext("postmortems", "Edit action item")}
+                          title={dgettext("postmortems", "Edit action item")}
+                          type="button"
+                          size="large"
+                          variant="secondary"
+                          icon_only={true}
+                          {attrs}
+                        >
                           <.pencil />
                         </.button>
                       </:trigger>
                       <:header_icon><.pencil /></:header_icon>
                       <.line_divider />
-                      <.form for={edit_form} id={"edit-action-item-#{action_item.id}"} phx-submit="update_action_item" phx-value-id={action_item.id} data-part="action-item-form">
-                        <.text_input id={"edit-action-item-title-#{action_item.id}"} field={edit_form[:title]} label={dgettext("postmortems", "Title")} />
-                        <.action_item_priority_select id={"edit-action-item-priority-#{action_item.id}"} field={edit_form[:priority]} />
-                        <.text_area id={"edit-action-item-description-#{action_item.id}"} field={edit_form[:description]} label={dgettext("postmortems", "Description (optional)")} rows={4} max_length={5_000} />
-                        <.text_input id={"edit-action-item-resolution-url-#{action_item.id}"} field={edit_form[:resolution_url]} label={dgettext("postmortems", "Resolution link (optional)")} placeholder="https://github.com/tuist/tuist/pull/123" />
+                      <.form
+                        for={edit_form}
+                        id={"edit-action-item-#{action_item.id}"}
+                        phx-submit="update_action_item"
+                        phx-value-id={action_item.id}
+                        data-part="action-item-form"
+                      >
+                        <.text_input
+                          id={"edit-action-item-title-#{action_item.id}"}
+                          field={edit_form[:title]}
+                          label={dgettext("postmortems", "Title")}
+                        />
+                        <.action_item_priority_select
+                          id={"edit-action-item-priority-#{action_item.id}"}
+                          field={edit_form[:priority]}
+                        />
+                        <.text_area
+                          id={"edit-action-item-description-#{action_item.id}"}
+                          field={edit_form[:description]}
+                          label={dgettext("postmortems", "Description (optional)")}
+                          rows={4}
+                          max_length={5_000}
+                        />
+                        <.text_input
+                          id={"edit-action-item-resolution-url-#{action_item.id}"}
+                          field={edit_form[:resolution_url]}
+                          label={dgettext("postmortems", "Resolution link (optional)")}
+                          placeholder="https://github.com/tuist/tuist/pull/123"
+                        />
                       </.form>
                       <.line_divider />
                       <:footer>
                         <.modal_footer>
-                          <:action><.button label={dgettext("postmortems", "Cancel")} type="button" size="medium" variant="secondary" phx-click="close_action_item_modal" phx-value-id={"edit-action-item-modal-#{action_item.id}"} /></:action>
-                          <:action><.button label={dgettext("postmortems", "Save changes")} type="submit" form={"edit-action-item-#{action_item.id}"} size="medium" variant="primary" /></:action>
+                          <:action>
+                            <.button
+                              label={dgettext("postmortems", "Cancel")}
+                              type="button"
+                              size="medium"
+                              variant="secondary"
+                              phx-click="close_action_item_modal"
+                              phx-value-id={"edit-action-item-modal-#{action_item.id}"}
+                            />
+                          </:action>
+                          <:action>
+                            <.button
+                              label={dgettext("postmortems", "Save changes")}
+                              type="submit"
+                              form={"edit-action-item-#{action_item.id}"}
+                              size="medium"
+                              variant="primary"
+                            />
+                          </:action>
                         </.modal_footer>
                       </:footer>
                     </.modal>
@@ -330,11 +447,17 @@ defmodule AtlasWeb.PostmortemLive.Show do
                 <div data-part="action-item-details">
                   <div :if={has_description?(action_item)} data-part="detail">
                     <span data-part="label">{dgettext("postmortems", "Description")}</span>
-                    <Markdown.content id={"#{action_item_key(action_item)}-description"} body={action_item.description} data-part="description" />
+                    <Markdown.content
+                      id={"#{action_item_key(action_item)}-description"}
+                      body={action_item.description}
+                      data-part="description"
+                    />
                   </div>
                   <div :if={has_resolution_url?(action_item)} data-part="detail">
                     <span data-part="label">{dgettext("postmortems", "Resolved by")}</span>
-                    <.link href={action_item.resolution_url} target="_blank" rel="noopener noreferrer">{action_item.resolution_url}</.link>
+                    <.link href={action_item.resolution_url} target="_blank" rel="noopener noreferrer">
+                      {action_item.resolution_url}
+                    </.link>
                   </div>
                 </div>
               </:expanded_content>
@@ -355,7 +478,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
     do: to_form(Postmortems.change_action_item(action_item), as: :action_item)
 
   attr :id, :string, required: true
-  attr :field, Phoenix.HTML.FormField, required: true
+  attr :field, FormField, required: true
 
   defp action_item_priority_select(assigns) do
     ~H"""
@@ -367,7 +490,11 @@ defmodule AtlasWeb.PostmortemLive.Show do
         value={Phoenix.HTML.Form.normalize_value("select", @field.value)}
         label={dgettext("postmortems", "Choose priority")}
       >
-        <:item :for={priority <- ActionItem.priorities()} value={to_string(priority)} label={priority_label(priority)} />
+        <:item
+          :for={priority <- ActionItem.priorities()}
+          value={to_string(priority)}
+          label={priority_label(priority)}
+        />
       </.select>
     </div>
     """
@@ -391,15 +518,22 @@ defmodule AtlasWeb.PostmortemLive.Show do
 
   defp action_item_control(assigns) do
     ~H"""
-    <button :if={@can_edit?} type="button" data-part="action-item-toggle" phx-click="toggle_action_item" phx-value-id={@action_item.id} title={dgettext("postmortems", "Toggle action item status")} aria-label={dgettext("postmortems", "Toggle action item status")}>
+    <button
+      :if={@can_edit?}
+      type="button"
+      data-part="action-item-toggle"
+      phx-click="toggle_action_item"
+      phx-value-id={@action_item.id}
+      title={dgettext("postmortems", "Toggle action item status")}
+      aria-label={dgettext("postmortems", "Toggle action item status")}
+    >
       <.checkbox_control checked={not is_nil(@action_item.completed_at)} />
     </button>
     <.check :if={!@can_edit? and @action_item.completed_at} />
     """
   end
 
-  defp has_description?(%{description: description}) when is_binary(description),
-    do: String.trim(description) != ""
+  defp has_description?(%{description: description}) when is_binary(description), do: String.trim(description) != ""
 
   defp has_description?(_action_item), do: false
 
@@ -408,8 +542,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
 
   defp has_resolution_url?(_action_item), do: false
 
-  defp has_details?(action_item),
-    do: has_description?(action_item) or has_resolution_url?(action_item)
+  defp has_details?(action_item), do: has_description?(action_item) or has_resolution_url?(action_item)
 
   defp action_item_key(%ActionItem{id: id}), do: "action-item-#{id}"
 
@@ -424,21 +557,13 @@ defmodule AtlasWeb.PostmortemLive.Show do
   defp priority_color(:low), do: "neutral"
 
   defp reload_postmortem(socket),
-    do:
-      assign(
-        socket,
-        :postmortem,
-        Postmortems.get_postmortem_by_number!(socket.assigns.postmortem.number)
-      )
+    do: assign(socket, :postmortem, Postmortems.get_postmortem_by_number!(socket.assigns.postmortem.number))
 
-  defp find_action_item(socket, id),
-    do: Enum.find(socket.assigns.postmortem.action_items, &(&1.id == id))
+  defp find_action_item(socket, id), do: Enum.find(socket.assigns.postmortem.action_items, &(&1.id == id))
 
-  defp completed_action_item_count(postmortem),
-    do: Enum.count(postmortem.action_items, & &1.completed_at)
+  defp completed_action_item_count(postmortem), do: Enum.count(postmortem.action_items, & &1.completed_at)
 
-  defp author_label(%{created_by_user: %{name: name}}) when is_binary(name) and name != "",
-    do: name
+  defp author_label(%{created_by_user: %{name: name}}) when is_binary(name) and name != "", do: name
 
   defp author_label(%{created_by_user: %{email: email}}) when is_binary(email), do: email
   defp author_label(_postmortem), do: dgettext("postmortems", "Atlas")

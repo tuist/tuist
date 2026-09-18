@@ -6,7 +6,12 @@ defmodule Atlas.MCP.Tools.GetPostmortemTest do
 
   test "fetches a postmortem by public number" do
     user = insert_user!()
-    {:ok, postmortem} = Postmortems.publish_postmortem(%{"body" => "# a\n\nbb"}, user)
+
+    {:ok, postmortem} =
+      Postmortems.publish_postmortem(
+        %{"body" => "# Title\n\nSome body text long enough to satisfy the validation."},
+        user
+      )
 
     assert {:ok, %{"postmortem" => payload}} =
              execute_tool(GetPostmortem, conn_for(user), %{

@@ -4,7 +4,9 @@ defmodule Atlas.Repo.Migrations.MakePostmortemDomainsManyToMany do
   def up do
     create table(:domains_postmortems, primary_key: false) do
       add :domain_id, references(:domains, type: :binary_id, on_delete: :delete_all), null: false
-      add :postmortem_id, references(:postmortems, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :postmortem_id, references(:postmortems, type: :binary_id, on_delete: :delete_all),
+        null: false
     end
 
     create unique_index(:domains_postmortems, [:domain_id, :postmortem_id])

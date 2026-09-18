@@ -5,6 +5,10 @@ defmodule Atlas.Engineering.Postmortems.Postmortem do
 
   import Ecto.Changeset
 
+  alias Atlas.Engineering.Domains.Domain
+  alias Atlas.Engineering.Postmortems.ActionItem
+  alias Atlas.Users.User
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @visibilities [:public, :private]
@@ -14,15 +18,15 @@ defmodule Atlas.Engineering.Postmortems.Postmortem do
     field :body, :string
     field :visibility, Ecto.Enum, values: @visibilities, default: :public
 
-    belongs_to :created_by_user, Atlas.Users.User
+    belongs_to :created_by_user, User
     field :domain_ids, {:array, :binary_id}, virtual: true
 
-    many_to_many :domains, Atlas.Engineering.Domains.Domain,
+    many_to_many :domains, Domain,
       join_through: "domains_postmortems",
       join_keys: [postmortem_id: :id, domain_id: :id],
       on_replace: :delete
 
-    has_many :action_items, Atlas.Engineering.Postmortems.ActionItem
+    has_many :action_items, ActionItem
 
     timestamps(type: :utc_datetime)
   end

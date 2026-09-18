@@ -8,6 +8,7 @@ defmodule AtlasWeb.PostmortemLive.Index do
 
   alias Atlas.Engineering.Postmortems
   alias AtlasWeb.Markdown
+  alias Noora.Filter.Filter
   alias Noora.Filter.Operations
 
   @page_size 20
@@ -78,7 +79,7 @@ defmodule AtlasWeb.PostmortemLive.Index do
 
   defp available_filters do
     [
-      %Noora.Filter.Filter{
+      %Filter{
         id: "published",
         field: :published,
         display_name: dgettext("postmortems", "Published"),
@@ -117,7 +118,9 @@ defmodule AtlasWeb.PostmortemLive.Index do
       <div data-part="header">
         <div data-part="title-group">
           <h1>{dgettext("postmortems", "Postmortems")}</h1>
-          <p>{dgettext("postmortems", "Published accounts of incidents and what we learned from them.")}</p>
+          <p>
+            {dgettext("postmortems", "Published accounts of incidents and what we learned from them.")}
+          </p>
         </div>
         <div data-part="header-actions">
           <.button
@@ -222,8 +225,7 @@ defmodule AtlasWeb.PostmortemLive.Index do
     """
   end
 
-  defp author_name(%{created_by_user: %{name: name}}) when is_binary(name) and name != "",
-    do: name
+  defp author_name(%{created_by_user: %{name: name}}) when is_binary(name) and name != "", do: name
 
   defp author_name(%{created_by_user: %{email: email}}) when is_binary(email), do: email
   defp author_name(_postmortem), do: dgettext("postmortems", "Unknown")

@@ -4,7 +4,10 @@ defmodule Atlas.Repo.Migrations.CreatePostmortemEmbeddings do
   def change do
     create table(:postmortem_embeddings, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :postmortem_id, references(:postmortems, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :postmortem_id, references(:postmortems, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :content_hash, :string, null: false
       add :status, :string, null: false, default: "pending"
       add :embedding, {:array, :float}

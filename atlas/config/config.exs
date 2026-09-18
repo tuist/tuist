@@ -7,15 +7,6 @@
 # General application configuration
 import Config
 
-config :mdex_native, syntax_highlighter: :lumis
-
-# Configure the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
 alias Atlas.Accounts.Workers.DeliverDueAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
@@ -45,6 +36,15 @@ alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 alias Ueberauth.Strategy.Google
 
+config :mdex_native, syntax_highlighter: :lumis
+
+# Configure the mailer
+#
+# By default it uses the "Local" adapter which stores the emails
+# locally. You can see the emails in your browser, at "/dev/mailbox".
+#
+# For production it's recommended to configure a different adapter
+# at the `config/runtime.exs`.
 llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)

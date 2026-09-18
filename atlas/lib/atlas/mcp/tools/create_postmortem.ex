@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.CreatePostmortem do
   @moduledoc "Publishes a postmortem."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "create_postmortem",
     schema: %{
@@ -21,13 +19,14 @@ defmodule Atlas.MCP.Tools.CreatePostmortem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"postmortem" => PostmortemSerializers.postmortem_schema()},
+      "properties" => %{"postmortem" => Atlas.MCP.Tools.PostmortemSerializers.postmortem_schema()},
       "required" => ["postmortem"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "Publish a postmortem. Authenticated operators only."

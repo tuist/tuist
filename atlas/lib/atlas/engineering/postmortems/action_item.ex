@@ -5,6 +5,8 @@ defmodule Atlas.Engineering.Postmortems.ActionItem do
 
   import Ecto.Changeset
 
+  alias Atlas.Engineering.Postmortems.Postmortem
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @priorities [:immediate, :high, :medium, :low]
@@ -16,7 +18,7 @@ defmodule Atlas.Engineering.Postmortems.ActionItem do
     field :priority, Ecto.Enum, values: @priorities, default: :medium
     field :completed_at, :utc_datetime
 
-    belongs_to :postmortem, Atlas.Engineering.Postmortems.Postmortem
+    belongs_to :postmortem, Postmortem
 
     timestamps(type: :utc_datetime)
   end

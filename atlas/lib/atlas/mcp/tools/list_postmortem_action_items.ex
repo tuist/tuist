@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.ListPostmortemActionItems do
   @moduledoc "Lists the action items on a postmortem."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "list_postmortem_action_items",
     schema: %{
@@ -21,7 +19,7 @@ defmodule Atlas.MCP.Tools.ListPostmortemActionItems do
       "properties" => %{
         "action_items" => %{
           "type" => "array",
-          "items" => PostmortemSerializers.action_item_schema()
+          "items" => Atlas.MCP.Tools.PostmortemSerializers.action_item_schema()
         }
       },
       "required" => ["action_items"],
@@ -30,6 +28,7 @@ defmodule Atlas.MCP.Tools.ListPostmortemActionItems do
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "List the action items belonging to one visible postmortem."

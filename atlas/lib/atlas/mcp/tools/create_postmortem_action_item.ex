@@ -1,9 +1,6 @@
 defmodule Atlas.MCP.Tools.CreatePostmortemActionItem do
   @moduledoc "Creates an action item on a postmortem."
 
-  alias Atlas.Engineering.Postmortems.ActionItem
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "create_postmortem_action_item",
     schema: %{
@@ -22,7 +19,7 @@ defmodule Atlas.MCP.Tools.CreatePostmortemActionItem do
         },
         "priority" => %{
           "type" => "string",
-          "enum" => Enum.map(ActionItem.priorities(), &Atom.to_string/1),
+          "enum" => Enum.map(Atlas.Engineering.Postmortems.ActionItem.priorities(), &Atom.to_string/1),
           "description" => "Urgency of the follow-up work. Defaults to medium."
         }
       },
@@ -30,13 +27,15 @@ defmodule Atlas.MCP.Tools.CreatePostmortemActionItem do
     },
     output_schema: %{
       "type" => "object",
-      "properties" => %{"action_item" => PostmortemSerializers.action_item_schema()},
+      "properties" => %{"action_item" => Atlas.MCP.Tools.PostmortemSerializers.action_item_schema()},
       "required" => ["action_item"],
       "additionalProperties" => false
     }
 
   alias Atlas.Engineering.Postmortems
+  alias Atlas.Engineering.Postmortems.ActionItem
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "Create an action item for a postmortem. Authenticated operators only."

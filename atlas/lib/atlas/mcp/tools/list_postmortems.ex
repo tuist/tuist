@@ -1,8 +1,6 @@
 defmodule Atlas.MCP.Tools.ListPostmortems do
   @moduledoc "Lists visible postmortems."
 
-  alias Atlas.MCP.Tools.PostmortemSerializers
-
   use Atlas.MCP.Tool,
     name: "list_postmortems",
     schema: %{"type" => "object", "properties" => %{}, "additionalProperties" => false},
@@ -11,7 +9,7 @@ defmodule Atlas.MCP.Tools.ListPostmortems do
       "properties" => %{
         "postmortems" => %{
           "type" => "array",
-          "items" => PostmortemSerializers.postmortem_schema()
+          "items" => Atlas.MCP.Tools.PostmortemSerializers.postmortem_schema()
         }
       },
       "required" => ["postmortems"],
@@ -20,6 +18,7 @@ defmodule Atlas.MCP.Tools.ListPostmortems do
 
   alias Atlas.Engineering.Postmortems
   alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.PostmortemSerializers
 
   @impl EMCP.Tool
   def description, do: "List the postmortems visible to the caller."

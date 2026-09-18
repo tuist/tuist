@@ -99,8 +99,7 @@ defmodule AtlasWeb.PostmortemLive.Form do
     end
   end
 
-  defp assign_form(socket, changeset),
-    do: assign(socket, :form, to_form(changeset, as: :postmortem))
+  defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset, as: :postmortem))
 
   @impl true
   def render(assigns) do
@@ -108,8 +107,17 @@ defmodule AtlasWeb.PostmortemLive.Form do
     <section id="postmortems">
       <div data-part="header">
         <div data-part="title-group">
-          <h1>{if @live_action == :new, do: dgettext("postmortems", "Publish postmortem"), else: dgettext("postmortems", "Edit postmortem")}</h1>
-          <p>{dgettext("postmortems", "Write the complete postmortem in Markdown. Its first level-one heading becomes the display title.")}</p>
+          <h1>
+            {if @live_action == :new,
+              do: dgettext("postmortems", "Publish postmortem"),
+              else: dgettext("postmortems", "Edit postmortem")}
+          </h1>
+          <p>
+            {dgettext(
+              "postmortems",
+              "Write the complete postmortem in Markdown. Its first level-one heading becomes the display title."
+            )}
+          </p>
         </div>
       </div>
       <.card icon="alert_triangle" title={dgettext("postmortems", "Postmortem")}>
@@ -118,7 +126,7 @@ defmodule AtlasWeb.PostmortemLive.Form do
             <.text_area
               field={@form[:body]}
               label={dgettext("postmortems", "Markdown body")}
-              placeholder={"# Incident title\n\nWhat happened?"}
+              placeholder="# Incident title\n\nWhat happened?"
               rows={20}
               max_length={100_000}
             />
@@ -158,7 +166,11 @@ defmodule AtlasWeb.PostmortemLive.Form do
             </div>
             <div data-part="form-actions">
               <.button
-                label={if @live_action == :new, do: dgettext("postmortems", "Publish"), else: dgettext("postmortems", "Save changes")}
+                label={
+                  if @live_action == :new,
+                    do: dgettext("postmortems", "Publish"),
+                    else: dgettext("postmortems", "Save changes")
+                }
                 size="medium"
                 variant="primary"
                 type="submit"
