@@ -957,6 +957,14 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context(rollups: fitting_days(29, @today))) == :none
     end
 
+    test "today's live row vetoes the shrink once the ring has evicted" do
+      rollups =
+        fitting_days(30, Date.add(@today, -1)) ++
+          [rollup(@today, snapshot_count: 12, max_occupancy_percent: 100, eviction_count: 3)]
+
+      assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+    end
+
     test "a shrink needs its whole window after the last resize" do
       rollups = fitting_days(30, @today)
 
@@ -1096,6 +1104,29 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "a window shorter than a month withholds the proposal" do
       assert ClaimSizing.evaluate(retention_context(rollups: long_retention_days(29, @today))) == :none
+    end
+
+    test "today's live row vetoes the shrink once it has shed content young" do
+      # A month of ten days, then two days today: today is incomplete, but
+      # what it has already shed is a measurement against shrinking.
+      rollups =
+        long_retention_days(30, Date.add(@today, -1)) ++
+          long_retention_days(1, @today, median_shed_age_seconds: 2 * @day_seconds)
+
+      assert ClaimSizing.evaluate(retention_context(rollups: rollups)) == :none
+    end
+
+    test "today's live row that has not reported yet neither counts nor vetoes" do
+      window = long_retention_days(30, Date.add(@today, -1))
+
+      assert {:shrink, "25Gi", _evidence} = ClaimSizing.evaluate(retention_context(rollups: window))
+
+      # Evictions arrive before the day's first snapshot: long ones say
+      # nothing against shrinking, and without a snapshot they do not count.
+      unreported = long_retention_days(1, @today, snapshot_count: 0)
+
+      assert {:shrink, "25Gi", evidence} = ClaimSizing.evaluate(retention_context(rollups: window ++ unreported))
+      assert evidence["window_days"] == 30
     end
 
     test "days at or before the last resize measured the previous ring" do
