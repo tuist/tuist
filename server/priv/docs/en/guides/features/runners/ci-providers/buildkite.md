@@ -1,7 +1,7 @@
 ---
 {
   "title": "Buildkite",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
+  "titleTemplate": ":title · CI providers · Runners · Features · Guides · Tuist",
   "description": "Run your first Buildkite job on Tuist Runners: connect your cluster, name a queue after a Tuist profile, and target it from a step."
 }
 ---
@@ -11,14 +11,6 @@
 > **Invite-only**
 >
 > Tuist Runners are currently invite-only. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
-
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - A Buildkite [cluster](https://buildkite.com/docs/pipelines/clusters) with at least one self-hosted queue
-
 
 Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs it finds there on the fleet. Your pipelines keep running on Buildkite; only the compute changes. Running a job on the fleet takes three changes: connect your cluster, name a queue after a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and target it from a step.
 

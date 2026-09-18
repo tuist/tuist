@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Selective testing",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Use Tuist Selective Testing to run only the Xcode tests affected by your latest changes."
+  "title": "Generated Xcode project",
+  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
+  "description": "Run only the Xcode and generated-project tests affected by your latest changes with Tuist Selective Testing, so continuous integration lands feedback in seconds."
 }
 ---
-# Selective testing {#selective-testing}
+# Generated Xcode project {#generated-xcode-project}
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
 

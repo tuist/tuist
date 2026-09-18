@@ -197,6 +197,17 @@ defmodule AtlasWeb.ProjectLive.Show do
               max_length={500}
               rows={4}
             />
+            <.text_input
+              id="project-slack-alert-channel"
+              field={@project_form[:slack_alert_channel]}
+              label={gettext("Slack alert channel")}
+              placeholder="#alerts-atlas"
+              hint={
+                gettext(
+                  "Slack channel error alerts for this project are posted to. Leave empty to fall back to the organization-wide default."
+                )
+              }
+            />
             <div data-part="select-field">
               <span>{gettext("Visibility")}</span>
               <.select
@@ -835,7 +846,7 @@ defmodule AtlasWeb.ProjectLive.Show do
   end
 
   defp do_create_webhook(socket, params) do
-    case Webhooks.create(socket.assigns.project, params) do
+    case Projects.create_webhook(socket.assigns.project, params) do
       {:ok, {webhook, token}} ->
         url = webhook_ingest_url(socket.assigns.project.id, webhook.source, token)
 
@@ -862,7 +873,7 @@ defmodule AtlasWeb.ProjectLive.Show do
         {:noreply, socket}
 
       webhook ->
-        {:ok, _} = Webhooks.delete(webhook)
+        {:ok, _} = Projects.delete_webhook(socket.assigns.project, webhook)
 
         {:noreply,
          socket

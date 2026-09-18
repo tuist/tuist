@@ -173,25 +173,34 @@ defmodule Tuist.Docs.Sidebar do
         category: "Guides",
         items: [
           %Item{
+            label: "Install Tuist",
+            slug: "/en/guides/install-tuist",
+            icon: "download"
+          },
+          %Item{
             label: "Get started",
             slug: "/en/guides/get-started",
             icon: "bulb",
             items: [
               %Item{
-                label: "Observe",
-                slug: "/en/guides/get-started/observability"
+                label: "Xcode project",
+                slug: "/en/guides/get-started/existing-xcode-project",
+                icon: "brand_apple"
               },
               %Item{
-                label: "Optimize",
-                slug: "/en/guides/get-started/optimization"
+                label: "Generated Xcode project",
+                slug: "/en/guides/get-started/generated-xcode-project",
+                icon: "brand_apple"
               },
               %Item{
-                label: "Run",
-                slug: "/en/guides/get-started/tuist-runners"
+                label: "Gradle project",
+                slug: "/en/guides/get-started/gradle-project",
+                icon: "brand_gradle"
               },
               %Item{
-                label: "Ask",
-                slug: "/en/guides/get-started/ask"
+                label: "Bazel project",
+                slug: "/en/guides/get-started/bazel-project",
+                icon: "brand_bazel"
               }
             ]
           }
@@ -205,20 +214,24 @@ defmodule Tuist.Docs.Sidebar do
             label: "Cache",
             slug: "/en/guides/features/cache",
             items: [
-              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
-              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"},
-              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache"}
+              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "brand_apple"},
+              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "brand_apple"},
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "brand_gradle"},
+              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"}
             ]
           },
           %Item{
             label: "Build insights",
             slug: "/en/guides/features/build-insights",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode"},
-              %Item{label: "Generated projects", slug: "/en/guides/features/build-insights/generated-projects"},
-              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel"}
+              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "brand_apple"},
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/build-insights/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"}
             ]
           }
         ]
@@ -227,14 +240,24 @@ defmodule Tuist.Docs.Sidebar do
         label: "Tests",
         weight: :medium,
         items: [
-          %Item{label: "Selective testing", slug: "/en/guides/features/selective-testing"},
+          %Item{
+            label: "Selective testing",
+            slug: "/en/guides/features/selective-testing",
+            items: [
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/selective-testing/generated-xcode-project",
+                icon: "brand_apple"
+              }
+            ]
+          },
           %Item{
             label: "Test insights",
             slug: "/en/guides/features/test-insights",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel"}
+              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "brand_gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"}
             ]
           },
           %Item{
@@ -243,19 +266,23 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{
                 label: "Xcode",
-                slug: "/en/guides/features/test-insights/flaky-tests/xcode"
+                slug: "/en/guides/features/test-insights/flaky-tests/xcode",
+                icon: "brand_apple"
               },
               %Item{
-                label: "Generated projects",
-                slug: "/en/guides/features/test-insights/flaky-tests/generated-projects"
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-insights/flaky-tests/generated-xcode-project",
+                icon: "brand_apple"
               },
               %Item{
                 label: "Gradle",
-                slug: "/en/guides/features/test-insights/flaky-tests/gradle"
+                slug: "/en/guides/features/test-insights/flaky-tests/gradle",
+                icon: "brand_gradle"
               },
               %Item{
                 label: "Bazel",
-                slug: "/en/guides/features/test-insights/flaky-tests/bazel"
+                slug: "/en/guides/features/test-insights/flaky-tests/bazel",
+                icon: "brand_bazel"
               }
             ]
           },
@@ -263,12 +290,13 @@ defmodule Tuist.Docs.Sidebar do
             label: "Test sharding",
             slug: "/en/guides/features/test-sharding",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode"},
+              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "brand_apple"},
               %Item{
-                label: "Generated projects",
-                slug: "/en/guides/features/test-sharding/generated-projects"
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-sharding/generated-xcode-project",
+                icon: "brand_apple"
               },
-              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"}
             ]
           }
         ]
@@ -281,11 +309,32 @@ defmodule Tuist.Docs.Sidebar do
             label: "Runners",
             slug: "/en/guides/features/runners",
             items: [
-              %Item{label: "GitHub Actions", slug: "/en/guides/features/runners/github-actions"},
-              %Item{label: "Buildkite", slug: "/en/guides/features/runners/buildkite"},
-              %Item{label: "GitLab CI", slug: "/en/guides/features/runners/gitlab-ci"},
+              %Item{
+                label: "CI providers",
+                items: [
+                  %Item{
+                    label: "GitHub Actions",
+                    slug: "/en/guides/features/runners/ci-providers/github-actions",
+                    icon: "brand_github"
+                  },
+                  %Item{
+                    label: "Buildkite",
+                    slug: "/en/guides/features/runners/ci-providers/buildkite",
+                    icon: "brand_buildkite"
+                  },
+                  %Item{
+                    label: "GitLab CI",
+                    slug: "/en/guides/features/runners/ci-providers/gitlab-ci",
+                    icon: "brand_gitlab"
+                  }
+                ]
+              },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
-              %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
+              %Item{
+                label: "Docker",
+                slug: "/en/guides/features/runners/docker",
+                icon: "brand_docker"
+              }
             ]
           }
         ]
@@ -295,7 +344,22 @@ defmodule Tuist.Docs.Sidebar do
         weight: :medium,
         items: [
           %Item{label: "Previews", slug: "/en/guides/features/previews"},
-          %Item{label: "Bundle size", slug: "/en/guides/features/bundle-size"}
+          %Item{
+            label: "Bundle insights",
+            slug: "/en/guides/features/bundle-insights",
+            items: [
+              %Item{
+                label: "Apple",
+                slug: "/en/guides/features/bundle-insights/apple",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Android",
+                slug: "/en/guides/features/bundle-insights/android",
+                icon: "brand_android"
+              }
+            ]
+          }
         ]
       },
       %Group{
@@ -305,6 +369,7 @@ defmodule Tuist.Docs.Sidebar do
           %Item{
             label: "Generated projects",
             slug: "/en/guides/features/projects",
+            icon: "brand_apple",
             items: [
               %Item{
                 label: "Adoption",
@@ -322,7 +387,8 @@ defmodule Tuist.Docs.Sidebar do
                     items: [
                       %Item{
                         label: "Xcode project",
-                        slug: "/en/guides/features/projects/adoption/migrate/xcode-project"
+                        slug: "/en/guides/features/projects/adoption/migrate/xcode-project",
+                        icon: "brand_apple"
                       },
                       %Item{
                         label: "Swift package",
@@ -334,7 +400,8 @@ defmodule Tuist.Docs.Sidebar do
                       },
                       %Item{
                         label: "Bazel project",
-                        slug: "/en/guides/features/projects/adoption/migrate/bazel-project"
+                        slug: "/en/guides/features/projects/adoption/migrate/bazel-project",
+                        icon: "brand_bazel"
                       }
                     ]
                   }
@@ -381,25 +448,34 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Registry",
-            slug: "/en/guides/features/registry",
+            label: "Package Registries",
             items: [
-              %Item{label: "Xcode project", slug: "/en/guides/features/registry/xcode-project"},
               %Item{
-                label: "Generated project",
-                slug: "/en/guides/features/registry/generated-project"
-              },
-              %Item{
-                label: "Xcodeproj integration",
-                slug: "/en/guides/features/registry/xcodeproj-integration"
-              },
-              %Item{
-                label: "Swift package",
-                slug: "/en/guides/features/registry/swift-package"
-              },
-              %Item{
-                label: "Continuous integration",
-                slug: "/en/guides/features/registry/continuous-integration"
+                label: "Swift",
+                slug: "/en/guides/features/package-registries/swift",
+                icon: "brand_swift",
+                items: [
+                  %Item{
+                    label: "Xcode project",
+                    slug: "/en/guides/features/package-registries/swift/xcode-project"
+                  },
+                  %Item{
+                    label: "Generated project",
+                    slug: "/en/guides/features/package-registries/swift/generated-project"
+                  },
+                  %Item{
+                    label: "Xcodeproj integration",
+                    slug: "/en/guides/features/package-registries/swift/xcodeproj-integration"
+                  },
+                  %Item{
+                    label: "Swift package",
+                    slug: "/en/guides/features/package-registries/swift/swift-package"
+                  },
+                  %Item{
+                    label: "Continuous integration",
+                    slug: "/en/guides/features/package-registries/swift/continuous-integration"
+                  }
+                ]
               }
             ]
           },

@@ -43,7 +43,7 @@ image:
 # One replica, no autoscaling, no PodDisruptionBudget: HA isn't achievable
 # (or needed) on a single node, and a PDB would block node drains during
 # cluster upgrades.
-replicaCount: 1
+replicaCount: 2
 
 resources:
   requests:
@@ -59,7 +59,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 75
 
 pdb:
-  enabled: false
+  enabled: true
   minAvailable: 1
 
 service:
@@ -346,7 +346,8 @@ vector:
 # Ported from Hive. Disabled by default; production values enables it
 # and configures per-environment resources and backups.
 clickhouse:
-  enabled: false
+  enabled: true
+  replicaCount: 2
   image:
     repository: clickhouse/clickhouse-server
     tag: "26.1.2.11"
@@ -357,14 +358,14 @@ clickhouse:
     httpPort: 8123
     nativePort: 9000
   persistence:
-    size: 50Gi
+    size: 100Gi
     storageClass: ""
   resources:
     requests:
-      cpu: 250m
-      memory: 512Mi
+      cpu: 2
+      memory: 4Gi
     limits:
-      memory: 2Gi
+      memory: 8Gi
   nodeSelector: {}
   tolerations: []
   probes:
@@ -379,21 +380,23 @@ clickhouse:
       timeoutSeconds: 3
       failureThreshold: 3
   backup:
-    enabled: false
+    enabled: true
     # Time (UTC) the daily CronJob runs. Offset by 30 minutes from the
     # Postgres backup so both do not contend for network/disk at once.
     schedule: "30 3 * * *"
-    image:
-      repository: altinity/clickhouse-backup
-      tag: "2.6.30"
-      pullPolicy: IfNotPresent
+    # The CronJob runs `clickhouse-client` against the StatefulSet and issues
+    # `BACKUP DATABASE ... TO S3(...)`, so it reuses the same ClickHouse
+    # server image and does not need its own image or a PVC mount.
     s3:
       bucket: atlas-clickhouse-backups
       path: production
-      region: eu-central-1
-      endpoint: ""
+      region: fsn1
+      endpoint: "https://fsn1.your-objectstorage.com"
     # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
     credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-clickhouse-backup/username"
+      secretKeyRemoteRef: "atlas-clickhouse-backup/credential"
     activeDeadlineSeconds: 3600
     resources:
       requests:

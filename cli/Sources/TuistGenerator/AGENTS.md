@@ -14,3 +14,4 @@ This module implements the project generation pipeline (transforming manifests i
 ## Invariants
 - `ProjectDescriptor`/`WorkspaceDescriptor` are the handoff types to XcodeProj writers.
 - Side effects are collected explicitly and executed outside pure mapping.
+- Targets with buildable folders exclude `.gitkeep` and `.DS_Store` through Xcode build settings, preserving existing exclusions. Xcode enumerates synchronized folders independently of Tuist's filtered globs, including files added after generation.

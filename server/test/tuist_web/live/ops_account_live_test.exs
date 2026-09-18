@@ -737,6 +737,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     html = render_hook(lv, "initiate_enterprise_upgrade", %{})
 
     assert html =~ "Upgrade #{user.account.name} to Enterprise"
+    assert_push_event(lv, "open-modal", %{id: "enterprise-modal"})
   end
 
   test "submits the enterprise form with the collected billing details", %{conn: conn, user: user} do
@@ -1266,6 +1267,82 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "Sizing"
       assert html =~ "ops@tuist.dev"
       refute html =~ "applied automatically"
+    end
+
+    test "explains a shrink from how long the cache keeps work", %{conn: conn, user: user, proposal: proposal} do
+      proposal
+      |> Ecto.Changeset.change(
+        direction: :shrink,
+        current_claim_size: "50Gi",
+        recommended_claim_size: "25Gi",
+        evidence: %{
+          "signal" => "retention_above_floor",
+          "region" => "us-east",
+          "window_days" => 30,
+          "retention_floor_seconds" => 259_200,
+          "shortest_shed_age_seconds" => 864_000
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Sizing proposes shrinking the disk claim from 50Gi to 25Gi."
+
+      assert html =~
+               "The cache in us-east has kept work for at least 10.0 days before discarding it, when it needs to keep everything for 3.0 days."
+
+      assert html =~ "Seen on 30 consecutive days of measurements."
+      assert html =~ "keeps work 10.0 days, needs 3.0 days"
+    end
+
+    test "names the instances a growth raises to the account's claim", %{conn: conn, user: user, proposal: proposal} do
+      proposal
+      |> Ecto.Changeset.change(
+        current_claim_size: "50Gi",
+        recommended_claim_size: "50Gi",
+        evidence: Map.put(proposal.evidence, "region_claim_size", "16Gi")
+      )
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~
+               "Sizing proposes growing the instances pinned below 50Gi to it, the claim the account&#39;s other instances hold."
+
+      assert html =~ "16Gi → 50Gi"
+    end
+
+    test "applying a claim that raises one instance and lowers another says both", %{
+      conn: conn,
+      user: user,
+      server: server,
+      proposal: proposal
+    } do
+      larger =
+        Repo.insert!(%Server{
+          account_id: user.account.id,
+          region: "eu-west",
+          status: :active,
+          url: "https://acme-eu-west-1.kura.tuist.dev",
+          current_image_tag: "0.5.2",
+          provisioner_node_ref: "kura-#{user.account.id}-eu-west",
+          storage_claim_size: "32Gi"
+        })
+
+      proposal
+      |> Ecto.Changeset.change(direction: :shrink, current_claim_size: "32Gi", recommended_claim_size: "16Gi")
+      |> Repo.update!()
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = lv |> element("button", "Apply proposal") |> render_click()
+
+      assert html =~ "Kura disk claim moved to 16Gi."
+      assert html =~ "1 instance was raised and rebuilds its volumes"
+      assert html =~ "1 instance was lowered and keeps its cache"
+      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, larger.id).storage_claim_size == "16Gi"
     end
 
     test "links to the full history", %{conn: conn, user: user} do

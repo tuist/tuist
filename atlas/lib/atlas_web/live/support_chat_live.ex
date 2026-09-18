@@ -118,7 +118,7 @@ defmodule AtlasWeb.SupportChatLive do
         </div>
         <.neutral_button
           id="support-chat-close"
-          size="medium"
+          size="large"
           phx-hook=".CloseSupportChat"
           data-part="close"
           data-parent-origin={@parent_origin}

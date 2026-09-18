@@ -78,7 +78,8 @@ live under `flux/cloudflare-config/`; their separate dependent
 Kustomization ensures the operator and its custom resource definitions
 are ready first.
 `flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
-Cloudflare-verified bots only when they POST to the production Faro collector;
+Cloudflare-verified bots and explicitly declared crawler/headless user agents
+only when they POST to the production Faro collector;
 public page access remains governed by the separate crawler rules. Rollout
 checks and the distinction between verified bots and unrecognized automation
 are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.

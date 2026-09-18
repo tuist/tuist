@@ -1389,7 +1389,12 @@ allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
 `Tuist.Kura.ClaimSizing`), and the disk row counts in units of two replicas at
 50 GiB against allocatable, per node: where the scheduler refuses. Shrinking
-claims is a lever here as well as a node.
+claims is a lever here as well as a node, and sizing pulls it on its own for
+rings that keep weeks of content. A lowered pin releases its reservation
+without rebuilding anything: admission reads the pin, and the pods' requests
+and ring budget (`KURA_CAS_CAPACITY_BYTES`, derived from the claim) follow it
+on their next roll, while the volume keeps the size it was built at and the
+ring evicts down inside it.
 
 **This row is not the admission check, and the region fills up before it
 fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
@@ -1754,6 +1759,25 @@ this rule paged on exactly that while it was critical. It stays as the early
 signal; the page is **Kura instance retention horizon under a day for three
 days**. A rule at two days was deployed with this one on 2026-09-02 and
 removed on 2026-09-04, having fired only on the artifact described below.
+
+Each region is measured against the claim its own instances are pinned at,
+and an account keeps one claim: an instance pinned below the rest of its
+account (an expansion built at the plan's starting claim beside instances the
+pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
+to the account's claim as soon as a rung confirms, rather than grown from the
+larger pin or left short.
+
+**Sizing also shrinks, and lands well clear of both tiers.** Besides a ring
+that never fills, a claim shrinks when every region kept what it shed for
+three retention floors (nine days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, 3.75 days, one
+step at most halves it (leaving at least 4.5 days), and it never goes under
+the plan's starting claim, so a shrunk ring sits several times above this
+rule's one day and above the longest growth rung's three. Once a lowered
+claim's pods roll, the ring's first rotation evicts its oldest segments down to
+the new budget: that sheds content older than anything it keeps afterwards,
+and fullness (segments held against the smaller desired total) reads over 100
+until it does, so the gate stays open without the rule firing.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
@@ -5808,20 +5832,53 @@ not identify each client's loaded bundle or WebDriver flag.
 
 The Cloudflare rule in
 `infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
-verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
-management-cluster operator reconciles it into the zone's WAF ruleset. It
-blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
-true, so crawlers can still read public pages. This uses the same verified-bot
+verified and self-declared bots at ingestion. Flux applies the
+`CloudflareCustomRule` and the management-cluster operator reconciles it into
+the zone's WAF ruleset. It blocks only `POST https://tuist.dev/-/faro/collect`
+when `cf.client.bot` is
+true or the request user agent explicitly identifies HeadlessChrome,
+YisouSpider, Sogou web spider, or meta-externalagent. Comparisons are
+case-insensitive; YisouSpider matches the whole value, Sogou and Meta match
+their product prefix, and HeadlessChrome matches its versioned product token.
+Crawlers can still read public pages. This uses the same verified-bot
 signal as the existing crawler rate-limit rules and does not require granular
 Enterprise Bot Management scores. There is no browser-version or viewport
 denylist and no challenge on the collector's background requests.
 
-**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+**Self-declared automation does not need to be a verified bot.** In the 24h
+window ending September 18, 2026 at 08:15 UTC, Faro contained 9 YisouSpider,
+8 Sogou web spider, and 3 HeadlessChrome LCP samples. Meta was observed in the
+September 8 investigation above. The explicit user-agent clauses cover those
+declarations independently of Cloudflare's verified-bot list. They use request
+headers at the edge. An ingress log at 07:17:50 UTC confirms a Faro POST with
+the actual `YisouSpider` request header received HTTP 202, alongside its LCP
+sample. The other counts use Faro's browser-reported `browser_userAgent` and
+are candidates for filtering, not proof that the same header reached
+Cloudflare. Confirm the request headers in Security Events after rollout.
+
+**This does not classify clients impersonating ordinary browsers.** A false
 `cf.client.bot` does not mean human. We have not correlated the Linux cohort
 with Cloudflare's classification, so disappearance of that cohort is a
 post-deployment check, not an established result. If it persists, inspect
 Cloudflare's request classification and available Bot Management entitlement
 before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+The same September 18 window had 2,200 LCP samples and p95 11.80s. The Linux
+1919x992 cohort contributed 288 samples from 288 sessions, including 169 of
+the 236 samples above 5s; 255 of its samples were on login URLs. Excluding
+that fingerprint for diagnosis brought p95 to 4.26s. This is not evidence
+that every matching visit is automated and the fingerprint is not a deployed
+filter. A separate Mac/Chrome 1366x1366 cohort dominated the September 16
+spike: 30,546 of 33,095 total samples were on `/turnstile-challenge`. Keep
+these cohorts visible while verifying their edge classification.
+
+The repository's bot-management configuration records the zone as Business
+with Super Bot Fight Mode. Granular
+[`cf.bot_management.score` custom rules require Enterprise Bot Management](https://developers.cloudflare.com/bots/concepts/bot-score/);
+verify live entitlement before proposing one. Keep the collector's SBFM skip:
+a managed challenge on a background telemetry POST silently loses samples.
+The explicit user-agent extension does not change that skip, the p95 5s
+threshold, or the alert sample floor.
 
 After merge, use the management-cluster context to inspect
 `kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
@@ -5857,9 +5914,13 @@ count(sum by (session_id) (
 
 For the explicitly identified Meta cohort, use the same measurement selector
 with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
-OS and viewport filters. To roll back the edge filter, set `enabled: false`
-in its Kubernetes manifest and let Flux and the operator reconcile; editing
-the rule in the Cloudflare dashboard would be reverted by the operator.
+OS and viewport filters. Also check the new declarations with
+`| browser_userAgent=~"(?i)(.*headlesschrome/.*|yisouspider|sogou web spider/.*)"`.
+To roll back just the self-declared automation extension, restore the
+expression's final condition to `cf.client.bot`. To roll back the entire edge
+filter, set `enabled: false` in its Kubernetes manifest and let Flux and the
+operator reconcile; editing the rule in the Cloudflare dashboard would be
+reverted by the operator.
 
 **D scales with traffic**, which is worth remembering before reading a rise as a
 regression. It is an absolute count over 24h and it tracked the weekly cycle

@@ -3,6 +3,7 @@ defmodule Atlas.Integrations.GitHubEvents do
   Verifies and handles incoming GitHub webhook events.
   """
 
+  alias Atlas.Product.Workers.AnnounceReleaseOnIssues
   alias Atlas.Product.Workers.IngestGitHubEvent
 
   def verify_signature(raw_body, signature, webhook_secret)
@@ -35,6 +36,34 @@ defmodule Atlas.Integrations.GitHubEvents do
       |> Oban.insert()
     else
       :ignored
+    end
+  end
+
+  def handle_event("release", payload, opts) when is_map(payload) and is_list(opts) do
+    with "published" <- payload["action"],
+         %{"tag_name" => tag, "html_url" => release_url} = release
+         when is_binary(tag) and is_binary(release_url) <- payload["release"],
+         %{"name" => repo, "owner" => %{"login" => owner}}
+         when is_binary(repo) and is_binary(owner) <- payload["repository"] do
+      %{
+        "owner" => owner,
+        "repo" => repo,
+        "tag" => tag,
+        "release_url" => release_url,
+        "release_body" => release["body"] || ""
+      }
+      |> maybe_put_github_app_id(Keyword.get(opts, :github_app_id))
+      |> AnnounceReleaseOnIssues.new(
+        unique: [
+          period: :infinity,
+          fields: [:worker, :args],
+          keys: [:owner, :repo, :tag],
+          states: [:available, :scheduled, :executing, :retryable, :completed]
+        ]
+      )
+      |> Oban.insert()
+    else
+      _ -> :ignored
     end
   end
 

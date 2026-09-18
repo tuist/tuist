@@ -1479,6 +1479,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.authCommand.targetName),
+                    .target(name: Module.bazelCommand.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.core.targetName),
