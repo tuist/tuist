@@ -213,7 +213,7 @@ config :guardian, Guardian.DB,
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:request_id, :domain]
 
 # An operator grant is a live bearer that arrives as a query parameter on the
 # redirect back from ops. Phoenix logs request and LiveView event parameters,

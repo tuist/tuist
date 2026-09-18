@@ -1,8 +1,10 @@
 defmodule Atlas.Engineering.Errors.DropAlerterTest do
+  # credo:disable-for-next-line Credo.Check.Warning.AsyncTests
   use Atlas.DataCase, async: false
   use Mimic
 
   alias Atlas.Engineering.Errors.DropAlerter
+  alias Atlas.Slack.API
 
   setup :verify_on_exit!
 
@@ -18,7 +20,7 @@ defmodule Atlas.Engineering.Errors.DropAlerterTest do
          ]}
       )
 
-    Mimic.allow(Atlas.Slack.API, self(), pid)
+    Mimic.allow(API, self(), pid)
 
     previous_channel = Application.get_env(:atlas, :default_alert_slack_channel)
     on_exit(fn -> Application.put_env(:atlas, :default_alert_slack_channel, previous_channel) end)
@@ -31,7 +33,7 @@ defmodule Atlas.Engineering.Errors.DropAlerterTest do
          %{pid: pid} = ctx do
       test_pid = self()
 
-      expect(Atlas.Slack.API, :post_message, fn _app_key, channel, text, blocks ->
+      expect(API, :post_message, fn _app_key, channel, text, blocks ->
         send(test_pid, {:posted, %{channel: channel, text: text, blocks: blocks}})
         {:ok, %{}}
       end)
@@ -65,7 +67,7 @@ defmodule Atlas.Engineering.Errors.DropAlerterTest do
     test "resets the bucket after flushing", %{pid: pid} = ctx do
       test_pid = self()
 
-      expect(Atlas.Slack.API, :post_message, 2, fn _app_key, channel, text, blocks ->
+      expect(API, :post_message, 2, fn _app_key, channel, text, blocks ->
         send(test_pid, {:posted, %{channel: channel, text: text, blocks: blocks}})
         {:ok, %{}}
       end)
@@ -112,7 +114,7 @@ defmodule Atlas.Engineering.Errors.DropAlerterTest do
          %{pid: pid} = ctx do
       Application.put_env(:atlas, :default_alert_slack_channel, "C_TEST_CHANNEL")
 
-      expect(Atlas.Slack.API, :post_message, fn _app_key, _channel, _text, _blocks ->
+      expect(API, :post_message, fn _app_key, _channel, _text, _blocks ->
         {:error, :slack_api_error}
       end)
 

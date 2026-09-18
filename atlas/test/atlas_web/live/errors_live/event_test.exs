@@ -16,6 +16,6 @@ defmodule AtlasWeb.ErrorsLive.EventTest do
              )
   end
 
-  # TODO: exercise the "renders an event" happy path once the LV → sandbox
+  # Follow-up: exercise the "renders an event" happy path once the LV → sandbox
   # visibility issue described in `index_test.exs` is resolved.
 end

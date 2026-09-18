@@ -219,7 +219,7 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
             "(#{total_events} event bumps dropped): #{Exception.message(error)}"
         )
 
-        # TODO(atlas): wire alerting for coalescer flush failures.
+        # Follow-up: wire alerting for coalescer flush failures.
         Logger.warning(
           "issue_coalescer: alert #{inspect({:issue_coalescer_flush_failed, Exception.message(error)})} fingerprints=#{map_size(accumulator)} events=#{total_events}"
         )

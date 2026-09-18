@@ -155,7 +155,7 @@ defmodule Atlas.Engineering.Projects do
     |> MapSet.new()
   end
 
-  # TODO(atlas): wire Grafana webhook ingest once Atlas grows its own alert source.
+  # Follow-up: wire Grafana webhook ingest once Atlas grows its own alert source.
   def ingest_webhook(:grafana, %Project{} = _project, %Webhook{} = _webhook, _payload) do
     {:error, :not_implemented}
   end

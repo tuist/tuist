@@ -1,4 +1,5 @@
 defmodule Atlas.Engineering.Errors.IssueCoalescerTest do
+  # credo:disable-for-next-line Credo.Check.Warning.AsyncTests
   use Atlas.DataCase, async: false
 
   alias Atlas.Engineering.Errors.Issue

@@ -18,7 +18,7 @@ defmodule AtlasWeb.ErrorsLive.ShowTest do
              live(conn, ~p"/engineering/errors/not-an-id")
   end
 
-  # TODO: exercise the "renders an issue" happy path once the LV → sandbox
+  # Follow-up: exercise the "renders an issue" happy path once the LV → sandbox
   # visibility issue described in `index_test.exs` is resolved. Inserting an
   # `Errors.Issue` in the test process is not visible to `Errors.fetch_issue/1`
   # from within the mounted LiveView process.

@@ -21,7 +21,7 @@ defmodule AtlasWeb.ErrorsLive.IndexTest do
     refute html =~ "Boom went the compiler"
   end
 
-  # TODO: exercise the LiveView with real issues. Phoenix LiveView spawns the
+  # Follow-up: exercise the LiveView with real issues. Phoenix LiveView spawns the
   # LV process under an ExUnit supervisor whose Ecto sandbox owner does not
   # inherit the test process's private-mode ownership. Rows the test inserts
   # via `Atlas.Repo` are invisible to `Errors.paginate_issues/1` called from

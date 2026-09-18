@@ -4,13 +4,14 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeControllerTest do
 
   alias Atlas.Engineering.Domains
   alias Atlas.Engineering.Errors
+  alias Atlas.Engineering.Errors.Availability
   alias Atlas.Engineering.Projects
 
   setup :verify_on_exit!
 
   setup %{conn: conn} do
-    stub(Atlas.Engineering.Errors.Availability, :enabled?, fn -> true end)
-    stub(Atlas.Engineering.Errors, :ingest_envelope, fn _project, _body, _opts -> :ok end)
+    stub(Availability, :enabled?, fn -> true end)
+    stub(Errors, :ingest_envelope, fn _project, _body, _opts -> :ok end)
 
     {:ok, project} = Projects.create_project(%{"name" => "Widgets", "visibility" => "public"})
     {:ok, key} = Errors.create_project_key(project.id)
@@ -30,7 +31,7 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeControllerTest do
     test "accepts a valid event envelope at the numeric project id", %{conn: conn, key: key} do
       test_pid = self()
 
-      expect(Atlas.Engineering.Errors, :ingest_envelope, fn _project, body, _opts ->
+      expect(Errors, :ingest_envelope, fn _project, body, _opts ->
         send(test_pid, {:ingested, body})
         :ok
       end)
@@ -70,7 +71,7 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeControllerTest do
     end
 
     test "accepts inline even when ClickHouse is disabled", %{conn: conn, key: key} do
-      stub(Atlas.Engineering.Errors.Availability, :enabled?, fn -> false end)
+      stub(Availability, :enabled?, fn -> false end)
       body = envelope_body("evt-z", ~s({"level":"error"}))
 
       conn = post(conn, ~p"/api/#{key.dsn_project_id}/envelope/", body)
@@ -86,7 +87,7 @@ defmodule AtlasWeb.ErrorsAPI.EnvelopeControllerTest do
       {:ok, domain_key} = Errors.create_domain_key(project.id, domain.id)
       test_pid = self()
 
-      expect(Atlas.Engineering.Errors, :ingest_envelope, fn _project, _body, opts ->
+      expect(Errors, :ingest_envelope, fn _project, _body, opts ->
         send(test_pid, {:ingested_with, Keyword.get(opts, :domain_id)})
         :ok
       end)
