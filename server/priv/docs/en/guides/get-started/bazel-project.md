@@ -26,12 +26,21 @@ Every section below opens with what's missing today and then walks you through t
 - A Bazel workspace (a `WORKSPACE` or `MODULE.bazel` at its root) and Bazel on your `PATH`.
 - The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
-## Connect the workspace (once)
+## Connect the workspace
+
+> [!NOTE]
+> The Bazel workflow inside `tuist init` requires a version of the Tuist CLI that ships with it. On earlier releases, `tuist init` will not list "Integrate a Bazel workspace" as an option. Fall back to `tuist auth login` followed by `tuist bazel setup` from the workspace root, which walks through the same steps below.
 
 From the root of the Bazel workspace, run `tuist init`. Tuist detects the `WORKSPACE` / `MODULE.bazel` and offers **Integrate a Bazel workspace**. Authenticate in the browser and pick the account that should own the project.
 
 ```bash
 tuist init
+```
+
+If you're driving this from a coding agent or a script, run `tuist auth login` first (the browser flow waits for you to press Enter), then use the non-interactive form:
+
+```bash
+tuist init --build-system bazel --name <project-handle> --account <account>
 ```
 
 When init finishes, Tuist:

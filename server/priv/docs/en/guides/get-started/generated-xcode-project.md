@@ -26,13 +26,19 @@ Every section below opens with what's missing today and then walks you through t
 - macOS with Xcode installed.
 - The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
-## Create the project (once)
+## Create the project
 
 The fastest way to see it working is a fresh project. In an empty directory, run `tuist init` and choose **Create a generated project**, pick the platform, confirm the name, then authenticate and pick the account that should own the project.
 
 ```bash
 mkdir MyApp && cd MyApp
 tuist init
+```
+
+If you're driving this from a coding agent or a script, run `tuist auth login` first (the browser flow waits for you to press Enter), then use the non-interactive form:
+
+```bash
+tuist init --build-system generated-xcode --name MyApp --platform ios --account <account>
 ```
 
 When init finishes, run `tuist generate`. Tuist writes an `.xcworkspace` next to your manifests and opens it in Xcode. Build and run the target. You should see the example app launch in the simulator.
@@ -117,7 +123,7 @@ Build insights records every build's duration and phase timings for generated sc
 
 ## Test insights
 
-Xcode reports per-test results one run at a time. Cross-run signal — flakiness rate, week-over-week duration, which simulator variants fail — is not something Xcode aggregates.
+Xcode reports per-test results one run at a time. It doesn't aggregate the cross-run signal you actually need: flakiness rate, week-over-week duration, which simulator variants fail.
 
 Test insights records every test's outcome and duration for generated schemes automatically and correlates results across runs. Flaky tests, slow tests, and failures show up on the dashboard's **Tests** tab. When flakes accumulate, quarantine them from the dashboard so they stop blocking merges.
 

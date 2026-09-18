@@ -24,14 +24,20 @@ Every section below opens with what's missing today and then walks you through t
 ## Prerequisites
 
 - A Gradle project with a `settings.gradle.kts` (or `settings.gradle`).
-- The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>, version 4.138.1 or later.
+- The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
-## Connect the project (once)
+## Connect the project
 
 From the root of the Gradle project, run `tuist init`. Choose **Integrate a Gradle project**, then authenticate in the browser and pick the account that should own the project.
 
 ```bash
 tuist init
+```
+
+If you're driving this from a coding agent or a script, run `tuist auth login` first (the browser flow waits for you to press Enter), then use the non-interactive form:
+
+```bash
+tuist init --build-system gradle --name <project-handle> --account <account>
 ```
 
 Tuist writes a `tuist.toml` at the repository root with the project handle and prints a `plugins { ... }` block. Paste it at the top of `settings.gradle.kts`:

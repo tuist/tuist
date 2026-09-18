@@ -8,6 +8,11 @@
 
 # Module cache {#module-cache}
 
+> [!WARNING]
+> **Requirements**
+>
+> - A <.localized_link href="/guides/features/projects">generated project</.localized_link>. The module cache reads the project graph Tuist keeps behind `Project.swift` to hash targets and substitute their binaries.
+
 Tuist Module Cache provides a powerful way to optimize build times by caching your modules as binaries (`.xcframework`s) and sharing them across different environments. This capability allows you to leverage previously generated binaries, reducing the need for repeated compilation and speeding up the development process.
 
 > [!TIP]

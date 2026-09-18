@@ -7,6 +7,11 @@
 ---
 # Xcode test sharding {#xcode-test-sharding}
 
+> [!WARNING]
+> **Requirements**
+>
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured. Sharding uses the last 30 days of test-insight timings to balance shards, and without insights every shard runs as if the suite were unknown.
+
 Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to create a shard plan and `tuist xcodebuild test` to execute each shard.
 
 ## How it works {#how-it-works}

@@ -7,6 +7,11 @@
 ---
 # Generated Xcode project {#generated-xcode-project-flaky-tests}
 
+> [!WARNING]
+> **Requirements**
+>
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured (auto-generated schemes include the `tuist inspect test` post-action; custom schemes need it added).
+
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 ![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)

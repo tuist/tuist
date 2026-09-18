@@ -24,9 +24,15 @@ Follow this path when you want to keep your `.xcodeproj` or `.xcworkspace` exact
 - macOS with **Xcode 26 or later** (the compilation cache and modern insights depend on it).
 - The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
-## Connect the project (once)
+## Connect the project
 
-Run `tuist init` at the repository root. Choose **Integrate `<YourApp>`** when Tuist detects your workspace, then authenticate in the browser and pick the account that should own the project. Tuist writes a `tuist.toml` at the root that pins the project handle so your teammates and CI share the same connection. Commit it.
+Run `tuist init` at the repository root. Choose **Integrate `<YourApp>`** when Tuist detects your workspace, then authenticate in the browser and pick the account that should own the project. Tuist writes a `Tuist.swift` at the root that pins the project handle so your teammates and CI share the same connection. Commit it.
+
+If you're driving this from a coding agent or a script, run `tuist auth login` first (the browser flow waits for you to press Enter), then use the non-interactive form:
+
+```bash
+tuist init --build-system xcode --name <project-handle> --account <account>
+```
 
 Everything below is optional and independent.
 
@@ -67,7 +73,7 @@ Build insights records every build's duration and phase timings so the trend is 
 
 ## Test insights
 
-Xcode's test log lists per-test results one run at a time. Cross-run signal — how often a test fails, how much slower it got last week, whether it fails only on certain simulators — is not something Xcode aggregates. A test drifting from reliable to flaky over ten CI runs looks the same as a single unlucky run.
+Xcode's test log lists per-test results one run at a time. It doesn't aggregate the cross-run signal you actually need: how often a test fails, how much slower it got last week, whether it fails only on certain simulators. A test drifting from reliable to flaky over ten CI runs looks the same as a single unlucky run.
 
 Test insights records every test's outcome and duration and correlates results across runs. Slow tests, failures, and flakes surface on the dashboard's **Tests** tab.
 
