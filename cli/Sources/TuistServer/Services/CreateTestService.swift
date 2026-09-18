@@ -272,7 +272,6 @@ import TuistHTTP
                         .init(
                             git_branch: gitBranch,
                             xcode_coverage_storage_key: coverageUpload?.storageKey,
-                            tracked_files: history.trackedFiles,
                             execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
                             git_object_format: history.objectFormat,
                             scheme: testSummary.testPlanName,
@@ -282,9 +281,9 @@ import TuistHTTP
                             history_fallback_reason: gitHistory?.fallbackReason,
                             is_pull_request: gitHistory?.isPullRequest,
                             status: status,
-                            tracked_files_truncated: gitHistory?.trackedFilesTruncated,
                             shard_index: shardIndex,
                             only_test_identifiers: onlyTestIdentifiers,
+                            git_dirty: gitHistory?.dirty,
                             history_source: history.source,
                             build_run_id: buildRunId,
                             skip_test_identifiers: skipTestIdentifiers,
@@ -534,13 +533,11 @@ import TuistHTTP
         let changedFiles: [Body.changed_filesPayloadPayload]?
         let objectFormat: Body.git_object_formatPayload?
         let source: Body.history_sourcePayload?
-        let trackedFiles: [Body.tracked_filesPayloadPayload]?
 
         init(_ gitHistory: TestRunGitHistory?) {
             changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
             objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
             source = gitHistory.map { $0.source == "client" ? .client : .none }
-            trackedFiles = gitHistory.map { history in history.trackedFiles.map { .init(git_blob_id: $0.blobId, path: $0.path) } }
         }
 
         private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {

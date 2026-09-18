@@ -39,16 +39,6 @@ public struct TestRunGitHistory: Equatable, Sendable {
         }
     }
 
-    public struct TrackedFile: Equatable, Sendable {
-        public let path: String
-        public let blobId: String
-
-        public init(path: String, blobId: String) {
-            self.path = path
-            self.blobId = blobId
-        }
-    }
-
     public let baseBranch: String?
     public let mergeBaseSHA: String?
     public let isPullRequest: Bool
@@ -59,10 +49,9 @@ public struct TestRunGitHistory: Equatable, Sendable {
     public let source: String
     public let fallbackReason: String?
     public let changedFiles: [ChangedFile]
-    /// The files the project's tracked-file globs matched, with their blobs at the run's commit.
-    public let trackedFiles: [TrackedFile]
-    /// Whether the tracked files stop at the server's limit.
-    public let trackedFilesTruncated: Bool
+    /// Whether the checkout had uncommitted changes: the run then measured code that is not the
+    /// commit's, and the server keeps its coverage at run level.
+    public let dirty: Bool
 
     public init(
         baseBranch: String?,
@@ -73,8 +62,7 @@ public struct TestRunGitHistory: Equatable, Sendable {
         source: String,
         fallbackReason: String?,
         changedFiles: [ChangedFile],
-        trackedFiles: [TrackedFile] = [],
-        trackedFilesTruncated: Bool = false
+        dirty: Bool = false
     ) {
         self.baseBranch = baseBranch
         self.mergeBaseSHA = mergeBaseSHA
@@ -84,8 +72,7 @@ public struct TestRunGitHistory: Equatable, Sendable {
         self.source = source
         self.fallbackReason = fallbackReason
         self.changedFiles = changedFiles
-        self.trackedFiles = trackedFiles
-        self.trackedFilesTruncated = trackedFilesTruncated
+        self.dirty = dirty
     }
 }
 
@@ -95,25 +82,21 @@ public struct GitHistorySettings: Equatable, Sendable {
     public let windowCommits: Int
     public let deepenBudgetSeconds: Int
     public let uploadBatchSize: Int
-    /// Git pathspec globs of the files snapshotted with each run.
-    public let trackedFileGlobs: [String]
-    /// How many tracked files to send before marking the snapshot truncated.
-    public let trackedFileLimit: Int
+    /// How many files of a commit's tree to list before marking the listing truncated.
+    public let commitFileLimit: Int
 
     public init(
         windowDays: Int,
         windowCommits: Int,
         deepenBudgetSeconds: Int,
         uploadBatchSize: Int,
-        trackedFileGlobs: [String] = [],
-        trackedFileLimit: Int = 5000
+        commitFileLimit: Int = 50000
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
         self.uploadBatchSize = uploadBatchSize
-        self.trackedFileGlobs = trackedFileGlobs
-        self.trackedFileLimit = trackedFileLimit
+        self.commitFileLimit = commitFileLimit
     }
 }
 
@@ -130,17 +113,31 @@ public struct GitHistoryCommitPayload: Equatable, Sendable {
     }
 }
 
+/// A file of a commit's listing for the server.
+public struct GitCommitFilePayload: Equatable, Sendable {
+    public let path: String
+    public let blobId: String
+    public let mode: Int
+
+    public init(path: String, blobId: String, mode: Int) {
+        self.path = path
+        self.blobId = blobId
+        self.mode = mode
+    }
+}
+
 enum GitHistoryServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case badRequest(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The Git history request failed with an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -173,8 +170,7 @@ public struct GetGitHistorySettingsService: GetGitHistorySettingsServicing {
                     windowCommits: settings.window_commits,
                     deepenBudgetSeconds: settings.deepen_budget_seconds,
                     uploadBatchSize: settings.upload_batch_size,
-                    trackedFileGlobs: settings.tracked_file_globs,
-                    trackedFileLimit: settings.tracked_file_limit
+                    commitFileLimit: settings.commit_file_limit
                 )
             }
         case let .notFound(notFound):
@@ -197,7 +193,7 @@ public struct GetGitHistorySettingsService: GetGitHistorySettingsServicing {
 
 @Mockable
 public protocol FindMissingCommitsServicing {
-    func findMissingCommits(fullHandle: String, serverURL: URL, shas: [String]) async throws -> [String]
+    func findMissingCommits(fullHandle: String, serverURL: URL, repositoryURL: String, shas: [String]) async throws -> [String]
 }
 
 public struct FindMissingCommitsService: FindMissingCommitsServicing {
@@ -207,19 +203,28 @@ public struct FindMissingCommitsService: FindMissingCommitsServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func findMissingCommits(fullHandle: String, serverURL: URL, shas: [String]) async throws -> [String] {
+    public func findMissingCommits(
+        fullHandle: String,
+        serverURL: URL,
+        repositoryURL: String,
+        shas: [String]
+    ) async throws -> [String] {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.findMissingCommits(
             .init(
                 path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
-                body: .json(.init(shas: shas))
+                body: .json(.init(repository_url: repositoryURL, shas: shas))
             )
         )
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(payload): return payload.missing
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error): throw GitHistoryServiceError.badRequest(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
@@ -244,6 +249,7 @@ public protocol UploadCommitsServicing {
     func uploadCommits(
         fullHandle: String,
         serverURL: URL,
+        repositoryURL: String,
         objectFormat: String,
         commits: [GitHistoryCommitPayload],
         branchHeads: [(branch: String, sha: String)]
@@ -260,6 +266,7 @@ public struct UploadCommitsService: UploadCommitsServicing {
     public func uploadCommits(
         fullHandle: String,
         serverURL: URL,
+        repositoryURL: String,
         objectFormat: String,
         commits: [GitHistoryCommitPayload],
         branchHeads: [(branch: String, sha: String)]
@@ -273,7 +280,8 @@ public struct UploadCommitsService: UploadCommitsServicing {
                     .init(
                         branch_heads: branchHeads.map { .init(branch: $0.branch, sha: $0.sha) },
                         commits: commits.map { .init(committed_at: $0.committedAt, parents: $0.parents, sha: $0.sha) },
-                        object_format: objectFormat == "sha256" ? .sha256 : .sha1
+                        object_format: objectFormat == "sha256" ? .sha256 : .sha1,
+                        repository_url: repositoryURL
                     )
                 )
             )
@@ -281,6 +289,139 @@ public struct UploadCommitsService: UploadCommitsServicing {
         switch response {
         case .noContent:
             return
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error): throw GitHistoryServiceError.badRequest(error.message)
+            }
+        case let .notFound(notFound):
+            switch notFound.body {
+            case let .json(error): throw GitHistoryServiceError.notFound(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error): throw GitHistoryServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error): throw GitHistoryServiceError.unauthorized(error.message)
+            }
+        case let .undocumented(statusCode: statusCode, _):
+            throw GitHistoryServiceError.unknownError(statusCode)
+        }
+    }
+}
+
+@Mockable
+public protocol FindMissingCommitListingsServicing {
+    func findMissingCommitListings(fullHandle: String, serverURL: URL, repositoryURL: String, shas: [String]) async throws
+        -> [String]
+}
+
+public struct FindMissingCommitListingsService: FindMissingCommitListingsServicing {
+    private let fullHandleService: FullHandleServicing
+
+    public init(fullHandleService: FullHandleServicing = FullHandleService()) {
+        self.fullHandleService = fullHandleService
+    }
+
+    public func findMissingCommitListings(
+        fullHandle: String,
+        serverURL: URL,
+        repositoryURL: String,
+        shas: [String]
+    ) async throws -> [String] {
+        let client = Client.authenticated(serverURL: serverURL)
+        let handles = try fullHandleService.parse(fullHandle)
+        let response = try await client.findMissingCommitListings(
+            .init(
+                path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
+                body: .json(.init(repository_url: repositoryURL, shas: shas))
+            )
+        )
+        switch response {
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(payload): return payload.missing
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error): throw GitHistoryServiceError.badRequest(error.message)
+            }
+        case let .notFound(notFound):
+            switch notFound.body {
+            case let .json(error): throw GitHistoryServiceError.notFound(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error): throw GitHistoryServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error): throw GitHistoryServiceError.unauthorized(error.message)
+            }
+        case let .undocumented(statusCode: statusCode, _):
+            throw GitHistoryServiceError.unknownError(statusCode)
+        }
+    }
+}
+
+@Mockable
+public protocol UploadCommitListingServicing {
+    /// Sends part of a commit's listing; `complete` on the last part, with the listing's size and
+    /// whether it stopped at the limit.
+    func uploadCommitListing(
+        fullHandle: String,
+        serverURL: URL,
+        repositoryURL: String,
+        sha: String,
+        files: [GitCommitFilePayload],
+        complete: Bool,
+        truncated: Bool,
+        filesCount: Int
+    ) async throws
+}
+
+public struct UploadCommitListingService: UploadCommitListingServicing {
+    private let fullHandleService: FullHandleServicing
+
+    public init(fullHandleService: FullHandleServicing = FullHandleService()) {
+        self.fullHandleService = fullHandleService
+    }
+
+    public func uploadCommitListing(
+        fullHandle: String,
+        serverURL: URL,
+        repositoryURL: String,
+        sha: String,
+        files: [GitCommitFilePayload],
+        complete: Bool,
+        truncated: Bool,
+        filesCount: Int
+    ) async throws {
+        let client = Client.authenticated(serverURL: serverURL)
+        let handles = try fullHandleService.parse(fullHandle)
+        let response = try await client.uploadCommitListing(
+            .init(
+                path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
+                body: .json(
+                    .init(
+                        complete: complete,
+                        files: files.map { .init(git_blob_id: $0.blobId, mode: $0.mode, path: $0.path) },
+                        files_count: complete ? filesCount : nil,
+                        repository_url: repositoryURL,
+                        sha: sha,
+                        truncated: truncated
+                    )
+                )
+            )
+        )
+        switch response {
+        case .noContent:
+            return
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error): throw GitHistoryServiceError.badRequest(error.message)
+            }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error): throw GitHistoryServiceError.notFound(error.message)

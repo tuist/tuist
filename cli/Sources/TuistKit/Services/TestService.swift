@@ -2529,7 +2529,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
-        await gitHistoryService.upload(gitHistory, fullHandle: fullHandle, serverURL: serverURL)
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
     }
 
     private func passedValue(for option: String, arguments: [String]) -> String? {

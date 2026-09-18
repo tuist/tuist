@@ -52,24 +52,28 @@ public struct GitChangedFile: Equatable, Sendable {
     }
 }
 
-/// A file the project tracks beyond the sources its tests compile (a dependency manifest, generator
-/// configuration, a fixture, a snapshot), with the blob it has at the run's commit.
-public struct GitTrackedFile: Equatable, Sendable {
+/// A file of a commit's tree with the blob it has there, as `git ls-files --stage` lists it: what
+/// the server measures coverage against, reads the project's tracked files from, and compares for
+/// evidence reuse.
+public struct GitCommitFile: Equatable, Sendable {
     public let path: String
     public let blobId: String
+    /// The Git file mode as an integer (33188 for `100644`).
+    public let mode: Int
 
-    public init(path: String, blobId: String) {
+    public init(path: String, blobId: String, mode: Int) {
         self.path = path
         self.blobId = blobId
+        self.mode = mode
     }
 }
 
-/// The tracked files a run saw, and whether the listing stopped at the limit.
-public struct GitTrackedFiles: Equatable, Sendable {
-    public let files: [GitTrackedFile]
+/// A commit's file listing, and whether it stopped at the limit.
+public struct GitCommitFiles: Equatable, Sendable {
+    public let files: [GitCommitFile]
     public let truncated: Bool
 
-    public init(files: [GitTrackedFile], truncated: Bool) {
+    public init(files: [GitCommitFile], truncated: Bool) {
         self.files = files
         self.truncated = truncated
     }
@@ -90,10 +94,8 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var maxChangedFiles: Int
     /// Hunks kept per changed file; a file with more is marked truncated.
     public var maxHunksPerFile: Int
-    /// Git pathspec globs, relative to the repository root, of the files snapshotted with each run.
-    public var trackedFileGlobs: [String]
-    /// Tracked files listed; beyond it the snapshot is marked truncated.
-    public var trackedFileLimit: Int
+    /// Files of a commit's tree listed for the server; beyond it the listing is marked truncated.
+    public var commitFileLimit: Int
 
     public init(
         windowDays: Int = 365,
@@ -102,8 +104,7 @@ public struct GitHistoryLimits: Equatable, Sendable {
         uploadBatchSize: Int = 500,
         maxChangedFiles: Int = 2000,
         maxHunksPerFile: Int = 200,
-        trackedFileGlobs: [String] = [],
-        trackedFileLimit: Int = 5000
+        commitFileLimit: Int = 50000
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
@@ -111,8 +112,7 @@ public struct GitHistoryLimits: Equatable, Sendable {
         self.uploadBatchSize = uploadBatchSize
         self.maxChangedFiles = maxChangedFiles
         self.maxHunksPerFile = maxHunksPerFile
-        self.trackedFileGlobs = trackedFileGlobs
-        self.trackedFileLimit = trackedFileLimit
+        self.commitFileLimit = commitFileLimit
     }
 }
 

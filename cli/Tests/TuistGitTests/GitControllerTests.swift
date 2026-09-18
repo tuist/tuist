@@ -759,22 +759,23 @@ struct GitControllerTests {
         #expect(isInGitRepository == false)
     }
 
-    @Test(.inTemporaryDirectory) func trackedFiles_lists_the_matched_files_with_their_blobs_up_to_the_limit() async throws {
+    @Test(.inTemporaryDirectory) func commitFiles_lists_the_index_with_blobs_and_modes_up_to_the_limit() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         commandRunner.succeedCommand(
-            ["git", "-C", path.pathString, "ls-files", "--stage", "-z", "--", ":(glob)Package.resolved", ":(glob)Tuist/**"],
-            output: "100644 aaa 0\tPackage.resolved\0100644 bbb 0\tTuist/Config.swift\0100644 ccc 1\tTuist/Conflict.swift\0100644 ddd 0\tTuist/Package.swift\0"
+            ["git", "-C", path.pathString, "ls-files", "--stage", "-z"],
+            output: "100644 aaa 0\tPackage.resolved\0100755 bbb 0\tScripts/run.sh\0100644 ccc 1\tTuist/Conflict.swift\0160000 ddd 0\tVendor/Submodule\0100644 eee 0\tTuist/Package.swift\0"
         )
 
-        let tracked = try await subject.trackedFiles(workingDirectory: path, globs: ["Package.resolved", "Tuist/**"], limit: 2)
+        let listing = try await subject.commitFiles(workingDirectory: path, limit: 2)
 
-        #expect(tracked.files == [
-            GitTrackedFile(path: "Package.resolved", blobId: "aaa"),
-            GitTrackedFile(path: "Tuist/Config.swift", blobId: "bbb"),
+        #expect(listing.files == [
+            GitCommitFile(path: "Package.resolved", blobId: "aaa", mode: 0o100644),
+            GitCommitFile(path: "Scripts/run.sh", blobId: "bbb", mode: 0o100755),
         ])
-        #expect(tracked.truncated)
+        #expect(listing.truncated)
 
-        let none = try await subject.trackedFiles(workingDirectory: path, globs: [], limit: 2)
-        #expect(none == GitTrackedFiles(files: [], truncated: false))
+        let whole = try await subject.commitFiles(workingDirectory: path, limit: 10)
+        #expect(whole.files.map(\.path) == ["Package.resolved", "Scripts/run.sh", "Tuist/Package.swift"])
+        #expect(!whole.truncated)
     }
 }
