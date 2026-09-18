@@ -58,6 +58,35 @@ defmodule AtlasWeb.ProjectLive.ShowTest do
     assert html =~ "Planning and orchestration."
   end
 
+  test "members can set and clear the Slack alert channel", %{conn: conn} do
+    {:ok, project} =
+      Projects.create_project(%{"name" => "Registry", "visibility" => "public"})
+
+    {:ok, view, _html} = live(conn, ~p"/engineering/projects/#{project.id}")
+
+    _ =
+      render_submit(view, "save", %{
+        "project" => %{
+          "name" => project.name,
+          "visibility" => "public",
+          "slack_alert_channel" => "#alerts-registry"
+        }
+      })
+
+    assert Repo.reload!(project).slack_alert_channel == "#alerts-registry"
+
+    _ =
+      render_submit(view, "save", %{
+        "project" => %{
+          "name" => project.name,
+          "visibility" => "public",
+          "slack_alert_channel" => ""
+        }
+      })
+
+    assert Repo.reload!(project).slack_alert_channel == nil
+  end
+
   test "members can delete a project after confirming its name", %{conn: conn} do
     {:ok, project} =
       Projects.create_project(%{"name" => "Kura", "visibility" => "public"})

@@ -383,10 +383,9 @@ clickhouse:
     # Time (UTC) the daily CronJob runs. Offset by 30 minutes from the
     # Postgres backup so both do not contend for network/disk at once.
     schedule: "30 3 * * *"
-    image:
-      repository: altinity/clickhouse-backup
-      tag: "2.6.30"
-      pullPolicy: IfNotPresent
+    # The CronJob runs `clickhouse-client` against the StatefulSet and issues
+    # `BACKUP DATABASE ... TO S3(...)`, so it reuses the same ClickHouse
+    # server image and does not need its own image or a PVC mount.
     s3:
       bucket: atlas-clickhouse-backups
       path: production
@@ -394,6 +393,9 @@ clickhouse:
       endpoint: ""
     # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
     credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-clickhouse-backup/username"
+      secretKeyRemoteRef: "atlas-clickhouse-backup/credential"
     activeDeadlineSeconds: 3600
     resources:
       requests:
