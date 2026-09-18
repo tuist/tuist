@@ -184,7 +184,8 @@ defmodule Tuist.Tests.Coverage.History do
   One page of the branch's commits, newest first: the commits of
   `branch_history/3` that the period holds, unmeasured ones included, so the
   list and the chart describe the same stretch of the branch. `page` is
-  1-based, `page_size` is 20 by default, and `walk_limit` (1000) bounds how
+  1-based, `page_size` is 20 by default, `max_commits` caps how many of the
+  newest commits the pages hold at all, and `walk_limit` (1000) bounds how
   far back the branch is walked. Chaining and each commit's `change` against
   the commit chained before it are computed over the whole walk, so neither
   depends on the window's edge or on where a page was cut.
@@ -193,10 +194,16 @@ defmodule Tuist.Tests.Coverage.History do
     {page, opts} = Keyword.pop(opts, :page, 1)
     {page_size, opts} = Keyword.pop(opts, :page_size, 20)
     {walk_limit, opts} = Keyword.pop(opts, :walk_limit, 1000)
+    {max_commits, opts} = Keyword.pop(opts, :max_commits)
     page = max(page, 1)
 
     history = branch_history(project, branch, Keyword.put(opts, :limit, walk_limit))
-    commits = Enum.filter(history.commits, &in_period?(&1, opts))
+
+    commits =
+      history.commits
+      |> Enum.filter(&in_period?(&1, opts))
+      |> then(&if(max_commits, do: Enum.take(&1, max_commits), else: &1))
+
     total_pages = max(1, ceil(length(commits) / page_size))
     page = min(page, total_pages)
 

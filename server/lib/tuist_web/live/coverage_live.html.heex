@@ -600,9 +600,9 @@
   <.card
     title={
       if @branch == @selected_project.default_branch,
-        do: dgettext("dashboard_tests", "Commits"),
+        do: dgettext("dashboard_tests", "Recent commits"),
         else:
-          dgettext("dashboard_tests", "Commits since %{branch}",
+          dgettext("dashboard_tests", "Recent commits since %{branch}",
             branch: @selected_project.default_branch
           )
     }
