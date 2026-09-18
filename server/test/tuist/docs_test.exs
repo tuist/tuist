@@ -17,7 +17,7 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
-    test "loads the per-build-system Get Started pages with the coding-agent tip and prerequisites" do
+    test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do
       pages = [
         "/en/guides/get-started/existing-xcode-project",
         "/en/guides/get-started/generated-xcode-project",
@@ -29,7 +29,7 @@ defmodule Tuist.DocsTest do
         page = Docs.get_page(slug)
 
         refute is_nil(page), "missing page: #{slug}"
-        assert page.markdown =~ "Rather have a coding agent do this?"
+        assert page.markdown =~ "[Agent prompt]"
         assert page.markdown =~ "## Prerequisites"
       end
     end
