@@ -623,58 +623,60 @@
           )
         }
       />
-      <.table
-        id="coverage-commits-table"
-        rows={@commit_rows}
-        row_navigate={
-          fn row ->
-            if row.measured,
-              do:
-                url(
-                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{row.git_commit_sha}"
-                )
-          end
-        }
-      >
-        <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
-          <.text_cell label={short_sha(row.git_commit_sha)} />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
-          <.coverage_cell
-            :if={row.measured}
-            covered={row.covered_lines}
-            executable={row.executable_lines}
-          />
-          <.text_cell :if={not row.measured} label="—" />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-          <.change_cell delta={row.change} />
-        </:col>
-        <:col :let={row} label={"#{scheme_label(@selected_project)}s"}>
-          <.measured_by_cell :if={row.measured} commit={row} />
-          <.text_cell :if={not row.measured} label="—" />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
-          <.badge_cell
-            style="light-fill"
-            color={completeness_color(row)}
-            label={completeness_label(row)}
-          />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
-          <.text_cell sublabel={
-            if row.committed_at,
-              do: Tuist.Utilities.DateFormatter.from_now(row.committed_at),
-              else: "—"
-          } />
-        </:col>
-      </.table>
-      <.pagination_group
-        :if={@commits_meta.total_pages > 1}
-        current_page={@commits_meta.current_page}
-        number_of_pages={@commits_meta.total_pages}
-        page_patch={fn page -> "?#{Query.put(@uri.query, "commits-page", page)}" end}
-      />
+      <div data-part="commits-table">
+        <.table
+          id="coverage-commits-table"
+          rows={@commit_rows}
+          row_navigate={
+            fn row ->
+              if row.measured,
+                do:
+                  url(
+                    ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{row.git_commit_sha}"
+                  )
+            end
+          }
+        >
+          <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+            <.text_cell label={short_sha(row.git_commit_sha)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell
+              :if={row.measured}
+              covered={row.covered_lines}
+              executable={row.executable_lines}
+            />
+            <.text_cell :if={not row.measured} label="—" />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
+            <.change_cell delta={row.change} />
+          </:col>
+          <:col :let={row} label={"#{scheme_label(@selected_project)}s"}>
+            <.measured_by_cell :if={row.measured} commit={row} />
+            <.text_cell :if={not row.measured} label="—" />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
+            <.badge_cell
+              style="light-fill"
+              color={completeness_color(row)}
+              label={completeness_label(row)}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+            <.text_cell sublabel={
+              if row.committed_at,
+                do: Tuist.Utilities.DateFormatter.from_now(row.committed_at),
+                else: "—"
+            } />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@commits_meta.total_pages > 1}
+          current_page={@commits_meta.current_page}
+          number_of_pages={@commits_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "commits-page", page)}" end}
+        />
+      </div>
     </.card_section>
     <.coverage_empty
       :if={@commit_rows == []}

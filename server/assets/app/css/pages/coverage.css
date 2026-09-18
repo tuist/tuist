@@ -37,6 +37,14 @@
     }
   }
 
+  /* The table and the buttons that page it are one block, so the section's
+     gap does not stack with the pagination's own margin. */
+  & [data-part="commits-table"],
+  & [data-part="refs-table"] {
+    display: flex;
+    flex-direction: column;
+  }
+
   & [data-part="refs-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
