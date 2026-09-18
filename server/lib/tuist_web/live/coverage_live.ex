@@ -126,8 +126,8 @@ defmodule TuistWeb.CoverageLive do
   # Where the coverage is thinnest at the branch's latest commit: the least
   # covered files, and the tracked files no scheme measured at all.
   # The head commit read exactly as its own page reads it: where its targets
-  # and files moved against its baseline, where it is thinnest, and what
-  # nothing measured. The cards are the branch page's own.
+  # and files moved against its baseline, where it is thinnest, and which
+  # files have no coverage data. The cards are the branch page's own.
   defp assign_movements(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     head = History.head_commit(project, branch, period_opts(socket))
 

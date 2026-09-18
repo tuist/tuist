@@ -144,7 +144,7 @@ defmodule TuistWeb.CoverageLiveTest do
   end
 
   describe "coverage gaps" do
-    test "lists the least covered files and the files nothing measured", %{
+    test "lists the least covered files and the files without coverage data", %{
       conn: conn,
       organization: organization,
       project: project

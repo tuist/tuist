@@ -121,7 +121,7 @@ defmodule TuistWeb.Coverage.Components do
 
   @doc """
   Where the commit's files moved, where they are thinnest, and which of them
-  nothing measured, with the way to every file behind it.
+  have no coverage data, with the way to every file behind it.
   """
   def files_coverage_card(assigns) do
     ~H"""
@@ -183,7 +183,7 @@ defmodule TuistWeb.Coverage.Components do
         </.card_section>
         <.card_section data-part="movement-section">
           <div data-part="header">
-            <span data-part="title">{dgettext("dashboard_tests", "Files nothing measured")}</span>
+            <span data-part="title">{dgettext("dashboard_tests", "Files without coverage data")}</span>
             <span :if={@unmeasured_count > 0} data-part="count">
               {dgettext("dashboard_tests", "%{count} in total",
                 count: format_number(@unmeasured_count)
@@ -199,7 +199,7 @@ defmodule TuistWeb.Coverage.Components do
             </:col>
           </.table>
           <div :if={@unmeasured == []} data-part="empty">
-            {dgettext("dashboard_tests", "Every file Git knows at this commit was measured.")}
+            {dgettext("dashboard_tests", "Every file Git tracks at this commit has coverage data.")}
           </div>
         </.card_section>
       </div>

@@ -110,11 +110,11 @@
         />
         <.widget
           id="widget-coverage-unmeasured-files"
-          title={dgettext("dashboard_tests", "Unmeasured files")}
+          title={dgettext("dashboard_tests", "Files without coverage data")}
           description={
             dgettext(
               "dashboard_tests",
-              "Files Git knows at that commit that no scheme compiled, so nothing measured them."
+              "Source files Git tracks at that commit that no scheme compiled, so they are missing from the total."
             )
           }
           value={format_number(Map.get(@latest, :unmeasured_files_count) || 0)}
