@@ -103,10 +103,10 @@ defmodule TuistWeb.RunnersController do
   end
 
   # A runner reports the cache-volume it just promoted: it uploaded its branch
-  # to the account's master archive (presigned URL from dispatch) and now bumps
-  # the account's HEAD to that inventory digest. The account is resolved from
-  # the Pod's server-stamped runner-account label, not the body, so a runner
-  # can only advance the HEAD of the account it actually ran.
+  # to the volume's master archive and now bumps the volume's HEAD to that
+  # inventory digest. The account and volume are resolved from the Pod's
+  # server-stamped labels, not the body, so a runner can only advance the HEAD
+  # of the volume it actually ran.
   def report_volume_head(conn, params) do
     digest = Map.get(params, "tree_digest", "")
     node = node_name(params)
@@ -114,9 +114,10 @@ defmodule TuistWeb.RunnersController do
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
       case Runners.report_volume_head(
              account_id,
+             volume_name,
              node,
              digest,
              base_generation,
@@ -203,9 +204,9 @@ defmodule TuistWeb.RunnersController do
   # inventory digest it is about to promote, then PUTs its image there and calls
   # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
   # is a distinct object, so concurrent promotes never clobber the object the
-  # current HEAD points at. Same SA-token + server-stamped account-label binding
-  # as report_volume_head, so a runner can only mint an upload URL under the
-  # account it actually ran.
+  # current HEAD points at. Same SA-token + server-stamped label binding as
+  # report_volume_head, so a runner can only mint an upload URL under the account
+  # and volume it actually ran.
   #
   # Minting also PRE-FLIGHTS the fast-forward the upload leads to: a runner that
   # sends the base generation it built on gets a 409 here, before transferring
@@ -217,11 +218,11 @@ defmodule TuistWeb.RunnersController do
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      if doomed_fast_forward?(account_id, params) do
+         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
+      if doomed_fast_forward?(account_id, volume_name, params) do
         conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
       else
-        case Runners.volume_master_upload_url(account_id, digest, content_digest(params)) do
+        case Runners.volume_master_upload_url(account_id, volume_name, digest, content_digest(params)) do
           {:ok, upload_url, nil} ->
             json(conn, %{upload_url: upload_url})
 
@@ -254,10 +255,15 @@ defmodule TuistWeb.RunnersController do
   # the way the bump does: a runner image predating this pre-flight sends no base
   # here, and must keep its upload-then-arbitrate path instead of being told its
   # cold-job promote is stale.
-  defp doomed_fast_forward?(account_id, params) do
+  defp doomed_fast_forward?(account_id, volume_name, params) do
     case Map.fetch(params, "base_generation") do
       {:ok, value} ->
-        not Runners.fast_forward_viable?(account_id, parse_base_generation(value), unverifiable_digest(params))
+        not Runners.fast_forward_viable?(
+          account_id,
+          volume_name,
+          parse_base_generation(value),
+          unverifiable_digest(params)
+        )
 
       :error ->
         false

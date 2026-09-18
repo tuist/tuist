@@ -29,11 +29,24 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
     {:ok, %{"metadata" => %{"labels" => labels}}}
   end
 
-  describe "resident_account_ids/1" do
+  describe "resident_masters/1" do
     test "reads the account ids the host advertises" do
       stub(K8sClient, :get_node, fn "mac-01" -> node_with_masters([42, 7]) end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42, 7])
+      assert VolumeAffinities.resident_masters("mac-01") == MapSet.new([{42, "tuist-cache"}, {7, "tuist-cache"}])
+    end
+
+    test "reads the repository volumes the host advertises" do
+      stub(K8sClient, :get_node, fn "mac-01" ->
+        node_with_masters([42], %{
+          "tuist.dev/cache-master-42.repo-eae044a4c27633ea" => "true",
+          "tuist.dev/cache-master-7.repo-5f89da0438fa1b17" => "true",
+          "tuist.dev/cache-master-7.not-a-volume" => "true"
+        })
+      end)
+
+      assert VolumeAffinities.resident_masters("mac-01") ==
+               MapSet.new([{42, "tuist-cache"}, {42, "repo-eae044a4c27633ea"}, {7, "repo-5f89da0438fa1b17"}])
     end
 
     test "ignores labels that are not cache-master advertisements" do
@@ -45,7 +58,7 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
         })
       end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42])
+      assert VolumeAffinities.resident_masters("mac-01") == MapSet.new([{42, "tuist-cache"}])
     end
 
     test "ignores a cache-master label whose suffix is not an account id" do
@@ -53,7 +66,7 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
         node_with_masters([42], %{"tuist.dev/cache-master-not-an-id" => "true"})
       end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42])
+      assert VolumeAffinities.resident_masters("mac-01") == MapSet.new([{42, "tuist-cache"}])
     end
 
     test "returns an empty set when the node is unreadable" do
@@ -61,20 +74,20 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       # read is simply handed plain oldest-queued work.
       stub(K8sClient, :get_node, fn _ -> {:error, :not_found} end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
+      assert VolumeAffinities.resident_masters("mac-01") == MapSet.new()
     end
 
     test "returns an empty set without node identity" do
       reject(&K8sClient.get_node/1)
 
-      assert VolumeAffinities.resident_account_ids(nil) == MapSet.new()
-      assert VolumeAffinities.resident_account_ids("") == MapSet.new()
+      assert VolumeAffinities.resident_masters(nil) == MapSet.new()
+      assert VolumeAffinities.resident_masters("") == MapSet.new()
     end
 
     test "returns an empty set for a host advertising no masters" do
       stub(K8sClient, :get_node, fn _ -> node_with_masters([]) end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
+      assert VolumeAffinities.resident_masters("mac-01") == MapSet.new()
     end
   end
 
@@ -196,6 +209,48 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
       assert {^head, :head_overdue} =
                VolumeAffinities.select_candidate([head | residents], "mac-01", tolerance_seconds: 30)
+    end
+
+    test "matches a candidate on its repository's volume", %{account: account} do
+      stub(K8sClient, :get_node, fn _ ->
+        node_with_masters([], %{"tuist.dev/cache-master-#{account}.repo-eae044a4c27633ea" => "true"})
+      end)
+
+      now = DateTime.utc_now()
+      head = %{account_id: account, repository: "acme/app", enqueued_at: now}
+      resident = %{account_id: account, repository: "acme/cli", enqueued_at: DateTime.add(now, 5, :second)}
+
+      assert VolumeAffinities.select_candidate([head, resident], "mac-01", tolerance_seconds: 30) ==
+               {resident, :resident}
+    end
+
+    test "counts the account's volume as resident for a repository volume it can seed", %{
+      account: account,
+      other: other
+    } do
+      stub_residency([account])
+      now = DateTime.utc_now()
+      head = %{account_id: other, repository: "other/app", enqueued_at: now}
+      seedable = %{account_id: account, repository: "acme/cli", enqueued_at: DateTime.add(now, 5, :second)}
+
+      assert VolumeAffinities.select_candidate([head, seedable], "mac-01", tolerance_seconds: 30) ==
+               {seedable, :resident}
+    end
+
+    test "does not count a repository volume as resident for a job with no repository", %{
+      account: account,
+      other: other
+    } do
+      stub(K8sClient, :get_node, fn _ ->
+        node_with_masters([], %{"tuist.dev/cache-master-#{account}.repo-eae044a4c27633ea" => "true"})
+      end)
+
+      now = DateTime.utc_now()
+      head = %{account_id: other, repository: "", enqueued_at: now}
+      no_repository = %{account_id: account, repository: "", enqueued_at: DateTime.add(now, 5, :second)}
+
+      assert VolumeAffinities.select_candidate([head, no_repository], "mac-01", tolerance_seconds: 30) ==
+               {head, :no_resident_candidate}
     end
 
     test "returns the oldest resident candidate when several are resident", %{account: account} do
