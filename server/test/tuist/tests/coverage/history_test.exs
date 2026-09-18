@@ -321,26 +321,46 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       :ok
     end
 
-    test "lists branches and pull requests against the default branch, newest first", %{project: project} do
+    test "lists a branch once, with the pull request it was pushed for", %{project: project} do
       page = History.refs(project)
 
       assert page.total_count == 3
 
-      assert Enum.map(page.refs, &{&1.kind, &1.name, &1.coverage, &1.delta}) == [
-               {"pull_request", "#42", 100.0, 50.0},
-               {"branch", "feature/widgets", 75.0, 25.0},
-               {"branch", "main", 50.0, nil}
+      assert Enum.map(page.refs, &{&1.name, &1.pull_request_number, &1.coverage, &1.delta}) == [
+               {"feature/gates", 42, 100.0, 50.0},
+               {"feature/widgets", 0, 75.0, 25.0},
+               {"main", 0, 50.0, nil}
              ]
 
-      assert [%{git_branch: "feature/gates", base_branch: "main", git_commit_sha: "p", pull_request_number: 42} | _] =
-               page.refs
+      assert [%{base_branch: "main", git_commit_sha: "p"} | _] = page.refs
+    end
+
+    test "lists a pull request whose runs named no branch under its number", %{
+      project: project,
+      account: account
+    } do
+      run(
+        project,
+        account,
+        %{
+          git_commit_sha: "n",
+          git_branch: "",
+          is_pull_request: true,
+          pull_request_number: 77,
+          ran_at: ~N[2026-09-05 10:00:00]
+        },
+        [1, 1, 1, 0]
+      )
+
+      assert %{name: "#77", pull_request_number: 77, git_branch: ""} =
+               Enum.find(History.refs(project).refs, &(&1.pull_request_number == 77))
     end
 
     test "narrows them by branch name or pull request number, and pages", %{project: project} do
       assert Enum.map(History.refs(project, search: "widgets").refs, & &1.name) == ["feature/widgets"]
-      assert Enum.map(History.refs(project, search: "#42").refs, & &1.name) == ["#42"]
-      # A pull request is also found by the branch it was pushed from.
-      assert Enum.map(History.refs(project, search: "gates").refs, & &1.name) == ["#42"]
+      # A branch is found by the number of the pull request it was pushed for.
+      assert Enum.map(History.refs(project, search: "#42").refs, & &1.name) == ["feature/gates"]
+      assert Enum.map(History.refs(project, search: "gates").refs, & &1.name) == ["feature/gates"]
       assert History.refs(project, search: "nothing").refs == []
 
       first = History.refs(project, page_size: 2)

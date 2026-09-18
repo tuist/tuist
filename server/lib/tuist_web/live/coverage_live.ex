@@ -206,7 +206,7 @@ defmodule TuistWeb.CoverageLive do
 
     socket
     |> assign(:refs_search, search)
-    |> assign(:ref_rows, Enum.map(page.refs, &Map.put(&1, :id, &1.kind <> "-" <> &1.name)))
+    |> assign(:ref_rows, Enum.map(page.refs, &Map.put(&1, :id, "ref-" <> &1.name)))
     |> assign(:refs_meta, %{current_page: page.page, total_pages: page.total_pages, total_count: page.total_count})
   end
 
@@ -502,10 +502,6 @@ defmodule TuistWeb.CoverageLive do
 
   def ref_status_color(%{complete: true}), do: "success"
   def ref_status_color(_ref), do: "information"
-
-  @doc "Whether a ref is a branch or a pull request, as its row's kind reads."
-  def ref_kind_label("pull_request"), do: dgettext("dashboard_tests", "Pull request")
-  def ref_kind_label(_kind), do: dgettext("dashboard_tests", "Branch")
 
   def skipped_reason_label(:stale), do: dgettext("dashboard_tests", "Measured on another version of the file")
   def skipped_reason_label(:no_line_data), do: dgettext("dashboard_tests", "No per-line data in the run")

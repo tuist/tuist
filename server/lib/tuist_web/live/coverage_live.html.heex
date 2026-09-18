@@ -777,7 +777,7 @@
           rows={@ref_rows}
           row_navigate={
             fn ref ->
-              if ref.kind == "pull_request",
+              if ref.pull_request_number > 0,
                 do:
                   url(
                     ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/pull-requests/#{ref.pull_request_number}"
@@ -789,22 +789,17 @@
             end
           }
         >
-          <:col :let={ref} label={dgettext("dashboard_tests", "Branch or pull request")}>
-            <.text_cell
-              label={ref.name}
-              sublabel={
-                if ref.kind == "pull_request" and ref.git_branch != "",
-                  do: ref.git_branch,
-                  else: nil
-              }
-            />
+          <:col :let={ref} label={dgettext("dashboard_tests", "Branch")}>
+            <.text_cell label={ref.name} />
           </:col>
-          <:col :let={ref} label={dgettext("dashboard_tests", "Kind")}>
+          <:col :let={ref} label={dgettext("dashboard_tests", "Pull request")}>
             <.badge_cell
+              :if={ref.pull_request_number > 0}
               style="light-fill"
-              color={if ref.kind == "pull_request", do: "information", else: "neutral"}
-              label={ref_kind_label(ref.kind)}
+              color="information"
+              label={"##{ref.pull_request_number}"}
             />
+            <.text_cell :if={ref.pull_request_number == 0} label="—" />
           </:col>
           <:col :let={ref} label={dgettext("dashboard_tests", "Coverage")}>
             <.coverage_cell covered={ref.covered_lines} executable={ref.executable_lines} />
