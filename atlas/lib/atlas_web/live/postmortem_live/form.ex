@@ -152,18 +152,6 @@ defmodule AtlasWeb.PostmortemLive.Form do
                 />
               </.dropdown>
             </div>
-            <div data-part="select-field">
-              <span>{dgettext("postmortems", "Visibility")}</span>
-              <.select
-                id="postmortem-visibility"
-                name={@form[:visibility].name}
-                value={to_string(@form[:visibility].value)}
-                label={dgettext("postmortems", "Choose visibility")}
-              >
-                <:item value="public" label={dgettext("postmortems", "Public")} />
-                <:item value="private" label={dgettext("postmortems", "Private")} />
-              </.select>
-            </div>
             <div data-part="form-actions">
               <.button
                 label={

@@ -125,19 +125,21 @@ defmodule Atlas.Engineering.PostmortemsTest do
     assert is_nil(Postmortems.get_postmortem(postmortem.id))
   end
 
-  test "fetch_visible_postmortem_by_number hides private postmortems from anon" do
+  test "ensure_share_token lazily generates and persists a UUID" do
     owner = user()
 
     {:ok, postmortem} =
-      Postmortems.publish_postmortem(
-        %{"body" => "# secret\n\nquiet please", "visibility" => "private"},
-        owner
-      )
+      Postmortems.publish_postmortem(%{"body" => "# share\n\nlink me"}, owner)
 
-    assert {:error, :not_found} =
-             Postmortems.fetch_visible_postmortem_by_number(postmortem.number, nil)
+    assert is_nil(postmortem.share_token)
 
-    assert {:ok, _} =
-             Postmortems.fetch_visible_postmortem_by_number(postmortem.number, owner)
+    assert {:ok, %{share_token: token}} = Postmortems.ensure_share_token(postmortem)
+    assert is_binary(token)
+
+    reloaded = Postmortems.get_postmortem!(postmortem.id)
+    assert reloaded.share_token == token
+
+    assert {:ok, %{share_token: ^token}} = Postmortems.ensure_share_token(reloaded)
+    assert Postmortems.get_postmortem_by_share_token(token).id == postmortem.id
   end
 end

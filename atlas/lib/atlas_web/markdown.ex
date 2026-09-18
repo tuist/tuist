@@ -41,10 +41,18 @@ defmodule AtlasWeb.Markdown do
 
   attr :id, :string, required: true
   attr :body, :string, required: true
+  attr :heading_offset, :integer, default: 1
+  attr :strip_leading_h1, :boolean, default: false
   attr :rest, :global
 
   def content(assigns) do
-    assigns = assign(assigns, :blocks, component_blocks(assigns.body, assigns.id))
+    assigns =
+      assign(assigns, :blocks,
+        component_blocks(assigns.body, assigns.id,
+          heading_offset: assigns.heading_offset,
+          strip_leading_h1: assigns.strip_leading_h1
+        )
+      )
 
     ~H"""
     <div id={@id} class="markdown" {@rest}>
@@ -143,15 +151,19 @@ defmodule AtlasWeb.Markdown do
 
   def preview(_text, _limit), do: ""
 
-  defp component_blocks(markdown, id) when is_binary(markdown) do
-    document = markdown_document(markdown)
+  defp component_blocks(markdown, id, opts) when is_binary(markdown) do
+    document = markdown_document(markdown, opts)
 
     document.nodes
+    |> maybe_strip_leading_h1(Keyword.get(opts, :strip_leading_h1, false))
     |> Enum.with_index()
     |> Enum.map(fn {node, index} -> component_block(node, document, id, index) end)
   end
 
-  defp component_blocks(_markdown, _id), do: []
+  defp component_blocks(_markdown, _id, _opts), do: []
+
+  defp maybe_strip_leading_h1([%MDEx.Heading{level: 1} | rest], true), do: rest
+  defp maybe_strip_leading_h1(nodes, _strip?), do: nodes
 
   defp component_block(%MDEx.Alert{} = alert, document, _id, _index) do
     status = Map.fetch!(@alert_statuses, alert.alert_type)
@@ -188,10 +200,12 @@ defmodule AtlasWeb.Markdown do
     {:html, render_nodes(document, [node])}
   end
 
-  defp markdown_document(markdown) do
+  defp markdown_document(markdown, opts \\ []) do
+    offset = Keyword.get(opts, :heading_offset, 1)
+
     markdown
     |> MDEx.parse_document!(@options)
-    |> MDEx.traverse_and_update(&downshift_heading/1)
+    |> MDEx.traverse_and_update(&shift_heading(&1, offset))
   end
 
   defp render_nodes(document, nodes) do
@@ -206,9 +220,11 @@ defmodule AtlasWeb.Markdown do
   defp node_text(%{nodes: nodes}) when is_list(nodes), do: Enum.map_join(nodes, &node_text/1)
   defp node_text(_node), do: ""
 
-  defp downshift_heading(%MDEx.Heading{level: level} = node), do: %{node | level: min(level + 1, 6)}
+  defp shift_heading(%MDEx.Heading{level: level} = node, offset) when is_integer(offset) do
+    %{node | level: level |> Kernel.+(offset) |> max(1) |> min(6)}
+  end
 
-  defp downshift_heading(node), do: node
+  defp shift_heading(node, _offset), do: node
 
   defp strip_paragraph_wrap(html) do
     trimmed = String.trim(html)

@@ -29,13 +29,11 @@ defmodule Atlas.Engineering.Postmortems do
 
   def can_delete?(%Postmortem{} = postmortem, user), do: can_edit?(postmortem, user)
 
-  def can_view?(%Postmortem{visibility: :public}, _user), do: true
   def can_view?(%Postmortem{}, %User{}), do: true
   def can_view?(%Postmortem{}, _user), do: false
 
-  def list_postmortems(user \\ nil) do
+  def list_postmortems(_user \\ nil) do
     Postmortem
-    |> apply_visibility(user)
     |> order_by([postmortem], desc: postmortem.inserted_at)
     |> preload([:created_by_user, :domains, action_items: ^action_items_query()])
     |> Repo.all()
@@ -49,7 +47,6 @@ defmodule Atlas.Engineering.Postmortems do
       Postmortem
       |> maybe_search(Keyword.get(opts, :query))
       |> maybe_filter_published(Keyword.get(opts, :published))
-      |> apply_visibility(Keyword.get(opts, :user))
 
     total_entries = Repo.aggregate(query, :count)
     total_pages = max(ceil(total_entries / page_size), 1)
@@ -81,6 +78,22 @@ defmodule Atlas.Engineering.Postmortems do
   def get_postmortem_by_number!(number), do: Postmortem |> preload_postmortem() |> Repo.get_by!(number: number)
 
   def get_postmortem_by_number(number), do: Postmortem |> preload_postmortem() |> Repo.get_by(number: number)
+
+  def get_postmortem_by_share_token(nil), do: nil
+
+  def get_postmortem_by_share_token(token) when is_binary(token) do
+    Postmortem |> preload_postmortem() |> Repo.get_by(share_token: token)
+  rescue
+    Ecto.Query.CastError -> nil
+  end
+
+  def ensure_share_token(%Postmortem{share_token: token} = postmortem) when is_binary(token), do: {:ok, postmortem}
+
+  def ensure_share_token(%Postmortem{} = postmortem) do
+    postmortem
+    |> Postmortem.share_token_changeset(Ecto.UUID.generate())
+    |> Repo.update()
+  end
 
   def get_postmortem_by_reference(reference) when is_integer(reference), do: get_postmortem_by_number(reference)
 
@@ -337,14 +350,12 @@ defmodule Atlas.Engineering.Postmortems do
   def semantic_search(query, opts \\ []) when is_binary(query) do
     embed = Keyword.get(opts, :embed, &embed/1)
     limit = Keyword.get(opts, :limit, 10)
-    user = Keyword.get(opts, :user)
 
     with {:ok, query_embedding} <- embed.(query) do
       results =
         Embedding
         |> where([embedding], embedding.status == :indexed)
         |> join(:inner, [embedding], postmortem in assoc(embedding, :postmortem), as: :postmortem)
-        |> apply_embedding_visibility(user)
         |> preload([postmortem: postmortem], postmortem: postmortem)
         |> Repo.all()
         |> Enum.map(fn embedding ->
@@ -393,15 +404,6 @@ defmodule Atlas.Engineering.Postmortems do
   end
 
   defp maybe_filter_published(query, _value), do: query
-
-  defp apply_visibility(query, %User{}), do: query
-
-  defp apply_visibility(query, _user), do: where(query, [postmortem], postmortem.visibility == :public)
-
-  defp apply_embedding_visibility(query, %User{}), do: query
-
-  defp apply_embedding_visibility(query, _user),
-    do: where(query, [postmortem: postmortem], postmortem.visibility == :public)
 
   defp action_items_query do
     from action_item in ActionItem,
@@ -540,38 +542,25 @@ defmodule Atlas.Engineering.Postmortems do
   defp put_domains(postmortem, attrs) do
     case fetch_domain_ids(attrs) do
       :error ->
-        postmortem = Repo.preload(postmortem, :domains)
-
-        if postmortem.visibility == :public and
-             Enum.any?(postmortem.domains, &(&1.visibility == :private)) do
-          invalid_domain_visibility(postmortem)
-        else
-          {:ok, postmortem}
-        end
+        {:ok, Repo.preload(postmortem, :domains)}
 
       {:ok, values} ->
         domain_ids = values |> List.wrap() |> Enum.reject(&(&1 in [nil, ""]))
         domains = Repo.all(from domain in Domain, where: domain.id in ^domain_ids)
 
-        cond do
-          length(domains) != length(Enum.uniq(domain_ids)) ->
-            {:error,
-             Changeset.add_error(
-               Changeset.change(postmortem),
-               :domain_ids,
-               "contains unknown domains"
-             )}
-
-          postmortem.visibility == :public and
-              Enum.any?(domains, &(&1.visibility == :private)) ->
-            invalid_domain_visibility(postmortem)
-
-          true ->
-            postmortem
-            |> Repo.preload(:domains)
-            |> Changeset.change()
-            |> Changeset.put_assoc(:domains, domains)
-            |> Repo.update()
+        if length(domains) != length(Enum.uniq(domain_ids)) do
+          {:error,
+           Changeset.add_error(
+             Changeset.change(postmortem),
+             :domain_ids,
+             "contains unknown domains"
+           )}
+        else
+          postmortem
+          |> Repo.preload(:domains)
+          |> Changeset.change()
+          |> Changeset.put_assoc(:domains, domains)
+          |> Repo.update()
         end
     end
   end
@@ -581,15 +570,6 @@ defmodule Atlas.Engineering.Postmortems do
       :error -> Map.fetch(attrs, :domain_ids)
       result -> result
     end
-  end
-
-  defp invalid_domain_visibility(postmortem) do
-    {:error,
-     Changeset.add_error(
-       Changeset.change(postmortem),
-       :domain_ids,
-       "public postmortems can only include public domains"
-     )}
   end
 
   defp tap_result({:ok, value} = result, fun) do
@@ -607,8 +587,7 @@ defmodule Atlas.Engineering.Postmortems do
       target_label: title(postmortem),
       metadata: %{
         "number" => to_string(postmortem.number),
-        "path" => "/engineering/postmortems/#{postmortem.number}",
-        "visibility" => Atom.to_string(postmortem.visibility)
+        "path" => "/engineering/postmortems/#{postmortem.number}"
       }
     })
   end

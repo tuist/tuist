@@ -14,7 +14,7 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
       "number" => postmortem.number,
       "title" => PostmortemContext.title(postmortem),
       "body" => postmortem.body,
-      "visibility" => Atom.to_string(postmortem.visibility),
+      "share_token" => postmortem.share_token,
       "author" => author(postmortem),
       "domains" => domains(postmortem),
       "action_items" => action_items(postmortem),
@@ -54,7 +54,7 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
 
   defp domains(%{domains: domains}) do
     Enum.map((Ecto.assoc_loaded?(domains) && domains) || [], fn domain ->
-      %{"id" => domain.id, "name" => domain.name, "visibility" => Atom.to_string(domain.visibility)}
+      %{"id" => domain.id, "name" => domain.name}
     end)
   end
 
@@ -67,7 +67,7 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
         "number" => %{"type" => "integer"},
         "title" => %{"type" => "string"},
         "body" => %{"type" => "string"},
-        "visibility" => %{"type" => "string"},
+        "share_token" => %{"type" => ["string", "null"]},
         "author" => %{"type" => ["object", "null"]},
         "domains" => %{"type" => "array", "items" => %{"type" => "object"}},
         "action_items" => %{"type" => "array", "items" => action_item_schema()},
@@ -80,7 +80,7 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
         "number",
         "title",
         "body",
-        "visibility",
+        "share_token",
         "author",
         "domains",
         "action_items",
