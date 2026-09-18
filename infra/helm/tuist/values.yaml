@@ -2308,8 +2308,7 @@ runnersFleet:
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
-  # `server-production-deployment.yml`'s `runner-image-build` matrix
-  # expands. A catalog entry with no runner image published for it
+  # `runner-image-release.yml` publishes images for. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
     - xcodeVersion: "27.0"
@@ -2352,14 +2351,14 @@ runnersFleet:
   # Per-pool runner image template. `runner-pool.yaml` constructs each
   # macOS pool's `spec.image` as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # so a runner image release only bumps `runnerImageSemver`
   # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
   # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
   # an out-of-rotation Xcode refreshed via `runner-image.yml`).
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
   # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Bumped by `release-runner-image` on every
-  # release; managed envs override this with the live version.
+  # render otherwise). Resolved from the latest `runner-image@` tag at
+  # deploy time; managed envs override this with the live version.
   runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`

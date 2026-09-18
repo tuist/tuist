@@ -343,9 +343,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
   `runner.pkr.hcl` is a MANDATORY input and the template has two callers
-  (`runner-image.yml` and `server-production-deployment.yml`'s
-  `runner-image-build`), so a binary built in only one fails the other with
-  `Bad source` — on the release path that takes down the whole cascade. Add new
+  (`runner-image.yml` and `runner-image-release.yml`), so a binary built in
+  only one fails the other with `Bad source`. Add new
   provisioned binaries to that action, not to a workflow. `cas_proxy_client` prefers the binary beside the tuist
   that `tuist setup cache` installed (it matches the proxy actually running,
   which is what a drain must talk to) and falls back to this one. It exists
@@ -416,37 +415,36 @@ packer build runner.pkr.hcl
 ```
 
 CI:
-- **Steady state.** `feat(runner-image)` / `fix(runner-image)`
-  conventional commits on `main` trigger a two-job chain in
-  `server-production-deployment.yml`:
-  1. `runner-image-build` is a matrix job; its `matrix.xcode` is
-     read from `infra/runner-image/profiles.json` (the single source
-     of truth) by `check-releases` and expanded via `fromJSON`. One
-     entry runs per profile, fanned out across every available
-     `vm-image-builder`-labelled host. Each entry
-     builds against `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` and
-     pushes both immutable (`:macos-<dashes>-<semver>`) and rolling
-     (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
-     fails, sibling builds abort so the chart pin doesn't move to a
-     partially-published set.
-  2. `release-runner-image` (ubuntu) renders the published image
-     list for the GitHub Release body from `profiles.json`, generates
-     release notes / `CHANGELOG.md`, and uploads artifacts. It
-     rewrites no values file: the `runner-image@<semver>` tag that
-     `tag-infra-releases` creates is what the chart's
-     `runnersFleet.runnerImageSemver` resolves to at deploy time.
-     Downstream tag + GitHub-Release jobs key off this job's
-     `result == 'success'`.
+- **Releases.** `.github/workflows/runner-image-release.yml` runs on
+  pushes to `main` under `infra/runner-image/**` and on
+  `workflow_dispatch`, in its own concurrency lane, off the server
+  deploy path:
+  1. `plan` (`.github/scripts/runner-image-release-plan.sh`) rebuilds a
+     profile when the image's sources changed in a releasable commit,
+     when the previous release did not carry it, or when its
+     `macos-tahoe-xcode` base resolves to a different digest than the
+     one in the previous release's `build-manifest.json`. Every other
+     profile is carried over. A base-only change releases a patch
+     version.
+  2. `build` fans the rebuilt profiles across the `vm-image-builder`
+     hosts. Each clones its base by digest and pushes
+     `:macos-<dashes>-<semver>` and `:macos-<dashes>`.
+  3. `carry` re-tags `:macos-<dashes>-<previous>` as
+     `:macos-<dashes>-<semver>`, a manifest copy with no layer upload.
+  4. `release` checks every profile tag is published, then creates the
+     `runner-image@<semver>` tag and GitHub Release with
+     `build-manifest.json` attached. The chart's
+     `runnersFleet.runnerImageSemver` resolves to that tag at deploy
+     time.
+  5. `deploy` dispatches `server-production-deployment.yml`, which
+     rolls the fleet through canary.
 
-  Concurrency scales with builder count: 2 hosts publish 2 profiles
-  in parallel, more hosts cut the wall-clock proportionally. No
-  workflow change needed when the fleet grows.
+  `macos-xcode-image.yml` dispatches the workflow after publishing a
+  base an active profile builds on, so a rebuilt base or a moved beta
+  channel reaches the fleet without a repo change.
 - **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
-  (push-to-main on `infra/runner-image/**` changes, plus a
-  manual `workflow_dispatch` trigger) builds + pushes a
-  SHA-tagged image without bumping the version. Used during
-  bring-up before the auto-bump path was wired and as an escape
-  hatch for non-versioned rebuilds.
+  (`workflow_dispatch`) builds + pushes a SHA-tagged image for one
+  profile without cutting a release.
 
 Both flows run on the bare-metal `vm-image-builder` Mac mini
 fleet that also builds xcresult-processor. Tart needs a live GUI
@@ -488,19 +486,12 @@ mirror + base image tags `xcode-xips:27.2-beta`,
 resolves to a runner pool sized by
 `runnersFleet.xcodeOverrides["27.2-beta"]`.
 
-`check-releases` reads this into the `runner-image-matrix` output and
-`runner-image-build`'s `matrix` expands it via `fromJSON`. Because the
-file lives under `infra/runner-image/**` — the component's only
-include path in `mise/tasks/release/components.json` — editing the
-list both reshapes the build matrix and triggers a runner-image
-release, with no `server-production-deployment.yml` edit. Unrelated
-churn in that workflow no longer rebuilds the images.
+The file lives under `infra/runner-image/**`, so editing it triggers
+a runner-image release. Adding a profile builds only that profile;
+removing one drops it from the next release.
 
-- **Active.** Rebuilt on every `release-runner-image` run (every
-  `feat(runner-image)` / `fix(runner-image)` commit landing on
-  `main`). Each adds ~30 min on a single builder; matrix-fanned across
-  the fleet so adding a third builder lets you carry a third profile
-  at the same wall-clock cost.
+- **Active.** Every release publishes a `:macos-<dashes>-<semver>` tag
+  for each entry, rebuilt or carried over as the plan decides.
 - **Default profile.** The first entry, by convention. Which
   version `runs-on: tuist-macos` actually resolves to is the
   catalog entry marked `default: true` in
@@ -508,8 +499,7 @@ churn in that workflow no longer rebuilds the images.
   both this list and that catalog.
 - **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
   that's been published in the past and still exists in GHCR. They
-  don't refresh on `server-production-deployment.yml` runs —
-  customers can keep pinning to them, but new runner-agent /
+  don't refresh on runner-image releases — customers can keep pinning to them, but new runner-agent /
   dispatch-loop / launchd changes only land in them when the
   operator explicitly refreshes via
 
@@ -536,10 +526,10 @@ Bumping the Xcode customers see on their runners:
    `server-production-deployment.yml`'s xcresult-processor
    `XCODE_VERSION` to match** — that image must be at least as new
    as the newest runner profile.
-   Also add the matching `runnersFleet.xcodeVersions` entry in
+   Commit with a `feat(runner-image): ...` message so the release
+   builds the new profile. Once that `runner-image@` release is
+   published, add the matching `runnersFleet.xcodeVersions` entry in
    `values-managed-common.yaml` so the fleet renders a pool for it.
-   Commit with a `feat(runner-image): ...` message so check-releases
-   triggers the rebuild.
 3. Once customers have migrated off an older Xcode, drop its entry
    from `profiles.json` (and its `values-managed-common.yaml` pool).
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
@@ -555,10 +545,8 @@ Two things fall out of that, both wanted:
 - The base image `macos-xcode-image` publishes for a beta carries
   both an exact tag and the channel tag, so moving a beta is a
   rebuild of `:27-0-beta`. The entry here already points at it,
-  which makes a beta bump a zero-diff change: the next
-  runner-image release rebuilds against whatever the channel now
-  holds. Those fire every few days, comfortably inside Apple's
-  fortnightly beta cadence.
+  which makes a beta bump a zero-diff change: publishing the channel
+  dispatches a runner-image release that rebuilds that profile.
 - The channel is what customers' Runner Profiles store in
   `xcode_version`. Retiring a catalog entry a profile still names
   strands it on a RunnerPool that no longer renders, and a
@@ -566,9 +554,9 @@ Two things fall out of that, both wanted:
   failing them. A channel outlives the betas behind it, so that
   never comes up.
 
-The cost is one more ~30 min bake per runner-image release, and
-`fail-fast: true` on the matrix means a beta base that cannot take
-the runner layer would abort its siblings. That layer is thin
+A beta profile is rebuilt when its channel moves or the image's
+sources change, and `fail-fast: true` on the matrix means a beta base
+that cannot take the runner layer would abort its siblings. That layer is thin
 (runner agent plus launchd, ~2 min) and the risky Xcode work all
 happens in Layer 1, which fails in `macos-xcode-image` instead, so
 the exposure is small. Full runbook: "Promoting an Xcode beta" in
