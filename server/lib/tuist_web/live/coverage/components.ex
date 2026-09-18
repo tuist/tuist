@@ -35,6 +35,172 @@ defmodule TuistWeb.Coverage.Components do
   def empty_artwork(_image),
     do: %{light: ~p"/images/empty_line_chart_light.png", dark: ~p"/images/empty_line_chart_dark.png"}
 
+  @movers_limit 5
+
+  @doc """
+  The rows that moved most in one direction against the baseline, largest
+  first: what a card highlights rather than lists. A row that did not move,
+  or has nothing to compare with, is not a highlight. Targets are named and
+  files are paths; both read as a name here.
+  """
+  def movers(rows, direction, prefix) do
+    rows
+    |> Enum.filter(&(is_float(&1.delta) and moved?(&1.delta, direction)))
+    |> Enum.sort_by(& &1.delta, direction)
+    |> Enum.take(@movers_limit)
+    |> Enum.map(fn row ->
+      name = Map.get(row, :name) || Map.fetch!(row, :path)
+      row |> Map.put(:name, name) |> Map.put(:id, prefix <> "-" <> name)
+    end)
+  end
+
+  defp moved?(delta, :desc), do: delta > 0
+  defp moved?(delta, :asc), do: delta < 0
+
+  attr :rises, :list, required: true
+  attr :falls, :list, required: true
+  attr :baseline, :map, default: nil
+  attr :baseline_reason, :map, default: nil
+  attr :href, :string, required: true
+
+  @doc """
+  Where the commit's targets moved against its baseline, with the way to
+  every target behind it. The project's page and a subject's overview show
+  the same card.
+  """
+  def targets_coverage_card(assigns) do
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Targets coverage")}
+      icon="stack_2"
+      data-part="targets-coverage"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View more")}
+          variant="secondary"
+          size="medium"
+          navigate={@href}
+        />
+      </:actions>
+      <.card_section :if={is_nil(@baseline)} data-part="movements-empty">
+        <div data-part="empty">
+          {dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
+            reason: reason_label(@baseline_reason)
+          )}
+        </div>
+      </.card_section>
+      <div :if={@baseline} data-part="movements-sections">
+        <.movement_section
+          id="target-rises"
+          title={dgettext("dashboard_tests", "Targets that rose most")}
+          rows={@rises}
+          empty={dgettext("dashboard_tests", "No target rose.")}
+          label={dgettext("dashboard_tests", "Target")}
+        />
+        <.movement_section
+          id="target-falls"
+          title={dgettext("dashboard_tests", "Targets that fell most")}
+          rows={@falls}
+          empty={dgettext("dashboard_tests", "No target fell.")}
+          label={dgettext("dashboard_tests", "Target")}
+        />
+      </div>
+    </.card>
+    """
+  end
+
+  attr :rises, :list, required: true
+  attr :falls, :list, required: true
+  attr :least_covered, :list, required: true
+  attr :unmeasured, :list, required: true
+  attr :unmeasured_count, :integer, default: 0
+  attr :baseline, :map, default: nil
+  attr :baseline_reason, :map, default: nil
+  attr :href, :string, required: true
+
+  @doc """
+  Where the commit's files moved, where they are thinnest, and which of them
+  nothing measured, with the way to every file behind it.
+  """
+  def files_coverage_card(assigns) do
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Files coverage")}
+      icon="file"
+      data-part="files-coverage"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View more")}
+          variant="secondary"
+          size="medium"
+          navigate={@href}
+        />
+      </:actions>
+      <.card_section :if={is_nil(@baseline)} data-part="movements-empty">
+        <div data-part="empty">
+          {dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
+            reason: reason_label(@baseline_reason)
+          )}
+        </div>
+      </.card_section>
+      <div :if={@baseline} data-part="movements-sections">
+        <.movement_section
+          id="file-rises"
+          title={dgettext("dashboard_tests", "Files that rose most")}
+          rows={@rises}
+          empty={dgettext("dashboard_tests", "No file rose.")}
+          label={dgettext("dashboard_tests", "File")}
+        />
+        <.movement_section
+          id="file-falls"
+          title={dgettext("dashboard_tests", "Files that fell most")}
+          rows={@falls}
+          empty={dgettext("dashboard_tests", "No file fell.")}
+          label={dgettext("dashboard_tests", "File")}
+        />
+      </div>
+      <div data-part="movements-sections">
+        <.card_section data-part="movement-section">
+          <div data-part="header">
+            <span data-part="title">{dgettext("dashboard_tests", "Least covered files")}</span>
+          </div>
+          <.table :if={@least_covered != []} id="coverage-gap-files-table" rows={@least_covered}>
+            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+            </:col>
+            <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
+            </:col>
+          </.table>
+          <div :if={@least_covered == []} data-part="empty">
+            {dgettext("dashboard_tests", "No file was measured at this commit.")}
+          </div>
+        </.card_section>
+        <.card_section data-part="movement-section">
+          <div data-part="header">
+            <span data-part="title">{dgettext("dashboard_tests", "Files nothing measured")}</span>
+            <span :if={@unmeasured_count > 0} data-part="count">
+              {dgettext("dashboard_tests", "%{count} in total",
+                count: format_number(@unmeasured_count)
+              )}
+            </span>
+          </div>
+          <.table :if={@unmeasured != []} id="coverage-unmeasured-files-table" rows={@unmeasured}>
+            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+              <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
+            </:col>
+          </.table>
+          <div :if={@unmeasured == []} data-part="empty">
+            {dgettext("dashboard_tests", "Every file Git knows at this commit was measured.")}
+          </div>
+        </.card_section>
+      </div>
+    </.card>
+    """
+  end
+
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :label, :string, required: true
@@ -54,10 +220,12 @@ defmodule TuistWeb.Coverage.Components do
       </div>
       <.table :if={@rows != []} id={"coverage-#{@id}-table"} rows={@rows}>
         <:col :let={row} label={@label}>
-          <.text_cell label={Path.basename(row.name)} sublabel={parent_dir(row.name)} />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
-          <.text_cell label={if row.coverage, do: "#{row.coverage}%", else: "—"} />
+          <%!-- The directory is left to the full listing: a highlight is a
+               name, its coverage and how far it moved, in half a card. --%>
+          <.text_cell
+            label={Path.basename(row.name)}
+            sublabel={if row.coverage, do: "#{row.coverage}%"}
+          />
         </:col>
         <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
           <.change_cell delta={row.delta} />

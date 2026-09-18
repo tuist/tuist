@@ -97,7 +97,7 @@ defmodule TuistWeb.CoverageLive do
     socket
     |> assign_analytics()
     |> assign_commits()
-    |> assign_gaps()
+    |> assign_movements()
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
@@ -126,40 +126,46 @@ defmodule TuistWeb.CoverageLive do
 
   # Where the coverage is thinnest at the branch's latest commit: the least
   # covered files, and the tracked files no scheme measured at all.
-  # The head commit's files, read exactly as its own page reads them: the
-  # files whose coverage changed, the least covered, and the ones nothing
-  # measured — the head of each list, with the page behind the card.
-  defp assign_gaps(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+  # The head commit read exactly as its own page reads it: where its targets
+  # and files moved against its baseline, where it is thinnest, and what
+  # nothing measured. The cards are the branch page's own.
+  defp assign_movements(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     head = History.head_commit(project, branch, period_opts(socket))
-
-    {changed, files, unmeasured} =
-      if head do
-        [changed, {files, _count}, unmeasured] =
-          Tuist.Tasks.parallel_tasks([
-            fn -> changed_files(project, head.git_commit_sha) end,
-            fn -> Commits.list_files(project.id, head.git_commit_sha, 1, @preview_size) end,
-            fn -> Commits.unmeasured_files(project, head.git_commit_sha, limit: @preview_size) end
-          ])
-
-        {changed, files, unmeasured}
-      else
-        {[], [], []}
-      end
 
     socket
     |> assign(:head_commit, head)
-    |> assign(:changed_files, changed)
-    |> assign(:gap_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
-    |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
+    |> assign_head_movements(head)
   end
 
-  defp changed_files(project, sha) do
-    project
-    |> Comparison.from_commit(sha)
-    |> then(&Comparison.compare(project, &1))
-    |> Map.fetch!(:files)
-    |> Enum.take(@preview_size)
-    |> Enum.map(&Map.put(&1, :id, "changed-" <> &1.path))
+  defp assign_head_movements(socket, nil) do
+    socket
+    |> assign(:comparison, nil)
+    |> assign(:target_rises, [])
+    |> assign(:target_falls, [])
+    |> assign(:file_rises, [])
+    |> assign(:file_falls, [])
+    |> assign(:least_covered_files, [])
+    |> assign(:unmeasured_files, [])
+  end
+
+  defp assign_head_movements(%{assigns: %{selected_project: project}} = socket, head) do
+    sha = head.git_commit_sha
+
+    [comparison, {files, _count}, unmeasured] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> project |> Comparison.from_commit(sha) |> then(&Comparison.compare(project, &1)) end,
+        fn -> Commits.list_files(project.id, sha, 1, @preview_size) end,
+        fn -> Commits.unmeasured_files(project, sha, limit: @preview_size) end
+      ])
+
+    socket
+    |> assign(:comparison, comparison)
+    |> assign(:target_rises, movers(comparison.targets, :desc, "target-rise"))
+    |> assign(:target_falls, movers(comparison.targets, :asc, "target-fall"))
+    |> assign(:file_rises, movers(comparison.files, :desc, "file-rise"))
+    |> assign(:file_falls, movers(comparison.files, :asc, "file-fall"))
+    |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
+    |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
   end
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)

@@ -195,37 +195,28 @@ defmodule TuistWeb.CoverageDetailLive do
     socket
     |> assign(:head, head)
     |> assign(:comparison, comparison)
+    |> assign(:summary, Commits.summary(project.id, subject.sha))
     |> assign(:gates, Gates.settings(project))
     |> assign(:gate_verdict, if(project.coverage_gates_enabled, do: Gates.evaluate(project, comparison)))
   end
 
-  defp assign_overview(%{assigns: %{comparison: comparison}} = socket) do
+  defp assign_overview(%{assigns: %{comparison: comparison, subject: subject} = assigns} = socket) do
     socket
     |> assign(:scheme_rows, Enum.map(comparison.schemes, &Map.put(&1, :id, "scheme-" <> &1.scheme)))
-    |> assign(:target_rises, highlights(comparison.targets, :desc, "target-rise"))
-    |> assign(:target_falls, highlights(comparison.targets, :asc, "target-fall"))
-    |> assign(:file_rises, highlights(comparison.files, :desc, "file-rise"))
-    |> assign(:file_falls, highlights(comparison.files, :asc, "file-fall"))
+    |> assign(:target_rises, movers(comparison.targets, :desc, "target-rise"))
+    |> assign(:target_falls, movers(comparison.targets, :asc, "target-fall"))
+    |> assign(:file_rises, movers(comparison.files, :desc, "file-rise"))
+    |> assign(:file_falls, movers(comparison.files, :asc, "file-fall"))
+    |> assign(:least_covered_files, least_covered_files(assigns.selected_project, subject.sha))
+    |> assign(:unmeasured_files, unmeasured_files(assigns.selected_project, subject.sha, @highlight_size))
     |> assign(:patch_rows, patch_rows(comparison.patch))
     |> assign(:skipped_rows, skipped_rows(comparison.patch))
   end
 
-  # The rows that moved most in one direction, largest first. A row that did
-  # not move, or has nothing to compare with, is not a highlight.
-  defp highlights(rows, direction, prefix) do
-    rows
-    |> Enum.filter(&(is_float(&1.delta) and moved?(&1.delta, direction)))
-    |> Enum.sort_by(& &1.delta, direction)
-    |> Enum.take(@highlight_size)
-    |> Enum.map(fn row ->
-      # A target is named, a file is a path; both read as a name here.
-      name = Map.get(row, :name) || Map.fetch!(row, :path)
-      row |> Map.put(:name, name) |> Map.put(:id, prefix <> "-" <> name)
-    end)
+  defp least_covered_files(project, sha) do
+    {files, _count} = Commits.list_files(project.id, sha, 1, @highlight_size)
+    Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path))
   end
-
-  defp moved?(delta, :desc), do: delta > 0
-  defp moved?(delta, :asc), do: delta < 0
 
   defp assign_commits(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}} = socket, query) do
     page = Query.bounded_page(query["page"])
@@ -292,12 +283,12 @@ defmodule TuistWeb.CoverageDetailLive do
       comparison.files |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, &1.path))
     )
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
-    |> assign(:unmeasured_files, unmeasured_files(project, subject.sha))
+    |> assign(:unmeasured_files, unmeasured_files(project, subject.sha, @page_size))
   end
 
-  defp unmeasured_files(project, sha) do
+  defp unmeasured_files(project, sha, limit) do
     project
-    |> Commits.unmeasured_files(sha, limit: @page_size)
+    |> Commits.unmeasured_files(sha, limit: limit)
     |> Enum.map(&%{id: "unmeasured-" <> &1, path: &1})
   end
 

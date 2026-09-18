@@ -286,89 +286,28 @@
     />
   </.card>
 
-  <%!-- Coverage gaps --%>
-  <.card
+  <%!-- Where coverage stands and moved --%>
+  <.targets_coverage_card
     :if={@head_commit}
-    title={dgettext("dashboard_tests", "Coverage gaps")}
-    icon="chart_dots"
-    data-part="gaps"
-  >
-    <:actions>
-      <.button
-        label={dgettext("dashboard_tests", "View more")}
-        variant="secondary"
-        size="medium"
-        navigate={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=files"
-        }
-      />
-    </:actions>
-    <div data-part="gaps-sections">
-      <.card_section data-part="gaps-section">
-        <div data-part="header">
-          <span data-part="title">
-            {dgettext("dashboard_tests", "Files whose coverage changed")}
-          </span>
-        </div>
-        <.table id="coverage-changed-files-table" rows={@changed_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-            <.text_cell label={
-              if file.coverage,
-                do: "#{file.coverage}%",
-                else: dgettext("dashboard_tests", "Removed")
-            } />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Change")}>
-            <.change_cell delta={file.delta} />
-          </:col>
-        </.table>
-        <div :if={@changed_files == []} data-part="empty">
-          {dgettext("dashboard_tests", "No file's coverage changed at this commit.")}
-        </div>
-      </.card_section>
-    </div>
-    <div data-part="gaps-sections">
-      <.card_section data-part="gaps-section">
-        <div data-part="header">
-          <span data-part="title">
-            {dgettext("dashboard_tests", "Least covered files")}
-          </span>
-        </div>
-        <.table id="coverage-gap-files-table" rows={@gap_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
-          </:col>
-        </.table>
-        <div :if={@gap_files == []} data-part="empty">
-          {dgettext("dashboard_tests", "No file was measured at this commit.")}
-        </div>
-      </.card_section>
-      <.card_section data-part="gaps-section">
-        <div data-part="header">
-          <span data-part="title">
-            {dgettext("dashboard_tests", "Files nothing measured")}
-          </span>
-          <span data-part="count">
-            {dgettext("dashboard_tests", "%{count} in total",
-              count: format_number(Map.get(@head_commit, :unmeasured_files_count) || 0)
-            )}
-          </span>
-        </div>
-        <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.text_cell label={Path.basename(file.path)} sublabel={parent_dir(file.path)} />
-          </:col>
-        </.table>
-        <div :if={@unmeasured_files == []} data-part="empty">
-          {dgettext("dashboard_tests", "Every file Git knows at this commit was measured.")}
-        </div>
-      </.card_section>
-    </div>
-  </.card>
+    rises={@target_rises}
+    falls={@target_falls}
+    baseline={@comparison.baseline}
+    baseline_reason={@comparison.baseline_reason}
+    href={
+      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=targets"
+    }
+  />
+  <.files_coverage_card
+    :if={@head_commit}
+    rises={@file_rises}
+    falls={@file_falls}
+    least_covered={@least_covered_files}
+    unmeasured={@unmeasured_files}
+    unmeasured_count={Map.get(@head_commit, :unmeasured_files_count) || 0}
+    baseline={@comparison.baseline}
+    baseline_reason={@comparison.baseline_reason}
+    href={
+      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=files"
+    }
+  />
 </div>
