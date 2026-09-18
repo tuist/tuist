@@ -135,14 +135,8 @@
                     color: "var:noora-surface-label-secondary",
                     formatter: "fn:toLocaleDate",
                     customValues: [
-                      @points
-                      |> List.first()
-                      |> Map.get(:inserted_at)
-                      |> NaiveDateTime.to_iso8601(),
-                      @points
-                      |> List.last()
-                      |> Map.get(:inserted_at)
-                      |> NaiveDateTime.to_iso8601()
+                      @points |> List.first() |> point_time(),
+                      @points |> List.last() |> point_time()
                     ],
                     padding: [10, 0, 0, 0]
                   }
@@ -162,7 +156,7 @@
             series={[
               %{
                 color: "var:noora-chart-primary",
-                data: Enum.map(@points, &[NaiveDateTime.to_iso8601(&1.inserted_at), &1.coverage]),
+                data: Enum.map(@points, &[point_time(&1), &1.coverage]),
                 name: dgettext("dashboard_tests", "Code coverage"),
                 type: "line",
                 smooth: 0.1,

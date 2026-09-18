@@ -446,6 +446,18 @@ defmodule TuistWeb.Coverage.Components do
   def gate_value(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
   def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)}%"
 
+  @doc """
+  When a point of a coverage series happened, for the chart's axis: the commit's
+  own time, or when it was measured where Git's history has none. Never when
+  its totals were stored, which moves every time they are recomputed.
+  """
+  def point_time(point) do
+    case Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
+      %DateTime{} = at -> DateTime.to_iso8601(at)
+      at -> NaiveDateTime.to_iso8601(at)
+    end
+  end
+
   @doc "How far coverage moved from a series' first point to its last, or nil when there is nothing to compare."
   def period_trend([first | [_ | _] = rest]) do
     last = List.last(rest)

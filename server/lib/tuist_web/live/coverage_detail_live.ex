@@ -81,7 +81,7 @@ defmodule TuistWeb.CoverageDetailLive do
         Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "?" <> Query.drop(query, "page"))}
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
   end
 
   def handle_info({:test_created, _test_run}, socket) do
@@ -137,9 +137,7 @@ defmodule TuistWeb.CoverageDetailLive do
       pull_request_number: number
     })
     |> assign(:commits, commits)
-    # A pull request's commits are timed by when they were measured, which is
-    # what the chart draws them against.
-    |> assign(:series, commits |> Enum.reverse() |> Enum.map(&Map.put(&1, :inserted_at, &1.ran_at)))
+    |> assign(:series, Enum.reverse(commits))
   end
 
   defp assign_subject(%{assigns: %{live_action: :branch}} = socket, params, _query) do
@@ -303,17 +301,32 @@ defmodule TuistWeb.CoverageDetailLive do
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
 
   @doc """
-  What the subject's figures are held against, which is what its card is
-  called: the commit before it on the branch, the default branch for a
-  branch of its own, and the baseline commit for a pull request or a commit.
+  What the Change widget says it measures against: the commit before it for
+  the default branch, whose baseline is its own previous commit, and the
+  baseline for a branch of its own, a pull request or a commit.
   """
-  def comparison_title(%{kind: :branch, branch: branch}, %{default_branch: branch}),
-    do: dgettext("dashboard_tests", "Analytics against the previous commit")
+  def change_description(%{kind: :branch, branch: branch}, %{default_branch: branch}, %{baseline: baseline})
+      when not is_nil(baseline) do
+    dgettext("dashboard_tests", "Against the previous commit: %{coverage}% at %{sha} on %{branch}.",
+      coverage: baseline.coverage,
+      sha: short_sha(baseline.commit),
+      branch: baseline.branch
+    )
+  end
 
-  def comparison_title(%{kind: :branch}, project),
-    do: dgettext("dashboard_tests", "Analytics against %{branch}", branch: project.default_branch)
+  def change_description(_subject, _project, %{baseline: baseline}) when not is_nil(baseline) do
+    dgettext("dashboard_tests", "Against the baseline: %{coverage}% at %{sha} on %{branch}.",
+      coverage: baseline.coverage,
+      sha: short_sha(baseline.commit),
+      branch: baseline.branch
+    )
+  end
 
-  def comparison_title(_subject, _project), do: dgettext("dashboard_tests", "Analytics against the baseline")
+  def change_description(%{kind: :branch, branch: branch}, %{default_branch: branch}, _comparison),
+    do: dgettext("dashboard_tests", "Difference of the total against the previous commit.")
+
+  def change_description(_subject, _project, _comparison),
+    do: dgettext("dashboard_tests", "Difference of the total against the baseline commit.")
 
   @doc "What the page's title calls its subject."
   def subject_title(%{kind: :commit, name: name}), do: dgettext("dashboard_tests", "Commit %{name}", name: name)

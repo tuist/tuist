@@ -191,6 +191,16 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       # no distance of its own.
       refute has_element?(lv, "#widget-against-default")
 
+      render_hook(lv, "coverage_period_changed", %{
+        "preset" => "last-7-days",
+        "value" => %{"start" => "2026-01-01T00:00:00.000Z", "end" => "2026-01-08T00:00:00.000Z"}
+      })
+
+      assert_patch(
+        lv,
+        ~p"/#{organization.account.name}/#{project.name}/tests/coverage/branches/main?coverage-date-range=last-7-days"
+      )
+
       {:ok, lv, _html} =
         live(
           conn,

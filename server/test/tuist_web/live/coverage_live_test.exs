@@ -77,6 +77,24 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#coverage-chart")
     end
 
+    test "a period picked in the date picker lands in the URL", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, path)
+
+      render_hook(lv, "coverage_period_changed", %{
+        "preset" => "last-7-days",
+        "value" => %{"start" => "2026-01-01T00:00:00.000Z", "end" => "2026-01-08T00:00:00.000Z"}
+      })
+
+      assert_patch(lv, path <> "?coverage-date-range=last-7-days")
+    end
+
     test "shows the empty state without a measured commit and hides the page without the flag", %{
       conn: conn,
       organization: organization,
