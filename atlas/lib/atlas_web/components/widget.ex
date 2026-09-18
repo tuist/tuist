@@ -81,7 +81,9 @@ defmodule AtlasWeb.Widget do
     <.card_section id={@id} data-empty={@empty} data-part="widget" {@rest}>
       <div data-part="header">
         <div :if={@legend_color} data-color={@legend_color} data-part="legend"></div>
-        <span data-part="title">{@title}</span>
+        <div data-part="title">
+          <span data-part="label">{@title}</span>
+        </div>
         <div :if={@tooltip_description} data-part="tooltip">
           <.tooltip
             id={@id <> "-tooltip"}
@@ -107,7 +109,7 @@ defmodule AtlasWeb.Widget do
         <span data-part="value">{@value}</span>
         <div :if={not is_nil(@trend_value)} data-part="trend">
           <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
-          <span :if={@trend_label} data-part="trend-label">{@trend_label}</span>
+          <span :if={@trend_label} data-part="label">{@trend_label}</span>
         </div>
         <span :if={@description} data-part="description">{@description}</span>
       <% end %>

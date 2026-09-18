@@ -12,7 +12,7 @@ container.
 [data-part="widget"] {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-2);
+  gap: var(--noora-spacing-5);
 }
 
 [data-part="widget"] > [data-part="header"] {
@@ -25,7 +25,7 @@ container.
 [data-part="widget"] [data-part="legend"] {
   flex-shrink: 0;
   border-radius: var(--noora-radius-1);
-  width: 4px;
+  width: 6px;
   height: 16px;
 }
 
@@ -62,8 +62,11 @@ container.
 }
 
 [data-part="widget"] > [data-part="header"] > [data-part="title"] {
+  display: flex;
   flex-grow: 1;
-  color: var(--noora-surface-label-secondary);
+  flex-direction: row;
+  gap: var(--noora-spacing-3);
+  color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 }
 
@@ -85,8 +88,7 @@ container.
 
 [data-part="widget"] [data-part="value"] {
   color: var(--noora-surface-label-primary);
-  font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-  line-height: 1.1;
+  font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
   overflow-wrap: anywhere;
 }
 
@@ -97,9 +99,9 @@ container.
   gap: var(--noora-spacing-3);
 }
 
-[data-part="widget"] [data-part="trend-label"] {
+[data-part="widget"] [data-part="trend"] > [data-part="label"] {
   color: var(--noora-surface-label-secondary);
-  font: var(--noora-font-body-small);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 }
 
 [data-part="widget"] > [data-part="description"],
@@ -109,6 +111,10 @@ container.
 }
 
 [data-part="widget"][data-empty="true"] [data-part="value"] {
+  color: var(--noora-surface-label-secondary);
+}
+
+[data-part="widget"][data-empty="true"] > [data-part="header"] > [data-part="title"] {
   color: var(--noora-surface-label-secondary);
 }
 

@@ -97,8 +97,8 @@ defmodule Atlas.TuistOverview do
     event_measure(:jobs, current, previous, ch_query)
   end
 
-  defp measure_metric(:cache_operations, current, previous, _pg_query, ch_query) do
-    event_measure(:cache_operations, current, previous, ch_query)
+  defp measure_metric(:cache_operations, current, previous, pg_query, ch_query) do
+    cache_operations_measure(current, previous, pg_query, ch_query)
   end
 
   defp cumulative_table(:users), do: "users"
@@ -177,11 +177,6 @@ defmodule Atlas.TuistOverview do
     sql = """
     SELECT day, sum(c) AS c FROM (
       SELECT toDate(created_at) AS day, count() AS c
-      FROM cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
-      GROUP BY day
-      UNION ALL
-      SELECT toDate(created_at) AS day, count() AS c
       FROM reapi_cache_events
       WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
       GROUP BY day
@@ -196,6 +191,63 @@ defmodule Atlas.TuistOverview do
     """
 
     run_event_query(sql, start_date, end_date, ch_query)
+  end
+
+  # Cache operations combine Xcode cache events (Postgres `cache_events`) with
+  # Bazel REAPI and Gradle events (ClickHouse). Each source is queried in its
+  # own database and the daily series are summed before the widget renders.
+  defp cache_operations_measure({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query) do
+    with {:ok, xcode_prev, _} <- xcode_cache_query(previous_start, previous_end, pg_query),
+         {:ok, xcode_curr, xcode_curr_series} <- xcode_cache_query(start_date, end_date, pg_query),
+         {:ok, ch_prev, _} <- event_query(:cache_operations, previous_start, previous_end, ch_query),
+         {:ok, ch_curr, ch_curr_series} <- event_query(:cache_operations, start_date, end_date, ch_query) do
+      combined_series = merge_series(xcode_curr_series, ch_curr_series)
+      current_total = xcode_curr + ch_curr
+      previous_total = xcode_prev + ch_prev
+
+      {:ok,
+       %{
+         total: current_total,
+         current_value: current_total,
+         previous_value: previous_total,
+         delta_pct: delta_pct(current_total, previous_total),
+         series: fill_series(combined_series, start_date, end_date)
+       }}
+    end
+  end
+
+  defp xcode_cache_query(start_date, end_date, pg_query) do
+    sql = """
+    SELECT date_trunc('day', created_at)::date AS day, count(*) AS c
+    FROM cache_events
+    WHERE created_at >= '#{iso(start_date)}' AND created_at < '#{iso(Date.add(end_date, 1))}'
+    GROUP BY 1
+    ORDER BY 1
+    """
+
+    case pg_query.(sql, limit: 5000) do
+      {:ok, %{"rows" => rows}} ->
+        series =
+          rows
+          |> Enum.map(fn row -> {parse_date(row["day"]), to_integer(row["c"])} end)
+          |> Enum.filter(fn {day, _c} -> match?(%Date{}, day) end)
+
+        {:ok, Enum.reduce(series, 0, fn {_d, c}, acc -> acc + c end), series}
+
+      {:error, reason} ->
+        Logger.warning("Tuist overview Xcode cache Postgres query failed: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp merge_series(left, right) do
+    left
+    |> Enum.concat(right)
+    |> Enum.reduce(%{}, fn {%Date{} = day, count}, acc ->
+      Map.update(acc, day, count, &(&1 + count))
+    end)
+    |> Enum.map(fn {day, count} -> {day, count} end)
+    |> Enum.sort_by(fn {day, _} -> Date.to_erl(day) end)
   end
 
   defp run_event_query(sql, start_date, end_date, ch_query) do
