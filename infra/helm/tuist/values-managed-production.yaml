@@ -140,6 +140,14 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Each Meter must exist in Stripe before the flag is enabled for an
+      # account. Empty Price ids keep them reporting-only.
+      usage_meters:
+        cache_egress_megabytes: ""
+        cache_requests: ""
+        passing_test_cases: ""
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
       # macOS baseline machine-minute, carried as a subscription item whose
       # quantity is the minutes. Never blank it once an account carries the

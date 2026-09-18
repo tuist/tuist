@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
@@ -38,12 +39,14 @@ defmodule TuistWeb.BillingLive do
     prepaid_runner_credit = Prepaid.balance(selected_account)
     runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
 
+    usage_pricing = usage_pricing(selected_account, billing_period)
+
     # Runner time is billed alongside remote cache hits, so the headline
     # figure has to carry both or it understates the bill for anyone
     # using runners.
     estimated_next_payment =
-      remote_cache_hits_count
-      |> Billing.get_estimated_next_payment_money()
+      usage_pricing
+      |> usage_payment(remote_cache_hits_count)
       |> Money.add(runner_usage.billed)
       |> format_money()
 
@@ -76,6 +79,7 @@ defmodule TuistWeb.BillingLive do
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
       |> assign(:remote_cache_hits_count, remote_cache_hits_count)
+      |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
 
@@ -154,6 +158,54 @@ defmodule TuistWeb.BillingLive do
 
   defp remote_cache_hits_count(account, _subscription, _billing_period),
     do: account.current_month_remote_cache_hits_count || 0
+
+  defp usage_pricing(account, billing_period) do
+    if FeatureFlags.usage_based_pricing_enabled?(account) do
+      UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
+    end
+  end
+
+  defp usage_payment(nil, remote_cache_hits_count), do: Billing.get_estimated_next_payment_money(remote_cache_hits_count)
+
+  defp usage_payment(%{cache: cache, tests: tests}, _remote_cache_hits_count) do
+    Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
+  end
+
+  def usage_allowance_exceeded?(%{cache: cache, tests: tests}) do
+    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
+  end
+
+  @doc """
+  One row per usage-based meter the period has gone past the allowance of.
+  """
+  def usage_pricing_rows(%{cache: cache, tests: tests}) do
+    Enum.filter(
+      [
+        %{
+          id: "cache-egress",
+          label: dgettext("dashboard_account", "Cache egress"),
+          quantity: Tuist.Utilities.ByteFormatter.format_bytes(cache.egress.billable),
+          price: TuistWeb.UsageLive.egress_rate_label(),
+          total: cache.egress.charge
+        },
+        %{
+          id: "cache-requests",
+          label: dgettext("dashboard_account", "Cache requests"),
+          quantity: format_number(cache.requests.billable),
+          price: TuistWeb.UsageLive.request_rate_label(),
+          total: cache.requests.charge
+        },
+        %{
+          id: "passing-test-cases",
+          label: dgettext("dashboard_account", "Passing test cases"),
+          quantity: format_number(tests.billable),
+          price: TuistWeb.UsageLive.passing_test_case_rate_label(),
+          total: tests.charge
+        }
+      ],
+      &Money.positive?(&1.total)
+    )
+  end
 
   defp next_charge_date({_period_start, %DateTime{} = period_end}) do
     dgettext("dashboard_account", "charged on %{next_charge_date}",

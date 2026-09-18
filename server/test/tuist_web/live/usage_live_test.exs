@@ -5,6 +5,7 @@ defmodule TuistWeb.UsageLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
@@ -133,6 +134,212 @@ defmodule TuistWeb.UsageLiveTest do
     }
 
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
+  end
+
+  defp usage_pricing_breakdown(billed?) do
+    cache_charge = Money.new(450, :USD)
+    tests_charge = Money.new(200, :USD)
+
+    %{
+      period_start: ~D[2026-08-01],
+      period_end: ~D[2026-09-01],
+      usage_through: ~D[2026-08-21],
+      cache: %{
+        egress: %{
+          quantity: 140_000_000_000,
+          runner_quantity: 60_000_000_000,
+          metered: 110_000_000_000,
+          included: 100_000_000_000,
+          billable: 10_000_000_000,
+          gross: Money.new(4_900, :USD),
+          runner_credit: Money.new(1_050, :USD),
+          included_credit: Money.new(3_500, :USD),
+          charge: Money.new(350, :USD),
+          projected: 210_000_000_000
+        },
+        requests: %{
+          quantity: 1_300_000,
+          runner_quantity: 400_000,
+          metered: 1_100_000,
+          included: 1_000_000,
+          billable: 100_000,
+          gross: Money.new(1_300, :USD),
+          runner_credit: Money.new(200, :USD),
+          included_credit: Money.new(1_000, :USD),
+          charge: Money.new(100, :USD),
+          projected: nil
+        },
+        gross: Money.new(6_200, :USD),
+        charge: cache_charge,
+        billed: if(billed?, do: cache_charge),
+        days: [%{date: ~D[2026-08-20], project: "ios", bytes: 4_000_000_000, requests: 50_000}],
+        charge_days: [
+          %{date: ~D[2026-08-20], meter: :egress, dollars: 1.4},
+          %{date: ~D[2026-08-20], meter: :requests, dollars: 0.5}
+        ],
+        projected_days: [%{date: ~D[2026-08-22], bytes: 4_000_000_000, requests: 50_000, dollars: 1.9}]
+      },
+      tests: %{
+        passed: 6_000_000,
+        failed: 20_000,
+        skipped: 3_000,
+        on_runners: 4_000_000,
+        included: 5_000_000,
+        billable: 1_000_000,
+        projected: nil,
+        gross: Money.new(1_200, :USD),
+        included_credit: Money.new(1_000, :USD),
+        charge: tests_charge,
+        billed: if(billed?, do: tests_charge),
+        days: [%{date: ~D[2026-08-20], project: "ios", dollars: 0.4}],
+        projected_days: []
+      }
+    }
+  end
+
+  describe "usage-based pricing" do
+    test "is hidden for an account without the flag", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+      reject(&UsagePricing.period_breakdown/2)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='cache-usage-card']")
+      refute has_element?(lv, "[data-part='test-insights-usage-card']")
+    end
+
+    test "walks cache and test usage down to an estimate for an account with no subscription", %{
+      conn: conn,
+      account: account
+    } do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-cache-egress", "140.0 GB")
+      assert has_element?(lv, "#widget-cache-charge", "Usage")
+      assert has_element?(lv, "#widget-cache-charge", "4.50")
+
+      usage = "[data-part='cache-usage-card'] [data-kind='cache-usage']"
+      assert has_element?(lv, usage, "Egress")
+      assert has_element?(lv, usage, "3.50")
+      assert has_element?(lv, usage, "1.00")
+      assert has_element?(lv, usage, "Estimated for this period")
+      refute has_element?(lv, usage, "Tuist Runners discount")
+      refute has_element?(lv, "[data-part='cache-usage-card']", "Billed this period")
+
+      lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
+
+      egress = "[data-part='cache-usage-card'] [data-kind='egress']"
+      refute has_element?(lv, egress, "Module cache")
+      assert has_element?(lv, egress, "140.0 GB of egress")
+      assert has_element?(lv, egress, "Tuist Runners discount")
+      assert has_element?(lv, egress, "−10.50")
+      assert has_element?(lv, egress, "100.0 GB included")
+      assert has_element?(lv, egress, "Estimated for this period")
+      assert has_element?(lv, egress, "On track for about 210.0 GB this period.")
+
+      assert has_element?(lv, "#widget-passing-test-cases", "6M")
+      refute has_element?(lv, "#widget-not-billed-test-cases")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "20K failed")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "3,000 skipped")
+      assert has_element?(lv, "[data-kind='not-billed-test-cases']", "4M run on Tuist Runners")
+      assert has_element?(lv, "[data-kind='passing-test-cases']", "5M included")
+      refute has_element?(lv, "[data-part='test-insights-usage-card']", "Billed this period")
+    end
+
+    test "replaces the cache traffic cards with the cache usage card", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
+      reject(&Tuist.Kura.Usage.totals/4)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='cache-usage-card']")
+      refute has_element?(lv, "[data-part='kura-traffic']")
+      refute has_element?(lv, "[data-part='kura-traffic-by-region-card']")
+    end
+
+    test "shows an empty state for a feature the account has not used", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='runner-usage-empty']", "No runner usage in this period")
+      assert has_element?(lv, "[data-part='cache-usage-empty']", "No cache usage in this period")
+      assert has_element?(lv, "[data-part='test-insights-usage-empty']", "No test runs in this period")
+      refute has_element?(lv, "[data-kind='egress']")
+      refute has_element?(lv, "[data-kind='passing-test-cases']")
+      assert has_element?(lv, "#widget-cache-egress", "0 B")
+    end
+
+    test "switches the cache chart between the charge, egress, and requests", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, ~s|[phx-value-widget="charge"][data-selected]|)
+      assert has_element?(lv, "[data-kind='cache-usage']")
+      refute has_element?(lv, "[data-kind='egress']")
+      refute has_element?(lv, "[data-kind='requests']")
+      assert render(lv) =~ "fn:formatCurrency"
+
+      lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
+
+      assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
+      refute has_element?(lv, ~s|[phx-value-widget="charge"][data-selected]|)
+      assert has_element?(lv, "[data-kind='egress']")
+      refute has_element?(lv, "[data-kind='cache-usage']")
+      refute has_element?(lv, "[data-kind='requests']")
+      assert render(lv) =~ "fn:formatBytes"
+
+      lv |> element(~s|[phx-value-widget="requests"]|) |> render_click()
+
+      assert has_element?(lv, "[data-kind='requests']", "1.3M requests")
+      refute has_element?(lv, "[data-kind='egress']")
+    end
+
+    test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(true) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-tests-charge", "Usage")
+      assert has_element?(lv, "#widget-tests-charge", "2.00")
+      assert has_element?(lv, "[data-kind='cache-usage']", "Billed this period")
+      assert has_element?(lv, "[data-kind='passing-test-cases']", "Billed this period")
+    end
+
+    test "reads the period's cache egress", %{conn: conn, account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      insert_event(%{
+        account_id: account.id,
+        artifact_kind: "module",
+        bytes: 2_000_000_000,
+        request_count: 12,
+        window_start: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -60)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-cache-egress", "2.0 GB")
+      assert has_element?(lv, "#widget-cache-requests", "12")
+
+      lv |> element(~s|[phx-value-widget="egress"]|) |> render_click()
+
+      assert has_element?(lv, "[data-kind='egress']", "2.0 GB of egress")
+    end
   end
 
   describe "runner usage on a trial" do
@@ -509,6 +716,75 @@ defmodule TuistWeb.UsageLiveTest do
         })
 
       assert pace =~ "On track for about"
+    end
+  end
+
+  describe "cache_chart_series/2" do
+    setup do
+      %{
+        cache: %{
+          days: [
+            %{date: ~D[2026-08-20], project: "android", bytes: 1_000, requests: 900},
+            %{date: ~D[2026-08-20], project: "ios", bytes: 3_000, requests: 100},
+            %{date: ~D[2026-08-21], project: nil, bytes: 500, requests: 50}
+          ],
+          charge_days: [
+            %{date: ~D[2026-08-20], meter: :egress, dollars: 2.0},
+            %{date: ~D[2026-08-20], meter: :requests, dollars: 0.25}
+          ],
+          projected_days: [%{date: ~D[2026-08-22], bytes: 2_250.4, requests: 525.2, dollars: 1.125}]
+        }
+      }
+    end
+
+    test "splits the charge by meter", %{cache: cache} do
+      assert [egress, requests, projected] = UsageLive.cache_chart_series(cache, "charge")
+
+      assert {egress.name, requests.name, projected.name} == {"Egress", "Requests", "Projected"}
+      assert Enum.all?([egress, requests, projected], &(&1.stack == "spend"))
+      assert [[~D[2026-08-20], 2.0], [~D[2026-08-21], +0.0], [~D[2026-08-22], +0.0]] = egress.data
+      assert [_, _, [~D[2026-08-22], 1.13]] = projected.data
+    end
+
+    test "splits egress and requests by project, largest first", %{cache: cache} do
+      assert Enum.map(UsageLive.cache_chart_series(cache, "egress"), & &1.name) ==
+               ["ios", "android", "Unknown project", "Projected"]
+
+      assert [android | _] = UsageLive.cache_chart_series(cache, "requests")
+      assert android.name == "android"
+      assert [[~D[2026-08-20], 900], [~D[2026-08-21], 0], [~D[2026-08-22], 0]] = android.data
+    end
+
+    test "formats the axis for the selected view", %{cache: cache} do
+      dates = UsageLive.usage_chart_dates(cache)
+
+      for {view, formatter} <- [
+            {"charge", "fn:formatCurrency"},
+            {"egress", "fn:formatBytes"},
+            {"requests", "fn:formatNumber"}
+          ] do
+        options = UsageLive.usage_chart_options(dates, UsageLive.cache_chart_unit(view))
+
+        assert options.yAxis.axisLabel.formatter == formatter
+        assert options.tooltip.valueFormat == formatter
+        assert options.legend.top == "bottom"
+      end
+    end
+  end
+
+  describe "tests_chart_series/1" do
+    test "stacks the value of passing test cases by project, then the projection" do
+      tests = %{
+        days: [
+          %{date: ~D[2026-08-20], project: "ios", dollars: 0.2},
+          %{date: ~D[2026-08-20], project: "android", dollars: 0.6}
+        ],
+        projected_days: [%{date: ~D[2026-08-21], dollars: 0.8}]
+      }
+
+      assert [android, ios, projected] = UsageLive.tests_chart_series(tests)
+      assert {android.name, ios.name, projected.name} == {"android", "ios", "Projected"}
+      assert [[~D[2026-08-20], 0.6], [~D[2026-08-21], +0.0]] = android.data
     end
   end
 

@@ -152,6 +152,7 @@ defmodule Tuist do
       Billing.Entitlements,
       Billing.Workers.CreateRunnerPrepaidGrantWorker,
       Billing.Subscription,
+      Billing.UsagePricing,
       AppBuilds,
       AppBuilds.Preview,
       AppBuilds.AppBuild,
