@@ -16,8 +16,8 @@ msgid "Beyond expectations"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:86
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:298
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:622
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:288
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:612
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:4
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:78
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:6
@@ -71,8 +71,8 @@ msgid "Can I change or cancel my plan at any time?"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:47
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:493
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:589
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:483
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:579
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:48
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live/changelog_entry.html.heex:6
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:4
@@ -87,7 +87,7 @@ msgstr ""
 msgid "Community"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:118
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:108
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "Community forum"
@@ -128,13 +128,13 @@ msgstr ""
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:381
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:264
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:569
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:254
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:559
 #, elixir-autogen, elixir-format
 msgid "Developers"
 msgstr ""
@@ -180,8 +180,8 @@ msgid "Enterprise"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:3
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:248
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:547
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:238
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:537
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:128
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:290
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:49
@@ -232,7 +232,7 @@ msgid "Get started"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:116
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:136
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr ""
@@ -310,7 +310,7 @@ msgstr ""
 msgid "Load more"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:359
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -326,7 +326,7 @@ msgid "Mastodon"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:68
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:130
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Newsletter"
 msgstr ""
@@ -382,8 +382,8 @@ msgid "Price per unit above free tier"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:43
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:291
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:619
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:281
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:609
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:889
 #, elixir-autogen, elixir-format
 msgid "Pricing"
@@ -428,8 +428,8 @@ msgstr ""
 msgid "Registry"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:280
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:600
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:270
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:590
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -449,7 +449,7 @@ msgstr ""
 msgid "Self-hosting Tuist instance"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:380
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -689,7 +689,7 @@ msgstr ""
 msgid "Videos"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:495
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr ""
@@ -862,7 +862,7 @@ msgstr ""
 msgid "Public dashboard"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:125
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "See how leading teams scale with Tuist"
 msgstr ""
@@ -873,7 +873,7 @@ msgstr ""
 msgid "AI moves fast. So should your builds."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:124
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:114
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:818
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:6
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:920
@@ -1095,7 +1095,7 @@ msgstr ""
 msgid "Cache hit rate:"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:137
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Check our sources, issues and PRs"
 msgstr ""
@@ -1194,11 +1194,6 @@ msgstr ""
 msgid "Hear from our community about their experience with Tuist."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:108
-#, elixir-autogen, elixir-format
-msgid "Hive"
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "How to set up and use Tuist"
@@ -1219,7 +1214,7 @@ msgstr ""
 msgid "It's now trivial to spin up a compact Example app for any module. Even app extensions like widgets and Live Activities can be wrapped in their own Example apps just as easily. Instead of launching the entire app to try something out, I work against a small app that contains only the part I care about — and that alone changes how quickly you can iterate."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:119
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Join discussions and share ideas on our community forum"
 msgstr ""
@@ -1434,7 +1429,7 @@ msgstr ""
 msgid "Spin up runners in seconds and scale with your team and agents"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:131
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Stay updated - subscribe to our newsletter"
 msgstr ""
@@ -1464,14 +1459,9 @@ msgstr ""
 msgid "Tests skipped:"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:641
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Theme"
-msgstr ""
-
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:110
-#, elixir-autogen, elixir-format
-msgid "Track requests, bug reports, feedback and Grafana alerts in one place"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:730
@@ -1575,17 +1565,17 @@ msgstr ""
 msgid "iOS Developer at Toss"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:174
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Copy logo as SVG"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:205
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Copy wordmark as SVG"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:213
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:203
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Download brand assets"
@@ -1597,7 +1587,7 @@ msgstr ""
 msgid "Brand"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:225
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:215
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:389
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:54
 #, elixir-autogen, elixir-format
@@ -2389,7 +2379,7 @@ msgstr ""
 msgid "Download %{name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:303
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Account actions"
 msgstr ""
@@ -2399,7 +2389,7 @@ msgstr ""
 msgid "Animation: the Tuist menu bar app lists the latest previews; picking one installs it and opens it on a simulator or a connected device."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:166
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:156
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Brand assets"
@@ -2411,7 +2401,7 @@ msgid "Community links"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:284
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:668
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:658
 #, elixir-autogen, elixir-format
 msgid "Dark theme"
 msgstr ""
@@ -2427,17 +2417,17 @@ msgid "Hint"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:276
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:660
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Light theme"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:235
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:539
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:529
 #, elixir-autogen, elixir-format
 msgid "Mobile navigation"
 msgstr ""
@@ -2459,7 +2449,7 @@ msgid "Search posts"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:268
-#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:652
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "System theme"
 msgstr ""
