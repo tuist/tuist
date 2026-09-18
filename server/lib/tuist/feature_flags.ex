@@ -40,13 +40,22 @@ defmodule Tuist.FeatureFlags do
   @doc """
   Whether the account is on usage-based pricing: the usage page shows its
   cache and test insights charges, and the nightly Stripe sync reports the
-  cache download, cache request, and passing test case meters for it
+  cache egress, cache request, and passing test case meters for it
   instead of the remote cache hit meter. Off unless the
   `:usage_based_pricing` FunWithFlags toggle is enabled for the account.
   """
   def usage_based_pricing_enabled?(account) do
     FunWithFlags.enabled?(:usage_based_pricing, for: account)
   end
+
+  @doc """
+  Whether the pricing page shows usage-based pricing. Anonymous visitors see
+  it once the `:usage_based_pricing_page` flag is enabled for everyone; a
+  signed-in user sees it once the flag is enabled for them, so the page can be
+  previewed before it goes public.
+  """
+  def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
+  def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
 
   @doc """
   Whether Kura runtime-image rollouts run through the rollout
