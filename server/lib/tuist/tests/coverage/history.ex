@@ -167,50 +167,17 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   One point per chained commit of the branch, oldest first, with the
-  totals: what the trend chart draws. With `scheme:`, the points are that
-  scheme's own totals (its newest full run at each commit) at the commits
-  that measured it fully.
+  commit's totals: what the trend chart draws. A commit's figure pools the
+  schemes that measured it; a scheme's own totals are read per commit
+  (`Tuist.Tests.Coverage.Comparison.compare/3`), where a baseline makes
+  them comparable.
   """
   def branch_points(%Project{} = project, branch, opts \\ []) do
-    {scheme, opts} = Keyword.pop(opts, :scheme)
-
-    points =
-      project
-      |> branch_history(branch, opts)
-      |> Map.fetch!(:commits)
-      |> Enum.filter(& &1.chained)
-      |> Enum.reverse()
-
-    case scheme do
-      nil ->
-        points
-
-      scheme ->
-        totals = scheme_totals_by_sha(project.id, scheme, Enum.map(points, & &1.git_commit_sha))
-
-        points
-        |> Enum.filter(&Map.has_key?(totals, &1.git_commit_sha))
-        |> Enum.map(fn point -> point |> Map.merge(Map.fetch!(totals, point.git_commit_sha)) |> with_coverage() end)
-    end
-  end
-
-  # The newest full run of the scheme at each of the commits, keyed by SHA.
-  defp scheme_totals_by_sha(_project_id, _scheme, []), do: %{}
-
-  defp scheme_totals_by_sha(project_id, scheme, shas) do
-    from(c in subquery(Coverage.run_totals_query(project_id)),
-      join: t in subquery(runs_query(project_id, [])),
-      on: t.id == c.test_run_id,
-      where: c.scheme == ^scheme and c.partial == false and c.git_commit_sha in ^shas,
-      group_by: c.git_commit_sha,
-      select: %{
-        git_commit_sha: c.git_commit_sha,
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, t.ran_at),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, t.ran_at)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.git_commit_sha, Map.delete(&1, :git_commit_sha)})
+    project
+    |> branch_history(branch, opts)
+    |> Map.fetch!(:commits)
+    |> Enum.filter(& &1.chained)
+    |> Enum.reverse()
   end
 
   @doc """
@@ -393,18 +360,6 @@ defmodule Tuist.Tests.Coverage.History do
     |> branch_history(branch, Keyword.put_new(opts, :limit, 200))
     |> Map.fetch!(:commits)
     |> Enum.find(& &1.chained)
-  end
-
-  @doc "The schemes measured on the branch's commits in the period, most commits first."
-  def schemes(%Project{} = project, branch, opts \\ []) do
-    project
-    |> branch_history(branch, opts)
-    |> Map.fetch!(:commits)
-    |> Enum.filter(& &1.measured)
-    |> Enum.flat_map(& &1.schemes)
-    |> Enum.frequencies()
-    |> Enum.map(fn {scheme, count} -> %{scheme: scheme, commits_count: count} end)
-    |> Enum.sort_by(&{-&1.commits_count, &1.scheme})
   end
 
   @doc "The branches with a measured commit in the period, the most recently measured first."

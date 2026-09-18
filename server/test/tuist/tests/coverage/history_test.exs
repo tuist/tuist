@@ -41,9 +41,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       assert %{git_commit_sha: "b", coverage: 75.0, schemes: ["App"]} = History.latest(project, "main")
       assert History.latest(project, "missing") == nil
-
-      assert History.schemes(project, "main") ==
-               [%{scheme: "App", commits_count: 3}, %{scheme: "Other", commits_count: 1}]
     end
 
     test "walk the graph from the branch's head, unmeasured commits included", %{
@@ -144,21 +141,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # They were measured on the branch, so they stay with it too, without
       # dragging `main`'s history along.
       assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
-    end
-
-    test "narrow the points to one scheme's own totals", %{project: project, account: account} do
-      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0, 0, 0])
-      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00], scheme: "Other"}, [0, 0, 0, 1])
-      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00]}, [1, 1, 0, 0])
-      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [0, 0, 0, 1])
-
-      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
-               [{"a", 50.0}, {"b", 75.0}]
-
-      assert Enum.map(History.branch_points(project, "main", scheme: "App"), &{&1.git_commit_sha, &1.coverage}) ==
-               [{"a", 25.0}, {"b", 50.0}]
-
-      assert Enum.map(History.branch_points(project, "main", scheme: "Other"), & &1.coverage) == [25.0, 25.0]
     end
 
     test "chain a complete commit whatever it measured", %{project: project, account: account} do

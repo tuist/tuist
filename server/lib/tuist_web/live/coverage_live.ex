@@ -3,9 +3,11 @@ defmodule TuistWeb.CoverageLive do
   The project's Code Coverage page, commit by commit: a branch's coverage
   over time from its chained commits, the commits behind it with the
   unmeasured ones in place, where the coverage is thinnest at its latest
-  commit, and every branch and pull request that gathered coverage. Each
-  row leads to one commit's page, which compares it with its baseline and,
-  when the project has gates, says how they were decided.
+  commit, and every branch and pull request that gathered coverage. Every
+  figure is the commit's, pooled over the schemes that measured it; each
+  row leads to one commit's page, which breaks it down per scheme, compares
+  it with its baseline and, when the project has gates, says how they were
+  decided.
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -60,7 +62,6 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
       |> assign(:branch, query["branch"] || project.default_branch)
-      |> assign(:scheme, blank_to_nil(query["scheme"]))
 
     socket =
       case socket.assigns.live_action do
@@ -71,9 +72,6 @@ defmodule TuistWeb.CoverageLive do
 
     {:noreply, socket}
   end
-
-  defp blank_to_nil(value) when value in [nil, ""], do: nil
-  defp blank_to_nil(value), do: value
 
   def handle_event(
         "coverage_period_changed",
@@ -133,18 +131,14 @@ defmodule TuistWeb.CoverageLive do
     |> assign_refs(query)
   end
 
-  # The branch every figure is for, and the schemes measured on it: a
-  # scheme narrows the figures to its own runs; none pools the commit.
-  defp assign_scope(%{assigns: %{selected_project: project, branch: branch}} = socket) do
-    schemes = project |> History.schemes(branch, period_opts(socket)) |> Enum.map(& &1.scheme)
-
-    socket
-    |> assign(:schemes, schemes)
-    |> assign(:branches, History.branch_names(project.id, period_opts(socket)))
+  # The branches the filter can offer: those with a measured commit in the
+  # period.
+  defp assign_scope(%{assigns: %{selected_project: project}} = socket) do
+    assign(socket, :branches, History.branch_names(project.id, period_opts(socket)))
   end
 
-  defp assign_analytics(%{assigns: %{selected_project: project, branch: branch, scheme: scheme}} = socket) do
-    points = History.branch_points(project, branch, Keyword.put(period_opts(socket), :scheme, scheme))
+  defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+    points = History.branch_points(project, branch, period_opts(socket))
     latest = List.last(points)
     first = List.first(points)
 
