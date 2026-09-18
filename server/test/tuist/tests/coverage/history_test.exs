@@ -79,7 +79,41 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
                [{"a", 25.0}, {"m", 50.0}]
 
-      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f", "c", "b", "a"]
+      # The feature branch holds what it added, not the history it was cut
+      # from, which `main` above already lists.
+      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f"]
+    end
+
+    test "cut a branch at its merge base with the default branch", %{project: project, account: account} do
+      # main: a → b → c; feature: two commits off b, and a branch already
+      # merged into main.
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("b", ["a"], 1),
+          CoverageFixtures.commit("c", ["b"], 2),
+          CoverageFixtures.commit("f1", ["b"], 3),
+          CoverageFixtures.commit("f2", ["f1"], 4)
+        ],
+        branch_heads: [{"main", "c"}, {"feature", "f2"}, {"merged", "b"}]
+      )
+
+      for sha <- ~w(a b c f1 f2), do: run(project, account, %{git_commit_sha: sha}, [1, 1, 0, 0])
+
+      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
+
+      # The oldest commit kept still compares with the commit the branch left,
+      # which the cut walk no longer holds.
+      assert Enum.map(History.branch_history(project, "feature").commits, & &1.change) == [0.0, 0.0]
+
+      # The default branch is the one the others are cut against, so it keeps
+      # its whole history.
+      assert Enum.map(History.branch_history(project, "main").commits, & &1.git_commit_sha) == ["c", "b", "a"]
+
+      # A branch already merged adds nothing of its own; cutting it would
+      # leave an empty list, so its walk stands.
+      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == ["b", "a"]
     end
 
     test "narrow the points to one scheme's own totals", %{project: project, account: account} do

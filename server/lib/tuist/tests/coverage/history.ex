@@ -50,8 +50,14 @@ defmodule Tuist.Tests.Coverage.History do
   coverage, ...}` (the `Tuist.Tests.Coverage.Commits.commits_query/1` fields
   when measured). `ordered_by` in the result says whether the order is the
   graph's (`:graph`) or, without a recorded head, the runs' time (`:time`).
+  A branch other than the project's default one holds only the commits it
+  added: the walk is cut at its merge base with the default branch, whose own
+  history is read by selecting it.
+
   `since` and `until` bound the measurements considered (`NaiveDateTime`);
-  `limit` caps the commits returned (the newest), 200 by default.
+  `limit` caps the commits walked (the newest), 200 by default. Each commit
+  carries the `change` from the commit chained before it, which is settled
+  over the whole walk.
   """
   def branch_history(%Project{} = project, branch, opts \\ []) do
     limit = Keyword.get(opts, :limit, 200)
@@ -83,8 +89,35 @@ defmodule Tuist.Tests.Coverage.History do
         end
       end)
       |> chain()
+      |> with_changes()
+      |> own_commits(project, branch, ordered_by, repository_id)
 
     %{commits: commits, ordered_by: ordered_by}
+  end
+
+  # A branch other than the default one is read as the commits it added: the
+  # first-parent walk carries on into the branch it was cut from, whose
+  # history belongs to that branch and is read by selecting it. Chaining and
+  # each commit's change are settled before the cut, so the oldest commit
+  # kept still compares with the commit the branch left.
+  defp own_commits(commits, _project, _branch, :time, _repository_id), do: commits
+  defp own_commits([], _project, _branch, _ordered_by, _repository_id), do: []
+  defp own_commits(commits, _project, _branch, _ordered_by, nil), do: commits
+
+  defp own_commits(commits, %Project{default_branch: branch}, branch, _ordered_by, _repository_id), do: commits
+
+  defp own_commits(commits, project, _branch, _ordered_by, repository_id) do
+    head = commits |> hd() |> Map.fetch!(:git_commit_sha)
+
+    with default_head when not is_nil(default_head) <-
+           GitHistory.branch_head(repository_id, project.default_branch),
+         base when base not in [nil, head] <- GitHistory.merge_base(repository_id, head, default_head) do
+      Enum.take_while(commits, &(&1.git_commit_sha != base))
+    else
+      # Without a default branch to compare with, or once the branch has been
+      # merged into it and adds nothing of its own, the whole walk stands.
+      _ -> commits
+    end
   end
 
   # Oldest first for the chaining rule, then back to newest first.
@@ -173,7 +206,7 @@ defmodule Tuist.Tests.Coverage.History do
     page = max(page, 1)
 
     history = branch_history(project, branch, Keyword.put(opts, :limit, walk_limit))
-    commits = history.commits |> with_changes() |> Enum.filter(&in_period?(&1, opts))
+    commits = Enum.filter(history.commits, &in_period?(&1, opts))
     total_pages = max(1, ceil(length(commits) / page_size))
     page = min(page, total_pages)
 

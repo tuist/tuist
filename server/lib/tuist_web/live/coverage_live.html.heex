@@ -630,7 +630,14 @@
 
   <%!-- Commits --%>
   <.card
-    title={dgettext("dashboard_tests", "Commits")}
+    title={
+      if @branch == @selected_project.default_branch,
+        do: dgettext("dashboard_tests", "Commits"),
+        else:
+          dgettext("dashboard_tests", "Commits since %{branch}",
+            branch: @selected_project.default_branch
+          )
+    }
     icon="git_commit"
     data-part="commits"
   >
