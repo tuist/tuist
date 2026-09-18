@@ -89,27 +89,39 @@
 
     & th:nth-child(1),
     & td:nth-child(1) {
-      width: 42%;
+      width: 36%;
     }
 
     & th:nth-child(2),
     & td:nth-child(2) {
-      width: 22%;
+      width: 18%;
     }
 
     & th:nth-child(3),
     & td:nth-child(3) {
-      width: 18%;
+      width: 22%;
     }
 
     & th:nth-child(4),
     & td:nth-child(4) {
-      width: 10%;
+      width: 12%;
     }
 
     & th:nth-child(5),
     & td:nth-child(5) {
-      width: 8%;
+      width: 12%;
+    }
+  }
+
+  & [data-part="spec-table-domains-cell"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+
+    & [data-part="empty-domains"] {
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
   }
 
@@ -650,10 +662,16 @@
     white-space: nowrap;
   }
 
+  & #spec-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
   & [data-part="select-field"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-2);
+    gap: var(--noora-spacing-3);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
   }
@@ -664,6 +682,10 @@
     & > [data-part="trigger"] {
       width: 100%;
     }
+  }
+
+  & [data-part="status-menu"] .noora-dropdown {
+    width: auto;
   }
 
   & [data-part="form-actions"] {
