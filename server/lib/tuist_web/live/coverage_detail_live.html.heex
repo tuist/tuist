@@ -176,6 +176,8 @@
             )
           }
           value={"#{@comparison.commit.coverage}%"}
+          trend_value={period_trend(@series)}
+          trend_label={dgettext("dashboard_tests", "over the period")}
         />
         <.widget
           id="widget-change"

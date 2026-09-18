@@ -431,6 +431,14 @@ defmodule TuistWeb.Coverage.Components do
   def gate_value(%{gate: :min_patch_coverage, value: value}), do: "#{value}%"
   def gate_value(%{gate: :max_total_drop, value: value}), do: "#{signed(value)}%"
 
+  @doc "How far coverage moved from a series' first point to its last, or nil when there is nothing to compare."
+  def period_trend([first | [_ | _] = rest]) do
+    last = List.last(rest)
+    if is_number(first.coverage) and is_number(last.coverage), do: Float.round(last.coverage - first.coverage, 1)
+  end
+
+  def period_trend(_series), do: nil
+
   @doc "The directory a file sits in, or nil for one at the repository's root."
   def parent_dir(path) do
     case Path.dirname(path) do
