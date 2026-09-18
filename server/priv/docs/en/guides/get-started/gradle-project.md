@@ -7,15 +7,14 @@
 ---
 # Gradle project {#gradle-project}
 
-> [!TIP]
-> **Rather have a coding agent do this?**
->
-> Give this to a coding agent:
->
-> ```text
-> Follow the setup at
-> https://tuist.dev/en/docs/guides/get-started/gradle-project
-> ```
+::: code-group
+
+```text [Agent prompt]
+Help me get started with Tuist. Follow the setup at:
+https://tuist.dev/en/docs/guides/get-started/gradle-project
+```
+
+:::
 
 Follow this path to point an existing Gradle project at Tuist. The `dev.tuist` Gradle plugin wires Gradle's local build cache to Tuist's remote cache and uploads build and test data to the dashboard, without changing a single `./gradlew` command.
 

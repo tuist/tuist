@@ -7,15 +7,14 @@
 ---
 # Bazel project {#bazel-project}
 
-> [!TIP]
-> **Rather have a coding agent do this?**
->
-> Give this to a coding agent:
->
-> ```text
-> Follow the setup at
-> https://tuist.dev/en/docs/guides/get-started/bazel-project
-> ```
+::: code-group
+
+```text [Agent prompt]
+Help me get started with Tuist. Follow the setup at:
+https://tuist.dev/en/docs/guides/get-started/bazel-project
+```
+
+:::
 
 Follow this path to plug an existing Bazel workspace into Tuist. Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache, and a Build Event Service stream that turns every build and test into visible data on the dashboard.
 

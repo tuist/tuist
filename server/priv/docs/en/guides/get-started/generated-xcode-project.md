@@ -7,15 +7,14 @@
 ---
 # Generated Xcode project {#generated-xcode-project}
 
-> [!TIP]
-> **Rather have a coding agent do this?**
->
-> Give this to a coding agent:
->
-> ```text
-> Follow the setup at
-> https://tuist.dev/en/docs/guides/get-started/generated-xcode-project
-> ```
+::: code-group
+
+```text [Agent prompt]
+Help me get started with Tuist. Follow the setup at:
+https://tuist.dev/en/docs/guides/get-started/generated-xcode-project
+```
+
+:::
 
 Follow this path when you want Tuist to describe and generate your Xcode project from Swift manifests. A generated project compresses the complexity of a modular Xcode project into a concise, declarative description of the graph. It's also a strict requirement for the module cache and selective testing.
 

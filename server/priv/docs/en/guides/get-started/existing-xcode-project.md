@@ -7,15 +7,14 @@
 ---
 # Xcode project {#existing-xcode-project}
 
-> [!TIP]
-> **Rather have a coding agent do this?**
->
-> Give this to a coding agent:
->
-> ```text
-> Follow the setup at
-> https://tuist.dev/en/docs/guides/get-started/existing-xcode-project
-> ```
+::: code-group
+
+```text [Agent prompt]
+Help me get started with Tuist. Follow the setup at:
+https://tuist.dev/en/docs/guides/get-started/existing-xcode-project
+```
+
+:::
 
 Follow this path when you want to keep your `.xcodeproj` or `.xcworkspace` exactly as it is and pull in Tuist's capabilities without adopting project generation. Every section below opens with what's missing today and then walks you through the feature that fills the gap.
 
