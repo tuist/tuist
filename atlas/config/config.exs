@@ -36,8 +36,6 @@ alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 alias Ueberauth.Strategy.Google
 
-config :mdex_native, syntax_highlighter: :lumis
-
 # Configure the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
@@ -49,6 +47,7 @@ llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
 config :atlas, Atlas.Mailer, adapter: Local
@@ -221,6 +220,8 @@ config :guardian, Guardian.DB,
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :domain]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 # An operator grant is a live bearer that arrives as a query parameter on the
 # redirect back from ops. Phoenix logs request and LiveView event parameters,
