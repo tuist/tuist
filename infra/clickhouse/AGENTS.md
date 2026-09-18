@@ -17,3 +17,5 @@ launcher in `infra/mise/tasks/clickhouse/migration.sh`.
 - Run migration steps through the launcher, not the chart's `clickhouse.managed.migration` deploy hook.
 - Keep the launcher's step list aligned with the ClickHouse tasks in `Tuist.Release`.
 - Switch an environment's `clickhouse.mode` to `managed` only after the checks the runbook lists before step 7, in a deploy of its own.
+- Change `clickhouse.managed.replicas` in a deploy that changes nothing else about the in-cluster ClickHouse. The StatefulSet creates new replicas on the new configuration before it restarts the existing ones, and a new replica can only catch up from peers already running the configuration it expects.
+- Do not raise `clickhouse.managed.keeper.replicas` on a live environment. Growing a Keeper ensemble is a membership change, and new members started with the larger configuration can elect a leader without the existing member's metadata.

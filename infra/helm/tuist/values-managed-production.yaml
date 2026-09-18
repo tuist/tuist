@@ -519,9 +519,8 @@ clickhouse:
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    # so the copy and the soak can start as soon as a box lands. A second one
+    # needs its own box, named in `persistence.localVolume.nodeNames`.
     #
     # A single replica is not the shape to *finish* on: after the cutover the
     # system of record would live on one machine, with the backups below as the
