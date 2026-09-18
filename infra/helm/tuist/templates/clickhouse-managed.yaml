@@ -751,16 +751,23 @@ spec:
           # is required even at one replica since the table engines write their
           # metadata to Keeper regardless.
           #
-          # A replica that already has the database is only restarting, and
-          # returns at once: its tables are already here, and whatever it
-          # missed while it was down, `/replicas_status` holds it back for.
-          # One that does not is new: it creates the database, which registers it
-          # with its peers, then waits for two things before readiness is
-          # evaluated at all. Every table the database holds has to exist
-          # here, which `SYNC DATABASE REPLICA` waits for. And every one of
-          # them has to have copied its peer's list of parts to fetch, which
-          # happens shortly after the table starts: until then the replica
-          # looks caught up to `/replicas_status` while holding no data.
+          # Creating the database registers the replica with its peers. Two
+          # things then have to hold before readiness is evaluated at all,
+          # because `/replicas_status` only sees tables that exist, have
+          # loaded and are writable, and cannot tell a replica missing tables
+          # or data from one that is caught up:
+          #
+          #   - Every table the database holds exists here, which
+          #     `SYNC DATABASE REPLICA` waits for.
+          #   - Every table has copied its peer's list of parts to fetch. A
+          #     new table replica starts out marked lost in Keeper and clears
+          #     that once it has, shortly after the table starts.
+          #
+          # Both are checked on every start, not only the first, and return at
+          # once on a replica that is up to date. A replica restarted halfway
+          # through joining already has its database but not all its tables,
+          # and one that was down while DDL ran comes back without the tables
+          # it missed.
           #
           # Bounded, because probes do not run while this does: a server that
           # never answers is restarted rather than left waiting.
@@ -783,12 +790,9 @@ spec:
                       done
                     }
                     all_cloned() {
-                      test "$(q --query "SELECT count() FROM system.replicas WHERE database = '{{ $m.database }}' AND log_pointer = 0 AND log_max_index > 0")" = 0
+                      test "$(q --query "SELECT count() FROM system.zookeeper WHERE path IN (SELECT replica_path FROM system.replicas WHERE database = '{{ $m.database }}') AND name = 'is_lost' AND value != '0'")" = 0
                     }
                     retry q --query "SELECT 1" > /dev/null
-                    if [ "$(q --query "EXISTS DATABASE {{ $m.database }}")" = 1 ]; then
-                      exit 0
-                    fi
                     retry q --query "CREATE DATABASE IF NOT EXISTS {{ $m.database }} ENGINE = Replicated('/clickhouse/databases/{{ $m.database }}', '{shard}', '{replica}')"
                     retry q --receive_timeout=300 --query "SYSTEM SYNC DATABASE REPLICA {{ $m.database }}"
                     retry all_cloned
