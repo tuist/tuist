@@ -393,6 +393,9 @@ clickhouse:
       endpoint: ""
     # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
     credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-clickhouse-backup/username"
+      secretKeyRemoteRef: "atlas-clickhouse-backup/credential"
     activeDeadlineSeconds: 3600
     resources:
       requests:

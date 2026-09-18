@@ -1,4 +1,36 @@
 {{- if and .Values.clickhouse.enabled .Values.clickhouse.backup.enabled }}
+# ESO syncs the S3 credentials the CronJob uses to authenticate the
+# `BACKUP DATABASE ... TO S3(...)` statement. The ClickHouse `S3()` function
+# expects the access key ID and secret access key as positional arguments, so
+# the CronJob reads them from this Secret via the `AWS_ACCESS_KEY_ID` and
+# `AWS_SECRET_ACCESS_KEY` env vars.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.clickhouse.backup.credentialsSecretName }}
+  labels:
+    {{- include "atlas.clickhouseLabels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval | quote }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.storeRef.name }}
+    kind: {{ .Values.externalSecrets.storeRef.kind }}
+  target:
+    name: {{ .Values.clickhouse.backup.credentialsSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        ACCESS_KEY_ID: "{{ `{{ .access_key_id | trim }}` }}"
+        SECRET_ACCESS_KEY: "{{ `{{ .secret_access_key | trim }}` }}"
+  data:
+    - secretKey: access_key_id
+      remoteRef:
+        key: {{ .Values.clickhouse.backup.externalSecret.accessKeyRemoteRef | quote }}
+    - secretKey: secret_access_key
+      remoteRef:
+        key: {{ .Values.clickhouse.backup.externalSecret.secretKeyRemoteRef | quote }}
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
