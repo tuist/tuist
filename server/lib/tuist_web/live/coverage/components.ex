@@ -232,20 +232,39 @@ defmodule TuistWeb.Coverage.Components do
           />
         </:col>
         <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
-          <div data-part="cell" data-type="badge">
-            <span data-part="label">{if row.coverage, do: "#{row.coverage}%", else: "—"}</span>
-            <.badge
-              :if={row.delta}
-              style="light-fill"
-              size="large"
-              color={change_color({:delta, row.delta})}
-              label={"#{signed(row.delta)}%"}
-            />
-          </div>
+          <.coverage_change_cell coverage={row.coverage} delta={row.delta} />
         </:col>
       </.table>
       <div :if={@rows == []} data-part="empty">{@empty}</div>
     </.card_section>
+    """
+  end
+
+  attr :coverage, :float, default: nil
+  attr :delta, :float, default: nil
+  attr :placeholder, :string, default: "—"
+  attr :new, :boolean, default: false
+
+  @doc "A coverage figure with the change that moved it, or a New badge for a file with no baseline."
+  def coverage_change_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="badge">
+      <span data-part="label">{if @coverage, do: "#{@coverage}%", else: @placeholder}</span>
+      <.badge
+        :if={@delta}
+        style="light-fill"
+        size="large"
+        color={change_color({:delta, @delta})}
+        label={"#{signed(@delta)}%"}
+      />
+      <.badge
+        :if={@new and is_nil(@delta)}
+        style="light-fill"
+        size="large"
+        color="information"
+        label={dgettext("dashboard_tests", "New")}
+      />
+    </div>
     """
   end
 

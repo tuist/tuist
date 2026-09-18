@@ -612,11 +612,6 @@
         <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
           <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
         </:col>
-        <:col :let={target} label={dgettext("dashboard_tests", "Baseline")}>
-          <.text_cell label={
-            if target.baseline_coverage, do: "#{target.baseline_coverage}%", else: "—"
-          } />
-        </:col>
         <:col :let={target} label={dgettext("dashboard_tests", "Change")}>
           <.change_cell delta={target.delta} />
         </:col>
@@ -647,21 +642,12 @@
               />
             </:col>
             <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-              <.text_cell label={
-                if file.coverage,
-                  do: "#{file.coverage}%",
-                  else: dgettext("dashboard_tests", "Removed")
-              } />
-            </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Baseline")}>
-              <.text_cell label={
-                if file.baseline_coverage,
-                  do: "#{file.baseline_coverage}%",
-                  else: dgettext("dashboard_tests", "New")
-              } />
-            </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Change")}>
-              <.change_cell delta={file.delta} />
+              <.coverage_change_cell
+                coverage={file.coverage}
+                delta={file.delta}
+                placeholder={dgettext("dashboard_tests", "Removed")}
+                new={is_nil(file.baseline_coverage)}
+              />
             </:col>
           </.table>
           <.pagination_group
