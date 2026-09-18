@@ -1196,10 +1196,42 @@ struct PackageInfoMapperTests {
                 .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
-                        .test("Target_1", basePath: basePath, customBundleID: "Target.1"),
+                        .test("Target_1", basePath: basePath, customBundleID: "Target-1"),
                     ]
                 )
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
+    func map_whenTargetNamesDifferByUnderscores_preservesDistinctBundleIdentifiers() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let names = ["IssueReporting", "_IssueReporting", "__IssueReporting", "IssueReporting_", "Issue__Reporting"]
+        for name in names {
+            try await fileSystem.makeDirectory(at: basePath.appending(components: "Package", "Sources", name))
+        }
+
+        let project = try #require(try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [.init(name: "Product", type: .library(.automatic), targets: names)],
+                    targets: names.map { .test(name: $0) },
+                    platforms: [.ios]
+                ),
+            ]
+        ))
+
+        let identifiers = Dictionary(uniqueKeysWithValues: project.targets.map { ($0.name, $0.bundleId) })
+        #expect(identifiers == [
+            "IssueReporting": "IssueReporting",
+            "_IssueReporting": "-IssueReporting",
+            "__IssueReporting": "--IssueReporting",
+            "IssueReporting_": "IssueReporting-",
+            "Issue__Reporting": "Issue--Reporting",
+        ])
+        #expect(Set(identifiers.values).count == names.count)
     }
 
     @Test(
@@ -8527,7 +8559,7 @@ struct PackageInfoMapperTests {
         )
 
         let target = try #require(project?.targets.first(where: { $0.name == "_RopeModule" }))
-        #expect(target.bundleId == "RopeModule")
+        #expect(target.bundleId == "-RopeModule")
         #expect(target.settings?.base["PRODUCT_BUNDLE_IDENTIFIER"] == nil)
         #expect(target.settings?.base["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] == .string("x86_64"))
     }
