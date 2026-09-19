@@ -21,6 +21,7 @@ extension XcodeGraph.TestAction {
         // swiftlint:enable function_body_length
         let testPlans: [XcodeGraph.TestPlan]?
         let targets: [XcodeGraph.TestableTarget]
+        let targetQueries: [XcodeGraph.TestableTargetQuery]
         let arguments: XcodeGraph.Arguments?
         let coverage: Bool
         let codeCoverageTargets: [XcodeGraph.TargetReference]
@@ -43,6 +44,7 @@ extension XcodeGraph.TestAction {
             testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
             targets = []
+            targetQueries = []
             arguments = nil
             coverage = false
             codeCoverageTargets = []
@@ -55,6 +57,8 @@ extension XcodeGraph.TestAction {
         } else {
             targets = try manifest.targets
                 .map { try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            targetQueries = try manifest.targetQueries
+                .map { try XcodeGraph.TestableTargetQuery.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
             coverage = manifest.options.coverage
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
@@ -105,7 +109,8 @@ extension XcodeGraph.TestAction {
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
             testPlans: testPlans,
-            skippedTests: skippedTests
+            skippedTests: skippedTests,
+            targetQueries: targetQueries
         )
     }
 }
