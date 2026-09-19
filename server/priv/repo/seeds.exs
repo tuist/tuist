@@ -3915,6 +3915,18 @@ end
 
 runner_jobs_account_id = organization.account.id
 
+# The jobs below have fixed ids, and a job with a recorded completion refuses
+# to be claimed again, so a re-seed starts from the account's lifecycle rows
+# gone rather than stopping at the first job it already finished.
+for schema <- [
+      Tuist.Runners.JobCompletion,
+      Tuist.Runners.Claim,
+      Tuist.Runners.WorkflowJob,
+      RunnerSession
+    ] do
+  Repo.delete_all(from(row in schema, where: row.account_id == ^runner_jobs_account_id))
+end
+
 runner_jobs_repos = [
   "tuist/tuist",
   "tuist/noora",
