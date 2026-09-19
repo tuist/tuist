@@ -37,9 +37,9 @@ public struct TruncatedArtifactDownloadError: LocalizedError, Equatable {
 }
 
 public struct ArtifactResumeMiddleware: ClientMiddleware {
-    /// Cap on resume attempts for one logical download. Each attempt makes
-    /// forward progress, so this bounds a server that keeps truncating rather
-    /// than the usual case of a single dropped connection.
+    /// Cap on consecutive resume attempts that get no further into the artifact.
+    /// An attempt that gets further resets it, so a download that keeps progressing
+    /// keeps resuming.
     public static let defaultMaximumResumeAttempts = 3
 
     private let resumableOperationIDs: Set<String>
@@ -96,7 +96,8 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
         var expected = response.headerFields[.contentLength].flatMap(Int.init)
         var collected = Data()
         var pending: HTTPBody? = responseBody
-        var attempt = 0
+        var furthest = 0
+        var resumesWithoutProgress = 0
         // The response the collected bytes belong to, and the validator naming
         // it. A restart replaces both: the caller must read the headers of the
         // representation it actually receives (an integrity digest describes one
@@ -135,12 +136,17 @@ public struct ArtifactResumeMiddleware: ClientMiddleware {
                 break
             }
 
-            guard attempt < maximumResumeAttempts, !collected.isEmpty, let currentValidator = validator else {
-                throw failure
+            guard !collected.isEmpty, let currentValidator = validator else { throw failure }
+            if collected.count > furthest {
+                furthest = collected.count
+                resumesWithoutProgress = 0
             }
-            attempt += 1
+            guard resumesWithoutProgress < maximumResumeAttempts else { throw failure }
+            resumesWithoutProgress += 1
+            // A cancelled consumer's stream ends early without an error.
+            try Task.checkCancellation()
             Logger.current.debug(
-                "Artifact download for \(request.path ?? "") stopped after \(collected.count) bytes: \(failure.localizedDescription), resuming (\(attempt)/\(maximumResumeAttempts))..."
+                "Artifact download for \(request.path ?? "") stopped after \(collected.count) bytes: \(failure.localizedDescription), resuming..."
             )
             guard let resumed = try await resume(
                 from: collected.count,

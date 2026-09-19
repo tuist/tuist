@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -14,21 +15,32 @@ import OpenAPIRuntime
 /// Unlike the default URLSessionTransport which uses completion handlers, this transport
 /// uses `data(for:delegate:)` which triggers the URLSessionTaskDelegate methods including
 /// `didFinishCollecting` for capturing detailed timing metrics.
+///
+/// Operations in `streamingOperationIDs` return once headers arrive, with a body that yields bytes as
+/// they are received, so a body that fails partway keeps what arrived for `ArtifactResumeMiddleware`.
 public struct TuistURLSessionTransport: ClientTransport {
     private let session: URLSession?
+    private let streamingOperationIDs: Set<String>
 
-    public init(session: URLSession? = nil) {
+    public init(session: URLSession? = nil, streamingOperationIDs: Set<String> = []) {
         self.session = session
+        self.streamingOperationIDs = streamingOperationIDs
     }
 
     public func send(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,
-        operationID _: String
+        operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let urlRequest = try await buildURLRequest(from: request, body: body, baseURL: baseURL)
         let session = resolvedSession()
+
+        #if !canImport(FoundationNetworking)
+            if streamingOperationIDs.contains(operationID) {
+                return try await streamingResponse(for: urlRequest, session: session)
+            }
+        #endif
 
         #if canImport(TuistHAR)
             let metricsDelegate = TaskMetricsDelegate()
@@ -60,6 +72,41 @@ public struct TuistURLSessionTransport: ClientTransport {
     private func resolvedSession() -> URLSession {
         session ?? .tuistShared
     }
+
+    #if !canImport(FoundationNetworking)
+        private func streamingResponse(
+            for urlRequest: URLRequest,
+            session: URLSession
+        ) async throws -> (HTTPResponse, HTTPBody?) {
+            let task = session.dataTask(with: urlRequest)
+            // The returned body owns the stream, so discarding the body cancels the task.
+            let (body, bodyContinuation) = AsyncThrowingStream<ArraySlice<UInt8>, any Error>.makeStream()
+            bodyContinuation.onTermination = { [weak task] termination in
+                if case .cancelled = termination { task?.cancel() }
+            }
+            let delegate = StreamingResponseDelegate(bodyContinuation: bodyContinuation)
+            return try await withTaskCancellationHandler {
+                let response = try await withCheckedThrowingContinuation { continuation in
+                    delegate.start(task, responseContinuation: continuation)
+                }
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    task.cancel()
+                    throw TuistURLSessionTransportError.invalidResponse(response)
+                }
+                let httpResponseObj = HTTPResponse(
+                    status: .init(code: httpResponse.statusCode),
+                    headerFields: buildHTTPFields(from: httpResponse)
+                )
+                guard httpResponse.expectedContentLength != 0 else { return (httpResponseObj, nil) }
+                let length: HTTPBody.Length = httpResponse.expectedContentLength > 0
+                    ? .known(httpResponse.expectedContentLength)
+                    : .unknown
+                return (httpResponseObj, HTTPBody(body, length: length))
+            } onCancel: {
+                task.cancel()
+            }
+        }
+    #endif
 
     private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) async throws -> URLRequest {
         let url = try buildURL(baseURL: baseURL, path: request.path)
@@ -138,6 +185,70 @@ public struct TuistURLSessionTransport: ClientTransport {
         return fields
     }
 }
+
+#if !canImport(FoundationNetworking)
+    /// Delivers a data task's response when its headers arrive and its body chunk by chunk.
+    private final class StreamingResponseDelegate: NSObject, URLSessionDataDelegate, Sendable {
+        private struct State {
+            var responseContinuation: CheckedContinuation<URLResponse, any Error>?
+            var metricsStored: Task<Void, Never>?
+        }
+
+        private let bodyContinuation: AsyncThrowingStream<ArraySlice<UInt8>, any Error>.Continuation
+        private let state = Mutex(State())
+
+        init(bodyContinuation: AsyncThrowingStream<ArraySlice<UInt8>, any Error>.Continuation) {
+            self.bodyContinuation = bodyContinuation
+        }
+
+        func start(_ task: URLSessionDataTask, responseContinuation: CheckedContinuation<URLResponse, any Error>) {
+            state.withLock { $0.responseContinuation = responseContinuation }
+            task.delegate = self
+            task.resume()
+        }
+
+        func urlSession(
+            _: URLSession,
+            dataTask _: URLSessionDataTask,
+            didReceive response: URLResponse,
+            completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+        ) {
+            takeResponseContinuation()?.resume(returning: response)
+            completionHandler(.allow)
+        }
+
+        func urlSession(_: URLSession, dataTask _: URLSessionDataTask, didReceive data: Data) {
+            bodyContinuation.yield(ArraySlice(data))
+        }
+
+        func urlSession(_: URLSession, task _: URLSessionTask, didCompleteWithError error: (any Error)?) {
+            takeResponseContinuation()?.resume(throwing: error ?? URLError(.badServerResponse))
+            // The body ends only once its metrics are stored, so a reader of the whole body finds them.
+            let metricsStored = state.withLock { $0.metricsStored }
+            Task { [bodyContinuation] in
+                await metricsStored?.value
+                bodyContinuation.finish(throwing: error)
+            }
+        }
+
+        #if canImport(TuistHAR)
+            func urlSession(_: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+                guard let transactionMetrics = metrics.transactionMetrics.last,
+                      let url = task.originalRequest?.url
+                else { return }
+                let metricsStored = Task { await URLSessionMetricsDelegate.shared.storeMetrics(transactionMetrics, for: url) }
+                state.withLock { $0.metricsStored = metricsStored }
+            }
+        #endif
+
+        private func takeResponseContinuation() -> CheckedContinuation<URLResponse, any Error>? {
+            state.withLock { state in
+                defer { state.responseContinuation = nil }
+                return state.responseContinuation
+            }
+        }
+    }
+#endif
 
 enum TuistURLSessionTransportError: LocalizedError {
     case invalidURL(URL)
