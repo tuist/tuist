@@ -6,133 +6,257 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/integrations_live.html.heex:82
+#: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr "新しいプロジェクト接続を追加"
 
-#: lib/tuist_web/live/integrations_live.html.heex:145
+#: lib/tuist_web/live/integrations_live.html.heex:195
+#: lib/tuist_web/live/integrations_live.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "キャンセル"
 
-#: lib/tuist_web/live/integrations_live.html.heex:97
+#: lib/tuist_web/live/integrations_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr "Tuistプロジェクトを選択"
 
-#: lib/tuist_web/live/integrations_live.html.heex:124
+#: lib/tuist_web/live/integrations_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr "リポジトリを選択"
 
-#: lib/tuist_web/live/integrations_live.html.heex:75
+#: lib/tuist_web/live/integrations_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr "接続するリポジトリを選択"
 
-#: lib/tuist_web/live/integrations_live.html.heex:9
+#: lib/tuist_web/live/integrations_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
 msgstr "GitHubのリポジトリを任意のプロジェクトに接続"
 
-#: lib/tuist_web/live/integrations_live.ex:215
+#: lib/tuist_web/live/integrations_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr "接続済み %{time_ago}"
 
-#: lib/tuist_web/live/integrations_live.ex:217
+#: lib/tuist_web/live/integrations_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr "%{name} によって %{time_ago} 接続済み"
 
-#: lib/tuist_web/live/integrations_live.html.heex:152
+#: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr "接続を作成"
 
-#: lib/tuist_web/live/integrations_live.html.heex:6
+#: lib/tuist_web/live/integrations_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:48
+#: lib/tuist_web/live/integrations_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr "GitHub Appをインストール"
 
-#: lib/tuist_web/live/integrations_live.ex:52
-#: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/integrations_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "連携"
 
-#: lib/tuist_web/live/integrations_live.html.heex:191
+#: lib/tuist_web/live/integrations_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:59
+#: lib/tuist_web/live/integrations_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr "連携を管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:194
+#: lib/tuist_web/live/integrations_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr "接続を解除"
 
-#: lib/tuist_web/live/integrations_live.ex:16
+#: lib/tuist_web/live/integrations_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "この操作を実行する権限がありません。"
 
-#: lib/tuist_web/live/integrations_live.html.heex:70
+#: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr "リポジトリへのアクセスは、GitHubとTuistの連携設定に依存します。"
 
-#: lib/tuist_web/live/integrations_live.ex:255
+#: lib/tuist_web/live/integrations_live.ex:447
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr "無効なURLです"
 
-#: lib/tuist_web/live/integrations_live.ex:287
+#: lib/tuist_web/live/integrations_live.ex:474
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr "無効な組織です"
 
-#: lib/tuist_web/live/integrations_live.html.heex:38
+#: lib/tuist_web/live/integrations_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Server URL"
 msgstr "サーバーURL"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
+#: lib/tuist_web/live/integrations_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Enterprise server"
 msgstr "Enterpriseサーバー"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:213
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "続行"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server"
 msgstr "GitHub Enterpriseサーバーへリダイレクトしています"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:208
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr "Tuistアプリ登録のためGitHub Enterpriseサーバーへリダイレクトしています…"
 
-#: lib/tuist_web/live/integrations_live.ex:244
+#: lib/tuist_web/live/integrations_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "必須"
 
-#: lib/tuist_web/live/integrations_live.ex:250
+#: lib/tuist_web/live/integrations_live.ex:423
+#: lib/tuist_web/live/integrations_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr "GitHub EnterpriseサーバーのURLを使用してください"
+
+#: lib/tuist_web/live/integrations_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "No github.com App is configured"
+msgstr "github.comアプリが構成されていません"
+
+#: lib/tuist_web/live/integrations_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Read the setup guide"
+msgstr "セットアップガイドを確認"
+
+#: lib/tuist_web/live/integrations_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
+msgstr "このTuistサーバーは、GitHub Appをインストールする前に、github.com上に独自のGitHub Appが必要です。Appを登録し、TUIST_GITHUB_APP_NAME、TUIST_GITHUB_APP_CLIENT_ID、TUIST_GITHUB_APP_CLIENT_SECRET、およびTUIST_GITHUB_APP_PRIVATE_KEY_BASE64を設定して、サーバーを再起動してください。"
+
+#: lib/tuist_web/live/integrations_live.ex:513
+#, elixir-autogen, elixir-format
+msgid "Buildkite"
+msgstr "Buildkite"
+
+#: lib/tuist_web/live/integrations_live.html.heex:445
+#: lib/tuist_web/live/integrations_live.html.heex:510
+#, elixir-autogen, elixir-format
+msgid "Cluster agent token"
+msgstr "クラスターエージェントトークン"
+
+#: lib/tuist_web/live/integrations_live.html.heex:291
+#: lib/tuist_web/live/integrations_live.html.heex:326
+#: lib/tuist_web/live/integrations_live.html.heex:481
+#: lib/tuist_web/live/integrations_live.html.heex:534
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr "接続"
+
+#: lib/tuist_web/live/integrations_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Connect Buildkite"
+msgstr "Buildkiteを接続"
+
+#: lib/tuist_web/live/integrations_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+msgstr "Buildkiteのクラスターの「Agent Tokens」でエージェントトークンを作成してください。ジョブは、ランナープロファイルにちなんで名付けられたセルフホストキューから取得されます。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:269
+#: lib/tuist_web/live/integrations_live.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "Disconnect"
+msgstr "切断"
+
+#: lib/tuist_web/live/integrations_live.html.heex:499
+#, elixir-autogen, elixir-format
+msgid "Organization slug"
+msgstr "組織スラッグ"
+
+#: lib/tuist_web/live/integrations_live.ex:515
+#, elixir-autogen, elixir-format
+msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+msgstr "TuistランナーでBuildkiteジョブを実行します。Tuistはクラスター内のセルフホストキューを監視し、見つかったジョブを実行します。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:513
+#, elixir-autogen, elixir-format
+msgid "Stored encrypted and never shown again."
+msgstr "暗号化して保存され、再度表示されることはありません。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:435
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "組織"
+
+#: lib/tuist_web/live/integrations_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "Buildkite connection saved."
+msgstr "Buildkiteの接続が保存されました。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:388
+#: lib/tuist_web/live/integrations_live.html.heex:454
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr "変更を保存"
+
+#: lib/tuist_web/live/integrations_live.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Connect GitLab CI"
+msgstr "GitLab CIを接続"
+
+#: lib/tuist_web/live/integrations_live.html.heex:359
+#, elixir-autogen, elixir-format
+msgid "Disconnecting: waiting for GitLab to settle queued assignments."
+msgstr "切断中: GitLabがキュー内の割り当ての処理を完了するのを待っています。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "GitLab CI"
+msgstr "GitLab CI"
+
+#: lib/tuist_web/live/integrations_live.html.heex:309
+#: lib/tuist_web/live/integrations_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "GitLab URL"
+msgstr "GitLab URL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:318
+#: lib/tuist_web/live/integrations_live.html.heex:380
+#, elixir-autogen, elixir-format
+msgid "Runner authentication token"
+msgstr "ランナー認証トークン"
+
+#: lib/tuist_web/live/integrations_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Check the GitLab URL and runner authentication token."
+msgstr "GitLab URLとランナー認証トークンを確認してください。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:281
+#, elixir-autogen, elixir-format
+msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
+msgstr "TuistプロファイルタグでGitLabランナーを作成し、タグなしジョブを無効にして、そのトークンをここに貼り付けてください。パイプライン内のマシンは、[tuist-macos]などのタグで選択します。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
+msgstr "TuistランナーでGitLab CIジョブを実行します。パイプラインタグを使用して、各ジョブのマシンを選択します。"
