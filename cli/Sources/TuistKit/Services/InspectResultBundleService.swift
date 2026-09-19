@@ -430,23 +430,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private func testCaseRunsByIdentity(
-        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
-        testCaseRuns.reduce(into: [:]) { result, run in
-            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
-            result[key] = run
-        }
-    }
-
-    private func testCaseRunIdentityKey(moduleName: String, suiteName: String, name: String) -> String {
-        if suiteName.isEmpty {
-            return "\(moduleName)/\(name)"
-        } else {
-            return "\(moduleName)/\(suiteName)/\(name)"
-        }
-    }
-
     private func writeQuarantinedTests(
         _ quarantinedTests: [TestIdentifier],
         to resultBundlePath: AbsolutePath
@@ -469,6 +452,25 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
+    }
+}
+
+extension UploadResultBundleService {
+    private func testCaseRunsByIdentity(
+        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
+    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
+        testCaseRuns.reduce(into: [:]) { result, run in
+            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
+            result[key] = run
+        }
+    }
+
+    private func testCaseRunIdentityKey(moduleName: String, suiteName: String, name: String) -> String {
+        if suiteName.isEmpty {
+            return "\(moduleName)/\(name)"
+        } else {
+            return "\(moduleName)/\(suiteName)/\(name)"
         }
     }
 }
