@@ -152,6 +152,24 @@ type RunnerPoolSpec struct {
 	// means the built-in default (5%, minimum 1).
 	// +optional
 	Rollout *RunnerPoolRollout `json:"rollout,omitempty"`
+
+	// Placement carries scheduling preferences for this pool's Pods.
+	// Absent block means kube-scheduler's default scoring, which puts
+	// each Pod on the least-allocated node that fits it.
+	// +optional
+	Placement *RunnerPoolPlacement `json:"placement,omitempty"`
+}
+
+// RunnerPoolPlacement carries scheduling preferences for a pool's Pods.
+type RunnerPoolPlacement struct {
+	// PackOntoOccupiedNodes gives the pool's Pods a preferred pod
+	// affinity toward hosts already running runner Pods, so partly used
+	// hosts fill before an empty one is started. Set it on shapes small
+	// enough to share a host, so empty hosts stay free for shapes that
+	// need most of one. A Pod that fits no occupied host still lands on
+	// an empty one.
+	// +optional
+	PackOntoOccupiedNodes bool `json:"packOntoOccupiedNodes,omitempty"`
 }
 
 // RunnerPoolAutoscaling carries the autoscaling knobs. Lives in

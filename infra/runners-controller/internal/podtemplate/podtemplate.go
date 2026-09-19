@@ -583,7 +583,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// container only — see the Linux branch above.
 			AutomountServiceAccountToken: ptr(automount),
 			NodeSelector:                 nodeSelector,
-			Affinity:                     goldenAffinity(pool),
+			Affinity:                     affinityFor(pool),
 			Tolerations:                  tolerations,
 			Volumes:                      volumes,
 			InitContainers:               initContainers,
@@ -702,6 +702,51 @@ func goldenAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 				},
 			}},
 		},
+	}
+}
+
+// affinityFor combines the substrate's node affinity with the pool's
+// placement preferences. Nil when neither applies.
+func affinityFor(pool *tuistv1.RunnerPool) *corev1.Affinity {
+	affinity := goldenAffinity(pool)
+	if pool.Spec.Placement == nil || !pool.Spec.Placement.PackOntoOccupiedNodes {
+		return affinity
+	}
+	if affinity == nil {
+		affinity = &corev1.Affinity{}
+	}
+	affinity.PodAffinity = packingAffinity()
+	return affinity
+}
+
+// packingAffinity prefers hosts already running runner Pods.
+//
+// kube-scheduler's default resource scoring favours the least-allocated
+// node, which spreads small Pods over every host and leaves none with
+// room for a shape that needs most of one. InterPodAffinity scores each
+// feasible node by the weight of the matching Pods it runs, normalised
+// so the best feasible node takes the plugin's full score, and the
+// default profile weighs that plugin twice as heavily as resource
+// scoring. So an occupied host that still fits the Pod wins over an
+// empty one, and an empty host is only chosen once no occupied host fits.
+//
+// The selector matches every runner Pod, not only the packing shapes. A
+// host whose only runner is a large Pod has no seat left for another
+// large one, so its remainder is where small Pods belong. The scheduler
+// also applies existing Pods' preferred terms to the incoming Pod, so a
+// large Pod without this term is drawn to hosts running packing Pods
+// when it fits there, which keeps the empty hosts empty.
+func packingAffinity() *corev1.PodAffinity {
+	return &corev1.PodAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+			Weight: 100,
+			PodAffinityTerm: corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"tuist.dev/runner": "true"},
+				},
+				TopologyKey: "kubernetes.io/hostname",
+			},
+		}},
 	}
 }
 

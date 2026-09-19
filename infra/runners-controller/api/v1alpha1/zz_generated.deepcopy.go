@@ -89,6 +89,23 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.Rollout = new(RunnerPoolRollout)
 		in.Rollout.DeepCopyInto(out.Rollout)
 	}
+	if in.Placement != nil {
+		out.Placement = new(RunnerPoolPlacement)
+		in.Placement.DeepCopyInto(out.Placement)
+	}
+}
+
+func (in *RunnerPoolPlacement) DeepCopyInto(out *RunnerPoolPlacement) {
+	*out = *in
+}
+
+func (in *RunnerPoolPlacement) DeepCopy() *RunnerPoolPlacement {
+	if in == nil {
+		return nil
+	}
+	out := new(RunnerPoolPlacement)
+	in.DeepCopyInto(out)
+	return out
 }
 
 func (in *RunnerPoolProvisioning) DeepCopyInto(out *RunnerPoolProvisioning) {

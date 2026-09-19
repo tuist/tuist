@@ -163,6 +163,24 @@ spec:
                         to a node may wait for its dispatch poller to start.
                         Timed-out Pods are reaped. Unscheduled Pods are not
                         timed out. 0 disables the timeout.
+                placement:
+                  type: object
+                  description: |
+                    Optional scheduling preferences for this pool's Pods.
+                    Absent block means kube-scheduler's default scoring,
+                    which puts each Pod on the least-allocated node that
+                    fits it.
+                  properties:
+                    packOntoOccupiedNodes:
+                      type: boolean
+                      description: |
+                        Give the pool's Pods a preferred pod affinity toward
+                        hosts already running runner Pods, so partly used
+                        hosts fill before an empty one is started. Set it on
+                        shapes small enough to share a host, so empty hosts
+                        stay free for shapes that need most of one. A Pod
+                        that fits no occupied host still lands on an empty
+                        one.
                 autoscaling:
                   type: object
                   description: |
