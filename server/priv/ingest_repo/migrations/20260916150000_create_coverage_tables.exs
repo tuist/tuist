@@ -40,6 +40,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
   use Ecto.Migration
 
   alias Tuist.Environment
+  alias Tuist.IngestRepo.Migration
 
   @disable_ddl_transaction true
   @disable_migration_lock true
@@ -81,7 +82,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `function_executable_lines` Array(UInt32),
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = ReplacingMergeTree(inserted_at)
+    ENGINE = #{Migration.engine("ReplacingMergeTree(inserted_at)")}
     PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (project_id, test_run_id, shard_index, scope_kind, scope_id, path)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.files} DAY
@@ -104,7 +105,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `version` UInt64,
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = ReplacingMergeTree(version)
+    ENGINE = #{Migration.engine("ReplacingMergeTree(version)")}
     ORDER BY (project_id, test_run_id)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.runs} DAY
     """)
@@ -128,7 +129,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `version` UInt64,
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = ReplacingMergeTree(version)
+    ENGINE = #{Migration.engine("ReplacingMergeTree(version)")}
     ORDER BY (project_id, git_commit_sha)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.runs} DAY
     """)
@@ -143,7 +144,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `mode` UInt32 DEFAULT 0,
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = ReplacingMergeTree(inserted_at)
+    ENGINE = #{Migration.engine("ReplacingMergeTree(inserted_at)")}
     PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (repository_id, sha, path)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.files} DAY

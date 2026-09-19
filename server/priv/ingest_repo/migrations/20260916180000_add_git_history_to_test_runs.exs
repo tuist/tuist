@@ -18,6 +18,7 @@ defmodule Tuist.IngestRepo.Migrations.AddGitHistoryToTestRuns do
   use Ecto.Migration
 
   alias Tuist.Environment
+  alias Tuist.IngestRepo.Migration
 
   @disable_ddl_transaction true
   @disable_migration_lock true
@@ -50,7 +51,7 @@ defmodule Tuist.IngestRepo.Migrations.AddGitHistoryToTestRuns do
       `truncated` Bool DEFAULT false,
       `inserted_at` DateTime64(6) DEFAULT now()
     )
-    ENGINE = ReplacingMergeTree(inserted_at)
+    ENGINE = #{Migration.engine("ReplacingMergeTree(inserted_at)")}
     PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (project_id, test_run_id, path)
     TTL toDateTime(inserted_at) + INTERVAL #{Environment.coverage_retention_days().files} DAY
