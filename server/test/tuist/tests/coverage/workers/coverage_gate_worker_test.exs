@@ -153,7 +153,10 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     assert :ok == perform(project, "signal")
   end
 
-  test "is neutral when there is no baseline, the patch gate still holding on a partial run", %{project: project, account: account} do
+  test "is neutral when there is no baseline, the patch gate still holding on a partial run", %{
+    project: project,
+    account: account
+  } do
     pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])], %{
       merge_base_sha: "unknown",
       partial: true
