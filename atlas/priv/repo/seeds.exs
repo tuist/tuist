@@ -5819,21 +5819,56 @@ impacted_account_fixtures = [
   %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:wise", event_count: 8, hours_ago: 2},
 
   # gRPC UNAVAILABLE — hits the two enterprises hard
-  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:acme-plus", event_count: 118, hours_ago: 0},
+  %{
+    issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+    account_key: "demo:acme-plus",
+    event_count: 118,
+    hours_ago: 0
+  },
   %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:acme", event_count: 61, hours_ago: 1},
-  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:unity", event_count: 22, hours_ago: 3},
+  %{
+    issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+    account_key: "demo:unity",
+    event_count: 22,
+    hours_ago: 3
+  },
 
   # REAPI FindMissingBlobs shed — pro accounts affected
-  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:linear", event_count: 44, hours_ago: 0},
-  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:unity", event_count: 33, hours_ago: 1},
-  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:wise", event_count: 12, hours_ago: 4},
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:linear",
+    event_count: 44,
+    hours_ago: 0
+  },
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:unity",
+    event_count: 33,
+    hours_ago: 1
+  },
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:wise",
+    event_count: 12,
+    hours_ago: 4
+  },
 
   # Slack signature verification — one enterprise
   %{issue_title: "Slack signature verification failed", account_key: "demo:stripe", event_count: 17, hours_ago: 6},
 
   # Jason.DecodeError — pro accounts
-  %{issue_title: "Jason.DecodeError: unexpected end of input", account_key: "demo:linear", event_count: 48, hours_ago: 2},
-  %{issue_title: "Jason.DecodeError: unexpected end of input", account_key: "demo:unity", event_count: 21, hours_ago: 3},
+  %{
+    issue_title: "Jason.DecodeError: unexpected end of input",
+    account_key: "demo:linear",
+    event_count: 48,
+    hours_ago: 2
+  },
+  %{
+    issue_title: "Jason.DecodeError: unexpected end of input",
+    account_key: "demo:unity",
+    event_count: 21,
+    hours_ago: 3
+  },
 
   # FileNotFound: Project.swift — mixed tiers
   %{issue_title: "FileNotFound: Project.swift", account_key: "demo:acme", event_count: 24, hours_ago: 3},

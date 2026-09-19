@@ -520,8 +520,7 @@ defmodule Atlas.Engineering.Errors.Summaries do
     end
   end
 
-  defp account_image_element(%{primary_domain: domain} = _account)
-       when is_binary(domain) and byte_size(domain) > 0 do
+  defp account_image_element(%{primary_domain: domain} = _account) when is_binary(domain) and byte_size(domain) > 0 do
     normalised =
       domain
       |> String.replace(~r|^https?://|i, "")

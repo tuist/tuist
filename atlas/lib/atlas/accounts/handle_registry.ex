@@ -111,13 +111,15 @@ defmodule Atlas.Accounts.HandleRegistry do
       from h in AccountHandle,
         join: a in Account,
         on: a.id == h.account_id,
-        select: {h.handle, %{
-          account_id: a.id,
-          account_key: a.account_key,
-          name: a.name,
-          primary_domain: a.primary_domain,
-          plan_tier: a.plan_tier
-        }}
+        select:
+          {h.handle,
+           %{
+             account_id: a.id,
+             account_key: a.account_key,
+             name: a.name,
+             primary_domain: a.primary_domain,
+             plan_tier: a.plan_tier
+           }}
 
     query
     |> Repo.all()
@@ -131,8 +133,7 @@ defmodule Atlas.Accounts.HandleRegistry do
   # Incremental patch. `:upsert` needs the handle + account_id +
   # denormalised account fields; `:delete` needs the handle. On
   # anything unexpected fall back to a full reload to stay coherent.
-  defp apply_change(%{action: :upsert, handle: handle, entry: entry})
-       when is_binary(handle) and is_map(entry) do
+  defp apply_change(%{action: :upsert, handle: handle, entry: entry}) when is_binary(handle) and is_map(entry) do
     put_snapshot(Map.put(current_snapshot(), normalise(handle), entry))
   end
 

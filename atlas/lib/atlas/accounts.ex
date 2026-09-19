@@ -17,6 +17,7 @@ defmodule Atlas.Accounts do
   alias Atlas.Accounts.Event
   alias Atlas.Accounts.EventRouting
   alias Atlas.Accounts.FeatureInterests
+  alias Atlas.Accounts.HandleRegistry
   alias Atlas.Accounts.Invoices
   alias Atlas.Accounts.OrderForms
   alias Atlas.Accounts.Outcome
@@ -263,7 +264,7 @@ defmodule Atlas.Accounts do
   end
 
   defp broadcast_account_snapshot_change(%Account{} = account) do
-    Atlas.Accounts.HandleRegistry.broadcast_change(%{
+    HandleRegistry.broadcast_change(%{
       action: :account_updated,
       account_id: account.id,
       entry: %{
@@ -837,7 +838,7 @@ defmodule Atlas.Accounts do
         |> tap(fn
           {:ok, deleted} ->
             audit_account_handle("account_handle.deleted", deleted, %{})
-            Atlas.Accounts.HandleRegistry.broadcast_change(%{action: :delete, handle: deleted.handle})
+            HandleRegistry.broadcast_change(%{action: :delete, handle: deleted.handle})
 
           _result ->
             :ok
@@ -846,7 +847,7 @@ defmodule Atlas.Accounts do
   end
 
   defp broadcast_handle_upsert(%Account{} = account, %AccountHandle{} = handle) do
-    Atlas.Accounts.HandleRegistry.broadcast_change(%{
+    HandleRegistry.broadcast_change(%{
       action: :upsert,
       handle: handle.handle,
       entry: %{

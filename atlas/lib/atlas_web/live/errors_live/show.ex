@@ -245,7 +245,11 @@ defmodule AtlasWeb.ErrorsLive.Show do
                   />
                 </div>
                 <div data-part="meta">
-                  <span>{ngettext("%{count} event", "%{count} events", row.event_count, count: row.event_count)}</span>
+                  <span>
+                    {ngettext("%{count} event", "%{count} events", row.event_count,
+                      count: row.event_count
+                    )}
+                  </span>
                   <span :if={row.last_seen} title={format_datetime(row.last_seen)}>
                     · {gettext("last %{when}", when: relative_time(row.last_seen))}
                   </span>
