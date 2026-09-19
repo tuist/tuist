@@ -4024,9 +4024,17 @@ Metrics has aggregated `instance` and `pod` away.
 
 **Why the sample gate.** Production provisions on the order of 30 new instances
 a day, so a 24-hour p90 is taken over a few dozen samples and a quiet day would
-otherwise let one slow instance decide the alert. The gauge is not emitted at
-all when the window holds nothing, which is why No Data is OK rather than
+otherwise let one slow instance decide the alert. When the window holds nothing
+the count is reported as zero and the percentile is left alone, so the gate
+closes and the rule goes to No Data — which is why No Data is OK rather than
 Alerting: a fleet that provisioned nothing has no speed to report.
+
+Note that the percentile going stale rather than absent is what makes the count
+carry the gate. PromEx's `last_value` is an ETS row the exporter reads back with
+no TTL and no delete path, so a series that simply stops being emitted keeps
+reporting its last computed value for the life of the pod. Were the count to go
+stale too, a day with provisioning wedged would keep evaluating the previous
+day's percentile against the previous day's sample count and stay green.
 
 **Why 120 seconds, and where it should go.** Before the on-demand provisioning
 work, production's p90 for a first provision was 181s over a week (p50 127s),
