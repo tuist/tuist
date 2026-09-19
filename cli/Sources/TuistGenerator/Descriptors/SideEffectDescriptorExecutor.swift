@@ -144,18 +144,27 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     }
 
     private func process(generatedFilesCleanup descriptor: GeneratedFilesCleanupDescriptor) async throws {
+        var removedEntries = 0
+        var directoriesWithRemovals = 0
         for directory in descriptor.directories.sorted(by: { $0.pathString < $1.pathString }) {
             guard try await fileSystem.exists(directory, isDirectory: true) else { continue }
 
             let activeFiles = descriptor.activeFilesByDirectory[directory] ?? []
             let generatedFiles = try await generatedFiles(matching: descriptor, in: directory)
+            var removedFromDirectory = 0
             for generatedFile in generatedFiles.sorted(by: { $0.pathString < $1.pathString })
                 where !activeFiles.contains(generatedFile)
             {
                 guard try await !hasSymbolicLinkAncestor(generatedFile, under: directory) else { continue }
                 try await removeExistingEntry(generatedFile)
+                removedFromDirectory += 1
             }
+            removedEntries += removedFromDirectory
+            if removedFromDirectory > 0 { directoriesWithRemovals += 1 }
         }
+        Logger.current.debug(
+            "Removed \(removedEntries) stale generated entries matching \(descriptor.include.joined(separator: ", ")) from \(directoriesWithRemovals) of \(descriptor.directories.count) directories"
+        )
     }
 
     private func generatedFiles(

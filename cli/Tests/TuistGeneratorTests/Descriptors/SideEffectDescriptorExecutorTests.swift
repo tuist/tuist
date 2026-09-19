@@ -4,6 +4,8 @@ import Foundation
 import Path
 import Testing
 import TuistCore
+import TuistLoggerTesting
+import TuistLogging
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -104,6 +106,34 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try await fileSystem.exists(activeFile))
         #expect(try await !fileSystem.exists(staleFile))
         #expect(try await fileSystem.exists(preservedFile))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger()) func execute_logsHowManyStaleGeneratedEntriesWereRemoved() async throws {
+        Logger.testingLogHandler.logLevel = .debug
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let firstDirectory = temporaryDirectory.appending(components: "First", "ModuleMaps")
+        let secondDirectory = temporaryDirectory.appending(components: "Second", "ModuleMaps")
+        for directory in [firstDirectory, secondDirectory] {
+            try await fileSystem.makeDirectory(at: directory)
+        }
+        try await fileSystem.writeText("stale", at: firstDirectory.appending(component: "Deleted-deps.modulemap"))
+        try await fileSystem.writeText("stale", at: firstDirectory.appending(component: "Removed-deps.modulemap"))
+        try await fileSystem.writeText("active", at: secondDirectory.appending(component: "App-deps.modulemap"))
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: [firstDirectory, secondDirectory],
+                    activeFilesByDirectory: [secondDirectory: [secondDirectory.appending(component: "App-deps.modulemap")]],
+                    include: ["*-deps.modulemap"]
+                )
+            ),
+        ])
+
+        #expect(
+            Logger.testingLogHandler.collected[.debug, ==]
+                .contains("Removed 2 stale generated entries matching *-deps.modulemap from 1 of 2 directories")
+        )
     }
 
     @Test(.inTemporaryDirectory) func execute_cleansStaleGeneratedSymbolicLinks() async throws {
