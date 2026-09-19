@@ -3,12 +3,6 @@ defmodule Atlas.Contracts.StorageTest do
 
   alias Atlas.Contracts.Storage
 
-  describe "s3_prefix/0" do
-    test "namespaces objects under contracts/templates" do
-      assert Storage.s3_prefix() == "contracts/templates"
-    end
-  end
-
   describe "source/0" do
     test "reflects the :disk default that the config sets in dev and test" do
       assert Storage.source() == :disk

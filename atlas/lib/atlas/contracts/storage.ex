@@ -1,6 +1,6 @@
 defmodule Atlas.Contracts.Storage do
   @moduledoc """
-  Reads and writes contract `.docx` templates from either the on-disk
+  Reads contract `.docx` templates from either the on-disk
   `priv/contracts/templates/` tree (dev, test) or the `contracts/templates/`
   prefix in the shared Atlas object storage bucket (prod).
 
@@ -13,8 +13,6 @@ defmodule Atlas.Contracts.Storage do
 
   @s3_prefix "contracts/templates"
 
-  def s3_prefix, do: @s3_prefix
-
   def source do
     Application.get_env(:atlas, Atlas.Contracts, [])
     |> Keyword.get(:source, :disk)
@@ -26,11 +24,6 @@ defmodule Atlas.Contracts.Storage do
 
   def stat(template_set, filename) when is_binary(template_set) and is_binary(filename) do
     stat_from(source(), template_set, filename)
-  end
-
-  def put(template_set, filename, body, opts \\ [])
-      when is_binary(template_set) and is_binary(filename) and is_binary(body) do
-    put_to(Keyword.get(opts, :source, source()), template_set, filename, body, opts)
   end
 
   defp read_from(:disk, template_set, filename) do
@@ -54,30 +47,6 @@ defmodule Atlas.Contracts.Storage do
     case ObjectStorage.head_object(s3_key(template_set, filename)) do
       {:ok, response} -> {:ok, content_length(response)}
       {:error, _reason} = error -> error
-    end
-  end
-
-  defp put_to(:disk, template_set, filename, body, _opts) do
-    path = disk_path(template_set, filename)
-    File.mkdir_p!(Path.dirname(path))
-    File.write(path, body)
-  end
-
-  defp put_to(:s3, template_set, filename, body, opts) do
-    put_opts =
-      [content_type: Keyword.get(opts, :content_type, "application/octet-stream")]
-      |> maybe_put_config(opts)
-
-    case ObjectStorage.put_object(s3_key(template_set, filename), body, put_opts) do
-      {:ok, _response} -> :ok
-      {:error, _reason} = error -> error
-    end
-  end
-
-  defp maybe_put_config(put_opts, opts) do
-    case Keyword.get(opts, :config) do
-      nil -> put_opts
-      config -> Keyword.put(put_opts, :config, config)
     end
   end
 
