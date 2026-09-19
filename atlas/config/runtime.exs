@@ -419,6 +419,12 @@ if object_storage_bucket not in [nil, ""] do
     System.get_env("ATLAS_OBJECT_STORAGE_SECRET_ACCESS_KEY") ||
       raise "environment variable ATLAS_OBJECT_STORAGE_SECRET_ACCESS_KEY is required when ATLAS_OBJECT_STORAGE_BUCKET is set"
 
+  # Real contract templates live in the private `contracts/templates/` prefix of
+  # the same bucket; only the placeholder stubs are checked into the repo. Once
+  # the bucket is configured, the download controller and the MCP tool serve the
+  # real bytes from S3.
+  config :atlas, Atlas.Contracts, source: :s3
+
   config :atlas, :object_storage,
     endpoint_url: System.get_env("ATLAS_OBJECT_STORAGE_ENDPOINT_URL", "https://fsn1.your-objectstorage.com"),
     region: System.get_env("ATLAS_OBJECT_STORAGE_REGION", "fsn1"),

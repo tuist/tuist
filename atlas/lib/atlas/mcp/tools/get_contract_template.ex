@@ -98,7 +98,7 @@ defmodule Atlas.MCP.Tools.GetContractTemplate do
 
   defp response_with_template_resource(payload) do
     with {:ok, template} <- Contracts.fetch_template(payload.template_set, payload.filename),
-         {:ok, contents} <- File.read(Contracts.template_path(template)) do
+         {:ok, contents} <- Contracts.read_template(template) do
       response = Tool.json_response(payload, __MODULE__)
 
       resource = %{
