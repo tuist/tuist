@@ -2,6 +2,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -132,7 +133,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 14
                })
 
-      assert :ok = Claims.mark_running(70_004, "runner-vnc")
+      assert :ok = mark_running!(70_004, "runner-vnc")
 
       assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
 
@@ -154,6 +155,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: first.fleet_name,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-vnc-runner-session-pod",
                  started_at: DateTime.utc_now()
                })
@@ -249,7 +253,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 8
                })
 
-      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell")
+      assert :ok = mark_running!(workflow_job_id, "runner-shell")
 
       assert {:ok, %InteractiveSession{} = session} =
                InteractiveSessions.request_shell(
@@ -276,6 +280,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: "macos-xcode-26-5",
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-macos-shell-pod",
                  started_at: DateTime.utc_now()
                })
@@ -358,7 +365,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 8
                })
 
-      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell-agent")
+      assert :ok = mark_running!(workflow_job_id, "runner-shell-agent")
 
       assert InteractiveSessions.current_shell_for_pod("live-shell-agent-pod").id == session.id
       assert Repo.get!(InteractiveSession, session.id).pod_name == "live-shell-agent-pod"
@@ -387,6 +394,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: "macos-xcode-26-5",
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-macos-shell-agent-pod",
                  started_at: DateTime.utc_now()
                })
@@ -394,6 +404,36 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert InteractiveSessions.current_shell_for_pod("live-macos-shell-agent-pod").id == session.id
       assert Repo.get!(InteractiveSession, session.id).pod_name == "live-macos-shell-agent-pod"
       assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-macos-shell-agent-pod")
+      assert same_session.id == session.id
+    end
+
+    test "resolves the shell session by pod when the live claim has no job attached" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "live-shell-detached-claim-pod"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(
+          job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}),
+          account,
+          user
+        )
+
+      # A claim outlives the job it was minted for: a displaced job is detached
+      # from the claim so the Pod keeps its slot, leaving `workflow_job_id` NULL
+      # until GitHub binds the next one. The Pod still holds the session.
+      stub(Claims, :by_pod_name, fn ^pod_name ->
+        {:ok,
+         %{
+           workflow_job_id: nil,
+           account_id: account.id,
+           fleet_name: "linux-amd64",
+           pod_name: pod_name
+         }}
+      end)
+
+      assert InteractiveSessions.current_shell_for_pod(pod_name).id == session.id
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, pod_name)
       assert same_session.id == session.id
     end
 
@@ -773,5 +813,13 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert expired.close_reason == "expired"
       assert DateTime.compare(expired.closed_at, ~U[2026-07-06 12:00:00Z]) == :eq
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.one!(from(c in Tuist.Runners.Claim, where: c.workflow_job_id == ^workflow_job_id))
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

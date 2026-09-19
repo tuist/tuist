@@ -26,7 +26,6 @@ defaults:
     working-directory: kura
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
@@ -34,18 +33,17 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "bazel"
           working_directory: kura
 
       - name: Check formatting
-        run: mise run --skip-tools format -- --check
+        run: ../.github/scripts/retry-bazel-command.sh mise run --skip-tools format -- --check
 
   # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
   # and authenticate; forks get `contents: read` alone and never see the OIDC token.
@@ -58,14 +56,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -84,7 +82,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
-        run: mise run compile --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-compile-fork:
     name: Bazel Compile Fork
@@ -98,9 +96,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -123,7 +120,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run compile --skip-tools -- --define=kura_deny_warnings=true
+          ../.github/scripts/retry-bazel-command.sh mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
   # cache; forks run with `contents: read` and the local cache.
@@ -135,14 +132,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -158,7 +155,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run clippy
-        run: mise run --skip-tools clippy
+        run: ../.github/scripts/retry-bazel-command.sh mise run --skip-tools clippy
 
   bazel-clippy-fork:
     name: Bazel Clippy Fork
@@ -172,9 +169,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -197,7 +193,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run --skip-tools clippy
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools clippy
 
   # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
   # cache; forks run with `contents: read` and the local cache.
@@ -209,14 +205,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -233,7 +229,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run tests
-        run: mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-test-fork:
     name: Bazel Test Fork
@@ -247,9 +243,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -272,19 +267,18 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+          ../.github/scripts/retry-bazel-command.sh mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   audit:
     name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: rust
           working_directory: kura
 
@@ -312,6 +306,7 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     env:
@@ -319,9 +314,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -339,7 +333,7 @@ jobs:
 
       - name: Build the Kura binary with Bazel
         run: |
-          mise run --skip-tools compile
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
@@ -369,9 +363,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -395,7 +388,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run --skip-tools compile
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
@@ -431,16 +424,28 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+          - shard_name: bytestream-admission
+            specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
-          - shard_name: extension-mtls
-            specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+          - shard_name: authorization-mtls
+            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
           - shard_name: gateway-throughput
             specs: "spec/e2e/grpc_upload_throughput_spec.sh"
             throughput: "1"
+          # rollout_spec.sh joins CI here (it previously ran nowhere): it now
+          # carries the backfill readiness-latch flap check alongside the
+          # drain/writer-lock cases, and backfill_spec.sh is its natural
+          # neighbor (both are flag-on mesh lifecycle suites). This shard also
+          # opts in the multi-GiB undersized-ring capacity check (the #12047
+          # shape), which is why it gets its own shard instead of joining
+          # discovery-faults-handoff.
+          - shard_name: rollout-backfill
+            specs: "spec/e2e/rollout_spec.sh spec/e2e/backfill_spec.sh"
+            backfill_capacity: "1"
     env:
       # Point every compose service at the one prebuilt image (replaces the per-suite retag loop);
       # KURA_E2E_SKIP_BUILD keeps the suites from rebuilding from source.
@@ -449,12 +454,19 @@ jobs:
       # Empty on normal shards; "1" opts the gateway-throughput spec in (it
       # otherwise skips). Only that shard lists the throughput spec.
       KURA_E2E_THROUGHPUT: ${{ matrix.throughput || '' }}
+      # Empty on normal shards; "1" opts the backfill undersized-ring capacity
+      # check in (it moves several GiB, so local runs skip it by default).
+      KURA_E2E_BACKFILL_CAPACITY: ${{ matrix.backfill_capacity || '' }}
+      # NOTE: the mixed-version harness kura/test/e2e/kura_compatibility_rollout.sh
+      # deliberately has no CI job — it builds two Docker images from git refs,
+      # which is too expensive for the PR loop. It is a documented MANUAL
+      # pre-release gate: run it with PREVIOUS_REF set to the previously
+      # released ref before tagging any Kura release (see the script header).
     steps:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "rust shellspec bazel aqua:facebook/buck2"
           working-directory: kura
 

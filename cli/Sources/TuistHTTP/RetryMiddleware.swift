@@ -38,7 +38,11 @@ public struct RetryMiddleware: ClientMiddleware {
         if let retryableRequestMethods,
            !retryableRequestMethods.contains(request.method.rawValue)
         {
-            return try await next(request, body, baseURL)
+            let (response, responseBody) = try await next(request, body, baseURL)
+            if let error = Self.authorizationThrottledError(for: response) {
+                throw error
+            }
+            return (response, responseBody)
         }
 
         let bodyData: Data?
@@ -53,6 +57,9 @@ public struct RetryMiddleware: ClientMiddleware {
             var delay = retryPolicy.delay(for: retry)
             do {
                 let (response, responseBody) = try await next(request, replayBody, baseURL)
+                if let error = Self.authorizationThrottledError(for: response) {
+                    throw error
+                }
                 guard Self.isRetryableStatusCode(response.status.code) else {
                     return (response, responseBody)
                 }
@@ -60,6 +67,8 @@ public struct RetryMiddleware: ClientMiddleware {
                 Logger.current.debug(
                     "Received HTTP \(response.status.code) for \(request.method.rawValue) \(request.path ?? ""), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )
+            } catch let error as AuthorizationThrottledError {
+                throw error
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -82,6 +91,16 @@ public struct RetryMiddleware: ClientMiddleware {
         statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
     }
 
+    private static func authorizationThrottledError(for response: HTTPResponse) -> AuthorizationThrottledError? {
+        let throttleReasonName = HTTPField.Name("x-tuist-throttle-reason")!
+        guard response.headerFields[throttleReasonName] == "authorization" else { return nil }
+
+        let retryAfterName = HTTPField.Name("Retry-After")!
+        let retryAfterSeconds = response.headerFields[retryAfterName]
+            .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        return AuthorizationThrottledError(retryAfterSeconds: retryAfterSeconds)
+    }
+
     static func retryDelay(for response: HTTPResponse, policyDelay: UInt64) -> UInt64 {
         let retryAfterName = HTTPField.Name("Retry-After")!
         guard let value = response.headerFields[retryAfterName],
@@ -93,6 +112,19 @@ public struct RetryMiddleware: ClientMiddleware {
         let boundedMilliseconds = milliseconds.overflow
             ? HTTPRetryPolicy.maximumDelayMilliseconds
             : min(milliseconds.partialValue, HTTPRetryPolicy.maximumDelayMilliseconds)
-        return max(policyDelay, boundedMilliseconds * 1_000_000)
+        let retryAfter = boundedMilliseconds * 1_000_000
+        guard retryAfter > 0 else { return policyDelay }
+        return max(policyDelay, retryAfter + jitter(onTopOf: retryAfter))
     }
+
+    /// `Retry-After` is a floor expressed in whole seconds, so without a smear across the
+    /// second it names every client the server shed at once wakes on the same instant.
+    private static func jitter(onTopOf retryAfter: UInt64) -> UInt64 {
+        let maximumDelay = HTTPRetryPolicy.maximumDelayMilliseconds * 1_000_000
+        let span = min(retryAfterResolutionNanoseconds, maximumDelay - retryAfter)
+        guard span > 0 else { return 0 }
+        return UInt64.random(in: 0 ... span)
+    }
+
+    private static let retryAfterResolutionNanoseconds: UInt64 = 1_000_000_000
 }

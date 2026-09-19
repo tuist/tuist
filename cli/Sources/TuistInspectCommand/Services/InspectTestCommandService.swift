@@ -135,10 +135,16 @@
 
             let test = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,
+                resultBundlePath: resolvedResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                // `tuist inspect test` analyses a bundle someone else produced; how that run was
+                // invoked isn't knowable from here.
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: [],
+                stressNewTests: nil
             )
 
             AlertController.current.success(
@@ -156,7 +162,11 @@
                 quarantinedTests: [],
                 buildRunId: nil,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: [],
+                stressNewTests: nil,
+                stressResultBundlePaths: []
             )
 
             AlertController.current.success(

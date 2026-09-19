@@ -85,6 +85,38 @@ prevention measures, or access rights restrictions.
 User IDs shall be promptly disabled or removed when users leave the organization or contract work ends in accordance
 with SLAs. User IDs shall not be re-used.
 
+## Inactive and dormant user IDs
+
+Independently of the termination process, user IDs shall be retired based on inactivity so that accounts that are no
+longer used cannot remain available as an attack surface:
+
+- **Disable or suspend at 180 days.** Any user ID that has not been used to authenticate for 180 consecutive days shall
+be disabled or suspended. A disabled account retains its identity and history but cannot be used to authenticate.
+- **Delete at 365 days.** Any user ID that has remained inactive for 365 consecutive days shall be deleted. Deletion
+removes the account and its credentials; records required for audit purposes are retained separately in accordance with
+the Data Management Policy.
+- **Re-enabling.** A disabled account may only be re-enabled through the standard access request process described in
+Appendix A, including manager approval. Re-enabling is not a helpdesk action.
+- **Service and system accounts.** Non-human accounts are exempt from the inactivity thresholds above, because a low
+authentication rate is expected behaviour for many of them. Instead, every service account shall be reviewed during the
+access review cycle and shall be disabled and then removed when its owning system or integration is decommissioned.
+Service accounts without an identified owner shall be disabled immediately.
+- **Break-glass accounts.** Emergency access accounts are exempt from the inactivity thresholds, are reviewed at each
+access review, and their use is logged and alerted on in accordance with the
+[Logging and monitoring policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
+
+### Monitoring inactivity
+
+- Where a system supports automatic expiry of inactive accounts, that setting shall be enabled and configured to the
+thresholds above.
+- Where a system does not support automatic expiry, last-login data shall be collected during the quarterly inactivity
+check and accounts crossing a threshold shall be actioned manually.
+- The inactivity check shall be run at least quarterly across all systems in the Access Matrix (Appendix B) and its
+results documented. Quarterly checks are sufficient to enforce a 180-day threshold while keeping the process
+proportionate to the size of the team.
+- Each inactivity check shall record the systems examined, the accounts disabled, the accounts deleted, and any
+documented exceptions.
+
 ## User access provisioning
 
 - New employees and/or contractors are not to be granted access to any Tuist GmbH production systems until after they have completed all HR on-boarding tasks, which may include but is not limited to signed employment agreement, intellectual property agreement, and acknowledgement of Tuist GmbH's information security policy
@@ -246,7 +278,8 @@ The version history of this document can be found in Tuist's [handbook](https://
 
 #### 2.1 Periodic Reviews
 - **Regular Audits:** IT will conduct periodic reviews of access rights by auditing the GitHub issues repository.
-- **Documentation:** Results of access reviews will be documented in separate GitHub issues tagged with "access-review".
+- **Inactivity Check:** IT will run a quarterly inactivity check across all systems in the Access Matrix, disabling user IDs inactive for 180 days and deleting user IDs inactive for 365 days as required by the Inactive and dormant user IDs section of this policy.
+- **Documentation:** Results of access reviews and inactivity checks will be documented in separate GitHub issues tagged with "access-review".
 
 #### 2.2 Role Changes and Departures
 - **Role Change Process:** When an employee changes roles, a new GitHub issue must be created to document required access changes.
@@ -260,7 +293,7 @@ The version history of this document can be found in Tuist's [handbook](https://
 
 ## APPENDIX B — Access matrix
 
-| Role | Email | Google Workspace | Slack | GitHub | CRM | Infrastructure | Supabase | Cloudflare |
+| Role | Email | Google Workspace | Slack | GitHub | CRM | Infrastructure | Databases | Cloudflare |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Founder | x | x | x | x | x |x | x | x |
 | Engineer | x | x | x | x | | x | | |

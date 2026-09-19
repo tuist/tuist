@@ -225,7 +225,7 @@ extension XCWorkspaceDataElement: CustomDebugStringConvertible {
         switch self {
         case let .file(file):
             return file.location.path
-        case let .group(group):
+        case let .group(group), let .fileSystemSynchronizedGroup(group):
             return group.debugDescription
         }
     }

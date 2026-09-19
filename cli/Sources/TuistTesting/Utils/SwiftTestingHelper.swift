@@ -2,16 +2,11 @@ import Foundation
 import Path
 import Testing
 import TuistSupport
+import TuistTestSupport
 
 public enum SwiftTestingHelper {
     public static func fixturePath(path: RelativePath) -> AbsolutePath {
-        // swiftlint:disable:next force_try
-        try! AbsolutePath(validating: #file).parentDirectory.parentDirectory.parentDirectory.parentDirectory
-            .appending(components: [
-                "Tests",
-                "Fixtures",
-            ])
-            .appending(path)
+        TestPaths.fixturesDirectory.appending(path)
     }
 }
 

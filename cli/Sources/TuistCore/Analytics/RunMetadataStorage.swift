@@ -49,10 +49,18 @@ public actor RunMetadataStorage {
         self.graphBinaryBuildDuration = graphBinaryBuildDuration
     }
 
-    /// Binar cache-specific cache items
+    /// Binary cache lookups performed by the current command. Results from an earlier
+    /// build must not be restored here, since each test shard would report them again.
     public private(set) var binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(binaryCacheItems: [AbsolutePath: [String: CacheItem]]) {
         self.binaryCacheItems = binaryCacheItems
+    }
+
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so a run
+    /// that skips only them still runs its whole selection.
+    public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
+    public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
+        self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
     }
 
     /// Selective testing-specific cache items
@@ -146,7 +154,7 @@ public actor RunMetadataStorage {
     /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`
     /// bundle at `testProductsPath`. Used by the build phase of the split build/test
     /// topology (`tuist test --build-only`) so the test phase can restore the same
-    /// analytics state when it runs as a separate process.
+    /// graph, selective-testing state, and build link when it runs as a separate process.
     ///
     /// Failures are logged as warnings; persistence is best-effort and never blocks the
     /// caller's run.
@@ -169,6 +177,8 @@ public actor RunMetadataStorage {
     /// Restores run metadata from a `RunMetadata` JSON file previously written to the
     /// `.xctestproducts` bundle at `testProductsPath`. Used by the test phase of the split
     /// build/test topology (`tuist test --without-building -testProductsPath …`).
+    /// Binary cache results belong to the original build and are not restored as lookups
+    /// for this command. Any fresh lookups already recorded by this command are preserved.
     ///
     /// No-op when the file is absent (bundles produced by older Tuist versions). Failures
     /// are logged as warnings and never block the caller's run.
@@ -179,9 +189,6 @@ public actor RunMetadataStorage {
             let runMetadata: RunMetadata = try await fileSystem.readJSONFile(at: runMetadataPath)
             if let graph = runMetadata.graph {
                 update(graph: graph)
-            }
-            if !runMetadata.binaryCacheItems.isEmpty {
-                update(binaryCacheItems: runMetadata.binaryCacheItems)
             }
             if !runMetadata.selectiveTestingCacheItems.isEmpty {
                 update(selectiveTestingCacheItems: runMetadata.selectiveTestingCacheItems)
@@ -194,6 +201,26 @@ public actor RunMetadataStorage {
             }
         } catch {
             Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")
+        }
+        await restoreCoverageBuildSources(from: testProductsPath)
+    }
+
+    /// The checkout the test products were compiled in, when the build recorded it. Coverage
+    /// paths and Git blob ids are resolved against it rather than against the current checkout.
+    public private(set) var coverageBuildSources: CoverageBuildSources?
+    public func update(coverageBuildSources: CoverageBuildSources?) {
+        self.coverageBuildSources = coverageBuildSources
+    }
+
+    /// Restores the build's `CoverageBuildSources` from the `.xctestproducts` bundle at
+    /// `testProductsPath`. No-op when the build did not record them.
+    public func restoreCoverageBuildSources(from testProductsPath: AbsolutePath) async {
+        let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
+        guard (try? await fileSystem.exists(sourcesPath)) == true else { return }
+        do {
+            update(coverageBuildSources: try await fileSystem.readJSONFile(at: sourcesPath))
+        } catch {
+            Logger.current.warning("Failed to restore the build's coverage sources: \(error.localizedDescription)")
         }
     }
 }

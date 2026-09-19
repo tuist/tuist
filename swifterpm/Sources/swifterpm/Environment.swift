@@ -5,10 +5,39 @@ enum Environment {
     static var values: [String: String]?
 
     @TaskLocal
+    static var manifestValues: [String: String]?
+
+    @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
+
+    /// The netrc every download authenticates against. Entry points install it once
+    /// per resolution, so the unbound value means no netrc source was configured.
+    @TaskLocal
+    static var netrc: Netrc = .empty
 
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
+    }
+
+    static func withNetrc<T>(
+        _ netrc: Netrc,
+        operation: () async throws -> T
+    ) async throws -> T {
+        try await Environment.$netrc.withValue(netrc) {
+            try await operation()
+        }
+    }
+
+    static func withManifestEnvironment<T>(
+        _ environment: [String: String]?,
+        operation: () async throws -> T
+    ) async throws -> T {
+        guard let environment else {
+            return try await operation()
+        }
+        return try await Environment.$manifestValues.withValue(environment) {
+            try await operation()
+        }
     }
 
     static func cachedDirectoryMaterializationMode()
@@ -36,6 +65,10 @@ enum Environment {
     /// dump was produced under.
     static var current: [String: String] {
         values ?? ProcessInfo.processInfo.environment
+    }
+
+    static var manifest: [String: String] {
+        manifestValues ?? current
     }
 }
 

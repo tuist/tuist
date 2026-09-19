@@ -10,6 +10,8 @@
 
 Skills are pre-built instruction sets for performing complex, multi-step Tuist tasks. Instead of manually guiding an agent through a migration or setup process, you install a skill and let the agent handle it.
 
+If your coding agent supports plugins, the [Tuist plugins](/guides/features/agentic-coding/plugins) install these skills and the hosted Model Context Protocol server together.
+
 ## Available skills
 
 | Skill | Description |

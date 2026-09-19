@@ -10,6 +10,9 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Environment
   alias TuistWeb.Errors.UnauthorizedError
 
+  @role_names Accounts.organization_role_names()
+  @page_size 20
+
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
     if Authorization.authorize(:organization_read, current_user, account) != :ok do
@@ -27,13 +30,36 @@ defmodule TuistWeb.MembersLive do
         selected_inner_tab: "members",
         search_query: "",
         managing_member: nil,
-        invitation_disclosure: nil
-        # invite_role: :user,
+        invitation_disclosure: nil,
+        invite_role: "user",
+        members: [],
+        invitations: [],
+        page: 1,
+        total_pages: 1
         # invite_emails: []
       )
       |> assign_organization()
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    tab =
+      if params["tab"] == "invitations" and
+           Authorization.authorize(:invitation_read, socket.assigns.current_user, socket.assigns.selected_account) ==
+             :ok,
+         do: "invitations",
+         else: "members"
+
+    search_query = if tab == socket.assigns.selected_inner_tab, do: socket.assigns.search_query, else: ""
+
+    socket =
+      socket
+      |> assign(selected_inner_tab: tab, search_query: search_query, page: parse_page(params["page"]))
+      |> assign_selected_tab_rows()
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -43,7 +69,7 @@ defmodule TuistWeb.MembersLive do
       <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
       <div data-part="members-section">
         <div data-part="row">
-          <.form for={%{}} phx-change="search">
+          <.form id="search-members-form" for={%{}} phx-change="search">
             <.text_input
               id="search-members"
               name="search"
@@ -51,6 +77,7 @@ defmodule TuistWeb.MembersLive do
               value={@search_query}
               placeholder={dgettext("dashboard_account", "Search members...")}
               show_suffix={false}
+              phx-debounce="300"
             />
           </.form>
 
@@ -59,6 +86,7 @@ defmodule TuistWeb.MembersLive do
             id="invite-member-form"
             form={@form}
             invitation_disclosure={@invitation_disclosure}
+            invite_role={@invite_role}
           />
         </div>
         <div id="members-tabs">
@@ -102,7 +130,7 @@ defmodule TuistWeb.MembersLive do
                   <.text_cell label={member.email} />
                 </:col>
                 <:col :let={[_member, role]} label={dgettext("dashboard_account", "Role")}>
-                  <.text_cell label={Macro.camelize(role)} />
+                  <.text_cell label={role_label(role)} />
                 </:col>
                 <:col :let={[member, role]}>
                   <.modal
@@ -121,20 +149,14 @@ defmodule TuistWeb.MembersLive do
                         id={"manage-role-trigger-#{member.id}"}
                         type="button"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <.line_divider />
                     <div data-part="change-role">
                       <label>{dgettext("dashboard_account", "Role")}</label>
                       <.dropdown
                         id={"role-dropdown-#{member.id}"}
-                        label={
-                          case get_selected_role(@managing_member, member.id, role) do
-                            "user" -> dgettext("dashboard_account", "User")
-                            "admin" -> dgettext("dashboard_account", "Admin")
-                          end
-                        }
+                        label={role_label(get_selected_role(@managing_member, member.id, role))}
                       >
                         <.dropdown_item
                           value="user"
@@ -156,6 +178,18 @@ defmodule TuistWeb.MembersLive do
                           phx-value-role="admin"
                           data-selected={
                             get_selected_role(@managing_member, member.id, role) == "admin"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                        <.dropdown_item
+                          value="viewer"
+                          label={dgettext("dashboard_account", "Viewer")}
+                          phx-click="select-member-role"
+                          phx-value-member_id={member.id}
+                          phx-value-role="viewer"
+                          data-selected={
+                            get_selected_role(@managing_member, member.id, role) == "viewer"
                           }
                         >
                           <:right_icon><.check /></:right_icon>
@@ -199,8 +233,7 @@ defmodule TuistWeb.MembersLive do
                         type="button"
                         style="display: none;"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <:header_icon>
                       <.trash />
@@ -277,6 +310,12 @@ defmodule TuistWeb.MembersLive do
                   />
                 </:empty_state>
               </.table>
+              <.pagination_group
+                :if={@total_pages > 1}
+                current_page={@page}
+                number_of_pages={@total_pages}
+                page_patch={&members_page_path(@selected_account, "members", &1)}
+              />
             </div>
             <div
               :if={
@@ -288,6 +327,9 @@ defmodule TuistWeb.MembersLive do
               <.table id="invitations-table" rows={@invitations}>
                 <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
                   <.text_cell label={invitation.invitee_email} />
+                </:col>
+                <:col :let={invitation} label={dgettext("dashboard_account", "Role")}>
+                  <.text_cell label={role_label(invitation.role)} />
                 </:col>
                 <:col :let={invitation} label={dgettext("dashboard_account", "Status")}>
                   <% status_badge = invitation_status_badge(invitation) %>
@@ -350,10 +392,17 @@ defmodule TuistWeb.MembersLive do
                       id="invite-member-form-empty-state"
                       form={@form}
                       invitation_disclosure={@invitation_disclosure}
+                      invite_role={@invite_role}
                     />
                   </.table_empty_state>
                 </:empty_state>
               </.table>
+              <.pagination_group
+                :if={@total_pages > 1}
+                current_page={@page}
+                number_of_pages={@total_pages}
+                page_patch={&members_page_path(@selected_account, "invitations", &1)}
+              />
             </div>
           </div>
         </div>
@@ -362,7 +411,14 @@ defmodule TuistWeb.MembersLive do
     """
   end
 
+  attr :id, :string, required: true
+  attr :form, :any, required: true
+  attr :invitation_disclosure, :any, default: nil
+  attr :invite_role, :string, default: "user"
+
   defp invite_member_form(assigns) do
+    assigns = assign(assigns, :role_names, @role_names)
+
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
       <.modal
@@ -421,6 +477,21 @@ defmodule TuistWeb.MembersLive do
                 label={dgettext("dashboard_account", "Email address")}
                 show_prefix={false}
               />
+              <div data-part="invite-role">
+                <label>{dgettext("dashboard_account", "Role")}</label>
+                <.dropdown id={"#{@id}-role"} label={role_label(@invite_role)}>
+                  <.dropdown_item
+                    :for={role <- @role_names}
+                    value={role}
+                    label={role_label(role)}
+                    phx-click="select-invite-role"
+                    phx-value-role={role}
+                    data-selected={@invite_role == role}
+                  >
+                    <:right_icon><.check /></:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
             <% end %>
           </div>
           <.line_divider />
@@ -483,36 +554,21 @@ defmodule TuistWeb.MembersLive do
 
   @impl true
   def handle_event("search", %{"search" => search}, socket) do
+    %{selected_account: account, selected_inner_tab: tab} = socket.assigns
+
     socket =
-      case socket.assigns.selected_inner_tab do
-        "invitations" ->
-          invitations =
-            Enum.filter(socket.assigns.all_invitations, fn invitation ->
-              String.contains?(invitation.invitee_email, search)
-            end)
-
-          assign(socket, invitations: invitations, search_query: search)
-
-        _ ->
-          members =
-            Enum.filter(socket.assigns.all_members, fn [member, _role] ->
-              String.contains?(member.email, search) || String.contains?(member.account.name, search)
-            end)
-
-          assign(socket, members: members, search_query: search)
-      end
+      socket
+      |> assign(search_query: search)
+      |> push_patch(to: members_page_path(account, tab, 1))
 
     {:noreply, socket}
   end
 
   def handle_event("select-inner-tab", %{"tab" => tab}, socket) do
     socket =
-      assign(socket,
-        selected_inner_tab: tab,
-        search_query: "",
-        members: socket.assigns.all_members,
-        invitations: socket.assigns.all_invitations
-      )
+      socket
+      |> assign(search_query: "")
+      |> push_patch(to: members_page_path(socket.assigns.selected_account, tab, 1))
 
     {:noreply, socket}
   end
@@ -523,7 +579,7 @@ defmodule TuistWeb.MembersLive do
          :ok <-
            Authorization.authorize(:invitation_delete, socket.assigns.current_user, socket.assigns.selected_account) do
       Accounts.delete_invitation(%{invitation: invitation})
-      {:noreply, assign_organization(socket)}
+      {:noreply, assign_invitations(socket)}
     else
       _ -> {:noreply, socket}
     end
@@ -536,14 +592,12 @@ defmodule TuistWeb.MembersLive do
            Authorization.authorize(:invitation_create, socket.assigns.current_user, socket.assigns.selected_account),
          {:ok, invitation} <-
            Accounts.resend_invitation(invitation, %{url: &url(~p"/auth/invitations/#{&1}")}) do
+      page = if socket.assigns.search_query == "", do: socket.assigns.page, else: 1
+
       socket =
         socket
-        |> assign_organization()
-        |> assign(
-          selected_inner_tab: "invitations",
-          search_query: "",
-          invitation_disclosure: invitation_disclosure(invitation)
-        )
+        |> assign(search_query: "", invitation_disclosure: invitation_disclosure(invitation))
+        |> push_patch(to: members_page_path(socket.assigns.selected_account, "invitations", page))
         |> push_event("open-modal", %{id: "invite-member-form-modal"})
 
       {:noreply, socket}
@@ -592,7 +646,7 @@ defmodule TuistWeb.MembersLive do
            Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
       socket =
         socket
-        |> assign_organization()
+        |> assign_members()
         |> assign(managing_member: nil)
         |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
 
@@ -621,8 +675,13 @@ defmodule TuistWeb.MembersLive do
   #   {:noreply, socket}
   # end
 
+  def handle_event("select-invite-role", %{"role" => role}, socket) when role in @role_names do
+    {:noreply, assign(socket, invite_role: role)}
+  end
+
   def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
     email = String.trim(email)
+    role = socket.assigns.invite_role
 
     # NOTE: Enable this when tag-input is used.
     # Accounts.invite_users_to_organization(socket.assigns.invite_emails, %{
@@ -644,23 +703,19 @@ defmodule TuistWeb.MembersLive do
                inviter: socket.assigns.current_user,
                to: socket.assigns.organization,
                url: &url(~p"/auth/invitations/#{&1}")
-             }
-           ),
-         {:ok, organization} <-
-           Accounts.get_organization_by_id(socket.assigns.organization.id,
-             preload: [:invitations]
+             },
+             role: String.to_existing_atom(role)
            ) do
       socket =
         socket
         |> assign(
-          invitations: organization.invitations,
-          all_invitations: organization.invitations,
           invite_emails: [],
+          invite_role: "user",
           form: to_form(%{}, as: :invitation),
-          selected_inner_tab: "invitations",
           search_query: "",
           invitation_disclosure: invitation_disclosure(invitation)
         )
+        |> push_patch(to: members_page_path(socket.assigns.selected_account, "invitations", 1))
         # Reveal the link in the always-present header modal: close the
         # empty-state modal in case it triggered the invite, and nudge the
         # header modal open since submitting the form doesn't change the
@@ -671,7 +726,7 @@ defmodule TuistWeb.MembersLive do
       {:noreply, socket}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
-        socket = assign(socket, form: to_form(changeset))
+        socket = assign(socket, form: to_form(changeset), invite_role: role)
 
         {:noreply, socket}
 
@@ -688,7 +743,7 @@ defmodule TuistWeb.MembersLive do
          :ok <- Accounts.remove_user_from_organization(member, socket.assigns.organization) do
       socket =
         socket
-        |> assign_organization()
+        |> assign_members()
         |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
 
       {:noreply, socket}
@@ -698,21 +753,54 @@ defmodule TuistWeb.MembersLive do
   end
 
   defp assign_organization(socket) do
-    {:ok, organization} =
-      Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id,
-        preload: [:invitations]
-      )
+    {:ok, organization} = Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id)
+    assign(socket, organization: organization)
+  end
 
-    members = Accounts.get_organization_members_with_role(organization)
+  defp assign_selected_tab_rows(%{assigns: %{selected_inner_tab: "invitations"}} = socket), do: assign_invitations(socket)
+  defp assign_selected_tab_rows(socket), do: assign_members(socket)
 
-    assign(socket,
-      organization: organization,
-      members: members,
-      all_members: members,
-      invitations: organization.invitations,
-      all_invitations: organization.invitations
+  defp assign_members(%{assigns: %{organization: organization, search_query: search}} = socket) do
+    assign_page_rows(
+      socket,
+      :members,
+      &Accounts.list_organization_members_with_role(organization, &1 ++ [search: search])
     )
   end
+
+  defp assign_invitations(%{assigns: %{organization: organization, search_query: search}} = socket) do
+    assign_page_rows(socket, :invitations, &Accounts.list_organization_invitations(organization, &1 ++ [search: search]))
+  end
+
+  defp assign_page_rows(%{assigns: %{page: page}} = socket, key, list_page) do
+    {rows, total_count} = list_page.(page: page, page_size: @page_size)
+    total_pages = max(ceil(total_count / @page_size), 1)
+
+    if rows == [] and page > total_pages do
+      socket
+      |> assign(page: total_pages)
+      |> assign_page_rows(key, list_page)
+    else
+      assign(socket, [{key, rows}, {:total_pages, total_pages}])
+    end
+  end
+
+  defp members_page_path(account, "invitations", 1), do: ~p"/#{account.name}/members?#{[tab: "invitations"]}"
+
+  defp members_page_path(account, "invitations", page),
+    do: ~p"/#{account.name}/members?#{[tab: "invitations", page: page]}"
+
+  defp members_page_path(account, _tab, 1), do: ~p"/#{account.name}/members"
+  defp members_page_path(account, _tab, page), do: ~p"/#{account.name}/members?#{[page: page]}"
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {page, ""} when page > 0 -> page
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_value), do: 1
 
   defp invitation_disclosure(invitation) do
     %{
@@ -729,6 +817,10 @@ defmodule TuistWeb.MembersLive do
       %{label: dgettext("dashboard_account", "Pending"), status: "attention"}
     end
   end
+
+  defp role_label("admin"), do: dgettext("dashboard_account", "Admin")
+  defp role_label("viewer"), do: dgettext("dashboard_account", "Viewer")
+  defp role_label(_role), do: dgettext("dashboard_account", "User")
 
   defp get_selected_role(managing_member, member_id, current_role) do
     case managing_member do

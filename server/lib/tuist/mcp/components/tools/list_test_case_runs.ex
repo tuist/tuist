@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
   use Tuist.MCP.Tool,
     name: "list_test_case_runs",
     title: "List Test Case Runs",
+    read_only_hint: true,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

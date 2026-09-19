@@ -24,10 +24,16 @@ defmodule Tuist.Accounts.User do
     field :last_sign_in_at, :naive_datetime
     field :preferred_locale, :string
     field :active, :boolean, default: true
+    field :disabled_at, :utc_datetime
     # Operator access grant claims (verified, from ops.tuist.dev),
     # attached per-request by TuistWeb.OperatorGrant. Never persisted
     # or cast; nil = no grant = fail closed.
     field :operator_grant, :map, virtual: true
+    # Organization roles resolved up front by callers that check membership
+    # against many resources in a row (resolving cache grants walks every
+    # accessible project). Maps organization id to the role names the user holds
+    # there. Never persisted or cast; nil = not resolved = read it per check.
+    field :organization_roles, :map, virtual: true
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
 
     has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)

@@ -187,6 +187,7 @@ type RunHandle struct {
 
 	done         chan struct{}
 	exitErr      error
+	exitedAt     time.Time
 	vncReady     chan struct{}
 	vncReadyOnce sync.Once
 	vncMu        sync.RWMutex
@@ -210,6 +211,18 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 		return h.exitErr, true
 	default:
 		return nil, false
+	}
+}
+
+// ExitedAt returns when the `tart run` process actually terminated, and
+// whether it has. Zero time with ok=false while the VM is still up.
+// Safe for concurrent use on the same happens-before as Exited.
+func (h *RunHandle) ExitedAt() (at time.Time, ok bool) {
+	select {
+	case <-h.done:
+		return h.exitedAt, true
+	default:
+		return time.Time{}, false
 	}
 }
 
@@ -422,6 +435,14 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// extra mutex needed.
 	go func() {
 		handle.exitErr = cmd.Wait()
+		// Stamped here, next to Wait, because this is the only moment
+		// the real exit time is observable. The reconciler notices the
+		// stop on its next poll, up to a poll interval plus teardown
+		// later, so a timestamp taken there would date the billing
+		// session from when we looked rather than from when the process
+		// ended. Same happens-before as exitErr: written before
+		// close(done), read only after a receive on it.
+		handle.exitedAt = time.Now()
 		outputWG.Wait()
 		_ = logFile.Close()
 		handle.closeVNCInfo()
@@ -750,15 +771,21 @@ func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, 
 	return stdout.Bytes(), nil
 }
 
-// isNotFound recognizes Tart's "not found" error string. Tart returns
-// non-zero exit + a stderr line matching "VM not found" when `tart get`
-// is called for a VM Tart doesn't know about.
+// isNotFound recognizes Tart's absent-VM error strings. `tart get` on a VM
+// Tart doesn't know about exits non-zero with a stderr line reading
+// `the specified VM "x" does not exist`; older builds phrase it
+// "VM not found". Both are matched case-insensitively against the stderr
+// that run() wraps into the error.
+//
+// Callers treat a miss here as a genuine probe failure, which costs a
+// multi-GB re-pull on the golden path, so a phrasing this misses is
+// expensive rather than merely noisy.
 func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "VM not found") || strings.Contains(msg, "not found")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "not found")
 }
 
 func shellJoin(parts []string) string {

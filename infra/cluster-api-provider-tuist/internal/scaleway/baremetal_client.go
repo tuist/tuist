@@ -23,6 +23,8 @@ type BaremetalAPI interface {
 	ListOptions(req *baremetal.ListOptionsRequest, opts ...scw.RequestOption) (*baremetal.ListOptionsResponse, error)
 	AddOptionServer(req *baremetal.AddOptionServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
 	InstallServer(req *baremetal.InstallServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
+	GetDefaultPartitioningSchema(req *baremetal.GetDefaultPartitioningSchemaRequest, opts ...scw.RequestOption) (*baremetal.Schema, error)
+	ValidatePartitioningSchema(req *baremetal.ValidatePartitioningSchemaRequest, opts ...scw.RequestOption) error
 }
 
 // BaremetalPrivateNetworkAPI is the slice of the baremetal PrivateNetwork API
@@ -148,12 +150,56 @@ func (c *BaremetalClient) FindAdoptableServer(ctx context.Context, zone scw.Zone
 	return nil, nil
 }
 
+// PartitioningSchemaFor plans the box's install layout and checks it against the
+// real offer before anything is written to a disk.
+//
+// Every install these fleets start has to land a separate XFS /data: cache PVs
+// are local-path directories, a directory has no size, and XFS project quotas
+// are the only thing that bounds what one account writes onto a box several
+// accounts share. Partitioning cannot change in place, so a box that comes up
+// without /data needs another wipe to get one.
+//
+// Both the plan and the check come from Scaleway rather than from us:
+// GetDefaultPartitioningSchema returns this offer's own layout to transform, and
+// ValidatePartitioningSchema rejects a bad result WITHOUT touching a server.
+// That second call is the reason this is safe to run on the create path, where
+// the alternative is discovering a malformed schema by wiping a box with it.
+func (c *BaremetalClient) PartitioningSchemaFor(ctx context.Context, zone scw.Zone, offerID, osID string) (*baremetal.Schema, error) {
+	def, err := c.Baremetal.GetDefaultPartitioningSchema(&baremetal.GetDefaultPartitioningSchemaRequest{
+		Zone:    zone,
+		OfferID: offerID,
+		OsID:    osID,
+	}, scw.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("get default partitioning schema for offer %s: %w", offerID, err)
+	}
+	planned, err := PlanSchema(def)
+	if err != nil {
+		return nil, fmt.Errorf("plan partitioning for offer %s: %w", offerID, err)
+	}
+	if err := c.Baremetal.ValidatePartitioningSchema(&baremetal.ValidatePartitioningSchemaRequest{
+		Zone:               zone,
+		OfferID:            offerID,
+		OsID:               osID,
+		PartitioningSchema: planned,
+	}, scw.WithContext(ctx)); err != nil {
+		return nil, fmt.Errorf("validate partitioning for offer %s: %w", offerID, err)
+	}
+	return planned, nil
+}
+
 // ReinstallServer wipes a server back to a clean, claimable state by
 // reinstalling its OS — the Elastic Metal analog of the macOS ReleaseToPool.
 // Used on Machine delete to RETURN the pre-ordered box to the pool rather than
 // terminate it (the operator owns the pool's lifecycle). The sshKeyIDs re-author
-// the fleet key so the reinstalled box is bootstrappable on its next claim. An
-// absent server (deleted out of band) is treated as already released.
+// the fleet key so the reinstalled box is bootstrappable on its next claim.
+//
+// Two states already satisfy the postcondition and are reported as released
+// rather than acted on: an absent server (deleted out of band), and one Scaleway
+// is already installing. The second is what a controller restart between a
+// successful install and the finalizer patch leaves behind; issuing a second
+// install there is rejected, and the caller retries on any error, so it would
+// hold the Machine in Deleting for the whole install.
 func (c *BaremetalClient) ReinstallServer(ctx context.Context, zone scw.Zone, serverID, osLabel string, sshKeyIDs []string) error {
 	server, err := c.GetServer(ctx, zone, serverID)
 	if err != nil {
@@ -162,16 +208,24 @@ func (c *BaremetalClient) ReinstallServer(ctx context.Context, zone scw.Zone, se
 		}
 		return err
 	}
+	if ServerInstalling(server) {
+		return nil
+	}
 	osID, err := c.resolveOS(ctx, zone, server.OfferID, osLabel)
 	if err != nil {
 		return err
 	}
+	schema, err := c.PartitioningSchemaFor(ctx, zone, server.OfferID, osID)
+	if err != nil {
+		return err
+	}
 	if _, err := c.Baremetal.InstallServer(&baremetal.InstallServerRequest{
-		Zone:      zone,
-		ServerID:  serverID,
-		OsID:      osID,
-		Hostname:  server.Name,
-		SSHKeyIDs: sshKeyIDs,
+		Zone:               zone,
+		ServerID:           serverID,
+		OsID:               osID,
+		Hostname:           server.Name,
+		SSHKeyIDs:          sshKeyIDs,
+		PartitioningSchema: schema,
 	}, scw.WithContext(ctx)); err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -205,6 +259,10 @@ func (c *BaremetalClient) CreateServer(ctx context.Context, p CreateBaremetalPar
 	if hostname == "" {
 		hostname = p.Name
 	}
+	schema, err := c.PartitioningSchemaFor(ctx, p.Zone, offer.ID, osID)
+	if err != nil {
+		return nil, err
+	}
 	created, err := c.Baremetal.CreateServer(&baremetal.CreateServerRequest{
 		Zone:      p.Zone,
 		OfferID:   offer.ID,
@@ -212,9 +270,10 @@ func (c *BaremetalClient) CreateServer(ctx context.Context, p CreateBaremetalPar
 		Name:      p.Name,
 		Tags:      p.Tags,
 		Install: &baremetal.CreateServerRequestInstall{
-			OsID:      osID,
-			Hostname:  hostname,
-			SSHKeyIDs: p.SSHKeyIDs,
+			OsID:               osID,
+			Hostname:           hostname,
+			SSHKeyIDs:          p.SSHKeyIDs,
+			PartitioningSchema: schema,
 		},
 	}, scw.WithContext(ctx))
 	if err != nil {
@@ -266,6 +325,20 @@ func ServerInstalled(server *baremetal.Server) bool {
 		return false
 	}
 	return server.Install != nil && server.Install.Status == baremetal.ServerInstallStatusCompleted
+}
+
+// ServerInstalling reports whether an OS install is queued or already running on
+// the server — the state that makes a further install both unnecessary and
+// rejected.
+func ServerInstalling(server *baremetal.Server) bool {
+	if server.Install == nil {
+		return false
+	}
+	switch server.Install.Status {
+	case baremetal.ServerInstallStatusToInstall, baremetal.ServerInstallStatusInstalling:
+		return true
+	}
+	return false
 }
 
 // ServerInstallFailed reports a terminal install/order failure (out of stock,

@@ -272,6 +272,56 @@ pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
     }
 }
 
+/// The reclaim protection the orchestrator has granted this container, as
+/// `(memory.min, memory.low)`.
+///
+/// Both are zero unless the kubelet runs with the MemoryQoS feature gate, which
+/// is what maps a Pod's memory request onto them. That makes this the signal for
+/// whether the memory floor is actually enforced or merely a scheduling promise
+/// — a distinction nothing else observable makes, and one that changes silently:
+/// a kubelet upgrade can stop applying protection without any error surfacing.
+///
+/// Deliberately separate from the pressure sample. Kura never reads these to
+/// decide anything; they describe what the kernel will do on Kura's behalf, so
+/// folding them into admission input would confuse two different things.
+pub fn container_memory_protection() -> Option<(u64, u64)> {
+    #[cfg(target_os = "linux")]
+    {
+        // memory.min is absent on cgroup v1 and on a v2 root cgroup; treat an
+        // unreadable file as no protection rather than as missing data, because
+        // "no protection" is exactly what it means for the caller.
+        let limit_bytes = read_memory_limit_file("/sys/fs/cgroup/memory.max");
+        Some((
+            read_protection_file("/sys/fs/cgroup/memory.min", limit_bytes),
+            read_protection_file("/sys/fs/cgroup/memory.low", limit_bytes),
+        ))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_protection_file(path: &str, limit_bytes: Option<u64>) -> u64 {
+    std::fs::read_to_string(path)
+        .map(|raw| protection_bytes(&raw, limit_bytes))
+        .unwrap_or(0)
+}
+
+/// Maps the contents of a `memory.min`/`memory.low` file to a byte count.
+///
+/// Both accept the cgroup-v2 `max` sentinel, which protects the whole cgroup.
+/// Zero is the alertable value for this gauge, so treating an unparsed `max` as
+/// zero would report no protection at the one point protection is total.
+#[cfg(any(target_os = "linux", test))]
+fn protection_bytes(raw: &str, limit_bytes: Option<u64>) -> u64 {
+    match raw.trim() {
+        "max" => limit_bytes.unwrap_or(u64::MAX),
+        value => value.parse().unwrap_or(0),
+    }
+}
+
 #[cfg(any(target_os = "linux", test))]
 fn bracketed_working_set_bytes(
     current_before: u64,
@@ -335,6 +385,20 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_max_protection_sentinel_as_protected_rather_than_unprotected() {
+        // The kubelet writes concrete bytes, but an operator override or
+        // systemd's MemoryLow=infinity leaves the cgroup-v2 `max` sentinel here.
+        // Zero is what the alert fires on, so `max` must never land on it.
+        assert_eq!(protection_bytes("max\n", Some(4096)), 4096);
+        assert_eq!(protection_bytes("max", None), u64::MAX);
+
+        assert_eq!(protection_bytes("1073741824\n", Some(4096)), 1_073_741_824);
+        // A genuinely absent or malformed value stays zero: no protection.
+        assert_eq!(protection_bytes("", Some(4096)), 0);
+        assert_eq!(protection_bytes("garbage", Some(4096)), 0);
+    }
 
     #[test]
     fn parses_named_control_group_memory_values() {

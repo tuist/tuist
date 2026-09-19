@@ -25,6 +25,7 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.RemoteURL
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -324,6 +325,28 @@ defmodule Tuist.VCS do
     end
   end
 
+  @doc """
+  Looks a VCS user up by username, through the project's own connection.
+
+  Returns the provider's durable id alongside the canonical username. The
+  username is what a person types and can be changed later, and the id is
+  what survives that, so callers that need to recognise the same person
+  again should keep the id.
+  """
+  def get_user_by_username(%{username: username, project: project}) do
+    project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+    with %{vcs_connection: %{provider: provider, github_app_installation: %GitHubAppInstallation{} = installation}} <-
+           project,
+         %{} <- github_app_credentials(installation) do
+      provider
+      |> get_client_for_provider()
+      |> then(& &1.get_user_by_username(%{username: username, installation: installation}))
+    else
+      _ -> {:error, :no_vcs_connection}
+    end
+  end
+
   def enqueue_vcs_pull_request_comment(args) do
     # Schedule the comment worker after a delay to allow ClickHouse ingestion
     # buffers to flush. Without this, data inserted just before enqueuing
@@ -332,6 +355,7 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
+    |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
@@ -636,7 +660,7 @@ defmodule Tuist.VCS do
       #{Enum.map(bundles, fn bundle ->
         {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
         """
-        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | #{commit_link(bundle.git_commit_sha, git_remote_url_origin)} | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
         """
       end)}
       """
@@ -682,6 +706,11 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(nil), do: dgettext("dashboard_account", "Unknown")
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
+  defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, git_remote_url_origin),
+    do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
+
   defp get_issue_id_from_git_ref(git_ref) do
     [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
     issue_id
@@ -725,12 +754,11 @@ defmodule Tuist.VCS do
       | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
       | - | - |#{if contains_ipas, do: " - |", else: ""}
       #{Enum.map(previews, fn preview ->
-        git_commit_sha = preview.git_commit_sha
         preview_url = preview_url.(%{project: project, preview: preview})
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
@@ -766,38 +794,49 @@ defmodule Tuist.VCS do
     else
       project = Repo.preload(project, :account)
 
-      {xcode_runs, gradle_runs} = Enum.split_with(test_runs, &(&1.build_system != "gradle"))
-      has_multiple_build_systems = xcode_runs != [] and gradle_runs != []
+      runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
 
-      xcode_body =
-        get_xcode_test_body(%{
-          test_runs: xcode_runs,
-          git_remote_url_origin: git_remote_url_origin,
-          test_run_url: test_run_url,
-          project: project
-        })
+      sections =
+        Enum.reject(
+          [
+            {"Xcode",
+             get_xcode_test_body(
+               test_body_args(runs_by_build_system["xcode"], project, git_remote_url_origin, test_run_url)
+             )},
+            {"Gradle",
+             get_gradle_test_body(
+               test_body_args(runs_by_build_system["gradle"], project, git_remote_url_origin, test_run_url)
+             )},
+            {"Bazel",
+             get_bazel_test_body(
+               test_body_args(runs_by_build_system["bazel"], project, git_remote_url_origin, test_run_url)
+             )}
+          ],
+          fn {_name, body} -> body == "" end
+        )
 
-      gradle_body =
-        get_gradle_test_body(%{
-          test_runs: gradle_runs,
-          git_remote_url_origin: git_remote_url_origin,
-          test_run_url: test_run_url,
-          project: project
-        })
-
-      xcode_section =
-        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-
-      gradle_section =
-        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      section_body =
+        case sections do
+          [{_name, body}] -> body
+          sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
+        end
 
       """
 
       #### Tests 🧪
 
-      #{xcode_section}#{gradle_section}
+      #{section_body}
       """
     end
+  end
+
+  defp test_body_args(test_runs, project, git_remote_url_origin, test_run_url) do
+    %{
+      test_runs: test_runs || [],
+      git_remote_url_origin: git_remote_url_origin,
+      test_run_url: test_run_url,
+      project: project
+    }
   end
 
   defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
@@ -815,7 +854,6 @@ defmodule Tuist.VCS do
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
 
@@ -824,7 +862,7 @@ defmodule Tuist.VCS do
         skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
         ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
@@ -847,15 +885,40 @@ defmodule Tuist.VCS do
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
         total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Tests | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
+  end
+
+  defp get_bazel_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_bazel_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+
+        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
+      end)
+
+    "| Target patterns | Status | Tests | Commit |\n" <>
       "|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
@@ -1216,7 +1279,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration)
 
-        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Scheme | Status | Duration | Commit |\n" <>
@@ -1237,7 +1300,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Duration | Commit |\n" <>

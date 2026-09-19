@@ -27,6 +27,9 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
         workflow_job_id: claimed_job_id,
         account_id: account.id,
         fleet_name: "linux-amd64",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
         pod_name: pod_name,
         runner_name: runner_name,
         started_at: DateTime.utc_now()

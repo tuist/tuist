@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
   use Tuist.MCP.Tool,
     name: "get_cache_run",
     title: "Get Cache Run",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "cache_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the cache run."
+          "description" => "The ID of the cache run, or a Tuist dashboard URL."
         }
       },
       "required" => ["cache_run_id"]
@@ -65,6 +66,8 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
       "Get detailed information about a specific cache run. The cache_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"cache_run_id" => cache_run_id}) do
+    cache_run_id = MCPTool.resource_id(cache_run_id)
+
     with {:ok, event, _project} <-
            MCPTool.load_and_authorize(
              get_cache_run(cache_run_id),

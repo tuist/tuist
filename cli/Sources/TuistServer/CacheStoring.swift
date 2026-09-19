@@ -50,12 +50,47 @@
         public init() {}
     }
 
+    public struct CacheUploadFailure: Hashable, Equatable {
+        public let item: CacheStorableItem
+        public let reason: String
+
+        public init(item: CacheStorableItem, reason: String) {
+            self.item = item
+            self.reason = reason
+        }
+    }
+
+    /// Every item that is not among `failures` was uploaded.
+    public struct CacheUploadError: LocalizedError, Equatable {
+        public let failures: [CacheUploadFailure]
+
+        public init(failures: [CacheUploadFailure]) {
+            self.failures = failures
+        }
+
+        public var errorDescription: String? {
+            let failures = failures
+                .sorted { $0.item.name < $1.item.name }
+                .map { "\($0.item.name) with hash \($0.item.hash): \($0.reason)" }
+                .joined(separator: ", ")
+            return "Failed to upload to the remote cache: \(failures)"
+        }
+    }
+
     @Mockable
     public protocol CacheStoring {
         func fetch(
             _ items: Set<CacheStorableItem>,
             cacheCategory: RemoteCacheCategory
         ) async throws -> [CacheItem: AbsolutePath]
+        /// Entries for `resolvedHashes` have already been handed to the caller, so a storage that
+        /// evicts to make room for what it fetches must not reclaim them.
+        func fetch(
+            _ items: Set<CacheStorableItem>,
+            cacheCategory: RemoteCacheCategory,
+            preserving resolvedHashes: Set<String>
+        ) async throws -> [CacheItem: AbsolutePath]
+        /// A remote storage attempts every item and then throws `CacheUploadError` if any of them failed to upload.
         func store(
             _ items: [CacheStorableItem: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
@@ -63,6 +98,15 @@
     }
 
     extension CacheStoring {
+        /// A storage that never evicts has nothing to preserve.
+        public func fetch(
+            _ items: Set<CacheStorableItem>,
+            cacheCategory: RemoteCacheCategory,
+            preserving _: Set<String>
+        ) async throws -> [CacheItem: AbsolutePath] {
+            try await fetch(items, cacheCategory: cacheCategory)
+        }
+
         public func fetch(
             _ targets: Set<CacheStorableTarget>,
             cacheCategory: RemoteCacheCategory

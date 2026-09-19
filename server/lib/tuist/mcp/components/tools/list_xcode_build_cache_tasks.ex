@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
   use Tuist.MCP.Tool,
     name: "list_xcode_build_cache_tasks",
     title: "List Xcode Build Cache Tasks",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "build_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the build run."
+          "description" => "The ID of the build run, or a Tuist dashboard URL."
         },
         "status" => %{
           "type" => "string",
@@ -80,7 +81,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
       "List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   def execute(conn, args) do
-    build_run_id = Map.get(args, "build_run_id")
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
     with {:ok, _build, _project} <-
            MCPTool.load_and_authorize(

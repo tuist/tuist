@@ -13,7 +13,7 @@ defmodule Tuist.Webhooks.DispatcherTest do
 
   defp insert_test_case(project, attrs \\ []) do
     test_case = RunsFixtures.test_case_fixture([project_id: project.id] ++ attrs)
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
     test_case
   end
 

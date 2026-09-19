@@ -1,0 +1,49 @@
+{{- if and .Values.kuraRuntime.instance.enabled .Values.kuraRuntime.instance.networkPolicy.enabled }}
+{{- $instance := .Values.kuraRuntime.instance }}
+# The controller manages Kura ingress. This additive egress policy confines
+# the runtime to peer replication, DNS, and its in-cluster control plane.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ required "kuraRuntime.instance.name is required when network policy is enabled" $instance.name }}-egress
+  namespace: {{ required "kuraRuntime.instance.namespace is required when network policy is enabled" $instance.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-runtime
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kura
+      app.kubernetes.io/instance: {{ $instance.name | quote }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kura
+              app.kubernetes.io/instance: {{ $instance.name | quote }}
+      ports:
+        - protocol: TCP
+          port: http
+        - protocol: TCP
+          port: peer
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.dnsNamespace | quote }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: http
+{{- end }}

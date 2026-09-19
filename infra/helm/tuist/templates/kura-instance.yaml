@@ -38,9 +38,9 @@ metadata:
   labels:
     {{- toYaml $labels | nindent 4 }}
 spec:
-  # Single-tenant preview KuraInstance. The deploy's seed step runs the regular
-  # development seed, whose demo content lives under the `tuist` organization,
-  # so server tokens and the runtime hook agree on the same tenant.
+  # Single-tenant KuraInstance. The deployment workflow must provision the
+  # same account handle in the server so its cache tokens and this runtime's
+  # strict tenant check agree.
   accountHandle: {{ required "kuraRuntime.instance.accountHandle is required" $instance.accountHandle }}
   tenantID: {{ required "kuraRuntime.instance.tenantID is required" $instance.tenantID }}
   region: {{ required "kuraRuntime.instance.region is required" $instance.region }}
@@ -56,10 +56,29 @@ spec:
   {{- end }}
   storageSize: {{ $instance.storageSize }}
   extraEnv:
+    # Paired with the URL so a blank one makes the node refuse to start rather
+    # than quietly start without authorization.
+    - name: KURA_AUTH_ENABLED
+      value: "true"
     - name: KURA_CONTROL_PLANE_URL
       value: {{ $controlPlaneURL }}
-    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
+    - name: KURA_AUTH_TUIST_URL
       value: {{ $controlPlaneURL }}
+    {{- with $instance.controlPlaneCredentials.secretName }}
+    # Explicit environment variables override the controller's optional
+    # shared Secret. Keep this per-instance credential out of the custom
+    # resource so users with read access to KuraInstance cannot retrieve it.
+    - name: KURA_CONTROL_PLANE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_ID
+    - name: KURA_CONTROL_PLANE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_SECRET
+    {{- end }}
   {{- with $instance.nodeSelector }}
   nodeSelector:
     {{- toYaml . | nindent 4 }}
@@ -67,9 +86,5 @@ spec:
   {{- with $instance.tolerations }}
   tolerations:
     {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- with $instance.extensionScript }}
-  extensionScript: |
-    {{- . | nindent 4 }}
   {{- end }}
 {{- end }}

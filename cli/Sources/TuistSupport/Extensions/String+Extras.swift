@@ -243,6 +243,20 @@ extension String {
         replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: "/", with: "_")
     }
+
+    /// Formats the string as a legal C identifier.
+    public var asLegalCIdentifier: String {
+        decomposedStringWithCanonicalMapping.enumerated().map { index, character in
+            switch character {
+            case "A" ... "Z", "a" ... "z", "_":
+                String(character)
+            case "0" ... "9" where index != 0:
+                String(character)
+            default:
+                "_"
+            }
+        }.joined()
+    }
 }
 
 extension Array where Element: CustomStringConvertible {

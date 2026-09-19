@@ -8,6 +8,11 @@
 # also removes the tag-before-prep footgun. Set PREP_SKIP_MARK=1 to prep without
 # tagging (to stage capacity ahead and release later with baremetal:mark-dedibox).
 #
+# The install lays down a mirrored root plus a separate XFS /data (the filesystem
+# every cache volume lives on, and the only one that can carry the per-account
+# project quota). Partitioning cannot be changed after the fact, so re-prepping
+# is also the only way to convert a box installed before that layout.
+#
 # Usage:
 #   mise run baremetal:prep-dedibox <server-id> [fleet-name]
 #   e.g. mise run baremetal:prep-dedibox 188785

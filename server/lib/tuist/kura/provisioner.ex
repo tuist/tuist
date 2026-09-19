@@ -90,36 +90,59 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision currently applied to the backing resource.
-
-  Provisioners that render declarative resources should use this to let
-  the control plane re-apply config-only changes independently from Kura
-  runtime image changes.
+  Returns the observed private gateway URL and the controller's check time.
+  Consumers persist that check time so rereading status cannot renew readiness.
   """
   @callback external_endpoint(ref :: String.t(), Regions.t()) ::
-              {:ok, String.t()} | {:error, term()}
+              {:ok, %{url: String.t(), observed_at: DateTime.t()}} | {:error, term()}
 
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision the provisioner would render for `account` in
-  the given region, folding in any dynamic inputs (such as enrolled self-hosted
-  peers) that must trigger a re-apply when they change.
+  Returns the manifest revision the provisioner would render for `server` in the
+  given region, folding in any dynamic input (an enrolled self-hosted peer, the
+  account's plan, the disk footprint the instance was built with) that must
+  trigger a re-apply when it changes.
+
+  Takes the server rather than the account because some of those inputs are
+  properties of the instance rather than of its account.
   """
-  @callback manifest_revision(Account.t(), Regions.t()) :: String.t() | nil
+  @callback manifest_revision(Server.t(), Regions.t()) :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
 
   @doc """
   Whether the server's backing workload has caught up from its mesh peers and
-  passed the bootstrap readiness gate (its pod is Ready). Used to gate the warm
+  passed the backfill readiness gate (its pod is Ready). Used to gate the warm
   handoff: a `:moving_in` target has no public endpoint to probe, so its
-  readiness is the peer-plane bootstrap gate, not a public `/up` check.
+  readiness is the peer-plane backfill gate, not a public `/up` check.
   """
   @callback caught_up?(ref :: String.t(), Regions.t()) ::
               {:ok, boolean()} | {:error, term()}
+
+  @doc """
+  The rollout-health aggregate the backing platform publishes for the
+  server's workload, or `{:ok, nil}` when the resource exists but has not
+  published one yet (old controller, no pods sampled). Consumed by
+  `Tuist.Kura.Rollouts` as the health authority for the progressive
+  rollout gate; never on the cache hot path.
+  """
+  @callback rollout_health(ref :: String.t(), Regions.t()) ::
+              {:ok, map() | nil} | {:error, term()}
+
+  @doc """
+  The replication roles the backing platform publishes for the server's
+  pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
+  URL — or `{:ok, []}` when the resource exists but has not published any
+  yet. Read by `Tuist.Kura.Reconciler` on the loop that already observes the
+  instance and persisted on `kura_servers.peer_roles`, which is what the mesh
+  view publishes; never called from a request. Implementations must still
+  bound it — one tick observes every mesh server in turn.
+  """
+  @callback peer_roles(ref :: String.t(), Regions.t()) ::
+              {:ok, [map()]} | {:error, term()}
 
   ## Convenience dispatchers
 
@@ -184,7 +207,7 @@ defmodule Tuist.Kura.Provisioner do
   @doc "Calls `manifest_revision/2` on the region's provisioner."
   def manifest_revision(%Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      {:ok, region.provisioner.manifest_revision(server.account, region)}
+      {:ok, region.provisioner.manifest_revision(server, region)}
     end
   end
 
@@ -192,6 +215,20 @@ defmodule Tuist.Kura.Provisioner do
   def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.caught_up?(ref, region)
+    end
+  end
+
+  @doc "Calls `rollout_health/2` on the region's provisioner."
+  def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `peer_roles/2` on the region's provisioner."
+  def peer_roles(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.peer_roles(ref, region)
     end
   end
 end

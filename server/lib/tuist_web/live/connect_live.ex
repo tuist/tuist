@@ -34,7 +34,10 @@ defmodule TuistWeb.ConnectLive do
           </span>
         </div>
         <div data-part="title">
-          <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{dgettext("dashboard_auth", "using CLI")}</span>
+          <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{dgettext(
+            "dashboard_auth",
+            "using CLI"
+          )}</span>
         </div>
         <div data-part="timeline">
           <div data-part="step">

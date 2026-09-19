@@ -49,4 +49,27 @@ defmodule Tuist.FeatureFlagsTest do
 
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
+
+  describe "turnstile_enabled?/0" do
+    test "is on when the env toggle is set and the kill switch is off" do
+      stub(Environment, :turnstile_required?, fn -> true end)
+      expect(FunWithFlags, :enabled?, fn :turnstile_kill_switch -> false end)
+
+      assert FeatureFlags.turnstile_enabled?()
+    end
+
+    test "is off when the kill switch is on, regardless of the env toggle" do
+      stub(Environment, :turnstile_required?, fn -> true end)
+      expect(FunWithFlags, :enabled?, fn :turnstile_kill_switch -> true end)
+
+      refute FeatureFlags.turnstile_enabled?()
+    end
+
+    test "is off when the env toggle is off, without consulting the kill switch" do
+      stub(Environment, :turnstile_required?, fn -> false end)
+      reject(FunWithFlags, :enabled?, 1)
+
+      refute FeatureFlags.turnstile_enabled?()
+    end
+  end
 end

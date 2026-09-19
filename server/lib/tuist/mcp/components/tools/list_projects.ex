@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   use Tuist.MCP.Tool,
     name: "list_projects",
     title: "List Projects",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{}
@@ -22,7 +23,7 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
               "name" => %{"type" => "string"},
               "account_handle" => %{"type" => "string"},
               "full_handle" => %{"type" => "string"},
-              "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle"]},
+              "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle", "bazel"]},
               "default_branch" => %{"type" => "string"}
             },
             "required" => [

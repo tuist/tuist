@@ -3,5 +3,5 @@ defmodule Tuist.VCS.User do
   A struct that represents a user in a VCS.
   """
   @enforce_keys [:username]
-  defstruct [:username]
+  defstruct [:username, :id]
 end

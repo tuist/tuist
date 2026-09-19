@@ -4,14 +4,14 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::{Notify, Semaphore};
 use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
-    extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -31,12 +31,12 @@ pub(crate) async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
-    test_context_with_extension(override_config, None).await
+    test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_extension<F>(
+pub(crate) async fn test_context_with_auth<F>(
     override_config: F,
-    extension: Option<SharedExtension>,
+    auth: Option<SharedAuth>,
 ) -> TestContext
 where
     F: FnOnce(&mut Config),
@@ -59,6 +59,7 @@ where
         peer_tls: None,
         public_tls: None,
         https_port: 0,
+        gateway_grpc_port: None,
         accelerated_file_serving: AcceleratedFileServingConfig {
             enabled: true,
             mode: AcceleratedFileServingMode::Splice,
@@ -66,6 +67,7 @@ where
             chunk_bytes: 1024 * 1024,
         },
         action_cache_eviction_cascade_enabled: true,
+        reapi_blob_chunking_enabled: true,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
@@ -73,6 +75,8 @@ where
         memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
+        memory_floor_bytes: None,
+        anon_cache_fit: None,
         snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,
@@ -82,22 +86,32 @@ where
         rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
-        outbox_max_depth: 100_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
-        multipart_max_active_uploads: 128,
+        multipart_max_active_uploads: None,
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
-        bootstrap_timeout_ms: 30 * 60 * 1000,
-        bootstrap_max_concurrent_peers: 8,
+        backfill_margin_percent: 40,
+        backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
+        backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
+        sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
+        sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
+        sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
+        sync_region_settle_ms: crate::constants::DEFAULT_SYNC_REGION_SETTLE_MS,
+        sync_feed_stale_peer_secs: crate::constants::DEFAULT_SYNC_FEED_STALE_PEER_SECS,
+        sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
+        sync_peer_bodies_slots_per_peer: crate::constants::DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        sync_peer_serving_max_inflight: None,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
-        geoip_refresh_interval_secs: 0,
+        request_log_sample_rate: 0.0,
+        slow_request_threshold_ms: 30_000,
+        warning_log_interval_ms: 60_000,
         node_country_override: None,
         node_subdivision_override: None,
     };
@@ -131,17 +145,24 @@ where
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store =
-        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
-    let local_data_available_at_join = store
-        .has_artifacts()
-        .expect("failed to inspect local test artifacts");
+    let store = Arc::new(
+        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
+    );
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .expect("failed to build Bazel test artifact delivery");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
+    let peer_client_factory = PeerClientFactory::plain();
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -153,44 +174,41 @@ where
         runtime.clone(),
     )
     .map(Arc::new);
-    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(4));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+    let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
-            .min(memory.bootstrap_staging_budget_bytes()),
+            .min(memory.peer_staging_budget_bytes()),
     );
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
+        bazel_test_artifacts,
         usage,
-        geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
-        peer_client_factory: PeerClientFactory::plain(),
+        peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
-        notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
-        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
-            local_data_available_at_join,
-        ),
-        bootstrap_semaphore,
-        bootstrap_artifact_semaphore,
         tmp_staging_budget,
-        bootstrap_staging_budget,
-        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
-            .map(|_| tokio::sync::Mutex::new(()))
-            .collect(),
-        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        peer_staging_budget,
+        backfill_bodies_peer_slots,
+        backfill_claims: crate::backfill::claims::ClaimSet::new(),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
 

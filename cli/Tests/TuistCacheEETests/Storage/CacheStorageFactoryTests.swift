@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistCache
 import TuistCAS
 import TuistConfig
@@ -20,6 +21,13 @@ import XcodeGraph
 @testable import TuistTesting
 
 struct CacheStorageFactoryTests {
+    private struct TokenCarryingError: Error, LocalizedError {
+        var errorDescription: String? { "The access token ey.super-secret-token is invalid." }
+    }
+
+    private static let signInTakeaway =
+        "Run 'tuist auth login' to authenticate yourself, or set the TUIST_TOKEN environment variable on CI."
+
     private var cacheDirectoriesProvider: CacheDirectoriesProvider
     private var cacheURLStore: MockCacheURLStoring
     private var serverAuthenticationController: MockServerAuthenticationControlling
@@ -188,7 +196,7 @@ struct CacheStorageFactoryTests {
         }
     }
 
-    @Test
+    @Test(.withScopedAlertController())
     func swallows_refresh_errors_when_optional_authentication_is_enabled() async throws {
         // When refresh itself throws (network failure, refresh token revoked,
         // credentials wiped after a 401), `optionalAuthentication` should fall
@@ -211,7 +219,92 @@ struct CacheStorageFactoryTests {
         )
 
         // Then
+        // A rejected refresh has already cost the user their credentials, so the
+        // warning keeps pointing at the sign-in that gets the remote cache back.
         #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
+            "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: Invalid token",
+        ])
+        #expect(AlertController.current.warnings().compactMap(\.takeaway).map { $0.plain() } == [Self.signInTakeaway])
+    }
+
+    @Test(.withScopedAlertController())
+    func warns_without_sign_in_advice_when_the_server_is_unreachable() async throws {
+        // The server being down leaves the credentials untouched, so sending the
+        // user to `tuist auth login` would be advice they cannot act on.
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(Constants.URLs.production),
+            refreshIfNeeded: .value(true)
+        ).willThrow(ServerAuthenticationControllerError.timedOut(seconds: 15, serverURL: Constants.URLs.production))
+
+        // When
+        let got = try await subject.cacheStorage(
+            config: .test(
+                project: .generated(.test(generationOptions: .test(optionalAuthentication: true))),
+                fullHandle: "tuist/tuist",
+                url: Constants.URLs.production
+            )
+        )
+
+        // Then
+        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
+            "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: The refreshing of the access and refresh token pair for the URL https://tuist.dev failed after 15 seconds.",
+        ])
+        #expect(AlertController.current.warnings().compactMap(\.takeaway).isEmpty)
+    }
+
+    @Test(.withScopedAlertController())
+    func does_not_print_the_description_of_unrecognized_authentication_errors() async throws {
+        // Errors on the token path can quote the token itself, and this warning
+        // reaches CI logs, so unknown errors are named by type instead.
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(Constants.URLs.production),
+            refreshIfNeeded: .value(true)
+        ).willThrow(TokenCarryingError())
+
+        // When
+        let got = try await subject.cacheStorage(
+            config: .test(
+                project: .generated(.test(generationOptions: .test(optionalAuthentication: true))),
+                fullHandle: "tuist/tuist",
+                url: Constants.URLs.production
+            )
+        )
+
+        // Then
+        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
+            "Skipping the remote cache and continuing with the local one, as the authentication against https://tuist.dev failed: an unexpected error (TokenCarryingError)",
+        ])
+        #expect(AlertController.current.warnings().compactMap(\.takeaway).isEmpty)
+    }
+
+    @Test(.withScopedAlertController())
+    func warns_with_sign_in_advice_when_no_token_is_found() async throws {
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(Constants.URLs.production),
+            refreshIfNeeded: .value(true)
+        ).willReturn(nil)
+
+        // When
+        let got = try await subject.cacheStorage(
+            config: .test(
+                project: .generated(.test(generationOptions: .test(optionalAuthentication: true))),
+                fullHandle: "tuist/tuist",
+                url: Constants.URLs.production
+            )
+        )
+
+        // Then
+        #expect((got as? CacheStorage)?.remoteStorage == nil)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
+            "No authentication token for https://tuist.dev was found. Skipping the remote cache and continuing with the local one.",
+        ])
+        #expect(AlertController.current.warnings().compactMap(\.takeaway).map { $0.plain() } == [Self.signInTakeaway])
     }
 
     @Test

@@ -5,6 +5,7 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Responsibilities
 - Provide file upload/download client (`FileClient`) with explicit error modeling.
 - Provide middleware and auth helpers for API clients (request IDs, output warnings).
+- Resume artifact downloads that fail partway through the response body (`ArtifactResumeMiddleware`).
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -17,5 +18,6 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
+- Artifact downloads resume with a `Range` header from the byte offset they reached rather than restarting, for the operation IDs the client opts in. A resumed `206` whose `Content-Range` does not start at that offset is refused instead of appended.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.

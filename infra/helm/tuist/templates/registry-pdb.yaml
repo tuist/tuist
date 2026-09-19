@@ -1,0 +1,14 @@
+{{- if and .Values.registry.enabled .Values.registry.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  minAvailable: {{ .Values.registry.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry") | nindent 6 }}
+{{- end }}

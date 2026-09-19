@@ -28,6 +28,20 @@ pomerium:
   audience: ops.tuist.dev
   publicKey: ""
 
+# Origins a signed project-access grant may be handed back to. The reason
+# form refuses any `return_to` outside this list, so a minted token cannot
+# be redirected to a host we do not run. Unset, tuist-ops falls back to
+# https://tuist.dev alone.
+#
+# atlas.tuist.dev is here because Atlas' MCP proxy sends an operator to the
+# reason form whenever a customer account is refused, and receives the grant
+# on the way back at /mcps/:server/operator-grant. Without it that round trip
+# answers 400 and the whole flow is unreachable.
+projectAccess:
+  returnToAllowlist:
+    - https://tuist.dev
+    - https://atlas.tuist.dev
+
 # Internal name used by the tailscale operator to expose this
 # Service as a tailnet device. Pomerium pods in workload clusters
 # dial this hostname through their cluster's tailscale-egress
@@ -35,10 +49,31 @@ pomerium:
 tailnetHostname: ops
 
 # CNPG cluster sized for tuist-ops only. Three tables, a few
-# hundred rows over its lifetime; single instance is enough.
-# Backups go to S3 (Tigris).
+# hundred rows over its lifetime. Backups go to S3 (Tigris).
 postgresql:
-  instances: 1
+  # Two instances, not one, and the reason is node drains rather than
+  # data volume or query load.
+  #
+  # CNPG gives every cluster a `<cluster>-primary` PodDisruptionBudget
+  # with `minAvailable: 1` selecting `cnpg.io/instanceRole: primary`. At
+  # one instance the primary is the only pod, so `disruptionsAllowed` is
+  # structurally 0 and no eviction can ever succeed. A CAPI Machine
+  # holding this pod can then never finish draining, and the ClusterClass
+  # waits forever on purpose (`nodeDrainTimeoutSeconds: 0`) so that a
+  # customer's CI job is never killed by a timeout. tuist-md-processor
+  # deadlocked that way for 14 days from 2026-07-31.
+  #
+  # The operator already knows what it wants to do. It logs "Primary is
+  # running on an unschedulable node, will try switching over" and then
+  # "no valid candidates". A second instance is that candidate: CNPG
+  # switches over, the old pod demotes to a replica, and at two instances
+  # CNPG emits no replica PDB at all (verified against the 2-instance
+  # canary and staging clusters), so the drain proceeds.
+  #
+  # HA is the incidental benefit. tuist-ops is the SPOF behind the
+  # kubectl impersonation policy endpoint, so an unplanned loss of its
+  # node currently takes cluster access with it.
+  instances: 2
   # Sized for headroom against WAL backlog, not data volume: with
   # archiving healthy, pg_wal stays small, but a stalled archive must
   # not fill the disk fast enough to wedge the instance before it's

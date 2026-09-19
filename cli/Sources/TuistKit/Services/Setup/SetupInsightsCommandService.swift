@@ -1,4 +1,5 @@
 import Foundation
+import TuistEnvironment
 import TuistLaunchctl
 import TuistLogging
 
@@ -12,9 +13,10 @@ struct SetupInsightsCommandService {
     }
 
     func run() async throws {
+        let label = Environment.current.metricsSamplerLaunchAgentLabel()
         try await launchAgentService.setupLaunchAgent(
-            label: "tuist.metrics-sampler",
-            plistFileName: "tuist.metrics-sampler.plist",
+            label: label,
+            plistFileName: "\(label).plist",
             programArguments: ["sample-host-metrics"],
             environmentVariables: [:]
         )

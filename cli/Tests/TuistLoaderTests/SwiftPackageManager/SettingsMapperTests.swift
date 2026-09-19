@@ -1,5 +1,6 @@
 import Path
 import ProjectDescription
+import Testing
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -257,114 +258,6 @@ final class SettingsMapperTests: XCTestCase {
         XCTAssertEqual(resolvedSettings["SWIFT_VERSION"], .string("6"))
     }
 
-    func test_set_Combined() throws {
-        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
-            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
-            .init(
-                tool: .swift,
-                name: .define,
-                condition: PackageInfo.PackageConditionDescription(platformNames: ["ios", "tvos"], config: nil),
-                value: ["Define2"]
-            ),
-        ]
-
-        let mapper = SettingsMapper(
-            headerSearchPaths: [],
-            mainRelativePath: try RelativePath(validating: "path"),
-            settings: settings
-        )
-
-        let allPlatformSettings = try mapper.settingsDictionary()
-
-        XCTAssertEqual(
-            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1"])
-        )
-
-        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
-
-        XCTAssertEqual(
-            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        let combinedSettings = try mapper.mapSettings()
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1"])
-        )
-    }
-
-    func test_set_maccatalyst() throws {
-        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
-            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
-            .init(
-                tool: .swift,
-                name: .define,
-                condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil),
-                value: ["Define2"]
-            ),
-        ]
-
-        let mapper = SettingsMapper(
-            headerSearchPaths: [],
-            mainRelativePath: try RelativePath(validating: "path"),
-            settings: settings
-        )
-
-        let allPlatformSettings = try mapper.settingsDictionary()
-
-        XCTAssertEqual(
-            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1"])
-        )
-
-        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
-
-        XCTAssertEqual(
-            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        let combinedSettings = try mapper.mapSettings()
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .array(["$(inherited)", "Define1", "Define2"])
-        )
-
-        XCTAssertEqual(
-            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .array(["$(inherited)", "Define1"])
-        )
-    }
-
     func test_strict_memory_safety_no_arguments() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: []),
@@ -525,6 +418,171 @@ final class SettingsMapperTests: XCTestCase {
                 "$(inherited)", "-Werror", "-Wno-error",
                 "-Wno-error=unused", "-Werror=deprecated-declarations", "-Wextra",
             ])
+        )
+    }
+}
+
+struct SettingsMapperConditionalTests {
+    @Test
+    func mapSettingsDoesNotRepeatInjectedHeaderSearchPathsInPlatformCondition() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["include"]),
+            .init(
+                tool: .c,
+                name: .headerSearchPath,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["macos"], config: nil),
+                value: ["macos-include"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: ["$(SRCROOT)/Sources/Target/PublicHeaders"],
+            mainRelativePath: try RelativePath(validating: "Sources/Target"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(
+            resolvedSettings["HEADER_SEARCH_PATHS"] ==
+                .array([
+                    "$(inherited)",
+                    "$(SRCROOT)/Sources/Target/PublicHeaders",
+                    "$(SRCROOT)/Sources/Target/include",
+                ])
+        )
+        #expect(
+            resolvedSettings["HEADER_SEARCH_PATHS[sdk=macosx*]"] ==
+                .array(["$(inherited)", "$(SRCROOT)/Sources/Target/macos-include"])
+        )
+    }
+
+    @Test
+    func mapSettingsDoesNotRepeatUnconditionalSwiftFlagsInPlatformCondition() throws {
+        let availabilityMacro = "AvailabilityMacro=Repro_v1:iOS 13.0, macOS 13.0"
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: [availabilityMacro]),
+            .init(
+                tool: .swift,
+                name: .unsafeFlags,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["macos"], config: nil),
+                value: ["-index-ignore-system-modules"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(
+            resolvedSettings["OTHER_SWIFT_FLAGS"] ==
+                .array(["$(inherited)", "-enable-experimental-feature \"\(availabilityMacro)\""])
+        )
+        #expect(
+            resolvedSettings["OTHER_SWIFT_FLAGS[sdk=macosx*]"] ==
+                .array(["$(inherited)", "-index-ignore-system-modules"])
+        )
+    }
+
+    @Test
+    func settingsSeparateUnconditionalAndPlatformConditions() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["ios", "tvos"], config: nil),
+                value: ["Define2"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+        #expect(
+            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define1"])
+        )
+
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+        #expect(
+            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+
+        let combinedSettings = try mapper.mapSettings()
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define1"])
+        )
+    }
+
+    @Test
+    func settingsMapMacCatalystConditionToAppleMobilePlatforms() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil),
+                value: ["Define2"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+        #expect(
+            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define1"])
+        )
+
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+        #expect(
+            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+
+        let combinedSettings = try mapper.mapSettings()
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] ==
+                .array(["$(inherited)", "Define2"])
+        )
+        #expect(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "Define1"])
         )
     }
 }

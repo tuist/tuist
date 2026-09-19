@@ -18,7 +18,7 @@ Describe 'singleton handoff to joined nodes'
     resolve_http_node KURA_US kura-us
 
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -29,7 +29,7 @@ Describe 'singleton handoff to joined nodes'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  It 'moves singleton data to nodes that join later through the outbox'
+  It 'moves singleton data to nodes that join later through their pull links'
     keyvalue_status="$(status_only -X PUT \
       "${KURA_US_URL}/api/cache/keyvalue?tenant_id=acme&namespace_id=handoff" \
       -H "content-type: application/json" \
@@ -48,9 +48,9 @@ Describe 'singleton handoff to joined nodes'
 
     wait_for_http "${KURA_EU_URL}/up" || return 1
     wait_for_http "${KURA_AP_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
-    capture_into eu_ring wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
-    capture_into ap_ring wait_for_contains "${KURA_AP_URL}/up" '"ring_members":3' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":3' || return 1
+    capture_into eu_ring wait_for_contains "${KURA_EU_URL}/status/cluster" '"ring_members":3' || return 1
+    capture_into ap_ring wait_for_contains "${KURA_AP_URL}/status/cluster" '"ring_members":3' || return 1
     The variable us_ring should include '"ring_members":3'
     The variable eu_ring should include '"ring_members":3'
     The variable ap_ring should include '"ring_members":3'

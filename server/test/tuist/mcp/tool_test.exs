@@ -77,6 +77,17 @@ defmodule Tuist.MCP.ToolTest do
     end
   end
 
+  describe "validate_input/2" do
+    test "accepts valid tool arguments" do
+      assert :ok = Tool.validate_input(ListBundles, %{"account_handle" => "acme", "project_handle" => "app"})
+    end
+
+    test "rejects an argument that does not match the declared schema" do
+      assert {:error, "Arguments do not match the tool schema."} =
+               Tool.validate_input(ListBundles, %{"account_handle" => "acme", "project_handle" => 1})
+    end
+  end
+
   describe "descriptor/1" do
     test "attaches the output schema without validating it at request time" do
       descriptor = Tool.descriptor(ListBundles)
@@ -116,6 +127,57 @@ defmodule Tuist.MCP.ToolTest do
         |> JSON.decode!()
 
       assert :ok = ExJsonSchema.Validator.validate(Tool.pagination_metadata_schema(), payload)
+    end
+  end
+
+  describe "resource_id/1" do
+    @uuid "38338b32-3437-42e4-bc01-f048d6d3368f"
+
+    test "extracts the identifier from a dashboard URL" do
+      assert Tool.resource_id("https://tuist.dev/acme/app/builds/build-runs/#{@uuid}") == @uuid
+    end
+
+    test "ignores a trailing slash" do
+      assert Tool.resource_id("https://tuist.dev/acme/app/builds/build-runs/#{@uuid}/") == @uuid
+    end
+
+    test "ignores a query string and a fragment" do
+      assert Tool.resource_id("https://tuist.dev/acme/app/tests/test-runs/#{@uuid}?tab=modules") == @uuid
+      assert Tool.resource_id("https://tuist.dev/acme/app/bundles/#{@uuid}#artifacts") == @uuid
+    end
+
+    test "is path-shape agnostic, so it covers every resource the dashboard links to" do
+      for path <- [
+            "acme/app/builds/build-runs",
+            "acme/app/tests/test-runs",
+            "acme/app/tests/test-cases",
+            "acme/app/bundles",
+            "acme/app/runs",
+            "acme/app/gradle/builds"
+          ] do
+        assert Tool.resource_id("https://tuist.dev/#{path}/#{@uuid}") == @uuid
+      end
+    end
+
+    test "accepts a URL from any host, including self-hosted instances" do
+      assert Tool.resource_id("https://tuist.acme.io/acme/app/builds/build-runs/#{@uuid}") == @uuid
+      assert Tool.resource_id("http://localhost:8080/acme/app/builds/build-runs/#{@uuid}") == @uuid
+    end
+
+    test "passes a bare identifier through unchanged" do
+      assert Tool.resource_id(@uuid) == @uuid
+    end
+
+    test "passes anything that is not a URL through unchanged, so the lookup still rejects it" do
+      assert Tool.resource_id("not-a-uuid") == "not-a-uuid"
+      assert Tool.resource_id("") == ""
+      assert Tool.resource_id("https://tuist.dev") == "https://tuist.dev"
+      assert Tool.resource_id("https://tuist.dev/") == "https://tuist.dev/"
+    end
+
+    test "passes non-binary values through unchanged" do
+      assert Tool.resource_id(nil) == nil
+      assert Tool.resource_id(42) == 42
     end
   end
 

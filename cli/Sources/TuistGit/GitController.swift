@@ -72,6 +72,12 @@ public protocol GitControlling {
 
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
+
+    /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
+    /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
+    /// working tree has changed, and untracked files Git does not ignore, are hashed from the
+    /// working tree, so each id describes the contents a build would compile.
+    func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
 }
 
 /// An implementation of `GitControlling`.
@@ -93,6 +99,39 @@ public struct GitController: GitControlling {
             validating: try await capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    public func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String] {
+        let git = ["git", "-C", workingDirectory.pathString]
+        let isSource: (String) -> Bool = { pathExtensions.contains((($0 as NSString).pathExtension).lowercased()) }
+        var blobIds: [String: String] = [:]
+
+        // `<mode> <object> <stage>\t<path>`, NUL-terminated so no path is quoted.
+        for entry in try await capture(arguments: git + ["ls-files", "--stage", "-z"]).split(separator: "\0") {
+            guard let tab = entry.firstIndex(of: "\t") else { continue }
+            let path = String(entry[entry.index(after: tab)...])
+            let fields = entry[..<tab].split(separator: " ")
+            // A submodule's entry names a commit, not a blob.
+            guard isSource(path), fields.count >= 2, fields[0] != "160000" else { continue }
+            blobIds[path] = String(fields[1])
+        }
+
+        let modified = try await capture(arguments: git + ["diff", "--name-only", "--diff-filter=d", "-z"])
+        let untracked = try await capture(arguments: git + ["ls-files", "--others", "--exclude-standard", "-z"])
+        let workingTreePaths = Array(Set((modified + "\0" + untracked).split(separator: "\0").map(String.init).filter(isSource)))
+            .sorted()
+
+        // Batched so a large change set never exceeds the argument list limit.
+        for start in stride(from: 0, to: workingTreePaths.count, by: 500) {
+            let batch = Array(workingTreePaths[start ..< min(start + 500, workingTreePaths.count)])
+            let ids = try await capture(arguments: git + ["hash-object", "--"] + batch)
+                .split(whereSeparator: \.isNewline)
+            for (path, id) in zip(batch, ids) {
+                blobIds[path] = String(id)
+            }
+        }
+
+        return blobIds
     }
 
     public func clone(url: String, into path: AbsolutePath) async throws {
@@ -327,18 +366,47 @@ public struct GitController: GitControlling {
 
     private func run(command: String...) async throws {
         if environment.isVerbose {
-            try await commandRunner.runAndPrint(arguments: command, environment: Environment.current.variables)
+            try await commandRunner.runAndPrint(arguments: command, environment: hardenedEnvironment())
         } else {
-            try await commandRunner.runAndWait(arguments: command)
+            try await commandRunner.runAndWait(arguments: command, environment: hardenedEnvironment())
         }
     }
 
     private func capture(command: String...) async throws -> String {
-        if environment.isVerbose {
-            return try await commandRunner.capture(arguments: command, environment: Environment.current.variables)
-        } else {
-            return try await commandRunner.capture(arguments: command)
-        }
+        try await capture(arguments: command)
+    }
+
+    private func capture(arguments: [String]) async throws -> String {
+        try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
+    }
+
+    /// Environment overrides that keep every spawned `git` invocation
+    /// non-interactive on CI runners. The subprocess inherits `tuist`'s
+    /// stdin, so anything that opens a credential prompt, spawns
+    /// `gpg` for signature verification, or otherwise reads from stdin
+    /// blocks indefinitely with no output. The runner then cancels the
+    /// step at its wall-clock timeout and the user is left with a silent
+    /// multi-hour hang.
+    ///
+    /// `GIT_TERMINAL_PROMPT=0` disables the terminal prompt path.
+    /// `GIT_ASKPASS=/usr/bin/false` forces any askpass helper to fail
+    /// immediately (`/usr/bin/false` exists on both macOS and Linux, while
+    /// `/bin/false` is not guaranteed on macOS and would print a spurious
+    /// `fatal: cannot exec` line into stderr before the disabled-prompt
+    /// path took over). `GIT_CONFIG_COUNT=1` plus the `KEY_0`/`VALUE_0`
+    /// pair overrides `log.showSignature` for the lifetime of the
+    /// subprocess, which keeps `git log` from invoking `gpg`
+    /// regardless of the repository's configuration.
+    private static let hardenedEnvironmentOverrides: [String: String] = [
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/usr/bin/false",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "log.showSignature",
+        "GIT_CONFIG_VALUE_0": "false",
+    ]
+
+    private func hardenedEnvironment() -> [String: String] {
+        Environment.current.variables.merging(Self.hardenedEnvironmentOverrides) { _, new in new }
     }
 
     private func parseVersions(_ unparsed: String) throws -> [Version] {

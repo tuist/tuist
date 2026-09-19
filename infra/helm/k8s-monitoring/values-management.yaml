@@ -37,6 +37,7 @@ k8s-monitoring:
         includeMetrics:
           - kube_customresource_kubeadmcontrolplane_.*
           - kube_customresource_machinedeployment_.*
+          - kube_customresource_kustomization_.*
 
   integrations:
     alloy:
@@ -74,6 +75,9 @@ k8s-monitoring:
             verbs: ["list", "watch"]
           - apiGroups: ["cluster.x-k8s.io"]
             resources: ["machinedeployments"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+            resources: ["kustomizations"]
             verbs: ["list", "watch"]
       customResourceState:
         enabled: true
@@ -151,3 +155,81 @@ k8s-monitoring:
                       type: Gauge
                       gauge:
                         path: [status, availableReplicas]
+                  # Rollout progress, which desired-vs-ready cannot see. A
+                  # MachineDeployment stuck mid-roll keeps every Machine it
+                  # already has Ready, so ready == spec throughout and the
+                  # replica alert stays quiet while the pool silently stops
+                  # receiving template changes. tuist-runners-linux sat that
+                  # way from 2026-06-17: two Ready Machines, one up to date,
+                  # unnoticed for two months. This is the series that gives
+                  # it away.
+                  - name: machinedeployment_up_to_date_replicas
+                    help: Worker replicas running the current template.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, upToDateReplicas]
+                  # Surplus Machines, which up-to-date-vs-spec cannot see. The
+                  # up-to-date series only covers a roll that has not yet
+                  # *produced* every Machine it needs; it goes blind the moment
+                  # the last replacement is Ready and the only thing left is
+                  # deleting the old one. A drain that cannot finish is exactly
+                  # that shape: up-to-date == spec while a surplus Machine sits
+                  # in Deleting forever.
+                  #
+                  # That is how tuist-md-processor went 14 days from
+                  # 2026-07-31 reporting 2/2 up to date with a third Machine
+                  # stuck draining behind two single-instance CNPG clusters
+                  # whose `<cluster>-primary` PDB can never allow a disruption.
+                  # `nodeDrainTimeoutSeconds: 0` in the ClusterClass waits
+                  # forever on purpose, so this series is the loudness that
+                  # arrangement is predicated on.
+                  #
+                  # status.replicas counts every Machine the MachineDeployment
+                  # still owns, deleting ones included, so it is the only
+                  # exported field that exceeds spec while a drain hangs.
+                  - name: machinedeployment_replicas
+                    help: Current worker replicas, including Machines still being deleted.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, replicas]
+              # Flux Kustomizations. Flux 2.9.5 exports gotk_reconcile_duration
+              # and gotk_event_* but NOT gotk_reconcile_condition, so nothing
+              # off the controllers themselves says whether a reconcile
+              # SUCCEEDED: the duration histogram counts failures too. A
+              # Kustomization that fetches and then fails to apply every
+              # interval looks identical to a healthy one in those metrics,
+              # which is the state Flux is meant to protect against - drift
+              # stops being corrected while reconciliation appears to run.
+              #
+              # spec.suspend is exported alongside the condition because
+              # suspending is a normal operation (see the suspend and resume
+              # section in infra/flux/mgmt/README.md) and a suspended
+              # Kustomization keeps whatever Ready condition it last had. An
+              # alert that ignores this pages every time someone suspends one
+              # to fix git.
+              - groupVersionKind:
+                  group: kustomize.toolkit.fluxcd.io
+                  version: v1
+                  kind: Kustomization
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  kustomization: [metadata, name]
+                metrics:
+                  - name: kustomization_status_condition
+                    help: Flux Kustomization status conditions, 1 when the condition holds.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: ["type"]
+                        valueFrom: ["status"]
+                  - name: kustomization_spec_suspend
+                    help: 1 when the Kustomization is suspended and not reconciling.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, suspend]
+                        nilIsZero: true

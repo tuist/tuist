@@ -159,32 +159,53 @@ defmodule Tuist.Cache.Analytics do
   defp average_hit_rates(rate1, rate2), do: (rate1 + rate2) / 2
 
   @doc """
-  Gets combined cache hit rate metric for the last N runs by averaging
-  module cache (Events) and Xcode cache (Builds) hit rates.
+  Compares the combined cache hit rate metric across two windows of runs.
+
+  The combined rate averages two sources, module cache (Events) and Xcode cache
+  (Builds). A source is only averaged in when both of its windows produced a
+  value, so the two returned numbers always describe the same set of sources. A
+  source that has runs in one window but not the other is dropped from both
+  sides instead of shifting the average under the comparison.
+
+  Each window also requires as many rows as its `:limit`, so a partially filled
+  window is reported as no data rather than as a metric computed off a handful
+  of runs.
 
   ## Parameters
     * `project_id` - The project ID
     * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
-    * `opts` - Options:
-      * `:limit` - Number of runs to consider (default: 100)
-      * `:offset` - Number of runs to skip (default: 0)
+    * `current_opts` - Options for the current window, see below
+    * `previous_opts` - Options for the window preceding it
+
+  Both option lists take:
+    * `:limit` - Number of runs the window holds (default: 100)
+    * `:offset` - Number of runs to skip (default: 0)
+    * `:git_branch` - Only consider runs on the given branch
+    * `:is_ci` - Only consider CI (`true`) or local (`false`) runs
 
   ## Returns
-    The averaged metric value (0.0-1.0), or `nil` if no data available.
+    `{current, previous}` averaged metric values (0.0-1.0), or `{nil, nil}` when
+    no source produced a comparable pair.
   """
-  def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
-    module_hit_rate = CommandEvents.cache_hit_rate_metric_by_count(project_id, metric, opts)
-
-    xcode_hit_rate =
-      Analytics.build_cache_hit_rate_metric_by_count(project_id, metric, opts)
-
-    average_or_nil(module_hit_rate, xcode_hit_rate)
+  def cache_hit_rate_metric_window_comparison(project_id, metric, current_opts, previous_opts) do
+    [
+      &CommandEvents.cache_hit_rate_metric_by_count/3,
+      &Analytics.build_cache_hit_rate_metric_by_count/3
+    ]
+    |> Enum.map(fn source ->
+      {source.(project_id, metric, require_full_window(current_opts)),
+       source.(project_id, metric, require_full_window(previous_opts))}
+    end)
+    |> Enum.reject(fn {current, previous} -> is_nil(current) or is_nil(previous) end)
+    |> case do
+      [] -> {nil, nil}
+      pairs -> {average(Enum.map(pairs, &elem(&1, 0))), average(Enum.map(pairs, &elem(&1, 1)))}
+    end
   end
 
-  defp average_or_nil(nil, nil), do: nil
-  defp average_or_nil(rate1, nil), do: rate1
-  defp average_or_nil(nil, rate2), do: rate2
-  defp average_or_nil(rate1, rate2), do: (rate1 + rate2) / 2
+  defp require_full_window(opts), do: Keyword.put(opts, :min_sample_size, Keyword.get(opts, :limit, 100))
+
+  defp average(values), do: Enum.sum(values) / length(values)
 
   defp date_period(opts) do
     start_datetime = Keyword.get(opts, :start_datetime)

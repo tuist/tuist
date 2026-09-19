@@ -17,9 +17,81 @@ The Cirrus base image's pre-existing `admin` user is kept around
 as the Packer SSH provisioning identity but is not used at
 runtime — no service, sudo entry, or auto-login targets it.
 
+Because the base images provision as `admin` and jobs run as
+`runner`, anything the base installs under `admin` has to be
+handed over explicitly. Three things are:
+
+- `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
+  install` from a workflow step failed its writability audit
+  while `brew` itself resolved fine on `PATH`. GitHub-hosted
+  images build and run under one account, so the job user owns
+  the prefix — this image chowns it to `runner` to match.
+- `~/.zprofile`. The cirruslabs base writes it for `admin` and
+  symlinks `/Users/runner` at `/Users/admin`; this image replaces
+  that symlink with a real `runner` account whose home comes from
+  macOS's user template and has no `.zprofile`, so the file is
+  copied over. Without it the login shell the LaunchAgent (and
+  every step shell under it) runs resolves no brew shellenv, no
+  rbenv, no node.
+- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
+  `admin` is not usable by `runner`, so the image downloads it again
+  as `runner`, with the same explicit `-buildVersion` the base uses
+  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
+  the toolchain was added to them have none, and this download is
+  what installs it.
+
+When adding tooling to the base, check ownership and login-shell
+reachability from `runner`, not just presence under `admin`.
+
+A related class of gap is anything GitHub-hosted images pre-seed
+that ours do not. When adding parity features, compare against
+`actions/runner-images` `images/macos/scripts/build/`, and pair
+each one with a check that asserts the behaviour rather than the
+ingredient — every gap so far was found by a release failing, not
+by the image build.
+
+TCC looked like one of those gaps and was not. Scripted Finder
+automation here fails as `AppleEvent timed out (-1712)`, which
+reads as a missing `kTCCServiceAppleEvents` approval, and this
+template used to seed one. It changed nothing: seeding the
+approval into the session user's database and reading the row
+back still left every send timing out, because these VMs have no
+Finder that answers rather than one that refuses. Do not re-add
+it. The DMG step that surfaced this no longer drives Finder at
+all (`app/dmg-settings.py`), and if something else needs a GUI
+app here, the question to answer first is whether the auto-login
+session materialises, not whether it is authorised.
+
+The sanity checks at the end of the Packer template run as `sudo
+-u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
+leaves them pointed at `/Users/admin` and they assert against the
+provisioning account's environment instead of the runtime one —
+which is how a reachability check stayed green through months of
+broken `brew install`s, and how the `brew install hello` check
+added to catch that failed on `admin`'s unwritable cache instead.
+
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
   by `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).
+- `/opt/tuist/buildkite-agent` — Buildkite agent binary, for jobs
+  dispatched from a customer's Buildkite cluster. Both agents live in
+  the one image because which one runs is decided per job at dispatch,
+  so a warm Pod has to be able to serve either; forking the image would
+  split the warm pool to save one binary.
+- `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),
+  so they run for every job regardless of what the customer's
+  repository defines. `environment` re-exports the cache settings the
+  server sent (the agent sanitizes the job environment, so an export
+  from `dispatch-poll.sh` does not survive into the job) and stamps the
+  job's start; `pre-exit` posts the job's log and its window back to the
+  server, authenticating with the job-scoped report token dispatch
+  minted rather than the Pod's SA token. The same two hooks ship in the
+  Linux image (`infra/linux-runner-image/buildkite-hooks/`) and are kept
+  byte-identical: they take their paths from `TUIST_RUNNER_JOB_ENV` and
+  `TUIST_RUNNER_STATE_DIR` so nothing platform-specific leaks in. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
+  agent writes because it is started with `--enable-job-log-tmpfile` and
+  deletes when the job ends — hence a `pre-exit` hook rather than
+  anything later.
 - `/Users/runner/work/<owner>/<repo>` — workspace path the JIT
   config sets via `work_folder: "/Users/runner/work"`; matches
   GitHub-hosted's `GITHUB_WORKSPACE`.
@@ -28,7 +100,13 @@ runtime — no service, sudo entry, or auto-login targets it.
   into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
   `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
-  sleeps; on 200 it runs `./run.sh --jitconfig $JIT`. Captures
+  sleeps; on 200 it runs the agent the response selects: `./run.sh
+  --jitconfig $JIT` for a GitHub job, or `buildkite-agent start` with
+  `BUILDKITE_AGENT_ACQUIRE_JOB` set for a Buildkite one. The Buildkite
+  branch skips the idle watchdog entirely — an acquisition token names
+  one job UUID, so there is no window in which a registered agent waits
+  to be handed work, which is the whole hazard that watchdog bounds.
+  Captures
   the rc and `sudo shutdown -h now`s the VM via an `EXIT` trap so
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
@@ -49,18 +127,72 @@ runtime — no service, sudo entry, or auto-login targets it.
   — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
   contents to the guest user and so retires any host/guest uid reconciliation),
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
-  (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
-  budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`/Users/runner/.tuist-cache-volume`), divides the budget the host stages for
+  both caches between them by use (`set_cache_limits`, described with the
+  compilation cache below) and exports the binary cache's limit as
+  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU prune and download admission, reads
+  the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  The host also stages its Kubernetes `node-name` there at VM create, which the
+  guest relays with its promote so the HEAD row records WHICH host published a
+  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
+  is gone minutes later while the Node name is what the
+  `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
+  unstaged name reports empty rather than falling back to the Pod name, since a
+  column holding two kinds of name identifies neither. Every value the guest takes
+  off the share is sanitised to its own alphabet and length before it reaches a
+  request body.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: snapshot the post-job inventory while still
-  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
-  its absence is what tells the host to discard, the safe default for any teardown
-  that never reaches a clean detach). Promotion is a **fast-forward
+  Teardown order is load-bearing: **wait for the compilation cache's
+  publications to reach the remote** (`drain_cas_publications`, below), sample
+  the signals that need a live mount (fill
+  %), then **detach**, then measure the SETTLED image for the digest this job
+  publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
+  the same view the verifying host uses), then write `cache-dirty` (only after both
+  a clean detach and a successful measurement — its absence is what tells the host
+  to discard, the safe default for any teardown that reaches neither). The digest
+  must NOT be read through the job's own read-write mount, which is what this
+  replaced: it is both the HEAD's `tree_digest` and the immutable object key, so it
+  is a claim about the bytes the upload sends, and anything writing to the image
+  between the measurement and the detach breaks that claim permanently. The window
+  is why `detach_cache_image` polls and then forces at all — processes outlive the
+  runner (a lingering build service, the compilation cache's own asynchronous store
+  flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
+  SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
+  names bytes no host can reproduce: convergence verifies the downloaded object and
+  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
+  exists, and a host left at an older generation is rejected for a stale base — and
+  the account is stuck fleet-wide (seen in production: one account cold on all nine
+  hosts for days). When a host does hit that, it stages the disproved digest as
+  `volume-head-unverifiable` in the `status` share and the guest relays it as
+  `unverifiable_digest` with BOTH promote requests, which is what lets the server
+  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
+  or the pre-flight would 409 the only promote that can unwedge the account.
+  Between the inventory and the content hash, a successful job whose image changed
+  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
+  and none in the image file, so without `hdiutil compact` a master costs the host
+  the most it ever held. It leaves the capacity alone. Shrinking the capacity
+  instead was measured and dropped: it moves every live block past the new end
+  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
+  rewrites the file, which is why it sits before the content hash and after the
+  inventory, which it does not change.
+  Alongside the inventory digest, `capture_content_digest` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches and after the
+  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  bit flipped INSIDE a cached file sails through it, and the content digest is the
+  end-to-end byte claim. It rides both promote requests; the mint response echoes
+  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
+  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
+  signature covers it), the object store verifies the payload at ingest, and the
+  converging host verifies the download against the HEAD row's digest before
+  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
+  mismatch). All of it is optional per hop, so images and servers roll
+  independently: no digest, no echoed checksum, or a HEAD row without one just
+  degrades to the pre-hash behaviour. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,
@@ -68,13 +200,22 @@ runtime — no service, sudo entry, or auto-login targets it.
   captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
   and a transport error into one failure) and relays the outcome into the
   `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. The host's `Finalize` installs the branch as the account's local
-  master (a whole-image replace) ONLY on `accepted` — so the local master and the
-  HEAD advance together. A `conflict` (a stale base another host advanced past) or
-  an `error` (upload/network/control-plane failure — kept distinct so an outage
-  is not mistaken for cross-host contention) discards the branch and lets
-  convergence re-warm it. A rejected promote still uploaded its object, so the
-  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  or `error`. Most promotes lose that race, and the upload blocks the VM halt and
+  the host's slot, so the guest sends `base_generation` when MINTING the upload
+  URL too and the server 409s there — pre-empting the transfer for a promote that
+  cannot win. That pre-check may only ever skip doomed work: it is racy by
+  construction (another host can win during the upload), so the bump's
+  compare-and-swap stays the authority, an absent `base_generation` disables it
+  for older runner images, and any other failure falls back to
+  upload-then-arbitrate. The host's `Finalize` installs the branch as the
+  account's local master (a whole-image replace) ONLY on `accepted` — so the local
+  master and the HEAD advance together. A `conflict` (a stale base another host
+  advanced past) or an `error` (upload/network/control-plane failure — kept
+  distinct so an outage is not mistaken for cross-host contention) discards the
+  branch and lets convergence re-warm it. A rejected promote that got as far as
+  uploading leaves an object no HEAD points at, so the server records it as an
+  orphan and reclaims it after the URL-TTL grace; a pre-empted one never wrote
+  anything to reclaim. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
@@ -90,7 +231,7 @@ runtime — no service, sudo entry, or auto-login targets it.
   gate. (It works because the store is on the block-device image, not the
   virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
   the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable), creates
   the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
@@ -103,6 +244,108 @@ runtime — no service, sudo entry, or auto-login targets it.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  **The two caches share one budget.** The host stages `cache-budget-bytes`:
+  the image less a reserve of max(2 GiB, 20% of the cap), 24 GiB at a 30 GiB
+  cap, and the reserve is the room a job grows into before anything prunes.
+  `set_cache_limits` divides it between `tuist/` and `CompilationCache.noindex/`
+  by their allocated `du` sizes, with the rule the stores are divided by
+  (`split_by_use`, below) and a 2 GiB floor per cache
+  (`CACHE_SPLIT_FLOOR_BYTES`). The floor matters for the binary cache, which the
+  CLI holds to its limit for the whole job (a download that does not fit is
+  rebuilt from source), so a cache that holds nothing yet next to a busy one
+  still gets 2 GiB and doubles from there; two caches that each hold under a
+  quarter of the budget split it evenly. It runs twice: at attach, before the
+  attach prune, and at teardown, before the teardown prune, because the binary
+  cache may have grown to its attach-time share during the job and nothing
+  prunes it at teardown. Neither cache is handed room the other still holds
+  (`within_room`): the compilation cache's limit is capped at the budget less
+  what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
+  after the attach prune, capped at the budget less what the store holds once
+  pruned, since a prune keeps a store's newest generations even past a limit
+  that just shrank. The two
+  limits therefore never add up to more than the budget. A cache that stops
+  being used gives its space back only as fast as its own pruner collects it:
+  the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
+  host whose tart-kubelet predates `cache-budget-bytes` stages only the fixed
+  split (`cache-max-bytes`, and the `cas-enabled` figure), and
+  `set_cache_limits` applies that as is, so the two components roll out in
+  either order.
+  The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
+  job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
+  llcas rotates (new primary, old one demoted) when the chain is over the limit
+  and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
+  falls off — which no part of a build ever calls, so the store grew without
+  bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
+  CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
+  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
+  because the per-machine proxy holds a handle per path for its lifetime and
+  only the holder can rotate a store. A store no proxy holds is pruned on its
+  generation dirs under the store's `lock` without opening it, so it works on a
+  full volume and on stores the compilers or another Xcode wrote. Every lane is
+  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
+  discovered by their `v1.N` generation dirs, and the compilation cache's limit
+  is SPLIT between them: it budgets the CAS as a whole while llcas only takes a
+  per-generation bound per store, so handing each the full figure would let a
+  multi-lane job occupy a multiple of the CAS the image was sized for. The split
+  is by use (`cas_store_budgets` over `split_by_use`): a store whose need, twice
+  its allocated size and at least 256 MiB, is under an even share gets that
+  need, and the stores that need more split the rest. An even split gave the few-KB `generic` store,
+  present on every volume, half the budget and capped `plugin` at half of what
+  the host staged. Teardown is the only place that can count the
+  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
+  The teardown pass (second, after the drain) bounds what the FLEET inherits: the
+  image is measured and promoted right after it. The attach pass bounds what THIS
+  job inherits, and covers the case teardown cannot reach — a master that is
+  already over budget can fill the volume mid-build and fail the job, and a
+  failed job never promotes, so teardown is skipped and no replacement is ever
+  published. That is the wedge that ends in a manual reset; pruning at attach
+  gives the job the headroom to succeed so its own teardown publishes the fix.
+  The attach pass runs AFTER `CACHE_INVENTORY_BEFORE` is snapshotted, and that
+  order is load-bearing: pruning first folds the collection into the baseline, so
+  a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
+  (verified both ways — same digest when reversed). Taking the baseline first
+  makes the collection itself the change that earns the promote, the same
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. The compiler is
+  given the compilation cache's whole limit, not half: llcas and the prune
+  rotate a store once its primary passes half the limit, so the limit already
+  covers the primary and the demoted upstream, which is the warm cache.
+  `setup_cas_store` also exports
+  `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
+  `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
+  build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
+  on the VM's boot volume and died with it. It exports
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
+  put wait for its upload, because off a runner the store goes away with the job,
+  and `drain_cas_publications` does that wait at teardown for spools under this
+  directory, after the job has reported its result. The plugin uploads in the
+  background only when its own store is inside that path, so a job whose xcconfig
+  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
+  so does every job whose store is VM-local.
+  The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
+  teardown (the prune is second, and in that order deliberately: a prune deletes
+  objects, and deleting one the spool still owed would strand the association
+  naming it). The store's objects are uploaded to the remote cache
+  asynchronously, through the CAS plugin's spool, while the associations naming
+  them are written into the store immediately — so a promote that outruns those
+  uploads publishes a master whose keys name objects nothing can produce, for
+  every host that later clones it, permanently (the compiler's CAS ABI has no
+  delete, and re-putting a key with a different value is refused, so such a key
+  fails until the store generation rolls). The gate asks the running proxy
+  (`tuist-cas-proxy --drain`, exit 0 drained / 3 owed / anything else "could not
+  ask") and falls back to watching `<cas dir>/tuist-spool` itself when no client
+  can be found — a record is deleted only by a publication that SUCCEEDED, so an
+  empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
+  because that computes the digest this image is promoted under, and before the
+  detach because the spool is inside the image; it runs on a failed job too,
+  whose uploads the next job still needs even though its verdict gates nothing
+  (a failed job never promotes), and is a no-op for a job that never published,
+  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
+  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
+  `mark_cache_not_promotable`: the account keeps its previous master and loses
+  this job's warm set, which is the same trade every other teardown that cannot
+  reach a safe state already makes. It cannot be complete — a host that panics or
+  a job cancelled mid-upload promotes without reaching it — so it complements,
+  and does not replace, the plugin's read-side check on a local hit.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
   `xcodebuild build` against a project Tuist never generated and never wraps —
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both
@@ -125,6 +368,21 @@ runtime — no service, sudo entry, or auto-login targets it.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
+  client, built from `cas-plugin/` alongside `runner-shell-agent` by
+  `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
+  `runner.pkr.hcl` is a MANDATORY input and the template has two callers
+  (`runner-image.yml` and `server-production-deployment.yml`'s
+  `runner-image-build`), so a binary built in only one fails the other with
+  `Bad source` — on the release path that takes down the whole cascade. Add new
+  provisioned binaries to that action, not to a workflow. `cas_proxy_client` prefers the binary beside the tuist
+  that `tuist setup cache` installed (it matches the proxy actually running,
+  which is what a drain must talk to) and falls back to this one. It exists
+  because a plain `xcodebuild` workflow never runs Tuist, so it installs no
+  cas-proxy at all — and those jobs still write the compilers' `builtin` CAS
+  lane into the volume, so without a binary here nothing on the machine could
+  ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
+  no CAS daemon of its own.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
@@ -139,6 +397,15 @@ runtime — no service, sudo entry, or auto-login targets it.
   shell bridge while the single-shot runner VM is alive. It runs as root
   from a LaunchDaemon so terminal access does not depend on an unlocked
   Aqua session, then drops PTY child shells to the `runner` user.
+  `/tmp/tuist-runner-shell-agent.lock` keeps it a singleton, and both uids
+  share that one path, so probe the holder with `ps -p` and never with
+  `kill -0`: from `runner`, `kill -0` fails with EPERM against the live
+  root-owned daemon exactly as it fails with ESRCH against a dead pid.
+  An unreadable pid file or a refused `rm` means the lock is held, not
+  stale; clearing it there starts a second bridge against the same
+  dispatch URL and claim marker. `dispatch-poll.sh`'s
+  `shell_agent_lock_active` implements the same protocol and must stay in
+  step with it.
 - `/Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist` — the
   boot-time LaunchDaemon for the shell supervisor. `dispatch-poll.sh`
   still has a singleton-lock guarded fallback start path for older or
@@ -180,7 +447,7 @@ packer build runner.pkr.hcl
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger a two-job chain in
-  `release.yml`:
+  `server-production-deployment.yml`:
   1. `runner-image-build` is a matrix job; its `matrix.xcode` is
      read from `infra/runner-image/profiles.json` (the single source
      of truth) by `check-releases` and expanded via `fromJSON`. One
@@ -191,13 +458,14 @@ CI:
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
      fails, sibling builds abort so the chart pin doesn't move to a
      partially-published set.
-  2. `release-runner-image` (ubuntu) pins `runnersFleet.runnerImage`
-     to the default profile's immutable per-release tag
-     (`:macos-<profile>-<semver>` — constructed from the version, no
-     registry lookup), rewrites the managed-env values files that
-     already carry a pin, generates release notes / `CHANGELOG.md`,
-     uploads artifacts. Downstream tag + GitHub-Release jobs key off
-     this job's `result == 'success'`.
+  2. `release-runner-image` (ubuntu) renders the published image
+     list for the GitHub Release body from `profiles.json`, generates
+     release notes / `CHANGELOG.md`, and uploads artifacts. It
+     rewrites no values file: the `runner-image@<semver>` tag that
+     `tag-infra-releases` creates is what the chart's
+     `runnersFleet.runnerImageSemver` resolves to at deploy time.
+     Downstream tag + GitHub-Release jobs key off this job's
+     `result == 'success'`.
 
   Concurrency scales with builder count: 2 hosts publish 2 profiles
   in parallel, more hosts cut the wall-clock proportionally. No
@@ -240,31 +508,39 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
+["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
+
+Beta entries follow the `<major>.<minor>-beta` shape (matching the
+mirror + base image tags `xcode-xips:27.2-beta`,
+`macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
+resolves to a runner pool sized by
+`runnersFleet.xcodeOverrides["27.2-beta"]`.
 
 `check-releases` reads this into the `runner-image-matrix` output and
 `runner-image-build`'s `matrix` expands it via `fromJSON`. Because the
 file lives under `infra/runner-image/**` — the component's only
 include path in `mise/tasks/release/components.json` — editing the
 list both reshapes the build matrix and triggers a runner-image
-release, with no `release.yml` edit. Unrelated `release.yml` churn no
-longer rebuilds the images.
+release, with no `server-production-deployment.yml` edit. Unrelated
+churn in that workflow no longer rebuilds the images.
 
 - **Active.** Rebuilt on every `release-runner-image` run (every
   `feat(runner-image)` / `fix(runner-image)` commit landing on
   `main`). Each adds ~30 min on a single builder; matrix-fanned across
   the fleet so adding a third builder lets you carry a third profile
   at the same wall-clock cost.
-- **Default profile.** The first matrix entry. The chart's
-  `runnersFleet.runnerImage` pin tracks its immutable
-  `:macos-<dashes>-<semver>` tag, so a new fleet rollout = put the
-  desired profile first.
+- **Default profile.** The first entry, by convention. Which
+  version `runs-on: tuist-macos` actually resolves to is the
+  catalog entry marked `default: true` in
+  `runnersFleet.xcodeVersions`, so moving the default means editing
+  both this list and that catalog.
 - **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
   that's been published in the past and still exists in GHCR. They
-  don't refresh on `release.yml` runs — customers can keep pinning
-  to them, but new runner-agent / dispatch-loop / launchd changes
-  only land in them when the operator explicitly refreshes via
+  don't refresh on `server-production-deployment.yml` runs —
+  customers can keep pinning to them, but new runner-agent /
+  dispatch-loop / launchd changes only land in them when the
+  operator explicitly refreshes via
 
       gh workflow run runner-image.yml -f xcode_version=26.X.Y
 
@@ -286,8 +562,9 @@ Bumping the Xcode customers see on their runners:
    additional entry (most common — gives customers it alongside the
    existing default), or put it first to make it the newest / default
    profile. **If you move the first entry, also bump
-   `release.yml`'s xcresult-processor `XCODE_VERSION` to match** —
-   that image must be at least as new as the newest runner profile.
+   `server-production-deployment.yml`'s xcresult-processor
+   `XCODE_VERSION` to match** — that image must be at least as new
+   as the newest runner profile.
    Also add the matching `runnersFleet.xcodeVersions` entry in
    `values-managed-common.yaml` so the fleet renders a pool for it.
    Commit with a `feat(runner-image): ...` message so check-releases
@@ -297,6 +574,34 @@ Bumping the Xcode customers see on their runners:
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
    dispatch path above stays available for a one-off refresh if
    security work needs to land there.
+
+### Betas enter as a channel
+
+Xcode betas sit in `profiles.json` like any other profile, but the
+entry is a **channel** (`27.0-beta`), not a beta (`27.0-beta-6`).
+Two things fall out of that, both wanted:
+
+- The base image `macos-xcode-image` publishes for a beta carries
+  both an exact tag and the channel tag, so moving a beta is a
+  rebuild of `:27-0-beta`. The entry here already points at it,
+  which makes a beta bump a zero-diff change: the next
+  runner-image release rebuilds against whatever the channel now
+  holds. Those fire every few days, comfortably inside Apple's
+  fortnightly beta cadence.
+- The channel is what customers' Runner Profiles store in
+  `xcode_version`. Retiring a catalog entry a profile still names
+  strands it on a RunnerPool that no longer renders, and a
+  stranded macOS profile queues its jobs forever rather than
+  failing them. A channel outlives the betas behind it, so that
+  never comes up.
+
+The cost is one more ~30 min bake per runner-image release, and
+`fail-fast: true` on the matrix means a beta base that cannot take
+the runner layer would abort its siblings. That layer is thin
+(runner agent plus launchd, ~2 min) and the risky Xcode work all
+happens in Layer 1, which fails in `macos-xcode-image` instead, so
+the exposure is small. Full runbook: "Promoting an Xcode beta" in
+[`../macos-xcode-image/AGENTS.md`](../macos-xcode-image/AGENTS.md).
 
 ## Profile tagging
 
@@ -340,7 +645,69 @@ customer-facing profile selection.
    SA and boots a replacement to keep the pool at
    `spec.replicas`.
 
+   The trap writes its exit code to `runner-rc` in the `status`
+   share on its way out, and tart-kubelet publishes that as the
+   Pod's terminated container state. Nothing else carries it off
+   the guest: the trap halts the VM on *every* path, so `tart run`
+   exits zero whether the job finished or the runner died on boot,
+   and a macOS runner death otherwise reaches the cluster as a
+   bare `Succeeded` with no exit code, no reason and no log. Three
+   consumers in the runners-controller read that field — the
+   `runner pod terminated` forensics line, the abnormal-end
+   death-log capture, and the `finishedAt` that dates the billing
+   session — and all three were Linux-only until the guest started
+   reporting. Written from inside the trap rather than after the
+   runner exits, so it also covers the aborts that never reach a
+   runner. Absent on hosts with no `status` share (it rides on the
+   cache-volume feature), which the host reports as
+   `TartRunExited` rather than laundering tart's zero into a clean
+   runner exit.
+
+   The exit code alone is not enough, because it does not separate
+   the two cases that matter: a runner that finished its job and a
+   runner that halted without ever taking one both report 0. So the
+   trap also publishes `runner.log` — `dispatch-poll.sh`'s own
+   output — into the same share, and tart-kubelet re-emits a bounded
+   tail of it to its own stdout before teardown deletes the share.
+   That stdout is already tailed by the host log shipper, so the
+   trail reaches Loki without the shipper having to discover
+   per-VM shares. Copied from the trap rather than `tee`d as the
+   script runs, so a still-running tee cannot flush a duplicate tail
+   after the copy. Same `status`-share dependency as `runner-rc`:
+   pools with cache volumes off keep the old behaviour of logging
+   only inside the guest, and a guest killed before its trap runs
+   publishes nothing — that case already arrives distinguishably as
+   `TartRunExited`.
+
+   Both of those describe a runner that *ended*. `runner-heartbeat`
+   in the same share covers the runner that does not: the poll loop
+   rewrites it every iteration with the state it is in (`polling`
+   while warm, `claimed` once it takes a job), and the file's mtime
+   is the beat. It exists because a macOS Pod's phase and Ready
+   condition are synthesized from "the VM process is alive and has
+   an IP" — tart-kubelet runs no container probes — so a guest whose
+   poller died reads 1/1 Running for the rest of the VM's life, and
+   nothing bounds that life: warm standby is deliberately unbounded
+   and in practice a warm macOS runner is recycled only when its SA
+   token expires around the 8h mark. tart-kubelet publishes the beat
+   as the `tuist.dev/runner-heartbeat-state` and
+   `tuist.dev/runner-heartbeat-at` Pod annotations and the
+   runners-controller stops counting a stale one as warm capacity.
+   `claimed` is written once and then never refreshed — from there
+   the script is blocked in `wait` on `run.sh` — so it is the state,
+   not the age, that marks the Pod busy; it also does so
+   independently of the server's best-effort owner label. Same
+   `status`-share dependency as the two above, and the absence is
+   read as "no signal" rather than "dead", so a pool with cache
+   volumes off keeps counting as capacity.
+
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
 (`runnersFleet.pools[]`) — they're the right place for routing
 semantics; this doc is just about the VM image.
+
+## GitLab CI
+
+`/opt/tuist/tuist-gitlab-runner` executes a server-acquired GitLab job with the upstream shell executor. Its source is in `infra/linux-runner-image/gitlab-runner/` and the shared `build-runner-image-binaries` action builds its darwin/arm64 binary for Packer. Dispatch stages the assignment as private JSON and reuses the normal VM lifecycle. Reusable GitLab runner tokens never enter the VM.
+
+- GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.

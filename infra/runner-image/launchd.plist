@@ -21,9 +21,10 @@
   to every step shell. Customer workflows that read $HOME or
   invoke a Homebrew-installed tool break before the first step
   runs. Wrapping the entrypoint in `/bin/zsh -lc` here makes it
-  a login shell, which sources the cirruslabs base's ~/.zprofile
-  (Homebrew shellenv, rbenv init, LANG=en_US.UTF-8, PATH
-  additions for Android SDK + Flutter + openjdk + Node). Step
+  a login shell, which sources ~/.zprofile (Homebrew shellenv,
+  rbenv init, LANG=en_US.UTF-8, node on PATH) — the cirruslabs
+  base builds that file for `admin` and the Packer template
+  copies it into the runner's home, which is created empty. Step
   shells inherit the same environment an interactive SSH session
   on the same VM would see. Supersedes the per-var workarounds
   layered on top of the prior LaunchDaemon (#10797, #10800).

@@ -7,10 +7,18 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
 
   alias Tuist.Marketing.Customers
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.SocialCards
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
 
   @cases_per_page 9
+  # Columns of the redesigned case grid on desktop, used to pad the last row
+  # with blank cells so its hairlines stay closed (same as the blog index).
+  @grid_columns 3
+
+  embed_templates "marketing_customers_live/*"
+
+  def render(assigns), do: customers(assigns)
 
   def mount(_params, _session, socket) do
     socket =
@@ -19,6 +27,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)
       |> assign(:filtered_cases, [])
+      |> assign(:row_fillers, 0)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -59,22 +68,18 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
     socket =
       socket
       |> assign(:filtered_cases, paginated_cases)
+      |> assign(:row_fillers, rem(@grid_columns - rem(length(paginated_cases), @grid_columns), @grid_columns))
       |> assign(:search_query, search_query)
       |> assign(:current_page, page)
       |> assign(:total_pages, total_pages)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path:
-            TuistWeb.Helpers.OpenGraph.image_path(:marketing,
-              title: dgettext("marketing", "Customers")
-            )
-        )
+        SocialCards.image_url("customers")
       )
       |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_case_studies_structured_data(all_cases, locale))
+      |> put_structured_data(get_case_studies_structured_data(all_cases, locale))
       |> assign(
         :head_description,
         dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.")

@@ -15,7 +15,7 @@
     border-radius: var(--noora-radius-2);
     background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-1);
-    color: var(--surface-label-primary);
+    color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     white-space: normal;
     overflow-wrap: anywhere;
@@ -26,7 +26,7 @@
     margin-inline-end: 0px;
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-6);
-    background: var(--noora-background-tertiary);
+    background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-7);
 
     & > p {
@@ -38,6 +38,14 @@
   /* Add spacing between child elements using margin instead of gap */
   & > * + * {
     margin-top: var(--noora-spacing-7);
+  }
+
+  /* A list item is not a prose child, so the rule above reaches nothing
+     nested in one. Code blocks and callouts both render as bare divs
+     with no margin of their own, so without this they sit flush against
+     the text they follow. */
+  & li > * + * {
+    margin-top: var(--noora-spacing-5);
   }
 
   & p + p {

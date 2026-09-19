@@ -207,4 +207,48 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             projectPath.appending(component: "ExternalDependency.xcodeproj")
         )
     }
+
+    func test_map_whenExternalProjectIsARegistryDownload() throws {
+        // Given
+        let externalProjectBasePath = try temporaryPath()
+            .appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
+        let externalProjectPath = externalProjectBasePath.appending(
+            components: [
+                "registry",
+                "downloads",
+                "google",
+                "promises",
+                "2.4.1",
+            ]
+        )
+        let externalProject = Project.test(
+            path: externalProjectPath,
+            sourceRootPath: externalProjectPath,
+            xcodeProjPath: externalProjectPath.appending(component: "Promises.xcodeproj"),
+            name: "Promises",
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: externalProjectBasePath
+        )
+
+        // When
+        let (gotWorkspaceWithProjects, _) = try subject.map(
+            workspace: WorkspaceWithProjects(
+                workspace: .test(name: "A"),
+                projects: [externalProject]
+            )
+        )
+
+        // Then
+        XCTAssertEqual(
+            gotWorkspaceWithProjects.projects.first?.xcodeProjPath,
+            externalProjectBasePath.appending(
+                components: [
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesProjectDirectory,
+                    "Promises",
+                    "Promises.xcodeproj",
+                ]
+            )
+        )
+    }
 }

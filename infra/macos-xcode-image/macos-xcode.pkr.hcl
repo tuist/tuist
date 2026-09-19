@@ -25,15 +25,31 @@ packer {
 # at xcode-select time.
 #
 # Tag derivation: dot-separated `xcode_version` with dashes.
-#   - 26.5     → :26-5      (no patch released yet)
-#   - 26.4.1   → :26-4-1
-#   - 26.0.1   → :26-0-1
+#   - 26.5          → :26-5      (no patch released yet)
+#   - 26.4.1        → :26-4-1
+#   - 26.0.1        → :26-0-1
+#   - 27.0-beta-6   → :27-0-beta-6
 # When the version carries a patch component, we also lay down
 # `/Applications/Xcode_<major>.<minor>.app` as a symlink to the
 # real patch bundle so repos pinning the major-minor form in
 # `.xcode-version` resolve to the patched Xcode. Versions with
 # only two components don't get an extra alias (the path is
 # already in major-minor form).
+#
+# Prereleases arrive here as the slug `mise run xcode-mirror:upload`
+# derived from Apple's version string ("27.0 Beta 6" → 27.0-beta-6),
+# never with the spaces intact. The bundle path, the push tag, the
+# RunnerPool name and its k8s labels are all built out of this value
+# and none of them can hold a space. The major-minor alias applies
+# to them the same way, so a beta image answers `.xcode-version`
+# pins of `27.0` as well as carrying the exact
+# `/Applications/Xcode_27.0-beta-6.app` that names which beta it is.
+#
+# `xcodes install <version> --path <xip>` never resolves the version
+# against Apple's catalog. With a local .xip it goes straight to
+# unxip, so the slug not being a version string xcodes recognises
+# costs nothing. The steps below then rename the result by the slug
+# regardless of what xcodes called it.
 #
 # This image is the *base layer*. Two downstream images inherit
 # from it and add the Tuist-specific runtime:
@@ -73,7 +89,7 @@ variable "xcode_xip_path" {
 
 variable "xcode_version" {
   type        = string
-  description = "Xcode version installed from the .xip (e.g. \"26.4.1\" or \"26.5\"). Drives the bundle path /Applications/Xcode_<version>.app and the major-minor alias (only when the version has a patch component)."
+  description = "Xcode version slug installed from the .xip (e.g. \"26.4.1\", \"26.5\", \"27.0-beta-6\"). Drives the bundle path /Applications/Xcode_<version>.app and the major-minor alias (only when the slug isn't already in major-minor form)."
 }
 
 variable "cpu_count" {
@@ -158,7 +174,15 @@ build {
   # VM doesn't pay the runtime download cost. Matches what
   # GitHub-hosted's macos-26 image ships.
   # `-downloadComponent MetalToolchain` then installs the optional
-  # Metal compiler toolchain required by Xcode 26 and newer.
+  # Metal compiler toolchain required by Xcode 26 and newer. It runs
+  # without sudo: on Xcode 26.1 a toolchain installed as root is not
+  # visible to other users, so `xcrun metal` fails for them. The
+  # toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
   #
   # `echo 'admin' | sudo -S` on the first sudo call primes the
   # admin sudo timestamp cache; subsequent bare `sudo` calls in
@@ -178,7 +202,14 @@ build {
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
       "sudo xcodebuild -downloadAllPlatforms",
-      "sudo xcodebuild -downloadComponent MetalToolchain",
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "xcodebuild -downloadComponent MetalToolchain -buildVersion \"$METAL_BUILD\"",
       "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable after install' >&2 && exit 1)"
     ]
   }
@@ -187,6 +218,10 @@ build {
   # 26.4` or `.xcode-version=26.4.1` — both resolve to the same
   # bundle. Skipped when xcode_version is already in major-minor
   # form (e.g. "26.5"), where the alias path equals the real path.
+  # Prereleases get one too: `27.0-beta-6` lays down
+  # `/Applications/Xcode_27.0.app`, which is the marketing version
+  # Apple itself gives the beta and what `xcodebuild -version`
+  # reports from inside it.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",

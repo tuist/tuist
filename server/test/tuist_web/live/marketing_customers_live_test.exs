@@ -5,6 +5,12 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
   import Phoenix.LiveViewTest
 
   describe "GET /customers" do
+    test "renders the page with the marketing stylesheet", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/customers")
+
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+
     test "renders the localized Hyperconnect title for Korean visitors", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/ko/customers")
 

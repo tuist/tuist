@@ -199,9 +199,9 @@ struct PackageInfoCacheTests {
                 packages.compactMap { $0["identity"] as? String } == [
                     "local-one", "local-two",
                 ])
-            #expect(
-                packages.first?["package_path"] as? String
-                    == PathCanonicalizer.realpath(localOne).path)
+            // The declared path, which is the one SwiftPM loads the dependency at and records
+            // for it, rather than wherever the links along it happen to land today.
+            #expect(packages.first?["package_path"] as? String == localOne.path)
             for package in packages {
                 let packageInfoPath = try #require(package["package_info_path"] as? String)
                 #expect(try await fileSystem.exists(URL(fileURLWithPath: packageInfoPath).absolutePath))

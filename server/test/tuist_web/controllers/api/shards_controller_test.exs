@@ -4,6 +4,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
 
@@ -61,6 +62,48 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["reference"] == "github-123-suite"
       assert is_integer(response["shard_count"])
       assert is_list(response["shards"])
+    end
+
+    test "excludes the suites the client reports as skipped", %{conn: conn, user: user, project: project} do
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "github-123-skipped",
+            modules: ["AppUITests"],
+            skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+            granularity: "suite",
+            shard_total: 2
+          }
+        )
+
+      response = json_response(conn, :ok)
+      planned = Enum.flat_map(response["shards"], & &1["test_targets"])
+
+      assert planned == ["AppUITests/CheckoutFlowTests"]
     end
 
     test "returns upload start URL", %{conn: conn, user: user, project: project} do
@@ -157,6 +200,35 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["reference"] == "empty-modules-ref"
       assert is_integer(response["shard_count"])
+    end
+
+    test "forwards the git_branch parameter", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      expect(Tuist.Shards, :create_shard_plan, fn _project, params ->
+        assert params.git_branch == "feature/current"
+
+        %{
+          plan: %{id: plan_id, reference: "git-branch-ref"},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "git-branch-ref",
+            modules: ["AppTests"],
+            git_branch: "feature/current"
+          }
+        )
+
+      assert json_response(conn, :ok)
     end
 
     test "accepts and stores build_run_id parameter", %{conn: conn, user: user, project: project} do

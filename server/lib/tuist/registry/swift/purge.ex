@@ -13,6 +13,12 @@ defmodule Tuist.Registry.Swift.Purge do
   `Tuist.Registry.Swift.ReleaseWorker` after a purge re-mirrors the
   version cleanly (the SyncWorker's known-versions set no longer thinks
   the tag is already handled).
+
+  Purging is not a repair. It removes registry content with no backup and
+  nothing to roll back to, and every version it removes stops resolving until a
+  later rebuild republishes it. To rebuild a version in place, use
+  `Tuist.Registry.Swift.Repair`, which inventories the blast radius, backs up
+  the bytes it may replace, and keeps the version resolvable throughout.
   """
 
   alias Tuist.Registry.S3
@@ -20,12 +26,31 @@ defmodule Tuist.Registry.Swift.Purge do
 
   require Logger
 
-  def purge_package(scope, name) when is_binary(scope) and is_binary(name) do
+  @doc """
+  Deletes every artifact and all metadata for a package.
+
+  Requires `confirm:` to spell out the package being removed, because this is
+  the widest-blast-radius operation in the registry and it is typed into a
+  production console under incident pressure. The confirmation is checked
+  against the normalized handle, so a mistyped one deletes nothing:
+
+      Purge.purge_package("auth0", "auth0-swift", confirm: "auth0/auth0-swift")
+  """
+  def purge_package(scope, name, opts \\ []) when is_binary(scope) and is_binary(name) do
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
+
+    if Keyword.get(opts, :confirm) == "#{scope}/#{name}" do
+      do_purge_package(scope, name)
+    else
+      {:error, {:confirmation_required, "#{scope}/#{name}"}}
+    end
+  end
+
+  defp do_purge_package(scope, name) do
     artifact_prefix = "registry/swift/#{scope}/#{name}/"
     metadata_prefix = "registry/metadata/#{scope}/#{name}/"
 
-    Logger.info("Purging package #{scope}/#{name}")
+    Logger.warning("Purging every artifact and all metadata for package #{scope}/#{name}")
 
     with {:ok, artifacts} <- S3.delete_all_with_prefix(artifact_prefix),
          {:ok, metadata} <- S3.delete_all_with_prefix(metadata_prefix) do

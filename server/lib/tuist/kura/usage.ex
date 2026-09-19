@@ -6,6 +6,7 @@ defmodule Tuist.Kura.Usage do
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
@@ -13,16 +14,45 @@ defmodule Tuist.Kura.Usage do
 
   @max_events_per_batch 5_000
 
-  # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic). We
-  # resolve them to Tuist account/project ids at the boundary and persist only
-  # the ids — anything that can't be resolved drops to 0 and is treated as
-  # unattributable traffic.
+  @doc """
+  Persists usage rollups from managed nodes. Each is attributed to the account
+  named by `tenant_id` and to that account's project named by `namespace_id`,
+  whatever the casing of either handle. Anything that does not resolve lands on 0
+  and is treated as unattributable traffic.
+  """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    projects_by_handle = lookup_projects(events)
-    account_ids_by_handle = lookup_account_ids(events)
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Accounts.get_account_ids_by_handles()
+    insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
+  end
 
-    rows = Enum.map(events, &build_row(&1, projects_by_handle, account_ids_by_handle, now))
+  def create_events(events) when is_list(events), do: {:error, :too_many_events}
+
+  @doc """
+  Persists usage rollups from a self-hosted node, attributed to the `account` its
+  credential authenticated as.
+  """
+  def create_events(events, %Account{id: account_id}) when is_list(events) and length(events) <= @max_events_per_batch do
+    insert_events(events, fn _event -> account_id end)
+  end
+
+  def create_events(events, %Account{}) when is_list(events), do: {:error, :too_many_events}
+
+  defp insert_events(events, account_id_for) do
+    attributed = Enum.map(events, &{&1, account_id_for.(&1)})
+
+    project_ids =
+      attributed
+      |> Enum.flat_map(fn
+        {%{"namespace_id" => namespace}, account_id} when account_id != 0 and is_binary(namespace) ->
+          [{account_id, namespace}]
+
+        _unattributed ->
+          []
+      end)
+      |> Projects.project_ids_by_account_and_handle()
+
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    rows = Enum.map(attributed, fn {event, account_id} -> build_row(event, account_id, project_ids, now) end)
 
     if rows != [] do
       IngestRepo.insert_all(UsageEvent, rows)
@@ -31,31 +61,11 @@ defmodule Tuist.Kura.Usage do
     {:ok, length(rows)}
   end
 
-  def create_events(events) when is_list(events), do: {:error, :too_many_events}
-
-  defp lookup_projects(events) do
-    events
-    |> Enum.map(&"#{&1["tenant_id"]}/#{&1["namespace_id"]}")
-    |> Enum.uniq()
-    |> Projects.projects_by_full_handles()
-  end
-
-  defp lookup_account_ids(events) do
-    events
-    |> Enum.map(& &1["tenant_id"])
-    |> Accounts.get_account_ids_by_handles()
-  end
-
-  defp build_row(event, projects_by_handle, account_ids_by_handle, now) do
-    account_handle = event["tenant_id"]
-    project_handle = event["namespace_id"]
-    full_handle = "#{account_handle}/#{project_handle}"
-    project = Map.get(projects_by_handle, full_handle)
-
+  defp build_row(event, account_id, project_ids, now) do
     %{
       event_id: event["event_id"],
-      account_id: resolve_account_id(project, account_ids_by_handle, account_handle),
-      project_id: resolve_project_id(project),
+      account_id: account_id,
+      project_id: Map.get(project_ids, {account_id, event["namespace_id"]}, 0),
       node_id: event["node_id"],
       region: event["region"],
       traffic_plane: event["traffic_plane"],
@@ -71,19 +81,46 @@ defmodule Tuist.Kura.Usage do
     }
   end
 
-  defp resolve_account_id(nil, account_ids_by_handle, account_handle),
-    do: Map.get(account_ids_by_handle, account_handle) || 0
-
-  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle), do: account_id
-
-  defp resolve_project_id(nil), do: 0
-  defp resolve_project_id(%{id: id}), do: id
-
   defp unix_seconds_to_naive_datetime(seconds) when is_integer(seconds) do
     seconds
     |> DateTime.from_unix!()
     |> DateTime.to_naive()
     |> NaiveDateTime.truncate(:second)
+  end
+
+  @doc """
+  Total deduped request count per account over the trailing `days`
+  window, for every account in `account_ids`. Used by
+  `Tuist.Kura.Rollouts` to order accounts into waves by recent usage
+  ascending; accounts with no usage are absent from the result and read
+  as zero.
+  """
+  def recent_request_counts_by_account(account_ids, days \\ 7)
+
+  def recent_request_counts_by_account([], _days), do: %{}
+
+  def recent_request_counts_by_account(account_ids, days) when is_list(account_ids) do
+    cutoff =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.add(-days * 86_400, :second)
+      |> NaiveDateTime.truncate(:second)
+
+    deduped =
+      from(e in UsageEvent,
+        where: e.account_id in ^account_ids and e.window_start >= ^cutoff,
+        group_by: [e.account_id, e.event_id],
+        select: %{
+          account_id: e.account_id,
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    from(e in subquery(deduped),
+      group_by: e.account_id,
+      select: {e.account_id, fragment("sum(?)", e.request_count)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {account_id, count} -> {account_id, zeroed(count)} end)
   end
 
   @doc """

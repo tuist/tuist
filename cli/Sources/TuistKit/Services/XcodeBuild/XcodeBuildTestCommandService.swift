@@ -36,6 +36,7 @@ struct XcodeBuildTestCommandService {
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
+    private let stressNewTestsService: StressNewTestsServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -53,7 +54,8 @@ struct XcodeBuildTestCommandService {
         testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -71,6 +73,7 @@ struct XcodeBuildTestCommandService {
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
+        self.stressNewTestsService = stressNewTestsService
     }
 
     func run(
@@ -80,8 +83,14 @@ struct XcodeBuildTestCommandService {
         shardReference: String? = nil,
         shardPlanId: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = nil
+        mode: TestProcessingMode? = nil,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
+        // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
+        // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
+        // the shard plan, whereas this is what the caller asked for.
+        let callerOnlyTestIdentifiers = Self.testIdentifiers(for: "-only-testing", in: passthroughXcodebuildArguments)
+        let callerSkipTestIdentifiers = Self.testIdentifiers(for: "-skip-testing", in: passthroughXcodebuildArguments)
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         let (
             resultBundlePathArgs,
@@ -138,6 +147,16 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments += shard.skipTestIdentifiers.flatMap { ["-skip-testing", $0] }
         }
 
+        if passthroughXcodebuildArguments.contains("test-without-building"),
+           let testProductsPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments),
+           let testProductsPath = try? AbsolutePath(
+               validating: testProductsPathString,
+               relativeTo: try await Environment.current.currentWorkingDirectory()
+           )
+        {
+            await RunMetadataStorage.current.restoreCoverageBuildSources(from: testProductsPath)
+        }
+
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {
@@ -151,6 +170,21 @@ struct XcodeBuildTestCommandService {
         let allQuarantinedTests = mutedTests + skippedTests
         let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
+        }
+        let parseSummary = mode == .local || stressNewTests != nil
+
+        // The stress pass reruns only the candidates against the products the first pass built, in a
+        // fresh process per repetition, so the caller's action, selection and repetition options are
+        // replaced while everything else passes through.
+        let stressPass: StressNewTestsPass = { identifiers, repetitions, stressResultBundlePath in
+            try await xcodeBuildController.run(
+                arguments: Self.stressPassArguments(
+                    from: passthroughXcodebuildArguments,
+                    identifiers: identifiers,
+                    repetitions: repetitions,
+                    resultBundlePath: stressResultBundlePath
+                )
+            )
         }
 
         do {
@@ -166,7 +200,7 @@ struct XcodeBuildTestCommandService {
             }
 
             var testSummary: TestSummary?
-            if mode == .local, let resultBundlePath {
+            if parseSummary, let resultBundlePath {
                 let rootDirectory = await rootDirectory()
                 if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                     testSummary = testQuarantineService.markQuarantinedTests(
@@ -175,18 +209,6 @@ struct XcodeBuildTestCommandService {
                     )
                 }
             }
-
-            await uploadResultBundleIfNeeded(
-                testSummary: testSummary,
-                resultBundlePath: resultBundlePath,
-                projectDerivedDataDirectory: derivedDataPath,
-                config: config,
-                quarantinedTests: allQuarantinedTests,
-                shardPlanId: resolvedShardPlanId,
-                shardIndex: shardIndex,
-                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-                mode: mode
-            )
 
             let quarantinePass: Bool
             if let testSummary {
@@ -201,9 +223,36 @@ struct XcodeBuildTestCommandService {
                 quarantinePass = false
             }
 
+            let stressResult = await stressNewTestsIfNeeded(
+                mode: stressNewTests,
+                summary: testSummary,
+                firstPassFailed: !quarantinePass,
+                config: config,
+                mutedTests: mutedTests,
+                stressPass: stressPass
+            )
+
+            await uploadResultBundleIfNeeded(
+                testSummary: mode == .local ? testSummary : nil,
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: derivedDataPath,
+                config: config,
+                quarantinedTests: allQuarantinedTests,
+                shardPlanId: resolvedShardPlanId,
+                shardIndex: shardIndex,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                mode: mode,
+                onlyTestIdentifiers: callerOnlyTestIdentifiers,
+                skipTestIdentifiers: callerSkipTestIdentifiers,
+                stressNewTests: stressResult
+            )
+
             if quarantinePass {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
+                }
+                if let stressResult, stressResult.blocks {
+                    throw StressNewTestsError.blocked(stressResult.blockingCandidates)
                 }
                 return
             }
@@ -222,7 +271,7 @@ struct XcodeBuildTestCommandService {
         }
 
         var testSummary: TestSummary?
-        if mode == .local, let resultBundlePath {
+        if parseSummary, let resultBundlePath {
             let rootDirectory = await rootDirectory()
             if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                 testSummary = testQuarantineService.markQuarantinedTests(
@@ -231,8 +280,16 @@ struct XcodeBuildTestCommandService {
                 )
             }
         }
+        let stressResult = await stressNewTestsIfNeeded(
+            mode: stressNewTests,
+            summary: testSummary,
+            firstPassFailed: testSummary == nil,
+            config: config,
+            mutedTests: mutedTests,
+            stressPass: stressPass
+        )
         await uploadResultBundleIfNeeded(
-            testSummary: testSummary,
+            testSummary: mode == .local ? testSummary : nil,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
@@ -240,10 +297,16 @@ struct XcodeBuildTestCommandService {
             shardPlanId: resolvedShardPlanId,
             shardIndex: shardIndex,
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: callerOnlyTestIdentifiers,
+            skipTestIdentifiers: callerSkipTestIdentifiers,
+            stressNewTests: stressResult
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
+        }
+        if let stressResult, stressResult.blocks {
+            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }
     }
 
@@ -316,9 +379,11 @@ struct XcodeBuildTestCommandService {
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
             return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
+            // With the extension: xcodebuild writes the bundle exactly there, and xccov only
+            // accepts a path that ends in `.xcresult`.
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: uniqueIDGenerator.uniqueID())
+                .appending(component: "\(uniqueIDGenerator.uniqueID()).xcresult")
             return (
                 additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
@@ -339,6 +404,92 @@ struct XcodeBuildTestCommandService {
         }
     }
 
+    private func rootDirectory() async -> AbsolutePath? {
+        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
+            return nil
+        }
+        return try? await rootDirectoryLocator.locate(from: workingDirectory)
+    }
+}
+
+/// The stress gate's own plumbing, kept out of the service's body: it is a
+/// self-contained concern, and an extension keeps the type readable.
+extension XcodeBuildTestCommandService {
+    private func stressNewTestsIfNeeded(
+        mode: StressNewTestsMode?,
+        summary: TestSummary?,
+        firstPassFailed: Bool,
+        config: Tuist,
+        mutedTests: [TestIdentifier],
+        stressPass: @escaping StressNewTestsPass
+    ) async -> StressNewTestsResult? {
+        guard let mode, let fullHandle = config.fullHandle,
+              let serverURL = try? serverEnvironmentService.url(configServerURL: config.url)
+        else { return nil }
+        return await stressNewTestsService.run(
+            mode: mode,
+            testSummary: summary,
+            firstPassFailed: firstPassFailed,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            mutedTests: mutedTests,
+            resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
+            stressPass: stressPass
+        )
+    }
+
+    private static let stressValueOptions: Set<String> = [
+        "-resultBundlePath",
+        "-test-iterations",
+        "-test-repetition-relaunch-enabled",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    private static let stressFlagOptions: Set<String> = [
+        "-retry-tests-on-failure",
+        "-run-tests-until-failure",
+    ]
+
+    /// The xcodebuild invocation for one stress group: the caller's arguments with the action swapped
+    /// for `test-without-building`, their selection and repetition options dropped, and the group's
+    /// identifiers, repetition count and result bundle appended.
+    static func stressPassArguments(
+        from arguments: [String],
+        identifiers: [TestIdentifier],
+        repetitions: Int,
+        resultBundlePath: AbsolutePath
+    ) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "test" || argument == "test-without-building", result.isEmpty {
+                result.append("test-without-building")
+                continue
+            }
+            if stressValueOptions.contains(argument) {
+                _ = iterator.next()
+                continue
+            }
+            if stressFlagOptions.contains(argument) {
+                continue
+            }
+            if stressValueOptions.contains(where: { argument.hasPrefix("\($0):") }) {
+                continue
+            }
+            result.append(argument)
+        }
+        result += identifiers.flatMap { ["-only-testing", $0.description] }
+        result += [
+            "-test-iterations", "\(repetitions)",
+            "-test-repetition-relaunch-enabled", "YES",
+            "-resultBundlePath", resultBundlePath.pathString,
+        ]
+        return result
+    }
+}
+
+extension XcodeBuildTestCommandService {
     private func passedValue(
         for option: String,
         arguments: [String]
@@ -359,15 +510,28 @@ struct XcodeBuildTestCommandService {
         return result
     }
 
-    private func rootDirectory() async -> AbsolutePath? {
-        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
-            return nil
+    /// The identifiers the given option selects. xcodebuild accepts both `-only-testing ID` and
+    /// `-only-testing:ID`.
+    static func testIdentifiers(for option: String, in arguments: [String]) -> [String] {
+        var identifiers: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == option, let identifier = iterator.next() {
+                identifiers.append(identifier)
+            } else if argument.hasPrefix("\(option):") {
+                identifiers.append(String(argument.dropFirst(option.count + 1)))
+            }
         }
-        return try? await rootDirectoryLocator.locate(from: workingDirectory)
+        return identifiers
     }
-}
 
-extension XcodeBuildTestCommandService {
+    /// The gate writes its bundles into a directory of its own. Nothing reads them once the run
+    /// has been reported, in either processing mode.
+    private func removeStressResultBundles(_ stressNewTests: StressNewTestsResult?) async {
+        guard let directory = stressNewTests?.resultBundlePaths.first?.parentDirectory else { return }
+        try? await fileSystem.remove(directory)
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -377,7 +541,10 @@ extension XcodeBuildTestCommandService {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         scheme: String? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: StressNewTestsResult? = nil
     ) async {
         guard config.fullHandle != nil else { return }
 
@@ -386,16 +553,20 @@ extension XcodeBuildTestCommandService {
         do {
             switch mode {
             case .local:
-                guard let testSummary else { return }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload
                 )
             case .remote:
-                guard let resultBundlePath else { return }
+                guard let resultBundlePath else { break }
                 let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
@@ -403,18 +574,24 @@ extension XcodeBuildTestCommandService {
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload,
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
             case .off:
-                return
+                break
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+
+        await removeStressResultBundles(stressNewTests)
     }
 
     /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions

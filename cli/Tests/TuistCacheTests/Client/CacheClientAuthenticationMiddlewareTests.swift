@@ -11,12 +11,25 @@ import TuistServer
 struct CacheClientAuthenticationMiddlewareTests {
     private var subject: CacheClientAuthenticationMiddleware!
     private var mockServerAuthenticationController: MockServerAuthenticationControlling!
+    private var mockCacheTokenStore: MockCacheTokenStoring!
 
     init() {
         mockServerAuthenticationController = .init()
+        mockCacheTokenStore = .init()
         subject = CacheClientAuthenticationMiddleware(
             authenticationURL: URL(string: "https://auth.tuist.dev")!,
-            serverAuthenticationController: mockServerAuthenticationController
+            serverAuthenticationController: mockServerAuthenticationController,
+            cacheTokenStore: mockCacheTokenStore,
+            fullHandle: nil
+        )
+    }
+
+    private func subject(fullHandle: String?) -> CacheClientAuthenticationMiddleware {
+        CacheClientAuthenticationMiddleware(
+            authenticationURL: URL(string: "https://auth.tuist.dev")!,
+            serverAuthenticationController: mockServerAuthenticationController,
+            cacheTokenStore: mockCacheTokenStore,
+            fullHandle: fullHandle
         )
     }
 
@@ -99,5 +112,90 @@ struct CacheClientAuthenticationMiddlewareTests {
         verify(mockServerAuthenticationController)
             .authenticationToken(serverURL: .value(authenticationURL))
             .called(1)
+    }
+
+    /// Without a project handle there is nothing to scope a cache token to, so
+    /// the credential the CLI already holds is sent unchanged.
+    @Test func intercept_does_not_exchange_when_project_handle_is_absent() async throws {
+        // Given
+        given(mockServerAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("opaque-token"))
+
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        var capturedRequest: HTTPRequest!
+
+        // When
+        _ = try await subject.intercept(
+            request,
+            body: nil,
+            baseURL: URL(string: "https://cache.tuist.dev")!,
+            operationID: "test"
+        ) { request, body, _ in
+            capturedRequest = request
+            return (HTTPResponse(status: 200), body)
+        }
+
+        // Then
+        #expect(capturedRequest.headerFields[.authorization] == "Bearer opaque-token")
+        verify(mockCacheTokenStore)
+            .cacheToken(authenticationURL: .any, fullHandle: .any)
+            .called(0)
+    }
+
+    @Test func intercept_sends_the_cache_token_when_one_can_be_minted() async throws {
+        // Given
+        given(mockServerAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("opaque-token"))
+        given(mockCacheTokenStore)
+            .cacheToken(authenticationURL: .any, fullHandle: .value("acme/ios"))
+            .willReturn("cache-token")
+
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        var capturedRequest: HTTPRequest!
+
+        // When
+        _ = try await subject(fullHandle: "acme/ios").intercept(
+            request,
+            body: nil,
+            baseURL: URL(string: "https://cache.tuist.dev")!,
+            operationID: "test"
+        ) { request, body, _ in
+            capturedRequest = request
+            return (HTTPResponse(status: 200), body)
+        }
+
+        // Then
+        #expect(capturedRequest.headerFields[.authorization] == "Bearer cache-token")
+    }
+
+    /// A server that cannot mint one must not break cache access, since cache
+    /// nodes still accept the original credential.
+    @Test func intercept_falls_back_to_the_credential_when_the_exchange_fails() async throws {
+        // Given
+        given(mockServerAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("opaque-token"))
+        given(mockCacheTokenStore)
+            .cacheToken(authenticationURL: .any, fullHandle: .any)
+            .willReturn(nil)
+
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        var capturedRequest: HTTPRequest!
+
+        // When
+        _ = try await subject(fullHandle: "acme/ios").intercept(
+            request,
+            body: nil,
+            baseURL: URL(string: "https://cache.tuist.dev")!,
+            operationID: "test"
+        ) { request, body, _ in
+            capturedRequest = request
+            return (HTTPResponse(status: 200), body)
+        }
+
+        // Then
+        #expect(capturedRequest.headerFields[.authorization] == "Bearer opaque-token")
     }
 }

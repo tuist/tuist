@@ -5,6 +5,7 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
@@ -46,6 +47,33 @@ defmodule TuistWeb.Webhooks.BillingController do
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.paused"} = event) do
     Billing.on_subscription_change(event.data.object)
+
+    :ok
+  end
+
+  # Enqueued for every finalized and every paid invoice rather than only
+  # for ones that look prepaid here. The webhook payload carries at most
+  # the first handful of an invoice's lines, so a prepaid line sitting
+  # further down a busy month's bill would be read as "not prepaid" and
+  # the credit lost. The worker pages the lines endpoint and decides on
+  # the full picture; an ordinary invoice costs it one cheap no-op.
+  #
+  # Finalization grants a renewal's standing prepaid minutes. Stripe
+  # finalizes a subscription invoice about an hour after the period
+  # opens however late it is paid, and a grant is effective only from
+  # when it is created. Payment is the backstop when finalization was
+  # never delivered. The worker skips lines already granted, so both
+  # events grant an invoice once.
+  #
+  # Let a failed insert raise: any credit on the invoice is owed, so a
+  # 500 here buys another delivery from Stripe rather than dropping the
+  # grant on the floor.
+  @impl true
+  def handle_event(%Stripe.Event{type: type} = event) when type in ["invoice.finalized", "invoice.paid"] do
+    {:ok, _job} =
+      %{invoice_id: event.data.object.id}
+      |> CreateRunnerPrepaidGrantWorker.new()
+      |> Oban.insert()
 
     :ok
   end

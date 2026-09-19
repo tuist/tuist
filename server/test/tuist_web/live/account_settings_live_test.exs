@@ -34,16 +34,11 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Settings · #{account.name} · Tuist"
   end
 
-  test "renders the Kura cache servers and cache endpoints sections when available", %{
+  test "renders cache endpoints but no managed cache section", %{
     conn: conn,
     account: account
   } do
     # Given
-    stub(FunWithFlags, :enabled?, fn
-      :kura, _ -> true
-      _, _ -> false
-    end)
-
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
 
@@ -51,8 +46,12 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
 
     # Then
-    assert html =~ "Kura cache servers"
     assert html =~ "Cache endpoints"
+    # Where an account's cache runs is neither asked of it nor reported to it.
+    refute html =~ "Managed cache"
+    refute html =~ "Deploy Kura server"
+    refute html =~ "create_kura_server"
+    refute html =~ "destroy_kura_server"
   end
 
   test "raises UnauthorizedError when the user is not authorized to update settings", %{

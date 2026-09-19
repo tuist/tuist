@@ -37,6 +37,7 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scratchDirectory: URL?
     public var registryConfigurationPath: URL?
     public var defaultRegistryURL: String?
+    public var netrc: SwifterPMNetrcConfiguration
     public var disableSandbox: Bool
     public var forceResolvedVersions: Bool
     public var skipUpdate: Bool
@@ -46,6 +47,7 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var packageInfoCacheDirectory: URL?
     public var scmToRegistryTransformation: SCMToRegistryTransformation
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
+    public var manifestEnvironment: [String: String]?
     public var quiet: Bool
 
     public init(
@@ -54,6 +56,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         scratchDirectory: URL? = nil,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
+        netrc: SwifterPMNetrcConfiguration = .default,
         disableSandbox: Bool = false,
         forceResolvedVersions: Bool = false,
         skipUpdate: Bool = false,
@@ -63,6 +66,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         packageInfoCacheDirectory: URL? = nil,
         scmToRegistryTransformation: SCMToRegistryTransformation = .disabled,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
+        manifestEnvironment: [String: String]? = nil,
         quiet: Bool = false
     ) {
         self.packageDirectory = packageDirectory
@@ -70,6 +74,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.scratchDirectory = scratchDirectory
         self.registryConfigurationPath = registryConfigurationPath
         self.defaultRegistryURL = defaultRegistryURL
+        self.netrc = netrc
         self.disableSandbox = disableSandbox
         self.forceResolvedVersions = forceResolvedVersions
         self.skipUpdate = skipUpdate
@@ -79,6 +84,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.packageInfoCacheDirectory = packageInfoCacheDirectory
         self.scmToRegistryTransformation = scmToRegistryTransformation
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
+        self.manifestEnvironment = manifestEnvironment
         self.quiet = quiet
     }
 }
@@ -89,6 +95,7 @@ public struct SwifterPMRestoreRequest: Sendable {
     public var scratchDirectory: URL?
     public var registryConfigurationPath: URL?
     public var defaultRegistryURL: String?
+    public var netrc: SwifterPMNetrcConfiguration
     public var disableSandbox: Bool
     public var disablePackageInfoCache: Bool
     public var packageInfoCacheDirectory: URL?
@@ -101,6 +108,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         scratchDirectory: URL? = nil,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
+        netrc: SwifterPMNetrcConfiguration = .default,
         disableSandbox: Bool = false,
         disablePackageInfoCache: Bool = false,
         packageInfoCacheDirectory: URL? = nil,
@@ -112,6 +120,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         self.scratchDirectory = scratchDirectory
         self.registryConfigurationPath = registryConfigurationPath
         self.defaultRegistryURL = defaultRegistryURL
+        self.netrc = netrc
         self.disableSandbox = disableSandbox
         self.disablePackageInfoCache = disablePackageInfoCache
         self.packageInfoCacheDirectory = packageInfoCacheDirectory
@@ -126,29 +135,43 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runResolution(request: request, preferResolvedFile: true)
+        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+                try await Environment.withCachedDirectoryMaterialization(
+                    request.cachedDirectoryMaterialization
+                ) {
+                    try await runResolution(request: request, preferResolvedFile: true)
+                }
+            }
         }
     }
 
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runResolution(request: request, preferResolvedFile: false)
+        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+                try await Environment.withCachedDirectoryMaterialization(
+                    request.cachedDirectoryMaterialization
+                ) {
+                    try await runResolution(request: request, preferResolvedFile: false)
+                }
+            }
         }
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runRestore(request)
+        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+            try await Environment.withCachedDirectoryMaterialization(
+                request.cachedDirectoryMaterialization
+            ) {
+                try await runRestore(request)
+            }
         }
+    }
+
+    private func loadNetrc(_ configuration: SwifterPMNetrcConfiguration) async throws -> Netrc {
+        try await Netrc.resolve(configuration, environment: Environment.current)
     }
 
     private func runRestore(_ request: SwifterPMRestoreRequest) async throws {
@@ -193,12 +216,69 @@ public struct SwifterPM: Sendable {
     ) async throws -> SwifterPMResolutionResult {
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
-        let cache = try await Cache(root: request.cacheDirectory)
+        let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
+
+        // On `resolve`, the seed Package.resolved may still list dependencies
+        // that have been removed from the manifest since the last install.
+        // Drop orphan pins before either path handles the file, so SwiftPM
+        // never chases a location that only the previous manifest reached.
+        // `update` and `--force-resolved-versions` bypass this: the former
+        // clears the file outright, the latter must not mutate it.
+        if preferResolvedFile, request.writeResolvedFile, !request.forceResolvedVersions {
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: cacheRoot,
+                disableSandbox: request.disableSandbox
+            )
+        }
+
         let registryConfig = try await RegistryConfig.load(
             packageDir: package,
             configPath: request.registryConfigurationPath,
             defaultRegistryURL: request.defaultRegistryURL
         )
+
+        // A cache only helps when it has every pin for this package. Going
+        // straight to the native resolver for any missing pin avoids manifest
+        // precomputation and restoration work before SwiftPM fetches it.
+        if try await PackageResolver.shouldUseNativeColdPath(
+            packageDir: package,
+            cacheRoot: cacheRoot,
+            registryConfig: registryConfig
+        ) {
+            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cacheRoot,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation,
+                useExistingResolvedFile: preferResolvedFile,
+                writeResolvedFile: request.writeResolvedFile,
+                forceResolvedVersions: request.forceResolvedVersions,
+                forwardOutput: !request.quiet
+            )
+            let cache = try await Cache(root: cacheRoot)
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                resolved: resolved
+            )
+            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                resolved: resolved
+            )
+            if !request.quiet {
+                ResolvedFile.print(resolved)
+            }
+            return SwifterPMResolutionResult(resolved)
+        }
+
+        let cache = try await Cache(root: cacheRoot)
 
         let resolved = try await PackageResolver.resolveOrLoad(
             packageDir: package,

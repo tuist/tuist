@@ -393,6 +393,119 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "invitations pagination" do
+    setup %{user: user, organization: organization} do
+      invitations =
+        for index <- 1..25 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization(
+              "invitee-#{String.pad_leading("#{index}", 2, "0")}@example.com",
+              %{inviter: user, to: organization, url: &"/auth/invitations/#{&1}"}
+            )
+
+          Tuist.Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :hour)]
+          )
+
+          invitation
+        end
+
+      %{invitations: Enum.reverse(invitations)}
+    end
+
+    test "renders one page of invitations at a time", %{conn: conn, account: account, invitations: invitations} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+      lv |> element("[phx-value-tab='invitations']") |> render_click()
+
+      # Then
+      assert_patched(lv, ~p"/#{account.name}/members?tab=invitations")
+      assert has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      assert has_element?(lv, "#invite-actions-#{Enum.at(invitations, 19).id}")
+      refute has_element?(lv, "#invite-actions-#{Enum.at(invitations, 20).id}")
+      assert has_element?(lv, ".noora-pagination-group")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?tab=invitations&page=2")
+
+      # Then
+      refute has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      assert has_element?(lv, "#invite-actions-#{Enum.at(invitations, 20).id}")
+      assert has_element?(lv, "#invite-actions-#{List.last(invitations).id}")
+    end
+
+    test "searches across every invitation, not only the current page", %{
+      conn: conn,
+      account: account,
+      invitations: invitations
+    } do
+      oldest = List.last(invitations)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?tab=invitations")
+
+      # When
+      lv
+      |> form("form[phx-change='search']", %{search: oldest.invitee_email})
+      |> render_change()
+
+      # Then
+      assert has_element?(lv, "#invite-actions-#{oldest.id}")
+      refute has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      refute has_element?(lv, ".noora-pagination-group")
+    end
+  end
+
+  describe "members pagination" do
+    setup %{organization: organization} do
+      members =
+        for index <- 1..25 do
+          user =
+            AccountsFixtures.user_fixture(
+              handle: "zz-member-#{String.pad_leading("#{index}", 2, "0")}-#{System.unique_integer([:positive])}"
+            )
+
+          Accounts.add_user_to_organization(user, organization)
+          user
+        end
+
+      %{members: members}
+    end
+
+    test "renders one page of members at a time", %{conn: conn, account: account, members: members, user: admin_user} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # Then
+      assert has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 18).id}")
+      refute has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, ".noora-pagination-group")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=2")
+
+      # Then
+      refute has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, "tr#member-#{List.last(members).id}")
+    end
+
+    test "searches across every member, not only the current page", %{conn: conn, account: account, members: members} do
+      last_member = List.last(members)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=1")
+
+      # When
+      lv
+      |> form("form[phx-change='search']", %{search: last_member.account.name})
+      |> render_change()
+
+      # Then
+      assert has_element?(lv, "tr#member-#{last_member.id}")
+      refute has_element?(lv, "tr#member-#{hd(members).id}")
+      refute has_element?(lv, ".noora-pagination-group")
+    end
+  end
+
   describe "avatar rendering" do
     test "renders avatar for member with consecutive delimiters in account name", %{
       conn: conn,
@@ -443,6 +556,58 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ admin_user.email
       assert html =~ user1.email
       assert html =~ user2.email
+    end
+  end
+
+  describe "viewer role" do
+    setup do
+      stub(Environment, :mail_configured?, fn -> false end)
+      :ok
+    end
+
+    test "invites a member as a viewer", %{conn: conn, account: account, organization: organization} do
+      # Given
+      invitee = AccountsFixtures.user_fixture(email: "viewer@example.com")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When — the role is a dropdown rather than a form field, so it is picked
+      # before the form is submitted.
+      render_hook(lv, "select-invite-role", %{"role" => "viewer"})
+
+      lv
+      |> element("#invite-member-form")
+      |> render_submit(%{"invitation" => %{"invitee_email" => "viewer@example.com"}})
+
+      # Then
+      invitation = Accounts.get_invitation_by_invitee_email_and_organization("viewer@example.com", organization)
+      assert invitation.role == "viewer"
+
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      assert Accounts.organization_viewer?(invitee, organization)
+    end
+
+    test "changes an existing member's role to viewer", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      # Given
+      member = AccountsFixtures.user_fixture(handle: "member#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(member, organization)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When
+      render_hook(lv, "select-member-role", %{"member_id" => "#{member.id}", "role" => "viewer"})
+      render_hook(lv, "save-member-role", %{"member-id" => "#{member.id}"})
+
+      # Then
+      assert Accounts.organization_viewer?(member, organization)
+      refute Accounts.organization_user?(member, organization)
     end
   end
 end

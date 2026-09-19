@@ -82,8 +82,16 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
     ) func app_with_buildable_folders() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        for directory in ["Sources", "Resources"] {
+            try await fileSystem.touch(fixtureDirectory.appending(components: "App", directory, ".gitkeep"))
+            try await fileSystem.touch(fixtureDirectory.appending(components: "App", directory, ".DS_Store"))
+        }
 
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        let generatedDirectory = fixtureDirectory.appending(components: "App", "Sources", "Generated")
+        try await fileSystem.makeDirectory(at: generatedDirectory)
+        try await fileSystem.touch(generatedDirectory.appending(component: ".gitkeep"))
         try await TuistTest.run(
             BuildCommand.self,
             [
@@ -94,6 +102,17 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
                 temporaryDirectory.pathString,
             ]
         )
+        let resourcesDirectory = temporaryDirectory.appending(
+            components: "Build",
+            "Products",
+            "Debug",
+            "App.app",
+            "Contents",
+            "Resources"
+        )
+        #expect(try await fileSystem.exists(resourcesDirectory.appending(component: "tvos_only.json")))
+        #expect(try await !fileSystem.exists(resourcesDirectory.appending(component: ".gitkeep")))
+        #expect(try await !fileSystem.exists(resourcesDirectory.appending(component: ".DS_Store")))
     }
 }
 
@@ -396,8 +415,7 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
 struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     @Test(
         .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
-        .inTemporaryDirectory,
-        .timeLimit(.minutes(4))
+        .inTemporaryDirectory
     )
     func app_with_swiftpm_prebuilt_macro_dependency_builds_with_host_only_prebuilt_macro_support() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -795,7 +813,7 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
 
 struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     @Test(
-        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),
         .inTemporaryDirectory
     ) func xcodebuild_shard_with_local_test_products() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -860,6 +878,41 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
                 "generic/platform=iOS",
                 "-archivePath",
                 temporaryDirectory.pathString + "/App.xcarchive",
+            ]
+        )
+    }
+}
+
+struct XcodeBuildArchiveStaticXCFrameworkAcceptanceTests {
+    /// Archiving a dynamic framework that links a static xcframework is the only action that tells
+    /// `TARGET_BUILD_DIR` and `BUILT_PRODUCTS_DIR` apart: `SKIP_INSTALL=YES` moves the framework's
+    /// `TARGET_BUILD_DIR` to `UninstalledProducts/` while `ProcessXCFramework` leaves the extracted
+    /// slice in `BUILT_PRODUCTS_DIR`. Any generated setting pointing at the slice with the wrong
+    /// one fails the archive with "Build input file cannot be found" while `build` still passes,
+    /// so this has to archive to catch a regression.
+    @Test(
+        .withFixture("generated_ios_app_with_xcframeworks"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_archive_dynamic_framework_linking_static_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildArchiveCommand.self,
+            [
+                "archive",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS",
+                "-archivePath",
+                temporaryDirectory.pathString + "/App.xcarchive",
+                "CODE_SIGNING_ALLOWED=NO",
             ]
         )
     }

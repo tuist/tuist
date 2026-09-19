@@ -6,10 +6,11 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
+  alias TuistWeb.API.Schemas.ProjectBuildSystem
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -42,7 +43,7 @@ defmodule TuistWeb.API.ProjectsController do
                "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
              deprecated: true
            },
-           build_system: BuildSystem.schema()
+           build_system: ProjectBuildSystem.schema()
          }
        }},
     responses: %{
@@ -121,7 +122,10 @@ defmodule TuistWeb.API.ProjectsController do
             [build_system: String.to_existing_atom(build_system)]
           end
 
-        case Projects.create_project(%{name: project_handle, account: account}, opts) do
+        case Projects.create_project(
+               %{name: project_handle, account: account},
+               Keyword.put(opts, :origin, RemoteIp.origin(conn))
+             ) do
           {:ok, project} ->
             conn
             |> put_status(:ok)

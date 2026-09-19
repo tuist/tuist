@@ -228,7 +228,7 @@ public class TrackableCommand {
                 await gitHubActionsJobSummaryService.writeJobSummary(
                     testRunReports: testRunReports,
                     buildRunReports: buildRunReports,
-                    runURL: serverCommandEvent.url
+                    runURL: buildRunURL ?? serverCommandEvent.url
                 )
 
                 // Unlike the job summary, this is written even when there's nothing to tabulate:

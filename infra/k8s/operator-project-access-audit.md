@@ -181,4 +181,8 @@ a separate follow-up.)
 
 6. **`return_to` allowlist.** Set `PROJECT_ACCESS_RETURN_TO_ALLOWLIST` on ops to the
    app origin(s) (defaults to `https://tuist.dev`) so a signed token can't be
-   redirected to an attacker host.
+   redirected to an attacker host. Now set from the chart
+   (`projectAccess.returnToAllowlist` in `infra/helm/tuist-ops/values.yaml`),
+   listing `https://tuist.dev` and `https://atlas.tuist.dev`. Add an origin here
+   only when we run it and it has a route that consumes the grant — every entry
+   is somewhere a minted token may legitimately be sent.

@@ -1,7 +1,11 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     pin::Pin,
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use bazel_remote_apis::{
@@ -27,53 +31,94 @@ use bazel_remote_apis::{
 use futures_util::{FutureExt, StreamExt};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio_util::io::ReaderStream;
 use tonic::{Request, Response, Status};
 use tracing::Instrument;
 
 #[cfg(test)]
 use super::protobuf_shape::*;
-use super::{admission::*, snapshot::*};
+use super::{
+    admission::*,
+    chunking::{
+        ChunkedBlobRecipe, FAST_CDC_AVERAGE_CHUNK_BYTES, PresenceBudget, fetch_chunk_manifests,
+        fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys, recipe_key,
+    },
+    snapshot::*,
+};
 
 use crate::{
+    analytics::{ReapiCacheAnalyticsContext, ReapiCacheAnalyticsEvent},
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    auth::{AccessDecision, RequestContext},
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
-        encoded_response_stream_chunk_bytes, response_stream_chunk_bytes,
+        RESPONSE_STREAM_SEND_BUFFER_BYTES, encoded_response_stream_chunk_bytes,
+        response_stream_chunk_bytes,
     },
-    extension::{AccessDecision, ExtensionContext, Principal},
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
-    replication::replication_targets,
     state::SharedState,
-    store::{StagedArtifactPath, is_outbox_full_error},
+    store::{
+        ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
+        try_allocate_exact_vec,
+    },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
+// ByteStream downloads can keep the response vector and Tonic's encoded frame
+// live while Hyper retains up to its separately capped per-stream send buffer.
+// The reader fills the response vector directly, so there is no intermediate
+// reader buffer.
+const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
+const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
+const MAX_CONCURRENT_SPLICE_VERIFICATIONS: usize = 4;
+static ACTIVE_SPLICE_VERIFICATIONS: AtomicUsize = AtomicUsize::new(0);
+
+struct SpliceVerificationSlot;
+
+impl SpliceVerificationSlot {
+    fn try_acquire() -> Option<Self> {
+        ACTIVE_SPLICE_VERIFICATIONS
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+                (active < MAX_CONCURRENT_SPLICE_VERIFICATIONS).then_some(active + 1)
+            })
+            .ok()
+            .map(|_| Self)
+    }
+}
+
+impl Drop for SpliceVerificationSlot {
+    fn drop(&mut self) {
+        ACTIVE_SPLICE_VERIFICATIONS.fetch_sub(1, Ordering::Release);
+    }
+}
 #[derive(Clone)]
 pub struct ReapiService {
-    state: SharedState,
+    pub(super) state: SharedState,
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
-#[derive(Clone)]
-struct GrpcExtensionSpec<'a> {
-    route: &'a str,
-    operation: &'a str,
-    namespace_id: Option<&'a str>,
-    producer: Option<&'a str>,
-    artifact_key: Option<String>,
-    artifact_hash: Option<String>,
+#[derive(Clone, Copy)]
+pub(super) struct GrpcRequestSpec<'a> {
+    pub(super) operation: &'a str,
+    pub(super) namespace_id: Option<&'a str>,
+}
+
+struct ReapiCacheObservation<'a> {
+    operation: &'static str,
+    outcome: &'static str,
+    digest: &'a str,
+    size: u64,
+    duration: Duration,
 }
 
 pub(super) const REAPI_MAX_DECODING_MESSAGE_SIZE: usize = 64 << 20;
@@ -83,10 +128,11 @@ type ReapiServers = (
     ActionCacheServer<ReapiService>,
     ContentAddressableStorageServer<ReapiService>,
     ByteStreamServer<ReapiService>,
+    super::bep::PublishBuildEventServer,
 );
 
-// The four REAPI gRPC services with their shared decoding limits, all backed by
-// one service and snapshot cache.
+// The four Remote Execution API services and the Build Event Service share the
+// same listener and decoding limits.
 fn reapi_servers(service: ReapiService) -> ReapiServers {
     (
         CapabilitiesServer::new(service.clone())
@@ -95,7 +141,9 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
         ContentAddressableStorageServer::new(service.clone())
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
-        ByteStreamServer::new(service).max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ByteStreamServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        super::bep::server(service.state.clone()),
     )
 }
 
@@ -109,16 +157,16 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
 // fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
-    let service = ReapiService {
-        snapshot_cache: state.snapshot_cache.clone(),
-        state: state.clone(),
-    };
+    let service = ReapiService::new(state.clone());
     spawn_snapshot_refresh_task(service.clone());
-    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(service);
+    let assets = super::asset::server(service.clone());
+    let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
+        .add_service(build_events)
+        .add_service(assets)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -162,12 +210,69 @@ fn ref_metadata<T>(request: &Request<T>, header: &str, binary_header: &str) -> O
         .filter(|value| !value.is_empty())
 }
 
+/// A compressed ByteStream write is expected to weigh at most this much per
+/// declared-size byte: the largest valid zstd encoding of `declared`
+/// uncompressed bytes plus a small slack for framing overhead. Skippable
+/// frames decode to zero bytes and would otherwise let a client hold a
+/// compressed write open indefinitely — bounding `wire_received` here is what
+/// gates that.
+fn compressed_wire_ceiling(declared_uncompressed: u64) -> u64 {
+    // 64 KiB slack absorbs skippable-frame headers and multi-frame framing
+    // overhead legitimate encoders may add, without giving an attacker useful
+    // room. Falls back to a large but finite ceiling when the declared size
+    // saturates zstd's usize input bound so the check remains meaningful.
+    const WIRE_CEILING_SLACK_BYTES: u64 = 64 * 1024;
+    let compressed_bound = usize::try_from(declared_uncompressed)
+        .map(zstd::zstd_safe::compress_bound)
+        .map(|bound| bound as u64)
+        .unwrap_or(u64::MAX);
+    compressed_bound.saturating_add(WIRE_CEILING_SLACK_BYTES)
+}
+
+/// Sink handed to the streaming zstd `write::Decoder` on the ByteStream upload
+/// path. `remaining` is the largest number of additional decoded bytes the
+/// sink will accept in the current chunk; the write loop refreshes it before
+/// every `write_all` to `expected_size - stored_written`. That bounds the
+/// decoder's inner buffer at exactly what the declared size still allows, so
+/// a compression bomb cannot materialize a full chunk of expansion before the
+/// per-chunk size check runs — the pattern `SnapshotWireWriter` already uses.
+#[derive(Default)]
+struct BoundedZstdDecoderSink {
+    bytes: Vec<u8>,
+    remaining: u64,
+}
+
+impl std::io::Write for BoundedZstdDecoderSink {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        if buffer.len() as u64 > self.remaining {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "compressed write decompressed past the declared blob size (possible bomb)",
+            ));
+        }
+        self.remaining -= buffer.len() as u64;
+        self.bytes.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl ReapiService {
-    async fn authorize_request<T>(
+    pub(super) fn new(state: SharedState) -> Self {
+        Self {
+            snapshot_cache: state.snapshot_cache.clone(),
+            state,
+        }
+    }
+
+    pub(super) async fn authorize_request<T>(
         &self,
         request: &Request<T>,
-        spec: GrpcExtensionSpec<'_>,
-    ) -> Result<Option<Principal>, Status> {
+        spec: GrpcRequestSpec<'_>,
+    ) -> Result<(), Status> {
         self.authorize_metadata(request.metadata(), spec).await
     }
 
@@ -175,52 +280,32 @@ impl ReapiService {
     // request into a stream before it learns its namespace (from the first
     // chunk's resource_name), so it captures the metadata up front and authorizes
     // here once the namespace is known.
-    async fn authorize_metadata(
+    pub(super) async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
-        spec: GrpcExtensionSpec<'_>,
-    ) -> Result<Option<Principal>, Status> {
+        spec: GrpcRequestSpec<'_>,
+    ) -> Result<(), Status> {
         if self.state.runtime.is_draining() {
             return Err(Status::unavailable("server is draining"));
         }
-        let Some(extension) = self.state.extension.as_ref() else {
-            return Ok(None);
+        let Some(auth) = self.state.auth.as_ref() else {
+            return Ok(());
         };
-        let context = grpc_extension_context(&self.state.config.tenant_id, &spec, metadata, None);
-        match extension.evaluate_access(&context).await {
-            AccessDecision::Allow(principal) => Ok(principal),
+        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
+        match auth.evaluate_access(&context).await {
+            AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
                 Err(grpc_status_from_http_status(deny.status, &deny.message))
             }
         }
     }
 
-    async fn apply_response_headers<T>(
-        &self,
-        response: &mut Response<T>,
-        spec: GrpcExtensionSpec<'_>,
-        principal: Option<&Principal>,
-    ) -> Result<(), Status> {
-        let Some(extension) = self.state.extension.as_ref() else {
-            return Ok(());
-        };
-        let context = grpc_extension_context(
-            &self.state.config.tenant_id,
-            &spec,
-            response.metadata(),
-            Some(200),
-        );
-        let headers = extension.response_headers(&context, principal).await;
-        for (name, value) in headers.headers {
-            let metadata_key = tonic::metadata::MetadataKey::from_bytes(name.as_bytes())
-                .map_err(|_| Status::internal("invalid extension response header name"))?;
-            let metadata_value = tonic::metadata::MetadataValue::try_from(value.as_str())
-                .map_err(|_| Status::internal("invalid extension response header value"))?;
-            response.metadata_mut().insert(metadata_key, metadata_value);
-        }
-        Ok(())
-    }
-
+    /// Try-only, deliberately. Every caller reaches here holding admission from
+    /// another path -- the action-result handler holds its materialization
+    /// budget, the write handlers their gRPC decode reservation -- and all of it
+    /// draws on the same transient pool. Waiting for that pool while holding
+    /// part of it is hold-and-wait. `AtomicMaterializationBudget::reserve` is
+    /// the shape that can wait: one acquisition, taken before anything is held.
     fn retain_unary_response_materialization<T: Message>(
         &self,
         response: &mut Response<T>,
@@ -235,6 +320,9 @@ impl ReapiService {
                 self.state
                     .metrics
                     .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                self.state
+                    .metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
                 Status::resource_exhausted(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
@@ -270,7 +358,7 @@ impl ReapiService {
 
     // Record a received gRPC upload (ingress) against the usage rollups. See
     // [`record_reapi_download`] for the parity and call-site conventions.
-    fn record_reapi_upload(
+    pub(super) fn record_reapi_upload(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         namespace_id: &str,
@@ -287,11 +375,73 @@ impl ReapiService {
         );
     }
 
+    fn record_reapi_cache_event(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        observation: ReapiCacheObservation<'_>,
+    ) {
+        let context = self.reapi_cache_event_context(metadata, namespace_id);
+        self.record_reapi_cache_event_with_context(context.as_ref(), observation);
+    }
+
+    fn reapi_cache_event_context(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+    ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+        self.state.analytics.as_ref()?;
+        let context =
+            reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id);
+        if context.is_none() {
+            // Analytics is configured but this request carries no usable Bazel
+            // RequestMetadata, so every cache observation on it is discarded.
+            // Counting the discard keeps it apart from "no traffic at all":
+            // without this, a fleet serving cache hits and a fleet dropping
+            // every one of them both report zero reapi_cache events.
+            self.state.metrics.record_analytics_event(
+                "reapi_cache",
+                "skipped_no_bazel_metadata",
+                1,
+            );
+        }
+        context
+    }
+
+    fn record_reapi_cache_event_with_context(
+        &self,
+        context: Option<&Arc<ReapiCacheAnalyticsContext>>,
+        observation: ReapiCacheObservation<'_>,
+    ) {
+        let (Some(analytics), Some(context)) = (self.state.analytics.as_ref(), context) else {
+            return;
+        };
+
+        analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            context: Arc::clone(context),
+            operation: observation.operation,
+            outcome: observation.outcome,
+            action_digest: observation.digest.to_owned(),
+            size: observation.size,
+            duration_us: observation
+                .duration
+                .as_micros()
+                .try_into()
+                .unwrap_or(u64::MAX),
+            observed_at_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+        });
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
-    // (write) removes temp_path on any error this returns, so this never cleans
-    // up inline — which is what keeps transport/cancel/write/flush failures from
-    // leaking partial temp files.
-    async fn write_to_temp(
+    // (write) removes a staged path on any error this returns. Small uploads stay
+    // in their admitted memory and disarm that cleanup before any suspension can
+    // observe them as file-backed.
+    async fn write_stream(
         &self,
         temp_path: &std::path::Path,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
@@ -302,27 +452,33 @@ impl ReapiService {
         // the metadata now and authorize below, once the namespace is known, so
         // project-scoped tokens authorize against the real project (not the
         // account) — matching the namespace the blob is ultimately stored under.
-        let metadata = request.metadata().clone();
-        let memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
+        let (metadata, mut extensions, mut stream) = request.into_parts();
+        let analytics_started_at = Instant::now();
+        let memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
-        let mut temp_file = self
-            .state
-            .io
-            .create_file(temp_path)
-            .await
-            .map_err(Status::internal)?;
-        let mut stream = request.into_inner();
+        let mut temp_file = None;
+        let mut memory_payload = None;
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
-        let mut principal = None::<Principal>;
         let mut file_cache_policy = FileCachePolicy::Adaptive;
-        let mut written = 0_u64;
+        // `stored_written` counts decoded bytes on disk / in the memory
+        // payload; it always equals the declared uncompressed size at the end.
+        // `wire_received` counts bytes the client sent (equals `stored_written`
+        // for identity, is the compressed byte count for zstd) and is what
+        // `chunk.write_offset` and `committed_size` are compared against.
+        let mut stored_written = 0_u64;
+        let mut wire_received = 0_u64;
         let mut advised_through = 0_u64;
         let mut hasher = Sha256::new();
         let mut finished = false;
+        // Set after the first chunk once the resource is parsed; a compressed
+        // stream owns a streaming decoder whose scratch buffer is bounded to
+        // what the declared uncompressed size still allows and drained per
+        // chunk. Bomb protection is enforced by the sink itself, one write
+        // ahead of the per-chunk size check below.
+        let mut zstd_decoder: Option<zstd::stream::write::Decoder<'_, BoundedZstdDecoderSink>> =
+            None;
 
         // Stall deadline keyed on byte *progress*, not message arrival: it only
         // advances when a chunk delivers data. An upload that keeps making
@@ -347,84 +503,181 @@ impl ReapiService {
                     )));
                 }
             };
-            let chunk_resource_name = if chunk.resource_name.is_empty() {
-                resource_name.clone().ok_or_else(|| {
-                    Status::invalid_argument("first write request must include resource_name")
-                })?
-            } else {
-                chunk.resource_name.clone()
-            };
             if let Some(existing) = &resource_name {
-                if existing != &chunk_resource_name {
+                if !chunk.resource_name.is_empty() && existing != &chunk.resource_name {
                     return Err(Status::invalid_argument("resource_name changed mid-stream"));
                 }
             } else {
-                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
-                let write_extension = GrpcExtensionSpec {
-                    route: "reapi.bytestream.write",
+                if chunk.resource_name.is_empty() {
+                    return Err(Status::invalid_argument(
+                        "first write request must include resource_name",
+                    ));
+                }
+                let parsed_resource = parse_write_resource_name(&chunk.resource_name)?;
+                let write_spec = GrpcRequestSpec {
                     operation: "artifact.write",
                     namespace_id: Some(&parsed_resource.namespace_id),
-                    producer: Some("reapi"),
-                    artifact_key: None,
-                    artifact_hash: None,
                 };
-                principal = self.authorize_metadata(&metadata, write_extension).await?;
+                self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
-                let disk_reservation = self
-                    .state
-                    .tmp_staging_budget
-                    .try_reserve(parsed_resource.size_bytes)
-                    .map_err(|error| {
-                        Status::resource_exhausted(format!(
-                            "temporary storage budget exhausted: {error}"
-                        ))
-                    })?;
-                cleanup.set_reservation(disk_reservation);
+                memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
+                    && matches!(file_cache_policy, FileCachePolicy::Foreground { .. })
+                    && self.state.store.direct_small_uploads_enabled())
+                .then(|| {
+                    usize::try_from(parsed_resource.size_bytes)
+                        .ok()
+                        .and_then(try_allocate_exact_vec)
+                })
+                .flatten();
+                if memory_payload.is_some() {
+                    cleanup.disarm();
+                } else {
+                    let disk_reservation = self
+                        .state
+                        .tmp_staging_budget
+                        .try_reserve(parsed_resource.size_bytes)
+                        .map_err(|error| {
+                            Status::resource_exhausted(format!(
+                                "temporary storage budget exhausted: {error}"
+                            ))
+                        })?;
+                    cleanup.set_reservation(disk_reservation);
+                    if let Some(parent) = temp_path.parent() {
+                        self.state
+                            .io
+                            .create_dir_all(parent)
+                            .await
+                            .map_err(Status::internal)?;
+                    }
+                    temp_file = Some(
+                        self.state
+                            .io
+                            .create_file(temp_path)
+                            .await
+                            .map_err(Status::internal)?,
+                    );
+                }
+                if parsed_resource.compressor == BlobCompressor::Zstd {
+                    zstd_decoder = Some(
+                        zstd::stream::write::Decoder::new(BoundedZstdDecoderSink::default())
+                            .map_err(|error| {
+                                Status::internal(format!(
+                                    "failed to build zstd decoder for compressed write: {error}"
+                                ))
+                            })?,
+                    );
+                }
                 resource = Some(parsed_resource);
-                resource_name = Some(chunk_resource_name);
+                resource_name = Some(chunk.resource_name);
             }
-            if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
+            if chunk.write_offset < 0 || chunk.write_offset as u64 != wire_received {
                 return Err(Status::invalid_argument("unexpected write_offset"));
             }
             let expected_size = resource
                 .as_ref()
                 .expect("resource is initialized with the first chunk")
                 .size_bytes;
-            if written.saturating_add(chunk.data.len() as u64) > expected_size {
+            let is_compressed = zstd_decoder.is_some();
+            if !is_compressed
+                && stored_written.saturating_add(chunk.data.len() as u64) > expected_size
+            {
                 return Err(Status::invalid_argument(
                     "write data exceeds the declared blob size",
                 ));
             }
             if !chunk.data.is_empty() {
-                for data in chunk
-                    .data
-                    .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
+                // Feed the chunk into the decoder (identity is a straight
+                // borrow) and get a `&[u8]` view of the decoded bytes for the
+                // downstream copy loop. For zstd, refresh the sink's per-chunk
+                // budget to whatever the declared size still allows so a
+                // compression bomb aborts inside `write_all` at the first
+                // overflowing byte, without materializing a full chunk of
+                // expansion into the sink first.
+                let decoded_owned;
+                let decoded: &[u8] = if let Some(decoder) = zstd_decoder.as_mut() {
+                    decoder.get_mut().remaining = expected_size.saturating_sub(stored_written);
+                    std::io::Write::write_all(decoder, &chunk.data).map_err(|error| {
+                        Status::invalid_argument(format!(
+                            "failed to decode zstd upload chunk: {error}"
+                        ))
+                    })?;
+                    // The `write::Decoder` may hold decoded bytes in its
+                    // internal scratch buffer until the next write pushes them
+                    // to the inner writer; flush forces them through so the
+                    // per-chunk drain sees every decoded byte.
+                    std::io::Write::flush(decoder).map_err(|error| {
+                        Status::invalid_argument(format!("failed to flush zstd decoder: {error}"))
+                    })?;
+                    // Take the sink's bytes buffer so we can process it
+                    // without holding a mutable borrow across the write path;
+                    // the sink stays in place with its `remaining` budget
+                    // refreshed on the next round.
+                    decoded_owned = std::mem::take(&mut decoder.get_mut().bytes);
+                    &decoded_owned[..]
+                } else {
+                    &chunk.data[..]
+                };
+                if is_compressed
+                    && stored_written.saturating_add(decoded.len() as u64) > expected_size
                 {
-                    tokio::io::AsyncWriteExt::write_all(&mut temp_file, data)
-                        .await
-                        .map_err(|error| {
-                            Status::internal(format!("failed to write temp blob: {error}"))
-                        })?;
-                    hasher.update(data);
-                    written = written.saturating_add(data.len() as u64);
-                    if file_cache_policy.should_drop(
-                        self.state.memory.should_reclaim_file_cache(),
-                        self.state.memory.transient_reserved_bytes(),
-                    ) && written.saturating_sub(advised_through)
-                        >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
-                    {
-                        temp_file = drop_staging_cache_range(
-                            temp_file,
-                            temp_path,
-                            advised_through,
-                            written - advised_through,
-                            &self.state.io,
-                        )
-                        .await
-                        .map_err(Status::internal)?;
-                        advised_through = written;
+                    return Err(Status::invalid_argument(
+                        "compressed write decompressed past the declared blob size (possible bomb)",
+                    ));
+                }
+                if !decoded.is_empty() {
+                    if let Some(payload) = memory_payload.as_mut() {
+                        payload.extend_from_slice(decoded);
+                        hasher.update(decoded);
+                        stored_written = stored_written.saturating_add(decoded.len() as u64);
+                    } else {
+                        for data in
+                            decoded.chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
+                        {
+                            let file = temp_file
+                                .as_mut()
+                                .expect("file-backed uploads initialize their staging file");
+                            tokio::io::AsyncWriteExt::write_all(file, data)
+                                .await
+                                .map_err(|error| {
+                                    Status::internal(format!("failed to write temp blob: {error}"))
+                                })?;
+                            hasher.update(data);
+                            stored_written = stored_written.saturating_add(data.len() as u64);
+                            if file_cache_policy.should_drop(
+                                self.state.memory.should_reclaim_file_cache(),
+                                self.state.memory.foreground_transient_reserved_bytes(),
+                            ) && stored_written.saturating_sub(advised_through)
+                                >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                            {
+                                temp_file = Some(
+                                    drop_staging_cache_range(
+                                        temp_file.take().expect(
+                                            "file-backed uploads initialize their staging file",
+                                        ),
+                                        temp_path,
+                                        advised_through,
+                                        stored_written - advised_through,
+                                        &self.state.io,
+                                    )
+                                    .await
+                                    .map_err(Status::internal)?,
+                                );
+                                advised_through = stored_written;
+                            }
+                        }
                     }
+                }
+                wire_received = wire_received.saturating_add(chunk.data.len() as u64);
+                if is_compressed && wire_received > compressed_wire_ceiling(expected_size) {
+                    // zstd skippable frames decode to zero bytes, so a client
+                    // could otherwise keep a compressed write open with
+                    // unbounded wire bytes while `stored_written` sits under
+                    // the declared cap. Refuse anything past the largest
+                    // valid compressed form of the declared size.
+                    return Err(Status::invalid_argument(
+                        "compressed write exceeds the largest valid zstd-encoded form of the declared blob size",
+                    ));
                 }
                 // Only real byte progress extends the deadline, so a client
                 // cannot keep a stalled upload alive with empty frames.
@@ -443,89 +696,131 @@ impl ReapiService {
         if !finished {
             return Err(Status::invalid_argument("write stream did not finish"));
         }
-        if written != resource.size_bytes {
+        // Flush any bytes the decoder was still holding onto (final zstd
+        // frame bytes) into the running hasher / staged output. Every
+        // in-loop write already flushed the scratch through mem::take, so
+        // this is a belt-and-braces path for the last partial chunk. Refresh
+        // the sink budget for the trailing bytes with the same rule the
+        // in-loop step uses.
+        if let Some(mut decoder) = zstd_decoder.take() {
+            decoder.get_mut().remaining = resource.size_bytes.saturating_sub(stored_written);
+            std::io::Write::flush(&mut decoder).map_err(|error| {
+                Status::invalid_argument(format!(
+                    "failed to flush zstd decoder at end of stream: {error}"
+                ))
+            })?;
+            let mut trailing = decoder.into_inner().bytes;
+            if !trailing.is_empty() {
+                if stored_written.saturating_add(trailing.len() as u64) > resource.size_bytes {
+                    return Err(Status::invalid_argument(
+                        "compressed write decompressed past the declared blob size (possible bomb)",
+                    ));
+                }
+                if let Some(payload) = memory_payload.as_mut() {
+                    payload.extend_from_slice(&trailing);
+                    hasher.update(&trailing);
+                    stored_written = stored_written.saturating_add(trailing.len() as u64);
+                } else {
+                    let file = temp_file
+                        .as_mut()
+                        .expect("file-backed uploads initialize their staging file");
+                    tokio::io::AsyncWriteExt::write_all(file, &trailing)
+                        .await
+                        .map_err(|error| {
+                            Status::internal(format!("failed to write temp blob: {error}"))
+                        })?;
+                    hasher.update(&trailing);
+                    stored_written = stored_written.saturating_add(trailing.len() as u64);
+                }
+            }
+            trailing.clear();
+        }
+        if stored_written != resource.size_bytes {
             return Err(Status::invalid_argument(
                 "uploaded blob size did not match digest",
             ));
         }
-        let actual_hash = hex::encode(hasher.finalize());
-        if actual_hash != resource.hash {
+        if !digest_matches_hex(hasher.finalize().as_ref(), resource.hash()) {
             return Err(Status::invalid_argument(
                 "uploaded blob digest did not match content",
             ));
         }
 
-        // Flush tokio's internal write buffer to the OS and close the write handle before
-        // the blob is persisted. persist_artifact_from_path re-opens this path on a
-        // separate descriptor to stat and copy it into a segment; without an explicit
-        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
-        // append fails with "appended N bytes, expected M" — which silently breaks remote
-        // caching of any action that uploads many blobs concurrently (e.g. cargo build
-        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
-        tokio::io::AsyncWriteExt::flush(&mut temp_file)
-            .await
-            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
-        drop(temp_file);
+        // Flush a file-backed upload before the store opens that path on another
+        // descriptor. Memory-backed uploads already expose their complete bytes.
+        if let Some(mut file) = temp_file.take() {
+            tokio::io::AsyncWriteExt::flush(&mut file)
+                .await
+                .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+            drop(file);
+        }
 
-        let targets = replication_targets(&self.state).await;
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
         // blob (retry, or a client that skips FindMissingBlobs) must not be
         // billed twice — matching the HTTP upload path's `artifact_exists`
         // short-circuit — and concurrent uploads of the same missing blob
         // resolve to exactly one billed writer.
-        let persisted = self
-            .state
-            .store
-            .persist_artifact_from_path_and_enqueue(
-                ArtifactProducer::Reapi,
-                &resource.namespace_id,
-                &resource.key,
-                "application/octet-stream",
-                StagedArtifactPath::new(temp_path, file_cache_policy),
-                &targets,
-            )
-            .await
-            .map_err(|error| {
-                if is_outbox_full_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "replication backlog is full while persisting CAS blob: {error}"
-                    ))
-                } else if is_fd_pool_exhausted_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "file descriptor pool exhausted while persisting CAS blob: {error}"
-                    ))
-                } else {
-                    Status::internal(format!("failed to persist CAS blob: {error}"))
-                }
-            })?;
-        self.state.notify.notify_one();
+        let persisted = if let Some(payload) = memory_payload.as_deref() {
+            self.state
+                .store
+                .persist_admitted_artifact_from_bytes_and_replicate(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    payload,
+                    file_cache_policy,
+                )
+                .await
+        } else {
+            self.state
+                .store
+                .persist_artifact_from_path_and_replicate(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    "application/octet-stream",
+                    StagedArtifactPath::new(temp_path, file_cache_policy),
+                    None,
+                )
+                .await
+        }
+        .map_err(|error| {
+            if is_fd_pool_exhausted_error(&error) {
+                Status::resource_exhausted(format!(
+                    "file descriptor pool exhausted while persisting CAS blob: {error}"
+                ))
+            } else {
+                Status::internal(format!("failed to persist CAS blob: {error}"))
+            }
+        })?;
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
             persisted.manifest.size,
         );
 
-        let mut response = Response::new(bytestream::WriteResponse {
-            committed_size: written as i64,
+        // `committed_size` reports the wire-side count (compressed bytes for a
+        // zstd upload) so it matches the `write_offset` the client tracked.
+        let response = Response::new(bytestream::WriteResponse {
+            committed_size: wire_received as i64,
         });
-        self.apply_response_headers(
-            &mut response,
-            GrpcExtensionSpec {
-                route: "reapi.bytestream.write",
-                operation: "artifact.write",
-                namespace_id: Some(&resource.namespace_id),
-                producer: Some("reapi"),
-                artifact_key: Some(resource.key),
-                artifact_hash: Some(resource.hash),
-            },
-            principal.as_ref(),
-        )
-        .await?;
         // Book usage only after the response is fully built (headers applied) and
         // only when the blob was newly stored, so a re-upload isn't billed twice.
         if !persisted.already_present {
             self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
+            self.record_reapi_cache_event(
+                &metadata,
+                &resource.namespace_id,
+                ReapiCacheObservation {
+                    operation: "cas",
+                    outcome: "write",
+                    digest: resource.hash(),
+                    size: persisted.manifest.size,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
         }
         drop(memory_admission);
         Ok(response)
@@ -1025,16 +1320,13 @@ impl Capabilities for ReapiService {
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.capabilities.get",
+        let auth = GrpcRequestSpec {
             operation: "capabilities.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
-        let mut response = Response::new(reapi::ServerCapabilities {
+        self.authorize_request(&request, auth).await?;
+        let chunking_enabled = self.state.config.reapi_blob_chunking_enabled;
+        let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
                 action_cache_update_capabilities: Some(reapi::ActionCacheUpdateCapabilities {
@@ -1044,11 +1336,21 @@ impl Capabilities for ReapiService {
                 max_batch_total_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
                 symlink_absolute_path_strategy:
                     reapi::symlink_absolute_path_strategy::Value::Disallowed as i32,
-                supported_compressors: Vec::new(),
-                supported_batch_update_compressors: Vec::new(),
+                // Advertise zstd on both the ByteStream/BatchReadBlobs axis
+                // and the BatchUpdateBlobs axis so Bazel opts into
+                // `compressed-blobs/zstd/...` resource names and sends
+                // `compressor: ZSTD` in batch writes. Blobs are still stored
+                // uncompressed on disk; compression is a wire-only concern
+                // handled in the handlers.
+                supported_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                supported_batch_update_compressors: vec![reapi::compressor::Value::Zstd as i32],
                 max_cas_blob_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
-                split_blob_support: false,
-                splice_blob_support: false,
+                split_blob_support: chunking_enabled,
+                splice_blob_support: chunking_enabled,
+                fast_cdc_2020_params: chunking_enabled.then_some(reapi::FastCdc2020Params {
+                    avg_chunk_size_bytes: FAST_CDC_AVERAGE_CHUNK_BYTES,
+                    seed: 0,
+                }),
                 ..Default::default()
             }),
             execution_capabilities: None,
@@ -1066,8 +1368,6 @@ impl Capabilities for ReapiService {
                 prerelease: String::new(),
             }),
         });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         Ok(response)
     }
 }
@@ -1086,15 +1386,12 @@ impl ActionCache for ReapiService {
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
         let key = action_cache_key(&digest_key(digest)?);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.action_cache.get",
+        let auth = GrpcRequestSpec {
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let analytics_started_at = Instant::now();
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
         // node table + per-key node lists), inlined into a single output
@@ -1139,8 +1436,6 @@ impl ActionCache for ReapiService {
                     ]),
                 );
             }
-            self.apply_response_headers(&mut response, extension, principal.as_ref())
-                .await?;
             self.state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "ok", served);
@@ -1149,7 +1444,7 @@ impl ActionCache for ReapiService {
         }
         let mut materialization_budget =
             std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
+        let (size_bytes, mut action_result) = match fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
@@ -1160,7 +1455,26 @@ impl ActionCache for ReapiService {
                     .expect("action-cache materialization budget lock poisoned"),
             ),
         )
-        .await?;
+        .await
+        {
+            Ok(result) => result,
+            Err(status) => {
+                if status.code() == tonic::Code::NotFound {
+                    self.record_reapi_cache_event(
+                        request.metadata(),
+                        namespace_id,
+                        ReapiCacheObservation {
+                            operation: "action_cache",
+                            outcome: "miss",
+                            digest: &digest.hash,
+                            size: 0,
+                            duration: analytics_started_at.elapsed(),
+                        },
+                    );
+                }
+                return Err(status);
+            }
+        };
         // Presence gate, the per-key counterpart of the snapshot reconcile's:
         // an entry whose output blobs were evicted is unserveable by
         // construction — the client replaying it hard-fails the build on the
@@ -1173,16 +1487,25 @@ impl ActionCache for ReapiService {
         // files, stdout/stderr, and each output directory's tree plus the files
         // it lists — not just output files, so an REAPI client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
-        if let Some(missing) = first_evicted_output(
+        let presence = first_evicted_output(
             &self.state,
             namespace_id,
             &action_result,
+            self.state.store.segment_ring_is_aging(),
             materialization_budget
                 .get_mut()
                 .expect("action-cache materialization budget lock poisoned"),
         )
         .await
-        {
+        .map_err(|error| {
+            chunk_presence_status(
+                &self.state,
+                "get_action_result",
+                "failed to inspect action-result blobs",
+                error,
+            )
+        })?;
+        if let Some(missing) = presence.evicted {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
             // the next publish recreates it instead of every reader paying
@@ -1206,10 +1529,35 @@ impl ActionCache for ReapiService {
                     }
                 }
             }
+            self.record_reapi_cache_event(
+                request.metadata(),
+                namespace_id,
+                ReapiCacheObservation {
+                    operation: "action_cache",
+                    outcome: "miss",
+                    digest: &digest.hash,
+                    size: 0,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
             return Err(Status::not_found(
                 "action result references evicted output blobs",
             ));
         }
+        // The gate passed, so this response vouches for every blob it
+        // references. REAPI asks that those blobs be available "at the time of
+        // returning the ActionResult and will be for some period of time
+        // afterwards", with their lifetimes increased where applicable. The
+        // gate above answers from metadata alone, so nothing on this path has
+        // kept them alive. Without this, eviction between here and the
+        // client's BatchReadBlobs hands it a missing object, which clang treats
+        // as a hard build failure rather than a recompile.
+        self.state.store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &presence.present,
+            RefreshTrigger::ActionCache,
+        );
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -1252,7 +1600,7 @@ impl ActionCache for ReapiService {
             action_result.stderr_raw = bytes;
         }
         if !request.get_ref().inline_output_files.is_empty() {
-            // `"*"` is a Kura extension to the REAPI `inline_output_files`
+            // `"*"` is a Kura auth to the REAPI `inline_output_files`
             // hint: inline the contents of every output file the response
             // budget affords. It exists for clients (the Xcode CAS plugin)
             // whose output-file paths are digests unknown before this
@@ -1267,6 +1615,17 @@ impl ActionCache for ReapiService {
                 .inline_output_files
                 .iter()
                 .any(|path| path == "*");
+            let inline_limit = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .filter_map(|hint| {
+                    hint.strip_prefix("tuist-inline-max-bytes:")?
+                        .parse::<i64>()
+                        .ok()
+                })
+                .filter(|limit| *limit >= 0)
+                .min();
             // Collect the targets first, then read them concurrently: a
             // sequential await per file caps wildcard inlining at per-read
             // latency times manifest size, the same serialization
@@ -1287,6 +1646,16 @@ impl ActionCache for ReapiService {
                         .iter()
                         .any(|path| path == &output_file.path);
                     if (!inline_all && !explicit) || !output_file.contents.is_empty() {
+                        return None;
+                    }
+                    if !explicit
+                        && inline_limit.is_some_and(|limit| {
+                            output_file
+                                .digest
+                                .as_ref()
+                                .is_some_and(|digest| digest.size_bytes > limit)
+                        })
+                    {
                         return None;
                     }
                     output_file
@@ -1335,14 +1704,23 @@ impl ActionCache for ReapiService {
         if let Some(response_memory) = response_memory {
             response.extensions_mut().insert(response_memory);
         }
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", size_bytes);
         // Book usage only after the response is fully built (headers applied),
         // matching the other handlers' success-arm convention.
         self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+        self.record_reapi_cache_event(
+            request.metadata(),
+            namespace_id,
+            ReapiCacheObservation {
+                operation: "action_cache",
+                outcome: "hit",
+                digest: &digest.hash,
+                size: served_bytes,
+                duration: analytics_started_at.elapsed(),
+            },
+        );
         Ok(response)
     }
 
@@ -1350,44 +1728,48 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
             .get_ref()
             .action_digest
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
-        let action_result = request
-            .get_ref()
-            .action_result
-            .clone()
-            .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
+        if request.get_ref().action_result.is_none() {
+            return Err(Status::invalid_argument("missing action_result"));
+        }
         let key = action_cache_key(&digest_key(digest)?);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.action_cache.update",
+        let auth = GrpcRequestSpec {
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(key.clone()),
-            artifact_hash: Some(digest.hash.clone()),
+            namespace_id: Some(authorization_namespace_id),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let analytics_started_at = Instant::now();
+        let action_digest = digest.hash.clone();
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
+        let (metadata, mut extensions, mut message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let action_result = message
+            .action_result
+            .take()
+            .expect("action result was checked before authorization");
         let bytes = action_result.encode_to_vec();
         // Reject an action result we could never replicate. Entries are stored
-        // inline and pushed to peers inline, and the inline replication path
+        // inline and fetched by peers inline, and the inline catch-up path
         // buffers the whole body in RAM, so it is bounded by
         // MAX_INLINE_REPLICATION_BODY_BYTES. Accepting a larger entry would
-        // strand it on this node (peers 413 the oversized inline push) and
-        // churn a poison outbox message forever. failed_precondition is
-        // non-retriable, so Bazel records the miss and moves on instead of
-        // retrying the doomed write.
+        // strand it on this node, where no peer could ever fetch it.
+        // failed_precondition is non-retriable, so Bazel records the miss and
+        // moves on instead of retrying the doomed write.
         if bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
             // Count the rejection but report 0 written bytes, matching the other
             // failed-write sites, so a rejected write never inflates
@@ -1401,29 +1783,36 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let targets = replication_targets(&self.state).await;
         let (manifest, applied) = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf",
                 &bytes,
-                &targets,
                 branch.as_deref(),
                 trunk.as_deref(),
             )
             .await
             .map_err(|error| store_write_status("failed to store action result", error))?;
-        self.state.notify.notify_one();
-        self.state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        // A damped refresh (identical bytes, fresh version) counts under its own
+        // result and books no bytes: it stored nothing and wrote no replication
+        // feed row, so folding it into "ok" both overstates ingest and makes the
+        // write counter incomparable with every counter that only sees applied
+        // changes -- a shortfall that reads exactly like replication losing
+        // entries. Separating them also makes the damping rate measurable.
+        if applied {
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        } else {
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+        }
         let mut response = Response::new(action_result);
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
         // update is billed: an action result is a mutable entry whose content
@@ -1432,7 +1821,18 @@ impl ActionCache for ReapiService {
         // A damped refresh (identical bytes, fresh version) applies nothing
         // and bills nothing.
         if applied {
-            self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+            self.record_reapi_upload(&metadata, namespace_id, manifest.size);
+            self.record_reapi_cache_event(
+                &metadata,
+                namespace_id,
+                ReapiCacheObservation {
+                    operation: "action_cache",
+                    outcome: "write",
+                    digest: &action_digest,
+                    size: manifest.size,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
         }
         Ok(response)
     }
@@ -1449,42 +1849,60 @@ impl ContentAddressableStorage for ReapiService {
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.cas.find_missing",
+        let auth = GrpcRequestSpec {
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let message = request.into_inner();
+        let namespace_id = namespace_from_instance(&message.instance_name);
         let mut missing = Vec::new();
-        for digest in &request.get_ref().blob_digests {
+        let aging = self.state.store.segment_ring_is_aging();
+        let mut presence_budget = PresenceBudget::for_request();
+        // "Servers SHOULD increase the lifetimes of the referenced blobs if
+        // necessary and applicable": a client told a blob is present skips
+        // uploading it and relies on it staying present, so the answer has to
+        // keep it alive the same way a served action result does. The request's
+        // digest count is client-controlled up to the 64 MiB decode ceiling, so
+        // extension happens inside the presence lookup rather than over a
+        // collected key set: no per-digest allocation is retained, and a
+        // present blob costs one manifest lookup rather than two. When no
+        // segment has aged there is nothing to promote, so the plain existence
+        // check keeps its existence-cache short-circuit.
+        for digest in message.blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
             // a zero-byte blob they otherwise synthesize.
-            if is_empty_blob(digest) {
+            if is_empty_blob(&digest) {
                 continue;
             }
-            let key = blob_key(&digest_key(digest)?);
-            let exists = self
-                .state
-                .store
-                .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
-                .await
-                .map_err(|error| {
-                    Status::internal(format!("failed to inspect CAS blob: {error}"))
-                })?;
-            if !exists {
-                missing.push(digest.clone());
+            digest_key(&digest)?;
+            if presence_keys(
+                &self.state,
+                namespace_id,
+                &digest,
+                RefreshTrigger::FindMissing,
+                aging,
+                &mut presence_budget,
+            )
+            .await
+            .map_err(|error| {
+                chunk_presence_status(
+                    &self.state,
+                    "find_missing_blobs",
+                    "failed to inspect CAS blob",
+                    error,
+                )
+            })?
+            .is_none()
+            {
+                missing.push(digest);
             }
         }
 
         let mut response = Response::new(reapi::FindMissingBlobsResponse {
             missing_blob_digests: missing,
         });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "missing blobs response")?;
         Ok(response)
     }
@@ -1493,23 +1911,25 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
-        let _memory_admission = request
-            .extensions()
-            .get::<GrpcWriteAdmission>()
-            .cloned()
-            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.cas.batch_update",
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let auth = GrpcRequestSpec {
             operation: "artifact.write",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
+            namespace_id: Some(authorization_namespace_id),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
-        let mut responses = Vec::with_capacity(request.get_ref().requests.len());
+        self.authorize_request(&request, auth).await?;
+        let (metadata, mut extensions, message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("write decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
+        let mut responses = Vec::with_capacity(message.requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
         // request per call), and so already-present blobs are not billed —
@@ -1518,9 +1938,10 @@ impl ContentAddressableStorage for ReapiService {
         let mut stored_bytes = 0_u64;
         let mut stored_any = false;
 
-        for item in &request.get_ref().requests {
-            let digest = match &item.digest {
-                Some(digest) => digest.clone(),
+        for item in message.requests {
+            let analytics_started_at = Instant::now();
+            let digest = match item.digest {
+                Some(digest) => digest,
                 None => {
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: None,
@@ -1529,40 +1950,76 @@ impl ContentAddressableStorage for ReapiService {
                     continue;
                 }
             };
-            if item.compressor != 0 {
-                responses.push(reapi::batch_update_blobs_response::Response {
-                    digest: Some(digest),
-                    status: Some(rpc_status(3, "compressed uploads are not supported")),
-                });
-                continue;
-            }
-            match persist_cas_blob(&self.state, namespace_id, &digest, &item.data).await {
+            // The digest is always the uncompressed content's digest, so
+            // decompression bounds are the same as an identity upload. The
+            // decoded Vec is preallocated to the declared size; the streaming
+            // decoder aborts if the payload would grow past that, so a bomb
+            // never allocates more than `digest.size_bytes` regardless of the
+            // compressed input.
+            let decoded = match item.compressor {
+                0 => std::borrow::Cow::Borrowed(item.data.as_slice()),
+                c if c == reapi::compressor::Value::Zstd as i32 => {
+                    match decompress_zstd_batch_item(&item.data, digest.size_bytes) {
+                        Ok(bytes) => std::borrow::Cow::Owned(bytes),
+                        Err(status) => {
+                            responses.push(reapi::batch_update_blobs_response::Response {
+                                digest: Some(digest),
+                                status: Some(rpc_status_from_grpc_status(&status)),
+                            });
+                            continue;
+                        }
+                    }
+                }
+                other => {
+                    responses.push(reapi::batch_update_blobs_response::Response {
+                        digest: Some(digest),
+                        status: Some(rpc_status(
+                            12,
+                            format!(
+                                "compressor {other} is not supported; only IDENTITY and ZSTD are advertised"
+                            ),
+                        )),
+                    });
+                    continue;
+                }
+            };
+            let stored_size = decoded.len() as u64;
+            match persist_cas_blob(&self.state, namespace_id, &digest, decoded.as_ref()).await {
                 Ok(newly_stored) => {
                     if newly_stored {
-                        stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
+                        // Bill the uncompressed size (what the store holds and
+                        // what an identity read of the same blob transfers), so
+                        // usage accounting does not change when a client turns
+                        // wire compression on.
+                        stored_bytes = stored_bytes.saturating_add(stored_size);
                         stored_any = true;
+                        self.record_reapi_cache_event_with_context(
+                            analytics_context.as_ref(),
+                            ReapiCacheObservation {
+                                operation: "cas",
+                                outcome: "write",
+                                digest: &digest.hash,
+                                size: stored_size,
+                                duration: analytics_started_at.elapsed(),
+                            },
+                        );
                     }
                     responses.push(reapi::batch_update_blobs_response::Response {
                         digest: Some(digest),
                         status: Some(rpc_status(0, "")),
                     })
                 }
-                Err(error) => {
-                    let code = if is_outbox_full_error(&error) { 8 } else { 13 };
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: Some(digest),
-                        status: Some(rpc_status(code, error)),
-                    })
-                }
+                Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
+                    digest: Some(digest),
+                    status: Some(rpc_status(13, error)),
+                }),
             }
         }
 
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
-            self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
+            self.record_reapi_upload(&metadata, namespace_id, stored_bytes);
         }
         Ok(response)
     }
@@ -1572,56 +2029,124 @@ impl ContentAddressableStorage for ReapiService {
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
-        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
-            route: "reapi.cas.batch_read",
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let auth = GrpcRequestSpec {
             operation: "artifact.read",
-            namespace_id: Some(namespace_id),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
+            namespace_id: Some(authorization_namespace_id),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let (metadata, _extensions, message) = request.into_parts();
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
         // Blobs are read concurrently: a sequential await per blob caps the
         // whole batch at per-read latency times batch size, which dominates
         // large read-heavy clients (measured ~4ms per blob serialized). The
-        // budget claim is synchronous and taken under a short lock that is
-        // never held across an await; per-blob failure semantics are
-        // unchanged and response order matches request order.
-        let budget = std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let digests: Vec<reapi::Digest> = request.get_ref().digests.clone();
-        let responses: Vec<reapi::batch_read_blobs_response::Response> =
+        // budget claim is a lock-free atomic subtraction; per-blob failure
+        // semantics are unchanged and response order matches request order.
+        let digests = message.digests;
+        // A client that lists ZSTD among `acceptable_compressors` allows the
+        // server to compress the response payload. The server picks; identity
+        // stays valid, and we fall back to it for anything that would not
+        // actually shrink on the wire.
+        let compress_with_zstd = message
+            .acceptable_compressors
+            .contains(&(reapi::compressor::Value::Zstd as i32));
+        // Reserve the whole batch's response memory once, before any blob is
+        // read, waiting for a momentarily full pool. The client's digests carry
+        // the sizes, so the request can be admitted as a unit; claiming per blob
+        // while blobs read concurrently would mean waiting for the pool while
+        // already holding part of it.
+        let mut budget = AtomicMaterializationBudget::reserve(
+            &self.state,
+            digests
+                .iter()
+                .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(0))
+                .fold(0_u64, |total, size| total.saturating_add(size)),
+        )
+        .await?;
+        let budget_ref = &budget;
+        let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> =
             futures_util::stream::iter(digests.into_iter().map(|digest| {
-                let budget = &budget;
+                let budget = budget_ref;
                 async move {
-                    match batch_read_one(&self.state, namespace_id, &digest, budget).await {
-                        Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data,
-                            compressor: 0,
-                            status: Some(rpc_status(0, "")),
-                        },
-                        Ok(None) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data: Vec::new(),
-                            compressor: 0,
-                            status: Some(rpc_status(5, "blob not found")),
-                        },
-                        Err(status) => reapi::batch_read_blobs_response::Response {
-                            digest: Some(digest.clone()),
-                            data: Vec::new(),
-                            compressor: 0,
-                            status: Some(rpc_status_from_grpc_status(&status)),
-                        },
-                    }
+                    let analytics_started_at = Instant::now();
+                    let response =
+                        match batch_read_one_atomic(&self.state, namespace_id, &digest, budget)
+                            .await
+                        {
+                            Ok(Some(data)) => {
+                                let (data, compressor) = if compress_with_zstd {
+                                    maybe_compress_zstd_batch_response(data)
+                                } else {
+                                    (data, 0)
+                                };
+                                reapi::batch_read_blobs_response::Response {
+                                    digest: Some(digest),
+                                    data,
+                                    compressor,
+                                    status: Some(rpc_status(0, "")),
+                                }
+                            }
+                            Ok(None) => reapi::batch_read_blobs_response::Response {
+                                digest: Some(digest),
+                                data: Vec::new(),
+                                compressor: 0,
+                                status: Some(rpc_status(5, "blob not found")),
+                            },
+                            Err(status) => reapi::batch_read_blobs_response::Response {
+                                digest: Some(digest),
+                                data: Vec::new(),
+                                compressor: 0,
+                                status: Some(rpc_status_from_grpc_status(&status)),
+                            },
+                        };
+
+                    (response, analytics_started_at.elapsed())
                 }
             }))
             .buffered(16)
             .collect()
             .await;
-        // Sum the bytes served so the whole batch books a single download usage
-        // request, matching how ByteStream/HTTP count one request per call. A
-        // successful read carries gRPC status code 0.
+        let mut responses = Vec::with_capacity(read_results.len());
+
+        for (response, duration) in read_results {
+            let outcome = response
+                .status
+                .as_ref()
+                .and_then(|status| match status.code {
+                    0 => Some("hit"),
+                    5 => Some("miss"),
+                    _ => None,
+                });
+
+            if let (Some(outcome), Some(digest)) = (outcome, response.digest.as_ref()) {
+                // Bill the uncompressed size: this is what the client
+                // ultimately consumes and matches identity-path accounting,
+                // regardless of whether the wire payload was compressed.
+                let uncompressed_size = if outcome == "hit" {
+                    u64::try_from(digest.size_bytes).unwrap_or(0)
+                } else {
+                    0
+                };
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome,
+                        digest: &digest.hash,
+                        size: uncompressed_size,
+                        duration,
+                    },
+                );
+            }
+
+            responses.push(response);
+        }
+        // Sum the uncompressed bytes served so the whole batch books a single
+        // download usage request, matching how ByteStream/HTTP count one
+        // request per call. A successful read carries gRPC status code 0; its
+        // digest's `size_bytes` is authoritative (the response's `data` length
+        // is the compressed length under a zstd-accepting client).
         let served_bytes: u64 = responses
             .iter()
             .filter(|response| {
@@ -1630,7 +2155,13 @@ impl ContentAddressableStorage for ReapiService {
                     .as_ref()
                     .is_some_and(|status| status.code == 0)
             })
-            .map(|response| response.data.len() as u64)
+            .map(|response| {
+                response
+                    .digest
+                    .as_ref()
+                    .and_then(|digest| u64::try_from(digest.size_bytes).ok())
+                    .unwrap_or(0)
+            })
             .sum();
         let served_any = responses.iter().any(|response| {
             response
@@ -1640,17 +2171,16 @@ impl ContentAddressableStorage for ReapiService {
         });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
-        let response_memory = budget
-            .into_inner()
-            .expect("batch-read materialization budget lock poisoned")
-            .into_response_guard();
+        // The single up-front reservation rides with the response, so the bytes
+        // stay admitted for as long as the client is reading them.
+        let response_memory = budget.take_permit().map(|permit| {
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit])
+        });
         if let Some(response_memory) = response_memory {
             response.extensions_mut().insert(response_memory);
         }
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         if served_any {
-            self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+            self.record_reapi_download(&metadata, namespace_id, served_bytes);
         }
         Ok(response)
     }
@@ -1664,17 +2194,226 @@ impl ContentAddressableStorage for ReapiService {
 
     async fn split_blob(
         &self,
-        _request: Request<reapi::SplitBlobRequest>,
+        request: Request<reapi::SplitBlobRequest>,
     ) -> Result<Response<reapi::SplitBlobResponse>, Status> {
-        Err(Status::unimplemented("SplitBlob is not supported"))
+        require_sha256(request.get_ref().digest_function)?;
+        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        self.authorize_request(
+            &request,
+            GrpcRequestSpec {
+                operation: "artifact.read",
+                namespace_id: Some(namespace_id),
+            },
+        )
+        .await?;
+        let digest = request
+            .get_ref()
+            .blob_digest
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("missing blob_digest"))?;
+        digest_key(digest)?;
+        let Some((_manifest, recipe)) = fetch_recipe(&self.state, namespace_id, digest)
+            .await
+            .map_err(|error| Status::internal(format!("failed to read blob recipe: {error}")))?
+        else {
+            return Err(Status::not_found("blob has no chunk recipe"));
+        };
+        if fetch_chunk_manifests(&self.state, namespace_id, &recipe)
+            .await
+            .map_err(|error| Status::internal(format!("failed to inspect blob chunks: {error}")))?
+            .is_none()
+        {
+            return Err(Status::not_found("one or more blob chunks are missing"));
+        }
+        let mut response = Response::new(reapi::SplitBlobResponse {
+            chunk_digests: recipe.chunks().to_vec(),
+            chunking_function: recipe.chunking_function_value(),
+        });
+        self.retain_unary_response_materialization(&mut response, "split blob response")?;
+        Ok(response)
     }
 
     async fn splice_blob(
         &self,
-        _request: Request<reapi::SpliceBlobRequest>,
+        request: Request<reapi::SpliceBlobRequest>,
     ) -> Result<Response<reapi::SpliceBlobResponse>, Status> {
-        Err(Status::unimplemented("SpliceBlob is not supported"))
+        if !self.state.config.reapi_blob_chunking_enabled {
+            return Err(Status::unimplemented("SpliceBlob is not enabled"));
+        }
+        if request.extensions().get::<GrpcWriteAdmission>().is_none() {
+            return Err(Status::internal(
+                "write decode admission was not propagated",
+            ));
+        }
+        require_sha256(request.get_ref().digest_function)?;
+        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        self.authorize_request(
+            &request,
+            GrpcRequestSpec {
+                operation: "artifact.write",
+                namespace_id: Some(namespace_id),
+            },
+        )
+        .await?;
+        let (metadata, mut extensions, mut message) = request.into_parts();
+        let _memory_admission = extensions
+            .remove::<GrpcWriteAdmission>()
+            .expect("splice decode admission was checked before authorization");
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let blob_digest = message
+            .blob_digest
+            .take()
+            .ok_or_else(|| Status::invalid_argument("missing blob_digest"))?;
+        digest_key(&blob_digest)?;
+        if blob_digest.size_bytes > MAX_MODULE_TOTAL_BYTES as i64 {
+            return Err(Status::out_of_range(format!(
+                "blob size exceeds the {} byte limit",
+                MAX_MODULE_TOTAL_BYTES
+            )));
+        }
+        let mut presence_budget = PresenceBudget::for_request();
+        if presence_keys(
+            &self.state,
+            namespace_id,
+            &blob_digest,
+            RefreshTrigger::FindMissing,
+            self.state.store.segment_ring_is_aging(),
+            &mut presence_budget,
+        )
+        .await
+        .map_err(|error| {
+            chunk_presence_status(&self.state, "splice", "failed to inspect blob", error)
+        })?
+        .is_some()
+        {
+            let mut response = Response::new(reapi::SpliceBlobResponse {
+                blob_digest: Some(blob_digest),
+            });
+            self.retain_unary_response_materialization(&mut response, "splice blob response")?;
+            return Ok(response);
+        }
+        if message.chunking_function != reapi::chunking_function::Value::FastCdc2020 as i32 {
+            self.state
+                .metrics
+                .record_reapi_chunking_event("splice", "rejected_function");
+            return Err(Status::invalid_argument(
+                "new blob recipes require the FastCDC 2020 chunking function",
+            ));
+        }
+        let recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            std::mem::take(&mut message.chunk_digests),
+            message.chunking_function,
+        )
+        .map_err(Status::invalid_argument)?;
+        let recipe_bytes = recipe.encode();
+        if recipe_bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            return Err(Status::out_of_range(format!(
+                "chunk recipe exceeds the {} byte inline replication limit",
+                MAX_INLINE_REPLICATION_BODY_BYTES
+            )));
+        }
+        let _verification_slot = SpliceVerificationSlot::try_acquire().ok_or_else(|| {
+            self.state
+                .metrics
+                .record_reapi_chunking_event("splice", "shed");
+            Status::resource_exhausted(
+                "server is limiting concurrent blob splice verification; retry shortly",
+            )
+        })?;
+        if let Err(status) = verify_spliced_blob(&self.state, namespace_id, &recipe).await {
+            let outcome = match status.code() {
+                tonic::Code::NotFound => "chunk_missing",
+                tonic::Code::InvalidArgument => "digest_mismatch",
+                _ => "error",
+            };
+            self.state
+                .metrics
+                .record_reapi_chunking_event("splice", outcome);
+            return Err(status);
+        }
+        // Keep the recipe at its creation time so a newly spliced logical
+        // blob always stays ahead of an absent peer's completed-pass
+        // watermark, even when it reuses old chunks. Backfill can encounter
+        // the recipe before those chunks; the composite presence and read
+        // gates keep it unavailable until every dependency arrives.
+        let key = recipe_key(&digest_key(&blob_digest)?);
+        let manifest = self
+            .state
+            .store
+            .persist_inline_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/x-protobuf; message=tuist.kura.ChunkedBlobRecipe",
+                &recipe_bytes,
+                None,
+                None,
+            )
+            .await
+            .map_err(|error| store_write_status("failed to store blob recipe", error))?;
+        self.state
+            .metrics
+            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        self.state
+            .metrics
+            .record_reapi_chunking_event("splice", "ok");
+        self.state
+            .metrics
+            .record_reapi_chunking_bytes("logical", blob_digest.size_bytes as u64);
+        self.state
+            .metrics
+            .record_reapi_chunking_bytes("recipe", manifest.size);
+        self.record_reapi_upload(&metadata, namespace_id, manifest.size);
+        let mut response = Response::new(reapi::SpliceBlobResponse {
+            blob_digest: Some(blob_digest),
+        });
+        self.retain_unary_response_materialization(&mut response, "splice blob response")?;
+        Ok(response)
     }
+}
+
+async fn verify_spliced_blob(
+    state: &SharedState,
+    namespace_id: &str,
+    recipe: &ChunkedBlobRecipe,
+) -> Result<(), Status> {
+    let manifests = fetch_chunk_manifests(state, namespace_id, recipe)
+        .await
+        .map_err(|error| Status::internal(format!("failed to inspect blob chunks: {error}")))?
+        .ok_or_else(|| Status::not_found("one or more blob chunks are missing"))?;
+    let mut hasher = Sha256::new();
+    let mut total = 0_u64;
+    for manifest in manifests {
+        let Some(mut reader) = state
+            .store
+            .open_artifact_reader_range_tolerating_promotion_reader_only(&manifest, 0, None)
+            .await
+            .map_err(|error| Status::internal(format!("failed to verify blob chunk: {error}")))?
+        else {
+            return Err(Status::not_found("one or more blob chunks are missing"));
+        };
+        loop {
+            let bytes = reader
+                .read_chunk_owned(SEGMENT_COPY_BUFFER_BYTES)
+                .await
+                .map_err(|error| {
+                    Status::internal(format!("failed to verify blob chunk: {error}"))
+                })?;
+            if bytes.is_empty() {
+                break;
+            }
+            total = total.saturating_add(bytes.len() as u64);
+            hasher.update(&bytes);
+        }
+    }
+    let digest = recipe.blob_digest();
+    if total != recipe.blob_size() || hex::encode(hasher.finalize()) != digest.hash {
+        return Err(Status::invalid_argument(
+            "chunk contents do not match the declared blob digest",
+        ));
+    }
+    Ok(())
 }
 
 #[tonic::async_trait]
@@ -1687,25 +2426,36 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
-        let extension = GrpcExtensionSpec {
-            route: "reapi.bytestream.read",
+        let auth = GrpcRequestSpec {
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
+        let analytics_started_at = Instant::now();
         if request.get_ref().read_offset < 0 {
             return Err(Status::invalid_argument("read_offset must be non-negative"));
         }
         if request.get_ref().read_limit < 0 {
             return Err(Status::invalid_argument("read_limit must be non-negative"));
         }
+        // REAPI mandates INVALID_ARGUMENT (not UNIMPLEMENTED) for a non-zero
+        // `read_limit` on a compressed-blobs read: the byte count the limit
+        // would name has no defined meaning against a compressed stream, and
+        // the client is expected to pass 0 and consume the response.
+        // `read_offset` on a compressed-blobs read is defined as the offset
+        // in the *uncompressed* form, so it is served by seeking the
+        // uncompressed reader (`open_artifact_reader_range_tolerating_promotion_reader_only`
+        // below) and starting the encoder at that point — no compressed
+        // byte-offset index is needed.
+        if resource.compressor == BlobCompressor::Zstd && request.get_ref().read_limit != 0 {
+            return Err(Status::invalid_argument(
+                "read_limit is not supported on compressed-blobs; leave it at 0 and consume the response stream",
+            ));
+        }
         let manifest = match self
             .state
             .store
-            .fetch_artifact_for_serving(
+            .fetch_artifact_for_serving_retained(
                 ArtifactProducer::Reapi,
                 &resource.namespace_id,
                 &resource.key,
@@ -1714,10 +2464,150 @@ impl ByteStream for ReapiService {
         {
             Ok(Some(manifest)) => manifest,
             Ok(None) => {
+                let digest = reapi::Digest {
+                    hash: resource.hash().to_owned(),
+                    size_bytes: resource.size_bytes as i64,
+                };
+                let Some((_recipe_manifest, recipe)) =
+                    fetch_recipe(&self.state, &resource.namespace_id, &digest)
+                        .await
+                        .map_err(|error| {
+                            Status::internal(format!("failed to read blob recipe: {error}"))
+                        })?
+                else {
+                    self.state.metrics.record_artifact_read(
+                        ArtifactProducer::Reapi,
+                        "not_found",
+                        0,
+                    );
+                    self.record_reapi_cache_event(
+                        request.metadata(),
+                        &resource.namespace_id,
+                        ReapiCacheObservation {
+                            operation: "cas",
+                            outcome: "miss",
+                            digest: resource.hash(),
+                            size: 0,
+                            duration: analytics_started_at.elapsed(),
+                        },
+                    );
+                    return Err(Status::not_found("blob not found"));
+                };
+                // Compressed reads of Kura's internal chunked (SplitBlob) recipes
+                // are not currently supported: composite reads assemble
+                // decoded bytes from many manifests and the encoder wrapper
+                // above assumes a single reader. Bazel does not use split
+                // blobs, so this codepath is unreachable in production;
+                // failing closed is safer than silently corrupting a serve.
+                // The guard runs after the recipe lookup so a plain miss on a
+                // compressed read still answers NOT_FOUND (which Bazel maps
+                // to CacheNotFoundException and treats as a normal miss)
+                // rather than UNIMPLEMENTED (which becomes an IOException and
+                // breaks the AC-hit-then-CAS-evicted graceful fallback).
+                if resource.compressor == BlobCompressor::Zstd {
+                    return Err(Status::unimplemented(
+                        "compressed reads of chunked blobs are not supported",
+                    ));
+                }
+                let manifests =
+                    match fetch_chunk_manifests(&self.state, &resource.namespace_id, &recipe)
+                        .await
+                        .map_err(|error| {
+                            Status::internal(format!("failed to inspect blob chunks: {error}"))
+                        })? {
+                        Some(manifests) => manifests,
+                        None => {
+                            self.state
+                                .metrics
+                                .record_reapi_chunking_event("composite_read", "chunk_missing");
+                            return Err(Status::not_found("one or more blob chunks are missing"));
+                        }
+                    };
+                let read_offset = request.get_ref().read_offset as u64;
+                if read_offset > recipe.blob_size() {
+                    return Err(Status::out_of_range("read_offset exceeds blob size"));
+                }
+                let requested_limit = if request.get_ref().read_limit == 0 {
+                    None
+                } else {
+                    Some(request.get_ref().read_limit as u64)
+                };
+                let bytes_to_read = requested_limit
+                    .unwrap_or_else(|| recipe.blob_size().saturating_sub(read_offset))
+                    .min(recipe.blob_size().saturating_sub(read_offset));
+                let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
+                let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
+                let inline_bytes = manifests
+                    .iter()
+                    .filter(|manifest| manifest.inline)
+                    .map(|manifest| manifest.size)
+                    .max()
+                    .unwrap_or(0);
+                let requested_bytes = u64::try_from(
+                    encoded_chunk_bytes
+                        .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                        .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES),
+                )
+                .unwrap_or(u64::MAX)
+                .saturating_add(inline_bytes);
+                let permit = self
+                    .state
+                    .memory
+                    .acquire_response_stream_memory(
+                        usize::try_from(requested_bytes).map_err(|_| {
+                            Status::resource_exhausted(
+                                "blob stream memory requirement is too large",
+                            )
+                        })?,
+                        "bytestream",
+                        crate::memory::ResponseStreamAdmissionPatience::Blocking,
+                    )
+                    .await
+                    .map_err(|_| {
+                        Status::resource_exhausted(
+                            "server is limiting concurrent ByteStream reads; retry shortly",
+                        )
+                    })?;
+                let slices =
+                    composite_read_slices(recipe.chunks(), manifests, read_offset, bytes_to_read);
+                let stream = composite_bytestream_read_response_stream(
+                    self.state.clone(),
+                    slices,
+                    stream_chunk_bytes,
+                );
+                self.state.metrics.record_artifact_read(
+                    ArtifactProducer::Reapi,
+                    "ok",
+                    bytes_to_read,
+                );
+                self.state.metrics.record_artifact_serving_path("streaming");
                 self.state
                     .metrics
-                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-                return Err(Status::not_found("blob not found"));
+                    .record_reapi_chunking_event("composite_read", "ok");
+                self.state
+                    .metrics
+                    .record_reapi_chunking_bytes("served", bytes_to_read);
+                let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
+                response
+                    .extensions_mut()
+                    .insert(permit.into_transport_guard());
+                self.record_reapi_download(
+                    request.metadata(),
+                    &resource.namespace_id,
+                    bytes_to_read,
+                );
+                self.record_reapi_cache_event(
+                    request.metadata(),
+                    &resource.namespace_id,
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "hit",
+                        digest: resource.hash(),
+                        size: bytes_to_read,
+                        duration: analytics_started_at.elapsed(),
+                    },
+                );
+                return Ok(response);
             }
             Err(error) => {
                 self.state
@@ -1743,12 +2633,24 @@ impl ByteStream for ReapiService {
         let inline_bytes = if manifest.inline { manifest.size } else { 0 };
         let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
         let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
-        let requested_bytes = u64::try_from(encoded_chunk_bytes.saturating_mul(4))
-            .unwrap_or(u64::MAX)
-            .saturating_add(inline_bytes);
+        let requested_bytes = u64::try_from(
+            encoded_chunk_bytes
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES),
+        )
+        .unwrap_or(u64::MAX)
+        .saturating_add(inline_bytes);
         let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
             Status::resource_exhausted("blob stream memory requirement is too large")
         })?;
+        // The compressed serve path holds a level-3 zstd encoder alongside
+        // the chunk buffers; account for its resident bytes so it counts
+        // against the same admission pool that gates concurrent reads.
+        let requested_bytes = if resource.compressor == BlobCompressor::Zstd {
+            requested_bytes.saturating_add(BYTESTREAM_ZSTD_ENCODER_FOOTPRINT_BYTES)
+        } else {
+            requested_bytes
+        };
         let permit = self
             .state
             .memory
@@ -1765,12 +2667,16 @@ impl ByteStream for ReapiService {
             })?;
         // Tolerates a concurrent background promotion relocating the blob
         // between the manifest fetch above and this open (see
-        // `Store::open_artifact_reader_range_tolerating_promotion`); a genuine
-        // eviction is a NOT_FOUND miss, not an internal error.
-        let Some((_, reader)) = self
+        // `Store::open_artifact_reader_range_tolerating_promotion_reader_only`);
+        // a genuine eviction is a NOT_FOUND miss, not an internal error.
+        let Some(reader) = self
             .state
             .store
-            .open_artifact_reader_range_tolerating_promotion(&manifest, read_offset, read_limit)
+            .open_artifact_reader_range_tolerating_promotion_reader_only(
+                &manifest,
+                read_offset,
+                read_limit,
+            )
             .await
             .map_err(|error| {
                 self.state
@@ -1782,27 +2688,33 @@ impl ByteStream for ReapiService {
             self.state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            self.record_reapi_cache_event(
+                request.metadata(),
+                &resource.namespace_id,
+                ReapiCacheObservation {
+                    operation: "cas",
+                    outcome: "miss",
+                    digest: resource.hash(),
+                    size: 0,
+                    duration: analytics_started_at.elapsed(),
+                },
+            );
             return Err(Status::not_found("blob not found"));
         };
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         self.state.metrics.record_artifact_serving_path("streaming");
-        let stream =
-            ReaderStream::with_capacity(reader, stream_chunk_bytes).map(
-                move |result| match result {
-                    Ok(bytes) => Ok(bytestream::ReadResponse {
-                        data: bytes.to_vec(),
-                    }),
-                    Err(error) => Err(Status::internal(format!(
-                        "failed to stream blob chunk: {error}"
-                    ))),
-                },
-            );
+        let stream: Self::ReadStream = if resource.compressor == BlobCompressor::Zstd {
+            Box::pin(compressed_bytestream_read_response_stream(
+                reader,
+                stream_chunk_bytes,
+            ))
+        } else {
+            Box::pin(bytestream_read_response_stream(reader, stream_chunk_bytes))
+        };
 
-        let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
+        let mut response = Response::new(stream);
         response
             .extensions_mut()
             .insert(permit.into_transport_guard());
@@ -1811,6 +2723,17 @@ impl ByteStream for ReapiService {
         // not have fired. Recorded before the body streams, mirroring the "ok"
         // read metric and the HTTP path's optimistic size accounting.
         self.record_reapi_download(request.metadata(), &resource.namespace_id, bytes_to_read);
+        self.record_reapi_cache_event(
+            request.metadata(),
+            &resource.namespace_id,
+            ReapiCacheObservation {
+                operation: "cas",
+                outcome: "hit",
+                digest: resource.hash(),
+                size: bytes_to_read,
+                duration: analytics_started_at.elapsed(),
+            },
+        );
         Ok(response)
     }
 
@@ -1819,19 +2742,12 @@ impl ByteStream for ReapiService {
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         let temp_path = temp_file_path(&self.state.config.tmp_dir.join("uploads"), "reapi-write");
-        if let Some(parent) = temp_path.parent() {
-            self.state
-                .io
-                .create_dir_all(parent)
-                .await
-                .map_err(Status::internal)?;
-        }
         let mut cleanup = TempFileCleanup::new_unreserved(temp_path.clone());
 
         // The owned cleanup guard removes the partial even when transport
         // cancellation drops this future at an await point. On success the
         // persist step already unlinks the temp file, so its drop is a no-op.
-        let result = self.write_to_temp(&temp_path, request, &mut cleanup).await;
+        let result = self.write_stream(&temp_path, request, &mut cleanup).await;
         cleanup.remove_and_disarm(&self.state.io).await;
         if let Err(status) = &result {
             // The success path records "ok" inside write_to_temp; meter the
@@ -1850,15 +2766,11 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
-        let extension = GrpcExtensionSpec {
-            route: "reapi.bytestream.query_write_status",
+        let auth = GrpcRequestSpec {
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
-            producer: Some("reapi"),
-            artifact_key: Some(resource.key.clone()),
-            artifact_hash: Some(resource.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth).await?;
         let manifest = self
             .state
             .store
@@ -1872,17 +2784,279 @@ impl ByteStream for ReapiService {
 
         match manifest {
             Some(manifest) => {
-                let mut response = Response::new(bytestream::QueryWriteStatusResponse {
+                let response = Response::new(bytestream::QueryWriteStatusResponse {
                     committed_size: manifest.size as i64,
                     complete: true,
                 });
-                self.apply_response_headers(&mut response, extension, principal.as_ref())
-                    .await?;
                 Ok(response)
             }
-            None => Err(Status::not_found("blob not found")),
+            None => {
+                let digest = reapi::Digest {
+                    hash: resource.hash().to_owned(),
+                    size_bytes: resource.size_bytes as i64,
+                };
+                let mut presence_budget = PresenceBudget::for_request();
+                if presence_keys(
+                    &self.state,
+                    &resource.namespace_id,
+                    &digest,
+                    RefreshTrigger::FindMissing,
+                    self.state.store.segment_ring_is_aging(),
+                    &mut presence_budget,
+                )
+                .await
+                .map_err(|error| {
+                    chunk_presence_status(
+                        &self.state,
+                        "query_write_status",
+                        "failed to inspect blob status",
+                        error,
+                    )
+                })?
+                .is_some()
+                {
+                    Ok(Response::new(bytestream::QueryWriteStatusResponse {
+                        committed_size: resource.size_bytes as i64,
+                        complete: true,
+                    }))
+                } else {
+                    Err(Status::not_found("blob not found"))
+                }
+            }
         }
     }
+}
+
+fn bytestream_read_response_stream(
+    reader: ArtifactReader,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let data = reader
+            .read_chunk_owned(chunk_bytes)
+            .await
+            .map_err(|error| Status::internal(format!("failed to stream blob chunk: {error}")))?;
+        if data.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some((bytestream::ReadResponse { data }, reader)))
+        }
+    })
+}
+
+/// zstd level for on-the-fly ByteStream compression. Matches the snapshot
+/// serve and BatchRead compression: hundreds of MB/s per core, within a few
+/// percent of higher levels on typical Bazel action outputs, so the serve
+/// stays CPU-cheap while the wire shrinks meaningfully.
+const BYTESTREAM_ZSTD_LEVEL: i32 = 3;
+
+/// Resident footprint of a level-3 `zstd::stream::write::Encoder` per live
+/// compressed ByteStream read (measured at ~0.82 MiB; a bit of slack absorbs
+/// per-allocator variance). Added to the response-stream memory reservation
+/// so concurrent compressed reads are actually gated by the same controller
+/// that gates identity reads, rather than accumulating outside its view.
+const BYTESTREAM_ZSTD_ENCODER_FOOTPRINT_BYTES: usize = 900 * 1024;
+
+/// Wraps an ArtifactReader chunk stream with a streaming zstd encoder. Each
+/// input chunk of decoded bytes is pushed into the encoder; the encoder's
+/// scratch Vec is drained per input chunk and split into `chunk_bytes`-sized
+/// ReadResponses. The encoder's internal state plus one input chunk cap the
+/// per-stream memory footprint.
+///
+/// The encoder is flushed at EOF (`Encoder::finish`) so the trailing frame
+/// bytes reach the client; the client's decoder rejects a truncated stream.
+fn compressed_bytestream_read_response_stream(
+    reader: ArtifactReader,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    struct ReadState {
+        reader: Option<ArtifactReader>,
+        // None once `finish()` was called; the encoder cannot be reused after.
+        encoder: Option<zstd::stream::write::Encoder<'static, Vec<u8>>>,
+        pending: Vec<u8>,
+        chunk_bytes: usize,
+    }
+
+    let encoder = zstd::stream::write::Encoder::new(Vec::new(), BYTESTREAM_ZSTD_LEVEL)
+        .expect("zstd encoder construction should succeed for a fixed level");
+    let state = ReadState {
+        reader: Some(reader),
+        encoder: Some(encoder),
+        pending: Vec::new(),
+        chunk_bytes,
+    };
+
+    // Splits the first `take` bytes off the front of `pending` into an owned
+    // Vec, leaving the tail in `pending`. Cheaper than draining byte-by-byte
+    // out of a VecDeque: one memcpy of the tail into a fresh allocation
+    // instead of `take` per-byte pops, which dominated compressed serve CPU
+    // on incompressible content.
+    fn take_front(pending: &mut Vec<u8>, take: usize) -> Vec<u8> {
+        let tail = pending.split_off(take);
+        std::mem::replace(pending, tail)
+    }
+
+    futures_util::stream::try_unfold(state, move |mut state| async move {
+        loop {
+            // Emit a wire-sized chunk of compressed output as soon as one is
+            // ready, so a slow decode-loop client still receives frames.
+            if state.pending.len() >= state.chunk_bytes {
+                let data = take_front(&mut state.pending, state.chunk_bytes);
+                return Ok(Some((bytestream::ReadResponse { data }, state)));
+            }
+
+            // Feed the encoder another input chunk, or finalize it if we are
+            // out of input. `finish()` writes the closing frame bytes into the
+            // encoder's sink, which then joins the pending queue.
+            if let Some(reader) = state.reader.as_mut() {
+                let input = reader
+                    .read_chunk_owned(state.chunk_bytes)
+                    .await
+                    .map_err(|error| {
+                        Status::internal(format!("failed to stream blob chunk: {error}"))
+                    })?;
+                if input.is_empty() {
+                    state.reader = None;
+                } else {
+                    let encoder = state
+                        .encoder
+                        .as_mut()
+                        .expect("encoder is only taken at EOF");
+                    std::io::Write::write_all(encoder, &input).map_err(|error| {
+                        Status::internal(format!(
+                            "failed to compress ByteStream chunk with zstd: {error}"
+                        ))
+                    })?;
+                    let mut scratch = std::mem::take(encoder.get_mut());
+                    state.pending.append(&mut scratch);
+                    continue;
+                }
+            }
+
+            // Reader is drained: finalize the encoder (once), then emit any
+            // remaining bytes and end the stream.
+            if let Some(encoder) = state.encoder.take() {
+                let mut scratch = encoder.finish().map_err(|error| {
+                    Status::internal(format!("failed to finish zstd stream: {error}"))
+                })?;
+                state.pending.append(&mut scratch);
+            }
+
+            if state.pending.is_empty() {
+                return Ok(None);
+            }
+            let take = state.chunk_bytes.min(state.pending.len());
+            let data = take_front(&mut state.pending, take);
+            return Ok(Some((bytestream::ReadResponse { data }, state)));
+        }
+    })
+}
+
+fn composite_read_slices(
+    digests: &[reapi::Digest],
+    manifests: Vec<ArtifactManifest>,
+    mut skip: u64,
+    mut remaining: u64,
+) -> VecDeque<(ArtifactManifest, u64, u64)> {
+    let mut slices = VecDeque::new();
+    for (digest, manifest) in digests.iter().zip(manifests) {
+        if remaining == 0 {
+            break;
+        }
+        let chunk_size = digest.size_bytes as u64;
+        if skip >= chunk_size {
+            skip -= chunk_size;
+            continue;
+        }
+        let take = remaining.min(chunk_size - skip);
+        slices.push_back((manifest, skip, take));
+        remaining -= take;
+        skip = 0;
+    }
+    slices
+}
+
+fn composite_bytestream_read_response_stream(
+    state: SharedState,
+    slices: VecDeque<(ArtifactManifest, u64, u64)>,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    futures_util::stream::try_unfold(
+        (state, slices, None::<ArtifactReader>),
+        move |(state, mut slices, mut reader)| async move {
+            loop {
+                if let Some(mut current) = reader.take() {
+                    let data = current
+                        .read_chunk_owned(chunk_bytes)
+                        .await
+                        .map_err(|error| {
+                            Status::internal(format!("failed to stream blob chunk: {error}"))
+                        })?;
+                    if !data.is_empty() {
+                        return Ok(Some((
+                            bytestream::ReadResponse { data },
+                            (state, slices, Some(current)),
+                        )));
+                    }
+                }
+                let Some((manifest, offset, limit)) = slices.pop_front() else {
+                    return Ok(None);
+                };
+                reader = state
+                    .store
+                    .open_artifact_reader_range_tolerating_promotion_reader_only(
+                        &manifest,
+                        offset,
+                        Some(limit),
+                    )
+                    .await
+                    .map_err(|error| {
+                        Status::internal(format!("failed to stream blob chunk: {error}"))
+                    })?;
+                if reader.is_none() {
+                    return Err(Status::not_found("one or more blob chunks are missing"));
+                }
+            }
+        },
+    )
+}
+
+#[cfg(test)]
+fn direct_bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Unpin + Send,
+{
+    futures_util::stream::try_unfold(reader, move |mut reader| async move {
+        let mut data = Vec::with_capacity(chunk_bytes);
+        match tokio::io::AsyncReadExt::read_buf(&mut reader, &mut data).await {
+            Ok(0) => Ok(None),
+            Ok(_) => Ok(Some((bytestream::ReadResponse { data }, reader))),
+            Err(error) => Err(Status::internal(format!(
+                "failed to stream blob chunk: {error}"
+            ))),
+        }
+    })
+}
+
+#[cfg(test)]
+fn copying_bytestream_read_response_stream<R>(
+    reader: R,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    R: tokio::io::AsyncRead + Send,
+{
+    tokio_util::io::ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
+        Ok(bytes) => Ok(bytestream::ReadResponse {
+            data: bytes.to_vec(),
+        }),
+        Err(error) => Err(Status::internal(format!(
+            "failed to stream blob chunk: {error}"
+        ))),
+    })
 }
 
 async fn fetch_keyvalue_proto<T>(
@@ -1934,9 +3108,8 @@ where
     Ok((bytes.len() as u64, decoded))
 }
 
-/// One blob of a batch read: identical semantics to maybe_read_cas_bytes,
-/// with the shared per-request budget claimed under a short synchronous lock
-/// so blobs can be read concurrently.
+/// One blob of an action-result inline read. This existing helper shares the
+/// action response's mutable materialization budget across concurrent files.
 async fn batch_read_one(
     state: &SharedState,
     namespace_id: &str,
@@ -1984,16 +3157,46 @@ async fn batch_read_one(
     Ok(Some(bytes))
 }
 
-async fn maybe_read_cas_bytes(
+/// Lock-free batch-read path. The memory permit travels with the returned bytes
+/// and is retained by the response, while an atomic request counter bounds the
+/// aggregate before any materialization starts.
+async fn batch_read_one_atomic(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
-    materialization_budget: Option<&mut MaterializationBudget<'_>>,
+    budget: &AtomicMaterializationBudget<'_>,
 ) -> Result<Option<Vec<u8>>, Status> {
     let key = blob_key(&digest_key(digest)?);
-    let Some(manifest) = state
+    let manifest = state
         .store
         .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+        .await
+        .inspect_err(|_| {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+        })
+        .map_err(Status::internal)?;
+    if manifest.is_none() {
+        let Some((_recipe_manifest, recipe)) = fetch_recipe(state, namespace_id, digest)
+            .await
+            .map_err(Status::internal)?
+        else {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            return Ok(None);
+        };
+        budget.claim(recipe.blob_size(), "CAS response materialization")?;
+        let bytes = read_composite_bytes(state, namespace_id, &recipe).await?;
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
+        return Ok(Some(bytes));
+    }
+    let manifest = manifest.expect("checked above");
+    budget.claim(manifest.size, "CAS response materialization")?;
+    let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
@@ -2007,6 +3210,49 @@ async fn maybe_read_cas_bytes(
             .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
         return Ok(None);
     };
+    state
+        .metrics
+        .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
+    Ok(Some(bytes))
+}
+
+async fn maybe_read_cas_bytes(
+    state: &SharedState,
+    namespace_id: &str,
+    digest: &reapi::Digest,
+    materialization_budget: Option<&mut MaterializationBudget<'_>>,
+) -> Result<Option<Vec<u8>>, Status> {
+    let key = blob_key(&digest_key(digest)?);
+    let manifest = state
+        .store
+        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+        .await
+        .inspect_err(|_| {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+        })
+        .map_err(Status::internal)?;
+    if manifest.is_none() {
+        let Some((_recipe_manifest, recipe)) = fetch_recipe(state, namespace_id, digest)
+            .await
+            .map_err(Status::internal)?
+        else {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            return Ok(None);
+        };
+        if let Some(budget) = materialization_budget {
+            budget.claim(recipe.blob_size(), "CAS response materialization")?;
+        }
+        let bytes = read_composite_bytes(state, namespace_id, &recipe).await?;
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
+        return Ok(Some(bytes));
+    }
+    let manifest = manifest.expect("checked above");
     if let Some(budget) = materialization_budget {
         budget.claim(manifest.size, "CAS response materialization")?;
     }
@@ -2030,8 +3276,71 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
-/// The hash of the first blob this action result references that is no longer
-/// present in the CAS, or `None` when every referenced blob is present.
+async fn read_composite_bytes(
+    state: &SharedState,
+    namespace_id: &str,
+    recipe: &ChunkedBlobRecipe,
+) -> Result<Vec<u8>, Status> {
+    let manifests = match fetch_chunk_manifests(state, namespace_id, recipe)
+        .await
+        .map_err(Status::internal)?
+    {
+        Some(manifests) => manifests,
+        None => {
+            state
+                .metrics
+                .record_reapi_chunking_event("composite_read", "chunk_missing");
+            return Err(Status::not_found("one or more blob chunks are missing"));
+        }
+    };
+    let size = usize::try_from(recipe.blob_size())
+        .map_err(|_| Status::resource_exhausted("blob is too large to materialize"))?;
+    let mut result = try_allocate_exact_vec(size)
+        .ok_or_else(|| Status::resource_exhausted("failed to reserve blob response memory"))?;
+    for manifest in manifests {
+        let Some(mut reader) = state
+            .store
+            .open_artifact_reader_range_tolerating_promotion_reader_only(&manifest, 0, None)
+            .await
+            .map_err(Status::internal)?
+        else {
+            state
+                .metrics
+                .record_reapi_chunking_event("composite_read", "chunk_missing");
+            return Err(Status::not_found("one or more blob chunks are missing"));
+        };
+        loop {
+            let bytes = reader
+                .read_chunk_owned(SEGMENT_COPY_BUFFER_BYTES)
+                .await
+                .map_err(|error| Status::internal(error.to_string()))?;
+            if bytes.is_empty() {
+                break;
+            }
+            result.extend_from_slice(&bytes);
+        }
+    }
+    if result.len() != size {
+        state
+            .metrics
+            .record_reapi_chunking_event("composite_read", "data_loss");
+        return Err(Status::data_loss(
+            "blob chunks do not match the stored recipe",
+        ));
+    }
+    state
+        .metrics
+        .record_reapi_chunking_event("composite_read", "ok");
+    state
+        .metrics
+        .record_reapi_chunking_bytes("served", result.len() as u64);
+    Ok(result)
+}
+
+/// Whether every blob this action result references is still present, and, when
+/// `collecting`, the keys of the ones confirmed present so their lifetimes can
+/// be extended. Callers pass [`Store::segment_ring_is_aging`]: with nothing aged
+/// into the Old generation nothing is promotable, so the keys are not retained.
 ///
 /// The original per-key gate (PR #11793) checked `output_files` only; this
 /// covers the rest of what a client fetches when it replays a hit: `stdout` and
@@ -2055,39 +3364,48 @@ async fn first_evicted_output(
     state: &SharedState,
     namespace_id: &str,
     action_result: &reapi::ActionResult,
+    collecting: bool,
     materialization_budget: &mut MaterializationBudget<'_>,
-) -> Option<String> {
-    let missing = |digest: &reapi::Digest| {
-        !is_empty_blob(digest)
-            && digest_key(digest).is_ok_and(|key| {
-                !state
-                    .store
-                    .artifact_manifest_exists(
-                        ArtifactProducer::Reapi,
-                        namespace_id,
-                        &blob_key(&key),
-                    )
-                    .unwrap_or(true)
-            })
-    };
+) -> Result<OutputPresence, String> {
+    let mut present = Vec::new();
+    let mut presence_budget = PresenceBudget::for_request();
 
-    let stream_evicted = action_result
+    for digest in action_result
         .output_files
         .iter()
         .filter_map(|file| file.digest.as_ref())
         .chain(action_result.stdout_digest.as_ref())
         .chain(action_result.stderr_digest.as_ref())
-        .find(|&digest| missing(digest));
-    if let Some(digest) = stream_evicted {
-        return Some(digest.hash.clone());
+    {
+        if blob_evicted(
+            state,
+            namespace_id,
+            digest,
+            collecting,
+            &mut present,
+            &mut presence_budget,
+        )
+        .await?
+        {
+            return Ok(OutputPresence::evicted(&digest.hash));
+        }
     }
 
     for directory in &action_result.output_directories {
         let Some(tree_digest) = directory.tree_digest.as_ref() else {
             continue;
         };
-        if missing(tree_digest) {
-            return Some(tree_digest.hash.clone());
+        if blob_evicted(
+            state,
+            namespace_id,
+            tree_digest,
+            collecting,
+            &mut present,
+            &mut presence_budget,
+        )
+        .await?
+        {
+            return Ok(OutputPresence::evicted(&tree_digest.hash));
         }
         // The tree blob survives; a client next fetches every file it lists, so
         // an evicted leaf poisons the replay just as a missing tree would. This
@@ -2107,18 +3425,92 @@ async fn first_evicted_output(
         let Ok(tree) = reapi::Tree::decode(bytes.as_slice()) else {
             continue;
         };
-        let leaf_evicted = tree
+        for digest in tree
             .root
             .iter()
             .chain(&tree.children)
             .flat_map(|directory| &directory.files)
             .filter_map(|file| file.digest.as_ref())
-            .find(|&digest| missing(digest));
-        if let Some(digest) = leaf_evicted {
-            return Some(digest.hash.clone());
+        {
+            if blob_evicted(
+                state,
+                namespace_id,
+                digest,
+                collecting,
+                &mut present,
+                &mut presence_budget,
+            )
+            .await?
+            {
+                return Ok(OutputPresence::evicted(&digest.hash));
+            }
         }
     }
-    None
+
+    Ok(OutputPresence {
+        evicted: None,
+        present,
+    })
+}
+
+/// The presence gate's verdict for one action result.
+struct OutputPresence {
+    /// The hash of the first referenced blob found evicted, if any.
+    evicted: Option<String>,
+    /// Blob keys confirmed present while checking, collected so a served entry
+    /// can extend their lifetimes. Left empty when `evicted` is set: that entry
+    /// is not served and is usually deleted, so refreshing its surviving blobs
+    /// on its behalf would be pure write amplification.
+    present: Vec<String>,
+}
+
+impl OutputPresence {
+    fn evicted(hash: &str) -> Self {
+        Self {
+            evicted: Some(hash.to_owned()),
+            present: Vec::new(),
+        }
+    }
+}
+
+/// Whether one referenced blob has been evicted, recording its key when it is
+/// still present and `collecting` says a promotable segment exists. A digest
+/// with no stored artifact of its own (the canonical empty blob, or one whose
+/// key cannot be derived) is neither evicted nor worth refreshing, so it is
+/// skipped on both counts.
+async fn blob_evicted(
+    state: &SharedState,
+    namespace_id: &str,
+    digest: &reapi::Digest,
+    collecting: bool,
+    present: &mut Vec<String>,
+    presence_budget: &mut PresenceBudget,
+) -> Result<bool, String> {
+    if is_empty_blob(digest) {
+        return Ok(false);
+    }
+    if digest_key(digest).is_err() {
+        return Ok(false);
+    }
+    let keys = manifest_presence_keys(state, namespace_id, digest, presence_budget).await?;
+    if let Some(keys) = keys {
+        if collecting {
+            present.extend(keys);
+        }
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+fn chunk_presence_status(state: &SharedState, route: &str, context: &str, error: String) -> Status {
+    if is_presence_budget_error(&error) {
+        state
+            .metrics
+            .record_reapi_chunking_event("probe_budget_exhausted", route);
+        Status::resource_exhausted(error)
+    } else {
+        Status::internal(format!("{context}: {error}"))
+    }
 }
 
 // Persists a CAS blob and returns whether it was newly stored (`true`) or was
@@ -2129,6 +3521,97 @@ async fn first_evicted_output(
 // resolve to exactly one `true` — a version-based `Applied` outcome can't
 // stand in for this, because a re-upload that advances the stored version
 // still applies over an already-present blob.
+/// Streaming-decode a zstd-compressed BatchUpdate item into a Vec bounded by
+/// the declared uncompressed size.
+///
+/// Memory grows with actually-decoded bytes, not the declared size, so a
+/// small compressed payload that declares a large uncompressed size never
+/// commits heap it will not fill. The loop stops feeding the decoder once the
+/// declared cap is reached, and a final one-byte probe rejects any stream
+/// that would still yield more — the two together enforce the bomb bound at
+/// the first byte past the cap.
+fn decompress_zstd_batch_item(
+    compressed: &[u8],
+    declared_uncompressed_size: i64,
+) -> Result<Vec<u8>, Status> {
+    let declared = i64_to_usize_bounded(declared_uncompressed_size)?;
+    let mut decoder = zstd::stream::read::Decoder::with_buffer(compressed)
+        .map_err(|error| Status::internal(format!("failed to build zstd decoder: {error}")))?;
+    // 64 KiB per read keeps syscall overhead low while capping the largest
+    // single allocation the growing Vec can request; the total footprint is
+    // bounded by `declared`, which the batch admission has already accepted.
+    const READ_CHUNK_BYTES: usize = 64 * 1024;
+    let mut decoded: Vec<u8> = Vec::new();
+    let mut buffer = [0_u8; READ_CHUNK_BYTES];
+    while decoded.len() < declared {
+        let take = buffer.len().min(declared - decoded.len());
+        match std::io::Read::read(&mut decoder, &mut buffer[..take]) {
+            Ok(0) => return Ok(decoded),
+            Ok(count) => decoded.extend_from_slice(&buffer[..count]),
+            Err(error) => {
+                return Err(Status::invalid_argument(format!(
+                    "failed to decode zstd payload: {error}"
+                )));
+            }
+        }
+    }
+    // We stopped exactly at `declared`; if the decoder can still produce a
+    // byte, the payload's uncompressed length exceeded what the digest
+    // declared.
+    let mut probe = [0_u8; 1];
+    match std::io::Read::read(&mut decoder, &mut probe) {
+        Ok(0) => Ok(decoded),
+        Ok(_) => Err(Status::invalid_argument(
+            "zstd payload decompressed past the declared blob size (possible bomb)",
+        )),
+        Err(error) => Err(Status::invalid_argument(format!(
+            "failed to decode zstd payload: {error}"
+        ))),
+    }
+}
+
+/// Best-effort zstd compression of a BatchRead response's data. Returns
+/// `(payload, compressor)` where compressor is 1 (ZSTD) when compression
+/// actually shrunk the payload, or 0 (IDENTITY) when it would grow it or the
+/// encoder failed. The response's materialization budget already covers the
+/// uncompressed bytes; compressed output is always shorter than or equal to
+/// the fallback identity size (we discard the encoder's output otherwise), so
+/// no additional pool reservation is required.
+fn maybe_compress_zstd_batch_response(uncompressed: Vec<u8>) -> (Vec<u8>, i32) {
+    // Small blobs (below the fixed zstd frame overhead) never shrink; fall
+    // back to identity without touching the encoder.
+    const ZSTD_MIN_PROFITABLE_BYTES: usize = 64;
+    if uncompressed.len() < ZSTD_MIN_PROFITABLE_BYTES {
+        return (uncompressed, 0);
+    }
+    // Level 3 is the same level the actioncache snapshot serves with —
+    // hundreds of MB/s per core, within a few percent of higher levels on the
+    // opaque byte content Bazel typically caches.
+    match zstd::stream::encode_all(uncompressed.as_slice(), BATCH_RESPONSE_ZSTD_LEVEL) {
+        Ok(compressed) if compressed.len() < uncompressed.len() => {
+            (compressed, reapi::compressor::Value::Zstd as i32)
+        }
+        Ok(_) | Err(_) => (uncompressed, 0),
+    }
+}
+
+const BATCH_RESPONSE_ZSTD_LEVEL: i32 = 3;
+
+fn i64_to_usize_bounded(value: i64) -> Result<usize, Status> {
+    if value < 0 {
+        return Err(Status::invalid_argument(
+            "declared blob size cannot be negative",
+        ));
+    }
+    if value as u64 > MAX_MODULE_TOTAL_BYTES {
+        return Err(Status::out_of_range(format!(
+            "declared blob size {value} exceeds max_cas_blob_size_bytes {MAX_MODULE_TOTAL_BYTES}"
+        )));
+    }
+    usize::try_from(value)
+        .map_err(|_| Status::out_of_range("declared blob size does not fit in usize"))
+}
+
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
@@ -2137,19 +3620,16 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let targets = replication_targets(state).await;
     let persisted = state
         .store
-        .persist_artifact_from_bytes_and_enqueue(
+        .persist_artifact_from_bytes_and_replicate(
             ArtifactProducer::Reapi,
             namespace_id,
             &key,
             "application/octet-stream",
             bytes,
-            &targets,
         )
         .await?;
-    state.notify.notify_one();
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -2182,6 +3662,21 @@ struct MaterializationBudget<'a> {
     state: &'a SharedState,
     remaining_bytes: usize,
     held_permits: Vec<crate::memory::MemoryPermit>,
+}
+
+/// One request's response-materialization budget, reserved up front.
+///
+/// The reservation is taken once, for the whole batch, and drawn down by
+/// arithmetic. Claiming per blob against the memory controller would mean
+/// waiting for the pool while already holding part of it, and a batch reads its
+/// blobs concurrently, so that is hold-and-wait between the blobs of one request
+/// as well as between requests. One acquisition per request removes it.
+struct AtomicMaterializationBudget<'a> {
+    state: &'a SharedState,
+    remaining_bytes: AtomicUsize,
+    /// Covers every claim below. Handed to the response so the bytes stay
+    /// reserved for as long as the client is reading them.
+    permit: Option<crate::memory::MemoryPermit>,
 }
 
 struct MaterializedSnapshot {
@@ -2248,6 +3743,88 @@ fn snapshot_encode_peak_bytes(content_bytes: usize) -> usize {
         .saturating_add(SNAPSHOT_COMPRESSION_SCRATCH_BYTES)
 }
 
+impl<'a> AtomicMaterializationBudget<'a> {
+    /// Reserves what the request asked for, bounded by the per-request budget,
+    /// waiting for a momentarily full pool rather than shedding against it.
+    ///
+    /// `wanted_bytes` comes from the client's own digests, so a batch whose
+    /// blobs are missing reserves for bytes it never serves. That over-reserve
+    /// is bounded by the per-request budget and released with the response; the
+    /// alternative is to learn each size only after a store lookup, which is
+    /// what forced the per-blob claims this replaces.
+    async fn reserve(state: &'a SharedState, wanted_bytes: u64) -> Result<Self, Status> {
+        let budget_bytes = state.memory.reapi_response_budget_bytes();
+        let reserved_bytes = usize::try_from(wanted_bytes)
+            .unwrap_or(usize::MAX)
+            .min(budget_bytes);
+        let permit = state
+            .memory
+            .reserve_response_materialization(reserved_bytes)
+            .await
+            .map_err(|()| {
+                state
+                    .metrics
+                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                state
+                    .metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+                Status::resource_exhausted(
+                    "batch read response was rejected because the REAPI response materialization pool did not free in time",
+                )
+            })?;
+        Ok(Self {
+            state,
+            remaining_bytes: AtomicUsize::new(reserved_bytes),
+            permit,
+        })
+    }
+
+    fn take_permit(&mut self) -> Option<crate::memory::MemoryPermit> {
+        self.permit.take()
+    }
+
+    /// Draws one response down from the reservation. Pure arithmetic: the memory
+    /// was admitted in `reserve`, so this never touches the controller and never
+    /// waits while holding part of the pool.
+    fn claim(&self, size_bytes: u64, label: &str) -> Result<(), Status> {
+        let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
+            self.reject(format!(
+                "{label} exceeds the maximum addressable REAPI materialization size"
+            ))
+        })?;
+        let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
+        if requested_bytes > limit_bytes {
+            return Err(self.reject(format!(
+                "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
+            )));
+        }
+        // A blob larger than its declared digest, or one the request never
+        // declared, lands here: the reservation was sized from what the client
+        // asked for, so anything beyond it is refused rather than served out of
+        // memory nobody admitted.
+        self.remaining_bytes
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |remaining| {
+                remaining.checked_sub(requested_bytes)
+            })
+            .map(|_| ())
+            .map_err(|remaining_bytes| {
+                self.reject(format!(
+                    "{label} needs {requested_bytes} bytes but only {remaining_bytes} bytes remain in the REAPI materialization budget"
+                ))
+            })
+    }
+
+    fn reject(&self, message: String) -> Status {
+        self.state
+            .metrics
+            .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+        self.state
+            .metrics
+            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+        Status::resource_exhausted(message)
+    }
+}
+
 impl<'a> MaterializationBudget<'a> {
     fn new(state: &'a SharedState) -> Self {
         Self {
@@ -2295,6 +3872,9 @@ impl<'a> MaterializationBudget<'a> {
         self.state
             .metrics
             .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+        self.state
+            .metrics
+            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
         Status::resource_exhausted(message)
     }
 
@@ -2340,7 +3920,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     // uploaded bytes against it, but update_action_result stores the digest as a
     // key with no body to check against — so without this an authenticated client
     // could persist an arbitrarily long "hash", inflating the manifest key until a
-    // bootstrap page overflows the receiver's MAX_BOOTSTRAP_PAGE_BYTES ceiling and
+    // backfill index page overflows the receiver's MAX_PEER_PAGE_BYTES ceiling and
     // wedges a joining node. Pin it to the fixed width a conforming client sends.
     if digest.hash.len() != 64 || !digest.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(Status::invalid_argument(
@@ -2350,7 +3930,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     Ok(format!("{}/{}", digest.hash, digest.size_bytes))
 }
 
-fn require_sha256(digest_function: i32) -> Result<(), Status> {
+pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     if digest_function == 0 || digest_function == reapi::digest_function::Value::Sha256 as i32 {
         return Ok(());
     }
@@ -2359,7 +3939,7 @@ fn require_sha256(digest_function: i32) -> Result<(), Status> {
     ))
 }
 
-fn namespace_from_instance(instance_name: &str) -> &str {
+pub(super) fn namespace_from_instance(instance_name: &str) -> &str {
     if instance_name.is_empty() {
         DEFAULT_INSTANCE_NAME
     } else {
@@ -2376,11 +3956,7 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
 }
 
 fn store_write_status(context: &str, error: String) -> Status {
-    if is_outbox_full_error(&error) {
-        Status::resource_exhausted(format!("{context}: {error}"))
-    } else {
-        Status::internal(format!("{context}: {error}"))
-    }
+    Status::internal(format!("{context}: {error}"))
 }
 
 fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
@@ -2389,16 +3965,79 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 
 // Metadata headers a gRPC client uses to declare the request account, mirroring
 // the HTTP `tenant_id`/`account_handle` query params. The first non-empty match
-// wins. This lets the extension enforce the same request-account-matches-server-
+// wins. This lets the auth enforce the same request-account-matches-server-
 // tenant guard the HTTP path already has; the namespace still comes from the
 // REAPI `instance_name`/`resource_name`, so it always matches what is stored.
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
 
+#[derive(Default)]
+struct ReapiRequestMetadata {
+    client_kind: String,
+    invocation_id: String,
+    action_mnemonic: String,
+    target_label: String,
+    configuration_id: String,
+}
+
+fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiRequestMetadata {
+    let Some(value) = metadata
+        .get_bin(REAPI_REQUEST_METADATA_HEADER)
+        .and_then(|value| value.to_bytes().ok())
+    else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let Ok(metadata) = reapi::RequestMetadata::decode(value) else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let client_kind = metadata
+        .tool_details
+        .map(|details| details.tool_name)
+        .filter(|name| name == "bazel")
+        .unwrap_or_else(|| "other".into());
+
+    ReapiRequestMetadata {
+        client_kind,
+        invocation_id: metadata.tool_invocation_id,
+        action_mnemonic: metadata.action_mnemonic,
+        target_label: metadata.target_id,
+        configuration_id: metadata.configuration_id,
+    }
+}
+
+fn reapi_cache_event_context(
+    metadata: &tonic::metadata::MetadataMap,
+    namespace_id: &str,
+    fallback_tenant_id: &str,
+) -> Option<Arc<ReapiCacheAnalyticsContext>> {
+    let attribution = reapi_request_metadata(metadata);
+    if attribution.client_kind != "bazel" {
+        return None;
+    }
+
+    Some(Arc::new(ReapiCacheAnalyticsContext {
+        account_handle: usage_tenant_id(metadata, fallback_tenant_id),
+        project_handle: namespace_id.to_owned(),
+        client_kind: "bazel",
+        invocation_id: attribution.invocation_id,
+        action_mnemonic: attribution.action_mnemonic,
+        target_label: attribution.target_label,
+        configuration_id: attribution.configuration_id,
+    }))
+}
+
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
-// key. Authorization (`grpc_extension_context`) and billing (`usage_tenant_id`)
+// key. Authorization (`grpc_request_context`) and billing (`usage_tenant_id`)
 // both resolve the tenant through this one function so a client that duplicates
 // the header can never be authorized as one account and billed to another.
 fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<String> {
@@ -2414,7 +4053,7 @@ fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<St
 
 // The account a gRPC request is billed to. Mirrors the HTTP path, which keys
 // usage off the per-request tenant; over gRPC that arrives as one of the
-// `TENANT_HEADER_KEYS` metadata headers (the same headers the extension
+// `TENANT_HEADER_KEYS` metadata headers (the same headers the auth
 // authorizes against, via the shared [`tenant_id_from_metadata`]). Falls back to
 // the node's configured tenant when the client omits it, so REAPI bandwidth is
 // always attributed rather than silently dropped.
@@ -2422,46 +4061,72 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
-fn grpc_extension_context(
-    server_tenant_id: &str,
-    spec: &GrpcExtensionSpec<'_>,
+pub(super) async fn authorize_build_event_request(
+    state: &SharedState,
     metadata: &tonic::metadata::MetadataMap,
-    status_code: Option<u16>,
-) -> ExtensionContext {
-    let headers = metadata_to_btree(metadata);
+    project_handle: &str,
+    _route: &str,
+) -> Result<String, Status> {
+    if state.runtime.is_draining() {
+        return Err(Status::unavailable("server is draining"));
+    }
+
+    let account_handle = usage_tenant_id(metadata, &state.config.tenant_id);
+    let Some(auth) = state.auth.as_ref() else {
+        return Ok(account_handle);
+    };
+
+    let spec = GrpcRequestSpec {
+        operation: "build_event_stream",
+        namespace_id: Some(project_handle),
+    };
+    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+
+    match auth.evaluate_access(&context).await {
+        AccessDecision::Allow => Ok(account_handle),
+        AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
+    }
+}
+
+fn grpc_request_context(
+    server_tenant_id: &str,
+    spec: &GrpcRequestSpec<'_>,
+    metadata: &tonic::metadata::MetadataMap,
+) -> RequestContext {
+    let authorization = metadata
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
     let tenant_id = tenant_id_from_metadata(metadata);
-    ExtensionContext {
+    RequestContext {
         transport: "grpc".into(),
-        route: spec.route.to_owned(),
         method: "RPC".into(),
         operation: spec.operation.to_owned(),
         server_tenant_id: server_tenant_id.to_owned(),
         tenant_id,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
-        producer: spec.producer.map(ToOwned::to_owned),
-        artifact_key: spec.artifact_key.clone(),
-        artifact_hash: spec.artifact_hash.clone(),
-        headers,
-        query: BTreeMap::new(),
-        status_code,
+        authorization,
+        headers: BTreeMap::new(),
     }
 }
 
-fn metadata_to_btree(metadata: &tonic::metadata::MetadataMap) -> BTreeMap<String, String> {
-    metadata
-        .iter()
-        .filter_map(|entry| match entry {
-            tonic::metadata::KeyAndValueRef::Ascii(key, value) => value
-                .to_str()
-                .ok()
-                .map(|value| (key.as_str().to_ascii_lowercase(), value.to_string())),
-            tonic::metadata::KeyAndValueRef::Binary(_, _) => None,
-        })
-        .collect()
-}
+/// gRPC has no code for payment required, so an exhausted plan would arrive as
+/// an ordinary permission denial. Clients that must keep working through a
+/// refusal, the Xcode cache plugin above all, need to tell the two apart
+/// without matching on message text, so the reason rides in metadata.
+pub const REFUSAL_REASON_KEY: &str = "tuist-refusal-reason";
+pub const REFUSAL_REASON_PAYMENT_REQUIRED: &str = "payment_required";
 
 fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
     match status {
+        402 => {
+            let mut status = Status::permission_denied(message.to_owned());
+            status.metadata_mut().insert(
+                REFUSAL_REASON_KEY,
+                tonic::metadata::MetadataValue::from_static(REFUSAL_REASON_PAYMENT_REQUIRED),
+            );
+            status
+        }
         401 => Status::unauthenticated(message.to_owned()),
         403 => Status::permission_denied(message.to_owned()),
         404 => Status::not_found(message.to_owned()),
@@ -2476,9 +4141,40 @@ fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
 #[derive(Debug, PartialEq, Eq)]
 struct BlobResource {
     namespace_id: String,
-    hash: String,
+    hash_range: std::ops::Range<usize>,
     size_bytes: u64,
     key: String,
+    // Wire compressor negotiated on the resource_name. The store key is always
+    // built from the uncompressed digest, so compressed and identity variants
+    // resolve to the same on-disk blob; only the wire encoding differs.
+    compressor: BlobCompressor,
+}
+
+impl BlobResource {
+    fn hash(&self) -> &str {
+        &self.key[self.hash_range.clone()]
+    }
+}
+
+/// Wire compressor a client requested on a `blobs/` or `compressed-blobs/{c}/`
+/// resource. Kura only implements zstd; anything else the parser rejects up
+/// front so no request-time codepath ever has to handle it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BlobCompressor {
+    Identity,
+    Zstd,
+}
+
+fn digest_matches_hex(actual: &[u8], expected_hex: &str) -> bool {
+    if expected_hex.len() != 64
+        || !expected_hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return false;
+    }
+    let mut expected = [0_u8; 32];
+    hex::decode_to_slice(expected_hex, &mut expected).is_ok() && actual == expected
 }
 
 fn parse_read_resource_name(resource_name: &str) -> Result<BlobResource, Status> {
@@ -2493,16 +4189,185 @@ fn parse_blob_resource_name(
     resource_name: &str,
     require_upload_prefix: bool,
 ) -> Result<BlobResource, Status> {
+    let mut blob_index = None;
+    // For `compressed-blobs/{compressor}/{hash}/{size}` the compressor segment
+    // is the first captured slot after the blob marker; for plain `blobs/` it
+    // stays `Some(Identity)` and never consumes a segment.
+    let mut compressor: Option<BlobCompressor> = None;
+    let mut awaiting_compressor = false;
+    let mut hash = None;
+    let mut encoded_size = None;
+    let mut has_upload_prefix = false;
+    let mut namespace_capacity = 0;
+    let mut previous = None;
+    let mut second_previous = None;
+    let mut normalized_prefix_len = 0_usize;
+    for (index, part) in resource_name
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .enumerate()
+    {
+        let is_blob_marker = part == "blobs" || part == "compressed-blobs";
+        if is_blob_marker {
+            blob_index = Some(index);
+            hash = None;
+            encoded_size = None;
+            if part == "compressed-blobs" {
+                compressor = None;
+                awaiting_compressor = true;
+            } else {
+                compressor = Some(BlobCompressor::Identity);
+                awaiting_compressor = false;
+            }
+            has_upload_prefix = index >= 2 && second_previous == Some("uploads");
+            namespace_capacity = if has_upload_prefix {
+                let upload_bytes = second_previous.map_or(0, str::len);
+                let upload_id_bytes = previous.map_or(0, str::len);
+                let separators = if index == 2 { 1 } else { 2 };
+                normalized_prefix_len
+                    .saturating_sub(upload_bytes)
+                    .saturating_sub(upload_id_bytes)
+                    .saturating_sub(separators)
+            } else {
+                normalized_prefix_len
+            };
+        } else if blob_index.is_some() {
+            if awaiting_compressor {
+                compressor = Some(parse_wire_compressor(part)?);
+                awaiting_compressor = false;
+            } else if hash.is_none() {
+                hash = Some(part);
+            } else if encoded_size.is_none() {
+                encoded_size = Some(part);
+            }
+        }
+
+        if index > 0 {
+            normalized_prefix_len = normalized_prefix_len.saturating_add(1);
+        }
+        normalized_prefix_len = normalized_prefix_len.saturating_add(part.len());
+        second_previous = previous;
+        previous = Some(part);
+    }
+
+    let Some(blob_index) = blob_index else {
+        return Err(Status::invalid_argument(
+            "resource_name must contain /blobs/ or /compressed-blobs/",
+        ));
+    };
+    let Some(compressor) = compressor else {
+        return Err(Status::invalid_argument(
+            "compressed-blobs resource_name is missing the compressor",
+        ));
+    };
+    let Some(hash) = hash else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+    let Some(encoded_size) = encoded_size else {
+        return Err(Status::invalid_argument(
+            "resource_name is missing digest components",
+        ));
+    };
+
+    let namespace_len = if has_upload_prefix {
+        blob_index - 2
+    } else {
+        if require_upload_prefix {
+            return Err(Status::invalid_argument(
+                "write resource_name must include uploads/{uuid}/blobs/{hash}/{size} or uploads/{uuid}/compressed-blobs/{compressor}/{hash}/{size}",
+            ));
+        }
+        blob_index
+    };
+    let size_bytes = encoded_size
+        .parse::<u64>()
+        .map_err(|error| Status::invalid_argument(format!("invalid blob size: {error}")))?;
+    let namespace_id = if namespace_len == 0 {
+        DEFAULT_INSTANCE_NAME.to_string()
+    } else {
+        let mut namespace_id = String::with_capacity(namespace_capacity);
+        for part in resource_name
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .take(namespace_len)
+        {
+            if !namespace_id.is_empty() {
+                namespace_id.push('/');
+            }
+            namespace_id.push_str(part);
+        }
+        namespace_id
+    };
+    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
+    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
+    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
+    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
+    let mut key = String::with_capacity("blob/".len() + hash.len() + 1 + encoded_size.len());
+    key.push_str("blob/");
+    key.push_str(hash);
+    key.push('/');
+    use std::fmt::Write as _;
+    write!(&mut key, "{size_bytes}").expect("writing to a string cannot fail");
+
+    Ok(BlobResource {
+        namespace_id,
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
+        size_bytes,
+        key,
+        compressor,
+    })
+}
+
+fn parse_wire_compressor(part: &str) -> Result<BlobCompressor, Status> {
+    // REAPI leaves the compressor segment case-sensitive but Bazel and Buck
+    // both send lowercase names, matching the enum names in
+    // `Compressor.Value.as_str_name()` lowercased. Accept only what we
+    // actually implement; anything else is UNIMPLEMENTED so clients fall back
+    // to identity rather than sending bytes we cannot decode.
+    match part {
+        "identity" => Ok(BlobCompressor::Identity),
+        "zstd" => Ok(BlobCompressor::Zstd),
+        "deflate" | "brotli" => Err(Status::unimplemented(format!(
+            "compressor '{part}' is not supported; only 'zstd' and 'identity' are available"
+        ))),
+        other => Err(Status::invalid_argument(format!(
+            "unknown compressor '{other}' in resource_name"
+        ))),
+    }
+}
+
+#[cfg(test)]
+fn parse_blob_resource_name_allocating(
+    resource_name: &str,
+    require_upload_prefix: bool,
+) -> Result<BlobResource, Status> {
     let parts = resource_name
         .split('/')
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();
-    let Some(blob_index) = parts.iter().rposition(|part| *part == "blobs") else {
-        return Err(Status::invalid_argument(
-            "resource_name must contain /blobs/",
-        ));
+    let (blob_index, compressor, hash_offset) = match parts
+        .iter()
+        .rposition(|part| *part == "blobs" || *part == "compressed-blobs")
+    {
+        Some(index) if parts[index] == "compressed-blobs" => {
+            let Some(name) = parts.get(index + 1) else {
+                return Err(Status::invalid_argument(
+                    "compressed-blobs resource_name is missing the compressor",
+                ));
+            };
+            (index, parse_wire_compressor(name)?, index + 2)
+        }
+        Some(index) => (index, BlobCompressor::Identity, index + 1),
+        None => {
+            return Err(Status::invalid_argument(
+                "resource_name must contain /blobs/ or /compressed-blobs/",
+            ));
+        }
     };
-    if blob_index + 2 >= parts.len() {
+    if hash_offset + 1 >= parts.len() {
         return Err(Status::invalid_argument(
             "resource_name is missing digest components",
         ));
@@ -2513,13 +4378,13 @@ fn parse_blob_resource_name(
     } else {
         if require_upload_prefix {
             return Err(Status::invalid_argument(
-                "write resource_name must include uploads/{uuid}/blobs/{hash}/{size}",
+                "write resource_name must include uploads/{uuid}/blobs/{hash}/{size} or uploads/{uuid}/compressed-blobs/{compressor}/{hash}/{size}",
             ));
         }
         prefix
     };
-    let hash = parts[blob_index + 1].to_owned();
-    let size_bytes = parts[blob_index + 2]
+    let hash = parts[hash_offset].to_owned();
+    let size_bytes = parts[hash_offset + 1]
         .parse::<u64>()
         .map_err(|error| Status::invalid_argument(format!("invalid blob size: {error}")))?;
     let namespace_id = if namespace_parts.is_empty() {
@@ -2527,23 +4392,45 @@ fn parse_blob_resource_name(
     } else {
         namespace_parts.join("/")
     };
-    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
-    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
-    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
-    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
-    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
     let key = blob_key(&format!("{hash}/{size_bytes}"));
 
     Ok(BlobResource {
         namespace_id,
-        hash,
+        hash_range: "blob/".len().."blob/".len() + hash.len(),
         size_bytes,
         key,
+        compressor,
     })
 }
 
 #[cfg(test)]
 mod tests {
+
+    // gRPC has no payment-required code, so the refusal arrives as an ordinary
+    // permission denial. Clients that keep working through it need the reason
+    // without matching on message text.
+    #[test]
+    fn an_exhausted_plan_carries_a_machine_readable_reason() {
+        let status = grpc_status_from_http_status(402, "upgrade to Tuist Pro");
+
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert_eq!(status.message(), "upgrade to Tuist Pro");
+        assert_eq!(
+            status
+                .metadata()
+                .get(REFUSAL_REASON_KEY)
+                .and_then(|reason| reason.to_str().ok()),
+            Some(REFUSAL_REASON_PAYMENT_REQUIRED)
+        );
+    }
+
+    #[test]
+    fn an_ordinary_refusal_carries_no_reason() {
+        let status = grpc_status_from_http_status(403, "nope");
+
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert!(status.metadata().get(REFUSAL_REASON_KEY).is_none());
+    }
     use super::*;
     use bytes::Bytes;
     use http_body_util::BodyExt;
@@ -2557,6 +4444,381 @@ mod tests {
         framed.extend_from_slice(&(encoded_message_bytes as u32).to_be_bytes());
         framed.extend(std::iter::repeat_n(byte, encoded_message_bytes));
         framed
+    }
+
+    #[tokio::test]
+    async fn bytestream_read_response_stream_preserves_bytes_and_chunk_bound() {
+        let reader = ArtifactReader::Inline {
+            bytes: bytes::Bytes::from(vec![0x5a; 10_001]),
+            offset: 0,
+        };
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert_eq!(responses.len(), 10);
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, vec![0x5a; 10_001]);
+    }
+
+    #[tokio::test]
+    async fn segment_reader_owned_chunks_preserve_file_range_and_chunk_bound() {
+        let context = test_context(|_| {}).await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-test");
+        let contents = (0..10_001)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::write(&path, &contents).expect("write segment reader fixture");
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open segment reader fixture"),
+        );
+        let offset = 17_usize;
+        let length = 9_001_usize;
+        let reader = ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+            handle,
+            offset as u64,
+            length as u64,
+        ));
+        let responses = bytestream_read_response_stream(reader, 1_024)
+            .collect::<Vec<_>>()
+            .await;
+
+        assert!(
+            responses
+                .iter()
+                .all(|response| response.as_ref().expect("stream response").data.len() <= 1_024)
+        );
+        let data = responses
+            .into_iter()
+            .flat_map(|response| response.expect("stream response").data)
+            .collect::<Vec<_>>();
+        assert_eq!(data, contents[offset..offset + length]);
+    }
+
+    #[tokio::test]
+    async fn artifact_reader_inline_bytes_stream_reuses_the_source_allocation() {
+        let bytes = Bytes::from(vec![0x5a; 2_048]);
+        let source = bytes.as_ptr();
+        let stream = ArtifactReader::Inline { bytes, offset: 0 }.into_bytes_stream(1_024);
+        tokio::pin!(stream);
+
+        let chunk = stream
+            .next()
+            .await
+            .expect("one inline chunk")
+            .expect("successful inline chunk");
+
+        assert_eq!(chunk.as_ptr(), source);
+        assert_eq!(chunk.len(), 1_024);
+    }
+
+    #[tokio::test]
+    async fn bytestream_read_response_owns_the_buffer_filled_by_the_reader() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        use std::task::Poll;
+
+        struct PointerRecordingReader {
+            destination: Arc<AtomicUsize>,
+            remaining: usize,
+        }
+
+        impl tokio::io::AsyncRead for PointerRecordingReader {
+            fn poll_read(
+                mut self: std::pin::Pin<&mut Self>,
+                _context: &mut std::task::Context<'_>,
+                buffer: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                if self.remaining == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+                let length = self.remaining.min(buffer.remaining());
+                let destination = buffer.initialize_unfilled_to(length);
+                self.destination
+                    .store(destination.as_ptr() as usize, Ordering::Relaxed);
+                destination.fill(0x5a);
+                buffer.advance(length);
+                self.remaining -= length;
+                Poll::Ready(Ok(()))
+            }
+        }
+
+        let destination = Arc::new(AtomicUsize::new(0));
+        let reader = PointerRecordingReader {
+            destination: destination.clone(),
+            remaining: 1_024,
+        };
+        let stream = direct_bytestream_read_response_stream(reader, 1_024);
+        tokio::pin!(stream);
+        let response = stream
+            .next()
+            .await
+            .expect("one response")
+            .expect("successful response");
+
+        assert_eq!(
+            response.data.as_ptr() as usize,
+            destination.load(Ordering::Relaxed)
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn bytestream_read_chunk_materialization_benchmark() {
+        use tokio::io::AsyncReadExt as _;
+
+        const SAMPLE_BYTES: u64 = 4 * 1_024 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = copying_bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let candidate = direct_bytestream_read_response_stream(
+                tokio::io::repeat(0x5a).take(SAMPLE_BYTES),
+                CHUNK_BYTES,
+            );
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC bytestream_read_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn segment_reader_owned_chunk_benchmark() {
+        const SAMPLE_BYTES: u64 = 512 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure<S>(stream: S) -> Duration
+        where
+            S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>>,
+        {
+            tokio::pin!(stream);
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            while let Some(response) = stream.next().await {
+                let response = response.expect("benchmark stream response");
+                std::hint::black_box(response.data.as_ptr());
+                read_bytes = read_bytes.saturating_add(response.data.len() as u64);
+            }
+            assert_eq!(read_bytes, SAMPLE_BYTES);
+            started_at.elapsed()
+        }
+
+        let context = test_context(|config| {
+            config.file_descriptor_pool_size = 4;
+        })
+        .await;
+        let path = context
+            .state
+            .config
+            .tmp_dir
+            .join("owned-segment-reader-benchmark");
+        let file = std::fs::File::create(&path).expect("create sparse benchmark file");
+        file.set_len(SAMPLE_BYTES)
+            .expect("size sparse benchmark file");
+        drop(file);
+        let handle = std::sync::Arc::new(
+            context
+                .state
+                .io
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open benchmark file"),
+        );
+        let reader = || {
+            ArtifactReader::FileRange(crate::segment::reader::SegmentReader::new(
+                handle.clone(),
+                0,
+                SAMPLE_BYTES,
+            ))
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let baseline = direct_bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let candidate = bytestream_read_response_stream(reader(), CHUNK_BYTES);
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure(baseline).await, measure(candidate).await)
+            } else {
+                let candidate_elapsed = measure(candidate).await;
+                let baseline_elapsed = measure(baseline).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = SAMPLE_BYTES as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC segment_reader_owned_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "performance benchmark run manually"]
+    async fn artifact_reader_inline_bytes_stream_benchmark() {
+        const ARTIFACT_BYTES: usize = 4 * 1_024 * 1_024;
+        const CHUNK_BYTES: usize = 512 * 1_024;
+        const REPETITIONS: usize = 256;
+        const SAMPLE_COUNT: usize = 8;
+
+        async fn measure_copying(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let mut reader = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                };
+                loop {
+                    let chunk = reader
+                        .read_chunk_owned(CHUNK_BYTES)
+                        .await
+                        .expect("benchmark copied inline chunk");
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        async fn measure_owned(bytes: &Bytes) -> Duration {
+            let started_at = Instant::now();
+            let mut read_bytes = 0_u64;
+            for _ in 0..REPETITIONS {
+                let stream = ArtifactReader::Inline {
+                    bytes: bytes.clone(),
+                    offset: 0,
+                }
+                .into_bytes_stream(CHUNK_BYTES);
+                tokio::pin!(stream);
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.expect("benchmark owned inline chunk");
+                    std::hint::black_box(chunk.as_ptr());
+                    read_bytes = read_bytes.saturating_add(chunk.len() as u64);
+                }
+            }
+            assert_eq!(read_bytes, (ARTIFACT_BYTES * REPETITIONS) as u64);
+            started_at.elapsed()
+        }
+
+        let bytes = Bytes::from(vec![0x5a; ARTIFACT_BYTES]);
+        let mut speedups = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut baseline_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        let mut candidate_throughputs = Vec::with_capacity(SAMPLE_COUNT - 1);
+        for sample in 0..SAMPLE_COUNT {
+            let (baseline_elapsed, candidate_elapsed) = if sample % 2 == 0 {
+                (measure_copying(&bytes).await, measure_owned(&bytes).await)
+            } else {
+                let candidate_elapsed = measure_owned(&bytes).await;
+                let baseline_elapsed = measure_copying(&bytes).await;
+                (baseline_elapsed, candidate_elapsed)
+            };
+            if sample > 0 {
+                let mebibytes = (ARTIFACT_BYTES * REPETITIONS) as f64 / (1_024.0 * 1_024.0);
+                baseline_throughputs.push(mebibytes / baseline_elapsed.as_secs_f64());
+                candidate_throughputs.push(mebibytes / candidate_elapsed.as_secs_f64());
+                speedups.push(baseline_elapsed.as_secs_f64() / candidate_elapsed.as_secs_f64());
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_throughputs.sort_by(f64::total_cmp);
+        candidate_throughputs.sort_by(f64::total_cmp);
+        println!(
+            "METRIC inline_bytes_stream_speedup_ratio={:.6}",
+            speedups[speedups.len() / 2]
+        );
+        println!(
+            "METRIC baseline_mebibytes_per_second={:.3}",
+            baseline_throughputs[baseline_throughputs.len() / 2]
+        );
+        println!(
+            "METRIC candidate_mebibytes_per_second={:.3}",
+            candidate_throughputs[candidate_throughputs.len() / 2]
+        );
     }
 
     fn grpc_request<T: Message>(path: &str, message: &T) -> http::Request<axum::body::Body> {
@@ -2591,57 +4853,6 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
-    async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
-        let context = crate::test_support::test_context(|config| {
-            config.outbox_max_depth = 1;
-        })
-        .await;
-        context
-            .state
-            .store
-            .enqueue(crate::replication::outbox_message::OutboxMessage {
-                target: "http://peer".into(),
-                operation: crate::replication::operation::ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 1,
-                },
-            })
-            .expect("seed full outbox");
-        let app = axum::Router::new()
-            .fallback(|| async { axum::http::StatusCode::NO_CONTENT })
-            .layer(axum::middleware::from_fn_with_state(
-                context.state.clone(),
-                reject_overloaded_grpc_writes,
-            ));
-
-        let rejected = app
-            .clone()
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(ACTION_CACHE_UPDATE_PATH)
-                    .body(axum::body::Body::empty())
-                    .expect("write request"),
-            )
-            .await
-            .expect("write response");
-        assert_eq!(rejected.status(), axum::http::StatusCode::OK);
-        assert_eq!(rejected.headers().get("grpc-status").unwrap(), "8");
-
-        let allowed = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(
-                        "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs",
-                    )
-                    .body(axum::body::Body::empty())
-                    .expect("read request"),
-            )
-            .await
-            .expect("read response");
-        assert_eq!(allowed.status(), axum::http::StatusCode::NO_CONTENT);
-    }
-
     fn bytestream_admission(
         hard_limit_bytes: u64,
     ) -> (crate::memory::MemoryController, GrpcWriteAdmission) {
@@ -2660,8 +4871,12 @@ mod tests {
             hard_limit_bytes,
         );
         memory.observe(0);
-        let admission = GrpcWriteAdmission::new(&memory, decode_copy_multiplier, metrics)
-            .expect("zero-byte initial reservation should fit");
+        let admission = GrpcWriteAdmission::new(
+            &memory,
+            decode_copy_multiplier,
+            metrics.grpc_write_admission_metrics(),
+        )
+        .expect("zero-byte initial reservation should fit");
         (memory, admission)
     }
 
@@ -2671,8 +4886,12 @@ mod tests {
         decode_copy_multiplier: u64,
     ) {
         request.extensions_mut().insert(
-            GrpcWriteAdmission::new(&state.memory, decode_copy_multiplier, state.metrics.clone())
-                .expect("test write admission should fit"),
+            GrpcWriteAdmission::new(
+                &state.memory,
+                decode_copy_multiplier,
+                state.metrics.grpc_write_admission_metrics(),
+            )
+            .expect("test write admission should fit"),
         );
     }
 
@@ -3100,8 +5319,8 @@ mod tests {
             format!("{}/10", hex::encode([0xabu8; 32]))
         );
 
-        // An unbounded hash is what inflates the manifest key past the bootstrap
-        // page ceiling; update_action_result has no body to verify it against, so
+        // An unbounded hash is what inflates the manifest key past the backfill
+        // index page ceiling; update_action_result has no body to verify it against, so
         // the width check is the only thing keeping the key fixed-size.
         for bad in [
             String::new(),
@@ -3217,6 +5436,263 @@ mod tests {
         assert_eq!(
             ref_metadata(&empty, "x-tuist-branch", "x-tuist-branch-bin"),
             None
+        );
+    }
+
+    #[test]
+    fn extracts_request_metadata_for_cache_analytics() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            action_id: "action-1".into(),
+            tool_invocation_id: "invocation-1".into(),
+            correlated_invocations_id: "".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let extracted = reapi_request_metadata(request.metadata());
+
+        assert_eq!(extracted.client_kind, "bazel");
+        assert_eq!(extracted.invocation_id, "invocation-1");
+        assert_eq!(extracted.action_mnemonic, "SwiftCompile");
+        assert_eq!(extracted.target_label, "//app:app");
+        assert_eq!(extracted.configuration_id, "config-1");
+    }
+
+    #[test]
+    fn normalizes_non_bazel_request_metadata() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "xcode-compilation-cache".into(),
+                tool_version: "1.0.0".into(),
+            }),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        assert_eq!(
+            reapi_request_metadata(request.metadata()).client_kind,
+            "other"
+        );
+    }
+
+    #[test]
+    fn drops_cache_analytics_context_without_bazel_metadata() {
+        // Both of these discard every cache observation on the request. The
+        // service counts the discard (reapi_cache/skipped_no_bazel_metadata)
+        // so it is distinguishable from a node serving no cache traffic.
+        let bare = Request::new(());
+        assert!(
+            reapi_cache_event_context(bare.metadata(), "ios", "fallback").is_none(),
+            "a request without RequestMetadata carries no cache attribution"
+        );
+
+        let mut other = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "xcode-compilation-cache".into(),
+                tool_version: "1.0.0".into(),
+            }),
+            ..Default::default()
+        };
+        other.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        assert!(
+            reapi_cache_event_context(other.metadata(), "ios", "fallback").is_none(),
+            "a non-Bazel client carries no cache attribution"
+        );
+    }
+
+    #[test]
+    fn cache_analytics_events_share_batch_request_context() {
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "invocation-1".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let context = reapi_cache_event_context(request.metadata(), "ios", "fallback")
+            .expect("Bazel metadata should produce analytics context");
+        let first = ReapiCacheAnalyticsEvent {
+            context: Arc::clone(&context),
+            operation: "cas",
+            outcome: "hit",
+            action_digest: "digest-a".into(),
+            size: 1,
+            duration_us: 2_000,
+            observed_at_ms: 3,
+        };
+        let second = ReapiCacheAnalyticsEvent {
+            context,
+            operation: "cas",
+            outcome: "miss",
+            action_digest: "digest-b".into(),
+            size: 0,
+            duration_us: 4_000,
+            observed_at_ms: 5,
+        };
+
+        assert!(Arc::ptr_eq(&first.context, &second.context));
+        assert_eq!(first.context.account_handle, "acme");
+        assert_eq!(first.context.project_handle, "ios");
+        assert_eq!(first.context.invocation_id, "invocation-1");
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn reapi_batch_analytics_context_benchmark() {
+        const EVENTS_PER_BATCH: usize = 4_096;
+        const BATCHES: usize = 32;
+        const SAMPLES: usize = 7;
+
+        fn measure_baseline(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                for _ in 0..EVENTS_PER_BATCH {
+                    let attribution = reapi_request_metadata(std::hint::black_box(metadata));
+                    assert_eq!(attribution.client_kind, "bazel");
+                    std::hint::black_box((
+                        usage_tenant_id(metadata, "fallback"),
+                        namespace_id.to_owned(),
+                        attribution.client_kind,
+                        "cas".to_owned(),
+                        "hit".to_owned(),
+                        digest.to_owned(),
+                        attribution.invocation_id,
+                        attribution.action_mnemonic,
+                        attribution.target_label,
+                        attribution.configuration_id,
+                    ));
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        fn measure_candidate(
+            metadata: &tonic::metadata::MetadataMap,
+            namespace_id: &str,
+            digest: &str,
+        ) -> f64 {
+            let started_at = Instant::now();
+            for _ in 0..BATCHES {
+                let context = reapi_cache_event_context(metadata, namespace_id, "fallback")
+                    .expect("Bazel metadata should produce analytics context");
+                for _ in 0..EVENTS_PER_BATCH {
+                    std::hint::black_box(ReapiCacheAnalyticsEvent {
+                        context: Arc::clone(&context),
+                        operation: "cas",
+                        outcome: "hit",
+                        action_digest: digest.to_owned(),
+                        size: 4_096,
+                        duration_us: 1_000,
+                        observed_at_ms: 1,
+                    });
+                }
+            }
+            (EVENTS_PER_BATCH * BATCHES) as f64 / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-account-handle",
+            tonic::metadata::MetadataValue::from_static("acme"),
+        );
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            tool_invocation_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//Sources/App:App".into(),
+            configuration_id: "darwin-arm64-fastbuild".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        let digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+
+        for sample in 0..SAMPLES {
+            let baseline_first = sample % 2 == 0;
+            let first = if baseline_first {
+                measure_baseline(request.metadata(), "ios", digest)
+            } else {
+                measure_candidate(request.metadata(), "ios", digest)
+            };
+            let second = if baseline_first {
+                measure_candidate(request.metadata(), "ios", digest)
+            } else {
+                measure_baseline(request.metadata(), "ios", digest)
+            };
+            if sample > 0 {
+                let (baseline, candidate) = if baseline_first {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        println!(
+            "METRIC reapi_batch_analytics_speedup_ratio={:.6}",
+            speedups[0]
+        );
+        println!(
+            "METRIC baseline_events_per_second={:.3}",
+            baseline_rates[baseline_rates.len() / 2]
+        );
+        println!(
+            "METRIC shared_context_events_per_second={:.3}",
+            candidate_rates[candidate_rates.len() / 2]
+        );
+        println!(
+            "METRIC maximum_paired_speedup_ratio={:.6}",
+            speedups[speedups.len() - 1]
         );
     }
 
@@ -3531,6 +6007,151 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_served_entry_reports_every_blob_whose_lifetime_must_be_extended() {
+        let context = test_context(|_| {}).await;
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    crate::utils::now_ms(),
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn digest(hash: [u8; 32], size_bytes: i64) -> reapi::Digest {
+            reapi::Digest {
+                hash: hex::encode(hash),
+                size_bytes,
+            }
+        }
+
+        let out_file = [0x11u8; 32];
+        let stdout = [0x12u8; 32];
+        let stderr = [0x13u8; 32];
+        let tree_hash = [0x14u8; 32];
+        let leaf = [0x15u8; 32];
+        let tree = reapi::Tree {
+            root: Some(reapi::Directory {
+                files: vec![reapi::FileNode {
+                    name: "out".into(),
+                    digest: Some(digest(leaf, 7)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+
+        for hash in [out_file, stdout, stderr, leaf] {
+            write_artifact(
+                store,
+                &uploads,
+                &blob_key(&format!("{}/7", hex::encode(hash))),
+                b"payload",
+            )
+            .await;
+        }
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            &tree,
+        )
+        .await;
+
+        let serveable = reapi::ActionResult {
+            output_files: vec![
+                reapi::OutputFile {
+                    path: "out".into(),
+                    digest: Some(digest(out_file, 7)),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "empty".into(),
+                    digest: Some(reapi::Digest {
+                        hash: EMPTY_BLOB_SHA256.to_string(),
+                        size_bytes: 0,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            stdout_digest: Some(digest(stdout, 7)),
+            stderr_digest: Some(digest(stderr, 7)),
+            output_directories: vec![reapi::OutputDirectory {
+                path: "outdir".into(),
+                tree_digest: Some(digest(tree_hash, tree.len() as i64)),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let mut budget = MaterializationBudget::new(&context.state);
+        let presence = first_evicted_output(&context.state, "ios", &serveable, true, &mut budget)
+            .await
+            .expect("presence gate should succeed");
+
+        assert!(
+            presence.evicted.is_none(),
+            "every referenced blob is present"
+        );
+        let mut extended = presence.present.clone();
+        extended.sort();
+        let mut expected = vec![
+            blob_key(&format!("{}/7", hex::encode(out_file))),
+            blob_key(&format!("{}/7", hex::encode(stdout))),
+            blob_key(&format!("{}/7", hex::encode(stderr))),
+            blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            blob_key(&format!("{}/7", hex::encode(leaf))),
+        ];
+        expected.sort();
+        assert_eq!(
+            extended, expected,
+            "a replay fetches the streams and the tree's leaves too, so the whole set \
+             needs its lifetime extended, while the canonical empty blob, which is \
+             never stored, is not part of it"
+        );
+
+        // An entry that fails the gate is not served and is usually deleted, so
+        // its surviving blobs are not refreshed on its behalf.
+        let doomed = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: "out".into(),
+                digest: Some(digest(out_file, 7)),
+                ..Default::default()
+            }],
+            stderr_digest: Some(digest([0x99u8; 32], 7)),
+            ..Default::default()
+        };
+        let presence = first_evicted_output(&context.state, "ios", &doomed, true, &mut budget)
+            .await
+            .expect("presence gate should succeed");
+        assert_eq!(
+            presence.evicted.as_deref(),
+            Some(hex::encode([0x99u8; 32]).as_str())
+        );
+        assert!(
+            presence.present.is_empty(),
+            "nothing is refreshed for an entry that will not be served"
+        );
+    }
+
+    #[tokio::test]
     async fn per_key_serve_gates_evicted_streams_and_tree_blobs() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
@@ -3801,6 +6422,370 @@ mod tests {
             vec![absent],
             "the empty blob is always present; only the genuinely absent blob is reported"
         );
+    }
+
+    #[tokio::test]
+    async fn splice_keeps_a_composite_blob_recoverable_without_materializing_it_in_the_store() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let first = vec![0x11; 1024 * 1024];
+        let second = vec![0x22; 1024 * 1024];
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let first_digest = digest(&first);
+        let second_digest = digest(&second);
+        let mut blob = first.clone();
+        blob.extend_from_slice(&second);
+        let blob_digest = digest(&blob);
+        let recovery_watermark_ms = 1_000;
+        let uploads = context.state.config.tmp_dir.join("splice-recovery");
+        std::fs::create_dir_all(&uploads).expect("uploads directory should be created");
+        for (name, chunk_digest, bytes) in [
+            ("first", &first_digest, first.as_slice()),
+            ("second", &second_digest, second.as_slice()),
+        ] {
+            let path = uploads.join(name);
+            std::fs::write(&path, bytes).expect("chunk should be staged");
+            context
+                .state
+                .store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(chunk_digest).unwrap()),
+                    "application/octet-stream",
+                    &path,
+                    recovery_watermark_ms,
+                )
+                .await
+                .expect("old chunk should persist");
+        }
+        let recipe_created_not_before_ms = crate::utils::now_ms();
+
+        let mut splice_request = Request::new(reapi::SpliceBlobRequest {
+            instance_name: "ios".into(),
+            blob_digest: Some(blob_digest.clone()),
+            chunk_digests: vec![first_digest.clone(), second_digest.clone()],
+            digest_function: 0,
+            chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+        });
+        splice_request.extensions_mut().insert(
+            GrpcWriteAdmission::new(
+                &context.state.memory,
+                CAS_SPLICE_DECODE_COPIES,
+                context.state.metrics.grpc_write_admission_metrics(),
+            )
+            .expect("splice request should be admitted"),
+        );
+        let spliced = service
+            .splice_blob(splice_request)
+            .await
+            .expect("splice should succeed")
+            .into_inner();
+        assert_eq!(spliced.blob_digest, Some(blob_digest.clone()));
+        let recipe_manifest = context
+            .state
+            .store
+            .manifest_for_key(
+                ArtifactProducer::Reapi,
+                "ios",
+                &recipe_key(&digest_key(&blob_digest).unwrap()),
+            )
+            .unwrap()
+            .expect("recipe manifest should exist");
+        assert!(
+            recipe_manifest.version_ms >= recipe_created_not_before_ms,
+            "the recipe must retain its creation time"
+        );
+        assert!(
+            recipe_manifest.version_ms > recovery_watermark_ms,
+            "a returning peer must discover the recipe above its completed-pass watermark"
+        );
+        for chunk_digest in [&first_digest, &second_digest] {
+            let chunk_manifest = context
+                .state
+                .store
+                .manifest_for_key(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(chunk_digest).unwrap()),
+                )
+                .unwrap()
+                .expect("chunk manifest should exist");
+            assert_eq!(chunk_manifest.version_ms, recovery_watermark_ms);
+        }
+        assert_eq!(
+            crate::store::backfill_record_kind(&recipe_manifest),
+            crate::utils::BackfillRecordKind::SegmentArtifact,
+            "capacity-completed backfill must skip the recipe with its chunks"
+        );
+        assert!(
+            !context
+                .state
+                .store
+                .artifact_exists(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&blob_digest).unwrap()),
+                )
+                .await
+                .unwrap(),
+            "the logical blob must remain a recipe instead of a duplicated materialization"
+        );
+
+        let split = service
+            .split_blob(Request::new(reapi::SplitBlobRequest {
+                instance_name: "ios".into(),
+                blob_digest: Some(blob_digest.clone()),
+                digest_function: 0,
+                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+            }))
+            .await
+            .expect("split should return the stored recipe")
+            .into_inner();
+        assert_eq!(split.chunk_digests, vec![first_digest, second_digest]);
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![blob_digest.clone()],
+                digest_function: 0,
+            }))
+            .await
+            .expect("composite presence should resolve")
+            .into_inner();
+        assert!(missing.missing_blob_digests.is_empty());
+
+        let mut stream = service
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!("ios/blobs/{}/{}", blob_digest.hash, blob_digest.size_bytes),
+                read_offset: (1024 * 1024 - 11) as i64,
+                read_limit: 22,
+            }))
+            .await
+            .expect("range read should succeed")
+            .into_inner();
+        let mut range = Vec::new();
+        while let Some(response) = stream.next().await {
+            range.extend(response.expect("stream response").data);
+        }
+        assert_eq!(range, [vec![0x11; 11], vec![0x22; 11]].concat());
+
+        let batch = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![blob_digest],
+                acceptable_compressors: Vec::new(),
+                digest_function: 0,
+            }))
+            .await
+            .expect("batch read should reconstruct the composite")
+            .into_inner();
+        assert_eq!(batch.responses.len(), 1);
+        assert_eq!(batch.responses[0].status.as_ref().unwrap().code, 0);
+        assert_eq!(batch.responses[0].data, blob);
+    }
+
+    #[tokio::test]
+    async fn replicated_recipe_waits_for_every_chunk_and_remains_readable_when_disabled() {
+        let context = test_context(|config| config.reapi_blob_chunking_enabled = false).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let first = vec![0x31; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+        let second = vec![0x42; 17];
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let first_digest = digest(&first);
+        let second_digest = digest(&second);
+        let mut blob = first.clone();
+        blob.extend_from_slice(&second);
+        let blob_digest = digest(&blob);
+        let recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![first_digest.clone(), second_digest.clone()],
+            reapi::chunking_function::Value::FastCdc2020 as i32,
+        )
+        .expect("recipe should be valid");
+        let recipe_key =
+            recipe_key(&digest_key(&blob_digest).expect("blob digest should be valid"));
+
+        context
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &recipe_key,
+                "application/x-protobuf",
+                &recipe.encode(),
+                1,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should replicate before its chunks");
+
+        let missing = |digest: reapi::Digest| {
+            service.find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![digest],
+                digest_function: 0,
+            }))
+        };
+        assert_eq!(
+            missing(blob_digest.clone())
+                .await
+                .expect("presence check should succeed")
+                .into_inner()
+                .missing_blob_digests,
+            vec![blob_digest.clone()],
+            "a recipe must not make a partially replicated blob visible"
+        );
+
+        context
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&digest_key(&first_digest).expect("first digest should be valid")),
+                "application/octet-stream",
+                &first,
+                2,
+            )
+            .await
+            .expect("first chunk should replicate");
+        assert_eq!(
+            missing(blob_digest.clone())
+                .await
+                .expect("presence check should succeed")
+                .into_inner()
+                .missing_blob_digests,
+            vec![blob_digest.clone()],
+            "every chunk is required before the logical blob is visible"
+        );
+
+        context
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&digest_key(&second_digest).expect("second digest should be valid")),
+                "application/octet-stream",
+                &second,
+                3,
+            )
+            .await
+            .expect("second chunk should replicate");
+        assert!(
+            missing(blob_digest.clone())
+                .await
+                .expect("presence check should succeed")
+                .into_inner()
+                .missing_blob_digests
+                .is_empty(),
+            "the logical blob becomes visible after its final chunk arrives"
+        );
+
+        let split = service
+            .split_blob(Request::new(reapi::SplitBlobRequest {
+                instance_name: "ios".into(),
+                blob_digest: Some(blob_digest.clone()),
+                digest_function: 0,
+                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+            }))
+            .await
+            .expect("existing recipes must remain readable after disabling new splices")
+            .into_inner();
+        assert_eq!(split.chunk_digests, vec![first_digest, second_digest]);
+
+        let capabilities = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+                instance_name: "ios".into(),
+            }))
+            .await
+            .expect("capabilities should load")
+            .into_inner()
+            .cache_capabilities
+            .expect("cache capabilities should be present");
+        assert!(!capabilities.split_blob_support);
+        assert!(!capabilities.splice_blob_support);
+        assert!(capabilities.fast_cdc_2020_params.is_none());
+
+        let splice_error = service
+            .splice_blob(Request::new(reapi::SpliceBlobRequest {
+                instance_name: "ios".into(),
+                blob_digest: Some(blob_digest),
+                chunk_digests: split.chunk_digests,
+                digest_function: 0,
+                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+            }))
+            .await
+            .expect_err("disabled nodes must refuse new recipes");
+        assert_eq!(splice_error.code(), tonic::Code::Unimplemented);
+    }
+
+    #[tokio::test]
+    async fn splice_rejects_mismatched_content_without_persisting_a_recipe() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let chunk = b"hello";
+        let chunk_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(chunk)),
+            size_bytes: chunk.len() as i64,
+        };
+        let declared_blob = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"world")),
+            size_bytes: chunk.len() as i64,
+        };
+        persist_cas_blob(&context.state, "ios", &chunk_digest, chunk)
+            .await
+            .expect("chunk should persist");
+
+        let mut request = Request::new(reapi::SpliceBlobRequest {
+            instance_name: "ios".into(),
+            blob_digest: Some(declared_blob.clone()),
+            chunk_digests: vec![chunk_digest],
+            digest_function: 0,
+            chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+        });
+        request.extensions_mut().insert(
+            GrpcWriteAdmission::new(
+                &context.state.memory,
+                CAS_SPLICE_DECODE_COPIES,
+                context.state.metrics.grpc_write_admission_metrics(),
+            )
+            .expect("splice request should be admitted"),
+        );
+        let error = service
+            .splice_blob(request)
+            .await
+            .expect_err("mismatched content must be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let split_error = service
+            .split_blob(Request::new(reapi::SplitBlobRequest {
+                instance_name: "ios".into(),
+                blob_digest: Some(declared_blob),
+                digest_function: 0,
+                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+            }))
+            .await
+            .expect_err("a failed verification must not publish a recipe");
+        assert_eq!(split_error.code(), tonic::Code::NotFound);
     }
 
     #[tokio::test]
@@ -4553,7 +7538,7 @@ mod tests {
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
-        test_support::{TestContext, test_context, test_context_with_extension},
+        test_support::{TestContext, test_context, test_context_with_auth},
     };
 
     // Serves the REAPI routes over a plaintext h2c listener for the tests
@@ -4567,6 +7552,227 @@ mod tests {
         let _ = axum::serve(listener, routes(state).into_make_service())
             .with_graceful_shutdown(shutdown)
             .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn direct_memory_bytestream_write_benchmark() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        const CONNECTIONS: usize = 4;
+        const CONCURRENCY: usize = 64;
+        const WRITES: usize = 512;
+        const SAMPLES: usize = 4;
+        const BLOB_BYTES: usize = SEGMENT_COPY_BUFFER_BYTES;
+        const CHUNK_BYTES: usize = 64 * 1024;
+
+        struct BenchmarkServer {
+            _context: TestContext,
+            channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+            shutdown: tokio::sync::oneshot::Sender<()>,
+            task: tokio::task::JoinHandle<()>,
+        }
+
+        async fn start_server(direct: bool) -> BenchmarkServer {
+            let context = test_context(|_| {}).await;
+            context.state.store.set_direct_small_uploads_enabled(direct);
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind benchmark listener");
+            let address = listener.local_addr().expect("benchmark listener address");
+            let (shutdown, stopped) = tokio::sync::oneshot::channel();
+            let state = context.state.clone();
+            let task = tokio::spawn(async move {
+                serve_routes(listener, state, async move {
+                    let _ = stopped.await;
+                })
+                .await;
+            });
+            let endpoint = format!("http://{address}");
+            let mut channels = Vec::with_capacity(CONNECTIONS);
+            for _ in 0..CONNECTIONS {
+                let mut channel = None;
+                for _ in 0..50 {
+                    match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                        .expect("valid benchmark endpoint")
+                        .connect()
+                        .await
+                    {
+                        Ok(connected) => {
+                            channel = Some(connected);
+                            break;
+                        }
+                        Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+                    }
+                }
+                channels.push(channel.expect("benchmark server should accept connections"));
+            }
+            BenchmarkServer {
+                _context: context,
+                channels: std::sync::Arc::new(channels),
+                shutdown,
+                task,
+            }
+        }
+
+        async fn stop_server(server: BenchmarkServer) {
+            let BenchmarkServer {
+                _context,
+                channels,
+                shutdown,
+                task,
+            } = server;
+            drop(channels);
+            let _ = shutdown.send(());
+            tokio::time::timeout(Duration::from_secs(10), task)
+                .await
+                .expect("benchmark server should stop")
+                .expect("benchmark server should not panic");
+        }
+
+        async fn measure(
+            server: &BenchmarkServer,
+            sample: usize,
+            label: &'static str,
+        ) -> (f64, u128, u128, u128) {
+            fn spawn_write(
+                writes: &mut tokio::task::JoinSet<std::time::Duration>,
+                channels: std::sync::Arc<Vec<tonic::transport::Channel>>,
+                sample: usize,
+                index: usize,
+                label: &'static str,
+            ) {
+                writes.spawn(async move {
+                    let mut blob = vec![0x5a; BLOB_BYTES];
+                    blob[..8].copy_from_slice(&((sample * WRITES + index) as u64).to_le_bytes());
+                    let hash = hex::encode(Sha256::digest(&blob));
+                    let resource = format!(
+                        "ios/uploads/{label}-{sample}-{index}/blobs/{hash}/{}",
+                        blob.len()
+                    );
+                    let mut requests = Vec::with_capacity(blob.len().div_ceil(CHUNK_BYTES));
+                    for (chunk_index, data) in blob.chunks(CHUNK_BYTES).enumerate() {
+                        let offset = chunk_index * CHUNK_BYTES;
+                        requests.push(bytestream::WriteRequest {
+                            resource_name: if offset == 0 {
+                                resource.clone()
+                            } else {
+                                String::new()
+                            },
+                            write_offset: offset as i64,
+                            finish_write: offset + data.len() == blob.len(),
+                            data: data.to_vec(),
+                        });
+                    }
+                    drop(blob);
+                    let request = Request::new(tokio_stream::iter(requests));
+                    let mut client =
+                        ByteStreamClient::new(channels[index % channels.len()].clone());
+                    let started_at = std::time::Instant::now();
+                    let committed = client
+                        .write(request)
+                        .await
+                        .expect("benchmark ByteStream write should persist")
+                        .into_inner()
+                        .committed_size;
+                    assert_eq!(committed as usize, BLOB_BYTES);
+                    started_at.elapsed()
+                });
+            }
+
+            let started_at = std::time::Instant::now();
+            let mut writes = tokio::task::JoinSet::new();
+            let mut next = 0;
+            while next < CONCURRENCY {
+                spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                next += 1;
+            }
+            let mut latencies = Vec::with_capacity(WRITES);
+            while let Some(result) = writes.join_next().await {
+                latencies.push(result.expect("benchmark writer should finish"));
+                if next < WRITES {
+                    spawn_write(&mut writes, server.channels.clone(), sample, next, label);
+                    next += 1;
+                }
+            }
+            let elapsed = started_at.elapsed().as_secs_f64();
+            latencies.sort_unstable();
+            let percentile =
+                |percent: usize| latencies[(latencies.len() - 1) * percent / 100].as_micros();
+            (
+                WRITES as f64 / elapsed,
+                percentile(50),
+                percentile(95),
+                percentile(99),
+            )
+        }
+
+        let staged = start_server(false).await;
+        let direct = start_server(true).await;
+        let mut staged_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut direct_samples = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (staged_result, direct_result) = if sample % 2 == 0 {
+                (
+                    measure(&staged, sample, "staged").await,
+                    measure(&direct, sample, "direct").await,
+                )
+            } else {
+                let direct_result = measure(&direct, sample, "direct").await;
+                (measure(&staged, sample, "staged").await, direct_result)
+            };
+            if sample > 0 {
+                speedups.push(direct_result.0 / staged_result.0);
+                staged_samples.push(staged_result);
+                direct_samples.push(direct_result);
+            }
+        }
+        stop_server(staged).await;
+        stop_server(direct).await;
+
+        staged_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        direct_samples.sort_by(|left, right| left.0.total_cmp(&right.0));
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+        let staged_median = staged_samples[median];
+        let direct_median = direct_samples[median];
+        println!(
+            "METRIC direct_memory_bytestream_write_speedup_ratio={:.6}",
+            speedups[median]
+        );
+        println!(
+            "METRIC staged_bytestream_writes_per_second={:.3}",
+            staged_median.0
+        );
+        println!(
+            "METRIC direct_memory_bytestream_writes_per_second={:.3}",
+            direct_median.0
+        );
+        println!(
+            "METRIC staged_bytestream_write_p50_microseconds={}",
+            staged_median.1
+        );
+        println!(
+            "METRIC staged_bytestream_write_p95_microseconds={}",
+            staged_median.2
+        );
+        println!(
+            "METRIC staged_bytestream_write_p99_microseconds={}",
+            staged_median.3
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p50_microseconds={}",
+            direct_median.1
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p95_microseconds={}",
+            direct_median.2
+        );
+        println!(
+            "METRIC direct_memory_bytestream_write_p99_microseconds={}",
+            direct_median.3
+        );
     }
 
     #[tokio::test]
@@ -4642,11 +7848,110 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bytestream_read_burst_waits_without_shedding() {
+        for compressed in [false, true] {
+            let context = test_context(|config| {
+                config.memory_limit_bytes = 128 * 1024 * 1024;
+                config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+                config.memory_hard_limit_bytes = 96 * 1024 * 1024;
+            })
+            .await;
+            let blob = vec![0xA5; 1024 * 1024];
+            let hash = hex::encode(Sha256::digest(&blob));
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    DEFAULT_INSTANCE_NAME,
+                    &blob_key(&format!("{hash}/{}", blob.len())),
+                    "application/octet-stream",
+                    &blob,
+                )
+                .await
+                .expect("seed blob");
+            let resource = format!(
+                "{}/{hash}/{}",
+                if compressed {
+                    "compressed-blobs/zstd"
+                } else {
+                    "blobs"
+                },
+                blob.len()
+            );
+            let completed_admission = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (release, released) = tokio::sync::watch::channel(false);
+            let mut tasks = tokio::task::JoinSet::new();
+            let reads = if compressed { 24 } else { 32 };
+            for _ in 0..reads {
+                let service = ReapiService {
+                    state: context.state.clone(),
+                    snapshot_cache: Default::default(),
+                };
+                let resource_name = resource.clone();
+                let completed = completed_admission.clone();
+                let mut released = released.clone();
+                tasks.spawn(async move {
+                    let response = service
+                        .read(Request::new(bytestream::ReadRequest {
+                            resource_name,
+                            read_offset: 0,
+                            read_limit: 0,
+                        }))
+                        .await;
+                    completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let response = response?;
+                    released
+                        .wait_for(|released| *released)
+                        .await
+                        .expect("release readers");
+                    let (_, mut stream, guard) = response.into_parts();
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) = stream.next().await {
+                        bytes.extend(chunk?.data);
+                    }
+                    drop(guard);
+                    if compressed {
+                        bytes = zstd::stream::decode_all(bytes.as_slice()).expect("decode read");
+                    }
+                    assert_eq!(bytes, vec![0xA5; 1024 * 1024]);
+                    Ok::<_, Status>(())
+                });
+            }
+            // Hold admitted bodies until every read is either queued or admitted.
+            // This reproduces a burst without depending on scheduler timing.
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let waiting = context.state.memory.response_stream_waiter_count();
+                    if waiting + completed_admission.load(std::sync::atomic::Ordering::SeqCst)
+                        == reads
+                    {
+                        assert!(waiting > 0, "the burst must exercise queued admission");
+                        break;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("all reads should reach admission");
+            release.send(true).expect("release burst");
+            let mut rejected = Vec::new();
+            while let Some(result) = tasks.join_next().await {
+                if let Err(error) = result.expect("read task") {
+                    rejected.push(error);
+                }
+            }
+            assert!(rejected.is_empty(), "compressed={compressed}: {rejected:?}");
+            assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+        }
+    }
+
+    #[tokio::test]
     async fn bytestream_route_keeps_stream_memory_until_encoded_bytes_drop() {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
         let hash = hex::encode(Sha256::digest(&blob));
-        context
+        let manifest = context
             .state
             .store
             .persist_artifact_from_bytes(
@@ -4658,6 +7963,7 @@ mod tests {
             )
             .await
             .expect("CAS blob should persist");
+        assert!(!manifest.inline);
 
         let mut response = routes(context.state.clone())
             .oneshot(grpc_request(
@@ -4672,7 +7978,13 @@ mod tests {
             .expect("ByteStream route should respond");
         assert_eq!(response.status(), http::StatusCode::OK);
         let reserved_bytes = context.state.memory.transient_reserved_bytes();
-        assert!(reserved_bytes > 0);
+        assert_eq!(
+            reserved_bytes,
+            encoded_response_stream_chunk_bytes(blob.len() as u64)
+                .saturating_mul(BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT)
+                .saturating_add(RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
+            "ByteStream admission should charge two chunks plus the capped send buffer"
+        );
 
         let frame = response
             .body_mut()
@@ -5227,9 +8539,10 @@ mod tests {
             parse_read_resource_name("blobs/abc/10").expect("resource should parse"),
             BlobResource {
                 namespace_id: "default".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: BlobCompressor::Identity,
             }
         );
         assert_eq!(
@@ -5237,10 +8550,228 @@ mod tests {
                 .expect("instance-scoped resource should parse"),
             BlobResource {
                 namespace_id: "bazel/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: BlobCompressor::Identity,
             }
+        );
+    }
+
+    #[test]
+    fn digest_comparison_accepts_exact_bytes_and_rejects_invalid_hashes() {
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        assert!(digest_matches_hex(&actual, &expected));
+        assert!(!digest_matches_hex(&[0xAC; 32], &expected));
+        assert!(!digest_matches_hex(&actual, "not-a-digest"));
+        assert!(!digest_matches_hex(&actual, &"ab".repeat(31)));
+        assert!(!digest_matches_hex(&actual, &"AB".repeat(32)));
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn digest_comparison_without_hex_allocation_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+
+        let actual = [0xAB_u8; 32];
+        let expected = "ab".repeat(32);
+        let measure = |candidate| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let matches = if candidate {
+                    digest_matches_hex(std::hint::black_box(&actual), &expected)
+                } else {
+                    hex::encode(std::hint::black_box(actual)) == expected
+                };
+                std::hint::black_box(matches);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC digest_comparison_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC digest_comparison_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    fn allocation_free_resource_scan_preserves_normalization_and_last_blob_marker() {
+        for (resource_name, require_upload_prefix) in [
+            ("//bazel///cache/blobs/abc/00010/trailing", false),
+            ("first/blobs/ignored/buck/uploads/uuid-1/blobs/abc/10", true),
+            ("blobs/abc", false),
+            ("buck/cache/blobs/abc/invalid", false),
+            ("bazel/cache/compressed-blobs/zstd/abc/10", false),
+            (
+                "bazel/cache/uploads/uuid-1/compressed-blobs/zstd/abc/10",
+                true,
+            ),
+            ("bazel/cache/compressed-blobs/deflate/abc/10", false),
+            ("bazel/cache/compressed-blobs/bogus/abc/10", false),
+            ("bazel/cache/compressed-blobs", false),
+        ] {
+            let candidate = parse_blob_resource_name(resource_name, require_upload_prefix);
+            let baseline =
+                parse_blob_resource_name_allocating(resource_name, require_upload_prefix);
+            match (candidate, baseline) {
+                (Ok(candidate), Ok(baseline)) => assert_eq!(candidate, baseline),
+                (Err(candidate), Err(baseline)) => {
+                    assert_eq!(candidate.code(), baseline.code());
+                    assert_eq!(candidate.message(), baseline.message());
+                }
+                (candidate, baseline) => {
+                    panic!("parser results differ: candidate={candidate:?}, baseline={baseline:?}")
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn blob_resource_name_parser_benchmark() {
+        const ITERATIONS: usize = 500_000;
+        const SAMPLES: usize = 8;
+        const RESOURCE_NAME: &str = concat!(
+            "bazel/cache/uploads/018f5f8d-7f2b-7ee5-8c42-6b62475558a3/blobs/",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144"
+        );
+
+        let measure = |allocating| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let resource = if allocating {
+                    parse_blob_resource_name_allocating(RESOURCE_NAME, true)
+                } else {
+                    parse_blob_resource_name(RESOURCE_NAME, true)
+                }
+                .expect("benchmark resource should parse");
+                std::hint::black_box(resource);
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_parse_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_parse_speedup_ratio={:.6}",
+            speedups[median]
+        );
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn blob_resource_construction_without_duplicate_hash_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+        const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        const ENCODED_SIZE: &str = "262144";
+
+        let measure = |duplicate_hash: bool| {
+            let started_at = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let hash = duplicate_hash.then(|| HASH.to_owned());
+                let mut key =
+                    String::with_capacity("blob/".len() + HASH.len() + 1 + ENCODED_SIZE.len());
+                key.push_str("blob/");
+                key.push_str(HASH);
+                key.push('/');
+                key.push_str(ENCODED_SIZE);
+                let hash_range = "blob/".len().."blob/".len() + HASH.len();
+                std::hint::black_box((hash, hash_range, key));
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(true), measure(false))
+            } else {
+                let candidate = measure(false);
+                (measure(true), candidate)
+            };
+            if sample > 0 {
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+                speedups.push(candidate / baseline);
+            }
+        }
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        speedups.sort_by(f64::total_cmp);
+        let median = speedups.len() / 2;
+
+        println!(
+            "METRIC blob_resource_construction_baseline_per_second={:.3}",
+            baseline_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_candidate_per_second={:.3}",
+            candidate_rates[median]
+        );
+        println!(
+            "METRIC blob_resource_construction_speedup_ratio={:.6}",
+            speedups[median]
         );
     }
 
@@ -5251,9 +8782,10 @@ mod tests {
                 .expect("write resource should parse"),
             BlobResource {
                 namespace_id: "buck/cache".into(),
-                hash: "abc".into(),
+                hash_range: 5..8,
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: BlobCompressor::Identity,
             }
         );
     }
@@ -5265,14 +8797,42 @@ mod tests {
         assert_eq!(error.code(), tonic::Code::InvalidArgument);
     }
 
-    fn grpc_spec() -> GrpcExtensionSpec<'static> {
-        GrpcExtensionSpec {
-            route: "reapi.capabilities.get",
+    #[test]
+    fn parses_zstd_compressed_read_and_write_resource_names() {
+        let read = parse_read_resource_name("bazel/cache/compressed-blobs/zstd/abc/10")
+            .expect("compressed read resource should parse");
+        assert_eq!(read.compressor, BlobCompressor::Zstd);
+        assert_eq!(read.namespace_id, "bazel/cache");
+        assert_eq!(read.size_bytes, 10);
+        assert_eq!(read.hash(), "abc");
+        // The store key is built from the uncompressed digest, so a compressed
+        // read resolves to the same on-disk blob as an identity read.
+        assert_eq!(read.key, "blob/abc/10");
+
+        let write =
+            parse_write_resource_name("bazel/cache/uploads/uuid-1/compressed-blobs/zstd/abc/10")
+                .expect("compressed write resource should parse");
+        assert_eq!(write.compressor, BlobCompressor::Zstd);
+        assert_eq!(write.namespace_id, "bazel/cache");
+        assert_eq!(write.size_bytes, 10);
+        assert_eq!(write.key, "blob/abc/10");
+    }
+
+    #[test]
+    fn rejects_unknown_compressor_in_resource_name() {
+        let unimplemented = parse_read_resource_name("compressed-blobs/deflate/abc/10")
+            .expect_err("deflate is not supported");
+        assert_eq!(unimplemented.code(), tonic::Code::Unimplemented);
+
+        let invalid = parse_read_resource_name("compressed-blobs/bogus/abc/10")
+            .expect_err("unknown compressor names must be rejected");
+        assert_eq!(invalid.code(), tonic::Code::InvalidArgument);
+    }
+
+    fn grpc_spec() -> GrpcRequestSpec<'static> {
+        GrpcRequestSpec {
             operation: "capabilities.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         }
     }
 
@@ -5287,7 +8847,7 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_kura_header() {
         let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -5295,80 +8855,112 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
         let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
     }
 
     #[test]
     fn grpc_context_without_tenant_header_leaves_tenant_unset() {
         let metadata = tonic::metadata::MetadataMap::new();
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata);
         assert_eq!(ctx.tenant_id, None);
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
 
-    // Minimal policy: any token authenticates; only namespace "ios" is authorized.
-    // Used to prove that GetCapabilities and ByteStream Write reach the extension
-    // with the request's project namespace (instance_name / resource_name), not
-    // the account scope they previously fell back to.
-    const NAMESPACE_POLICY_SCRIPT: &str = r#"
-function authenticate(ctx)
-  return { principal = { id = "test", kind = "subject" }, ttl_seconds = 60 }
-end
+    // A token granting exactly one project. Both tests below use it to prove
+    // that GetCapabilities and ByteStream Write authorize the request's project
+    // namespace (instance_name / resource_name), not the account scope they
+    // previously fell back to.
+    const NAMESPACE_POLICY_SECRET: &str = "namespace-policy-secret";
 
-function authorize(ctx, principal)
-  if ctx.namespace_id == "ios" then
-    return { allow = true, ttl_seconds = 60 }
-  end
-  return { deny = { status = 403, message = "forbidden namespace" }, ttl_seconds = 1 }
-end
-"#;
-
-    async fn namespace_policy_extension() -> crate::extension::SharedExtension {
-        let dir = tempfile::tempdir().expect("create policy temp dir");
-        let script_path = dir.path().join("policy.lua");
-        tokio::fs::write(&script_path, NAMESPACE_POLICY_SCRIPT)
-            .await
-            .expect("write policy script");
-        crate::extension::ExtensionEngine::from_script_for_test(
-            script_path,
-            crate::metrics::Metrics::new("test".into(), "tenant".into()),
+    fn namespace_policy_token() -> String {
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(NAMESPACE_POLICY_SECRET.as_bytes()),
         )
-        .await
-        .expect("build policy extension")
+        .expect("mint a policy token")
+    }
+
+    // A server is configured, but its base URL refuses connections on purpose.
+    // A namespace the token's own grants name is answered from those grants and
+    // never reaches it; one they do not name has to, and cannot.
+    fn namespace_policy_auth() -> crate::auth::SharedAuth {
+        std::sync::Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(NAMESPACE_POLICY_SECRET),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 128,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the policy engine"),
+        )
+    }
+
+    fn bearing_policy_token<T>(message: T) -> Request<T> {
+        let mut request = Request::new(message);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", namespace_policy_token())
+                .parse()
+                .expect("bearer metadata"),
+        );
+        request
     }
 
     #[tokio::test]
     async fn get_capabilities_authorizes_against_instance_namespace() {
-        let extension = namespace_policy_extension().await;
-        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let auth = namespace_policy_auth();
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
         service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+            .get_capabilities(bearing_policy_token(reapi::GetCapabilitiesRequest {
                 instance_name: "ios".into(),
             }))
             .await
             .expect("capabilities for a granted instance_name should be allowed");
 
+        // Grants that do not name the instance do not settle it: they are a
+        // snapshot from when the token was minted, and the server can still
+        // return wider ones. Only the server can say, and this one refuses
+        // connections, so the node reports that rather than deciding on its
+        // own. Authentication is resolved per target, so the answer for `ios`
+        // above is not reused here.
         let denied = service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+            .get_capabilities(bearing_policy_token(reapi::GetCapabilitiesRequest {
                 instance_name: "forbidden".into(),
             }))
             .await
             .expect_err("capabilities for a non-granted instance_name should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn bytestream_write_authorizes_against_resource_namespace() {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
-        let extension = namespace_policy_extension().await;
-        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let auth = namespace_policy_auth();
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test listener");
@@ -5405,29 +8997,37 @@ end
 
         // Granted namespace ("ios", from the resource_name prefix) authorizes and persists.
         let committed = ByteStreamClient::new(channel.clone())
-            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
-                resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
-                write_offset: 0,
-                finish_write: true,
-                data: blob.clone(),
-            }]))
+            .write(bearing_policy_token(tokio_stream::iter(vec![
+                bytestream::WriteRequest {
+                    resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
+                    write_offset: 0,
+                    finish_write: true,
+                    data: blob.clone(),
+                },
+            ])))
             .await
             .expect("write to a granted namespace should be allowed")
             .into_inner()
             .committed_size;
         assert_eq!(committed as usize, len);
 
-        // Non-granted namespace ("forbidden") is rejected before the blob is persisted.
+        // Non-granted namespace ("forbidden") is rejected before the blob is
+        // persisted. Grants that do not name it do not settle it — they are a
+        // snapshot from minting time and the server can still return wider ones
+        // — and this server refuses connections, so the node reports that
+        // rather than deciding on its own.
         let denied = ByteStreamClient::new(channel.clone())
-            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
-                resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
-                write_offset: 0,
-                finish_write: true,
-                data: blob.clone(),
-            }]))
+            .write(bearing_policy_token(tokio_stream::iter(vec![
+                bytestream::WriteRequest {
+                    resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
+                    write_offset: 0,
+                    finish_write: true,
+                    data: blob.clone(),
+                },
+            ])))
             .await
             .expect_err("write to a non-granted namespace should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;
@@ -5603,7 +9203,7 @@ end
     }
 
     #[tokio::test]
-    async fn concurrent_cas_batch_reads_respect_the_shared_transient_budget() {
+    async fn a_third_concurrent_batch_read_waits_for_the_budget_instead_of_shedding() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 64 * 1024 * 1024;
             config.memory_hard_limit_bytes = 96 * 1024 * 1024;
@@ -5644,35 +9244,38 @@ end
             FailpointAction::Sleep(Duration::from_millis(250)),
         );
 
-        let first = tokio::spawn({
-            let digest = digest.clone();
-            async move {
-                first_service
-                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
-                        instance_name: DEFAULT_INSTANCE_NAME.into(),
-                        digests: vec![digest],
-                        digest_function: reapi::digest_function::Value::Sha256 as i32,
-                        ..Default::default()
-                    }))
-                    .await
-            }
-        });
-        let second = tokio::spawn({
-            let digest = digest.clone();
-            async move {
-                second_service
-                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
-                        instance_name: DEFAULT_INSTANCE_NAME.into(),
-                        digests: vec![digest],
-                        digest_function: reapi::digest_function::Value::Sha256 as i32,
-                        ..Default::default()
-                    }))
-                    .await
-            }
-        });
+        // Each holder drops its response inside the task, which is where the
+        // reservation is released -- the permit rides the response, so a task
+        // that parks a `Response` in its JoinHandle would hold the pool for the
+        // whole test rather than for the read.
+        let read_and_release = |service: ReapiService, digest: reapi::Digest| async move {
+            let response = service
+                .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    digests: vec![digest],
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                    ..Default::default()
+                }))
+                .await
+                .expect("concurrent read should succeed");
+            let served = response.get_ref().responses[0].data.len();
+            let code = response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .map(|status| status.code);
+            (code, served)
+        };
+        let first = tokio::spawn(read_and_release(first_service, digest.clone()));
+        let second = tokio::spawn(read_and_release(second_service, digest.clone()));
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
+        // The pool is full and the two holders release in ~250ms. Before, this
+        // third read was answered RESOURCE_EXHAUSTED on the spot and the blob
+        // became a cache miss the client refetched. It now waits out the
+        // contention and serves, which is what the pool being *momentarily* full
+        // should cost: latency, not a miss.
+        let waited_from = Instant::now();
         let third = third_service
             .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
                 instance_name: DEFAULT_INSTANCE_NAME.into(),
@@ -5681,7 +9284,8 @@ end
                 ..Default::default()
             }))
             .await
-            .expect("third request should get a per-digest response");
+            .expect("third request should be served after waiting");
+        let waited = waited_from.elapsed();
 
         context
             .state
@@ -5694,22 +9298,18 @@ end
                 .status
                 .as_ref()
                 .map(|status| status.code),
-            Some(tonic::Code::ResourceExhausted as i32)
+            Some(0)
+        );
+        assert_eq!(third.get_ref().responses[0].data, bytes);
+        assert!(
+            waited >= Duration::from_millis(100),
+            "the third read should have queued behind the holders, waited {waited:?}"
         );
 
         for handle in [first, second] {
-            let response = handle
-                .await
-                .expect("concurrent read task should join")
-                .expect("concurrent read should succeed");
-            assert_eq!(
-                response.get_ref().responses[0]
-                    .status
-                    .as_ref()
-                    .map(|status| status.code),
-                Some(0)
-            );
-            assert_eq!(response.get_ref().responses[0].data, bytes);
+            let (code, served) = handle.await.expect("concurrent read task should join");
+            assert_eq!(code, Some(0));
+            assert_eq!(served, bytes.len());
         }
     }
 
@@ -5927,6 +9527,56 @@ end
     }
 
     #[tokio::test]
+    async fn wildcard_inline_limit_preserves_small_and_explicit_outputs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let small = b"small".to_vec();
+        let large = vec![b'x'; 4096];
+        let small_digest = persist_output_file_blob(&context, &small).await;
+        let large_digest = persist_output_file_blob(&context, &large).await;
+        let action = persist_action_result_with_outputs(
+            &context,
+            vec![
+                reapi::OutputFile {
+                    path: "small".into(),
+                    digest: Some(small_digest),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "large".into(),
+                    digest: Some(large_digest),
+                    ..Default::default()
+                },
+            ],
+        )
+        .await;
+        for explicit in [false, true] {
+            let mut hints = vec!["*".into(), "tuist-inline-max-bytes:1024".into()];
+            if explicit {
+                hints.push("large".into());
+            }
+            let response = service
+                .get_action_result(Request::new(reapi::GetActionResultRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    action_digest: Some(action.clone()),
+                    inline_output_files: hints,
+                    ..Default::default()
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            assert_eq!(response.output_files[0].contents, small);
+            assert_eq!(
+                response.output_files[1].contents,
+                if explicit { large.clone() } else { Vec::new() }
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn action_cache_wildcard_inline_degrades_to_partial_when_budget_is_exceeded() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 32 * 1024 * 1024;
@@ -6057,22 +9707,22 @@ end
         let mut metadata = tonic::metadata::MetadataMap::new();
         metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
         metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
+        metadata.insert("authorization", "Bearer credential".parse().unwrap());
+        metadata.insert("x-unrelated", "not copied".parse().unwrap());
 
-        // The authorization path (grpc_extension_context) and the billing path
+        // The authorization path (grpc_request_context) and the billing path
         // (usage_tenant_id) read the same value.
         assert_eq!(tenant_id_from_metadata(&metadata).as_deref(), Some("acme"));
         assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
 
-        let spec = GrpcExtensionSpec {
-            route: "reapi.bytestream.read",
+        let spec = GrpcRequestSpec {
             operation: "artifact.read",
             namespace_id: Some("ios"),
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
         };
-        let context = grpc_extension_context("acme", &spec, &metadata, None);
+        let context = grpc_request_context("acme", &spec, &metadata);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(context.authorization.as_deref(), Some("Bearer credential"));
+        assert!(context.headers.is_empty());
     }
 
     fn test_usage_config() -> crate::config::UsageConfig {
@@ -6210,6 +9860,132 @@ end
         assert_eq!(download.request_count, 1);
     }
 
+    // A byte-identical re-publish inside the damping window stores nothing,
+    // bumps no version and writes no replication feed row. Counting it as an
+    // ordinary successful write made kura_artifact_writes_total incomparable
+    // with every counter that only sees applied changes -- the gap reads like
+    // replication dropping entries -- and inflated write_bytes with bytes that
+    // never landed. It gets its own result label and no bytes.
+    #[tokio::test]
+    async fn damped_action_cache_refresh_counts_separately_from_an_applied_write() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+
+        // Carry a payload: an all-default ActionResult encodes to zero bytes,
+        // and the byte assertions below would then match the pre-created,
+        // still-zero `result="ok"` series no matter what this path recorded.
+        let action_result = reapi::ActionResult {
+            stdout_raw: b"damped action stdout".to_vec(),
+            exit_code: 3,
+            ..Default::default()
+        };
+        let encoded_bytes = action_result.encode_to_vec().len() as u64;
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"damped-action")),
+            size_bytes: "damped-action".len() as i64,
+        };
+
+        let publish = |action_result: reapi::ActionResult| {
+            let context = &context;
+            let service = &service;
+            let action_digest = action_digest.clone();
+            async move {
+                let mut update = Request::new(reapi::UpdateActionResultRequest {
+                    instance_name: "ios".into(),
+                    action_digest: Some(action_digest),
+                    action_result: Some(action_result),
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                    ..Default::default()
+                });
+                update
+                    .metadata_mut()
+                    .insert("x-tuist-account-handle", "acme".parse().unwrap());
+                add_direct_write_admission(
+                    &context.state,
+                    &mut update,
+                    ACTION_CACHE_UPDATE_DECODE_COPIES,
+                );
+                service
+                    .update_action_result(update)
+                    .await
+                    .expect("update action result should succeed");
+            }
+        };
+
+        publish(action_result.clone()).await;
+        let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
+        let first = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+            .expect("manifest lookup should succeed")
+            .expect("the first publish should store the entry");
+
+        publish(action_result).await;
+        let second = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+            .expect("manifest lookup should succeed")
+            .expect("the damped refresh should leave the entry in place");
+        assert_eq!(
+            first.version_ms, second.version_ms,
+            "the refresh must be damped for this test to mean anything"
+        );
+
+        let metrics = context.state.metrics.render();
+        let counter = |result: &str| {
+            metrics
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_artifact_writes_total")
+                        && line.contains("producer=\"reapi\"")
+                        && line.contains(&format!("result=\"{result}\""))
+                })
+                .and_then(|line| line.rsplit(' ').next())
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or_default()
+        };
+        assert_eq!(counter("ok"), 1, "only the applied write counts as ok");
+        assert_eq!(counter("damped"), 1, "the damped refresh is counted apart");
+
+        let write_bytes = metrics
+            .lines()
+            .filter(|line| line.starts_with("kura_artifact_write_bytes_total"))
+            .filter(|line| line.contains("producer=\"reapi\""))
+            .collect::<Vec<_>>();
+        assert!(
+            !write_bytes.iter().any(|line| line.contains("damped")),
+            "a damped refresh stores nothing, so it books no write bytes: {write_bytes:?}"
+        );
+        assert!(
+            write_bytes.iter().any(|line| line.contains("result=\"ok\"")
+                && line.ends_with(&format!(" {encoded_bytes}"))),
+            "write bytes should hold only the applied write's payload: {write_bytes:?}"
+        );
+
+        // Billing already respected the flag; assert it stays that way, so the
+        // metric and the rollup keep telling the same story.
+        let uploads = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests()
+            .into_iter()
+            .filter(|rollup| rollup.operation == "upload")
+            .collect::<Vec<_>>();
+        assert_eq!(uploads.len(), 1, "one rollup for the one applied write");
+        assert_eq!(uploads[0].request_count, 1);
+        assert_eq!(uploads[0].bytes, encoded_bytes);
+    }
+
     // The ActionCache methods move real bytes too: UpdateActionResult uploads an
     // encoded action result, and GetActionResult returns it plus any inlined
     // stdout/stderr/output-file blobs. Both must land in the grpc/reapi usage
@@ -6329,9 +10105,8 @@ end
     }
 
     // An action result larger than the inline replication ceiling can never be
-    // pushed to peers (the inline replicate path 413s it), so we reject the
-    // write with a non-retriable status instead of storing an entry that would
-    // strand on this node and churn a poison outbox message forever.
+    // fetched by a peer, so we reject the write with a non-retriable status
+    // instead of storing an entry that would strand on this node.
     #[tokio::test]
     async fn update_action_result_rejects_oversized_action_result() {
         let context = test_context(|config| {
@@ -6377,7 +10152,7 @@ end
             .expect_err("oversized action result should be rejected");
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
 
-        // Nothing was stored, so no poison outbox message can exist.
+        // Nothing was stored.
         let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
         assert!(
             context
@@ -6558,5 +10333,345 @@ end
         assert_eq!(download.direction, "egress");
         assert_eq!(download.bytes, blob.len() as u64);
         assert_eq!(download.request_count, 1);
+    }
+
+    #[test]
+    fn zstd_batch_item_decoder_rejects_bombs_and_truncated_payloads() {
+        // A payload whose decompressed length exceeds the declared size is
+        // refused with InvalidArgument, without allocating past the cap.
+        let payload = zstd::stream::encode_all(vec![0xAB; 1024].as_slice(), 3)
+            .expect("bomb source should compress");
+        let bomb = decompress_zstd_batch_item(&payload, 8).expect_err("bomb must be rejected");
+        assert_eq!(bomb.code(), tonic::Code::InvalidArgument);
+        assert!(
+            bomb.message().contains("declared blob size"),
+            "message should name the ceiling that refused it: {bomb:?}"
+        );
+
+        // A truncated zstd payload trips the decoder mid-frame and comes back
+        // as InvalidArgument, not Internal.
+        let truncated = &payload[..payload.len() / 2];
+        let error = decompress_zstd_batch_item(truncated, 1024)
+            .expect_err("a truncated frame must not decode");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        // A valid round-trip returns exactly the original bytes.
+        let source = b"hello, zstd batch update".to_vec();
+        let compressed = zstd::stream::encode_all(source.as_slice(), 3).unwrap();
+        let decoded =
+            decompress_zstd_batch_item(&compressed, source.len() as i64).expect("round-trip");
+        assert_eq!(decoded, source);
+    }
+
+    #[test]
+    fn bounded_zstd_decoder_sink_rejects_bytes_past_its_budget() {
+        let mut sink = BoundedZstdDecoderSink {
+            remaining: 4,
+            ..Default::default()
+        };
+        std::io::Write::write_all(&mut sink, &[1, 2, 3, 4])
+            .expect("bytes inside the budget should be accepted");
+        assert_eq!(sink.bytes, vec![1, 2, 3, 4]);
+        assert_eq!(sink.remaining, 0);
+        let overflow = std::io::Write::write_all(&mut sink, &[5]);
+        assert!(overflow.is_err(), "a byte past the budget must be refused");
+    }
+
+    #[test]
+    fn compressed_wire_ceiling_grows_with_declared_size() {
+        // A large legitimate compressed encoding of `declared` uncompressed
+        // bytes is always shorter than or close to the source size — the
+        // ceiling should sit comfortably above it and grow with `declared`.
+        let small = compressed_wire_ceiling(1);
+        let large = compressed_wire_ceiling(1024 * 1024);
+        assert!(small < large, "ceiling must scale with declared size");
+        assert!(
+            compressed_wire_ceiling(0) >= 64 * 1024,
+            "even a zero-byte blob keeps the slack for framing overhead",
+        );
+    }
+
+    #[test]
+    fn zstd_batch_item_decoder_does_not_preallocate_to_the_declared_size() {
+        // A small compressed payload that declares a huge uncompressed size
+        // used to allocate the full declaration up front and then zero-fill
+        // it, so a 17-byte item declaring 2 GiB would move RSS by 2 GiB
+        // regardless of how many bytes actually decoded. The streaming
+        // version grows the decoded Vec with actually-decoded bytes and
+        // stops feeding the decoder once the declared cap is reached: the
+        // returned Vec's capacity must be within a small factor of the
+        // decoded length, not the declaration.
+        let source = b"actual eight bytes: 42".to_vec();
+        let compressed = zstd::stream::encode_all(source.as_slice(), 3).unwrap();
+        let declared_gib: i64 = 2 * 1024 * 1024 * 1024;
+        let decoded = decompress_zstd_batch_item(&compressed, declared_gib)
+            .expect("a small payload with a huge declared size must decode without OOM");
+        assert_eq!(decoded, source);
+        assert!(
+            decoded.capacity() < 16 * 1024 * 1024,
+            "capacity must track decoded length ({} bytes), not the declaration ({}); got capacity {}",
+            decoded.len(),
+            declared_gib,
+            decoded.capacity(),
+        );
+    }
+
+    #[test]
+    fn zstd_batch_read_compression_falls_back_to_identity_when_it_would_grow() {
+        // A short payload never shrinks below the ~10-byte zstd frame overhead,
+        // so the helper must hand back identity.
+        let short = b"hi".to_vec();
+        let (payload, compressor) = maybe_compress_zstd_batch_response(short.clone());
+        assert_eq!(payload, short);
+        assert_eq!(compressor, 0);
+
+        // A highly compressible payload shrinks and comes back with ZSTD (=1).
+        let long = vec![0xEEu8; 4096];
+        let (payload, compressor) = maybe_compress_zstd_batch_response(long.clone());
+        assert_eq!(compressor, reapi::compressor::Value::Zstd as i32);
+        assert!(payload.len() < long.len(), "compression should shrink");
+        let decoded = zstd::stream::decode_all(payload.as_slice()).expect("decompress");
+        assert_eq!(decoded, long);
+    }
+
+    #[tokio::test]
+    async fn capabilities_advertise_zstd_for_bytestream_and_batch_update() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let capabilities = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+                instance_name: "ios".into(),
+            }))
+            .await
+            .expect("capabilities should load")
+            .into_inner()
+            .cache_capabilities
+            .expect("cache capabilities should be present");
+        let zstd = reapi::compressor::Value::Zstd as i32;
+        assert!(
+            capabilities.supported_compressors.contains(&zstd),
+            "supported_compressors should include ZSTD"
+        );
+        assert!(
+            capabilities
+                .supported_batch_update_compressors
+                .contains(&zstd),
+            "supported_batch_update_compressors should include ZSTD"
+        );
+    }
+
+    #[tokio::test]
+    async fn cas_batch_round_trips_a_zstd_compressed_blob() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        // A highly redundant payload so the wire size shrinks visibly; the
+        // test would still be correct at any size, but exercising the
+        // compression benefit keeps the fallback branch honest.
+        let blob = vec![0xC0u8; 8_192];
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&blob)),
+            size_bytes: blob.len() as i64,
+        };
+        let compressed = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
+        assert!(
+            compressed.len() < blob.len(),
+            "wire payload should shrink for a redundant blob"
+        );
+
+        let mut update = Request::new(reapi::BatchUpdateBlobsRequest {
+            instance_name: "ios".into(),
+            requests: vec![reapi::batch_update_blobs_request::Request {
+                digest: Some(digest.clone()),
+                data: compressed,
+                compressor: reapi::compressor::Value::Zstd as i32,
+            }],
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+        });
+        add_direct_write_admission(&context.state, &mut update, CAS_BATCH_UPDATE_DECODE_COPIES);
+        let update_response = service
+            .batch_update_blobs(update)
+            .await
+            .expect("compressed batch update should succeed")
+            .into_inner();
+        assert_eq!(update_response.responses.len(), 1);
+        assert_eq!(
+            update_response.responses[0].status.as_ref().unwrap().code,
+            0
+        );
+
+        let read = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![digest.clone()],
+                acceptable_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            }))
+            .await
+            .expect("batch read with zstd should succeed")
+            .into_inner();
+        assert_eq!(read.responses.len(), 1);
+        let item = &read.responses[0];
+        assert_eq!(item.status.as_ref().unwrap().code, 0);
+        assert_eq!(item.compressor, reapi::compressor::Value::Zstd as i32);
+        let decoded = zstd::stream::decode_all(item.data.as_slice()).expect("decode response");
+        assert_eq!(decoded, blob, "the compressed response must round-trip");
+
+        // A client that does not advertise zstd still gets identity bytes.
+        let plain = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![digest],
+                acceptable_compressors: Vec::new(),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            }))
+            .await
+            .expect("plain batch read should still succeed")
+            .into_inner();
+        assert_eq!(plain.responses[0].compressor, 0);
+        assert_eq!(plain.responses[0].data, blob);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_round_trips_a_zstd_compressed_blob() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("listener address");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await;
+        });
+        let mut client = None;
+        let endpoint = format!("http://{address}");
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(channel) => {
+                    client = Some(ByteStreamClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut client = client.expect("client should connect to test server");
+
+        let blob = vec![0x5Au8; 32_768];
+        let digest_hash = hex::encode(Sha256::digest(&blob));
+        let uncompressed_size = blob.len() as i64;
+        let compressed = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
+        let write_resource = format!(
+            "ios/uploads/{}/compressed-blobs/zstd/{}/{}",
+            uuid::Uuid::new_v4(),
+            digest_hash,
+            uncompressed_size,
+        );
+        let write_requests: Vec<bytestream::WriteRequest> = {
+            let mut out = Vec::new();
+            let mut offset = 0_usize;
+            for (index, chunk) in compressed.chunks(4096).enumerate() {
+                let finish = offset + chunk.len() == compressed.len();
+                out.push(bytestream::WriteRequest {
+                    resource_name: if index == 0 {
+                        write_resource.clone()
+                    } else {
+                        String::new()
+                    },
+                    write_offset: offset as i64,
+                    finish_write: finish,
+                    data: chunk.to_vec(),
+                });
+                offset += chunk.len();
+            }
+            out
+        };
+        let write_response = client
+            .write(tokio_stream::iter(write_requests))
+            .await
+            .expect("compressed bytestream write should succeed")
+            .into_inner();
+        assert_eq!(write_response.committed_size as usize, compressed.len());
+
+        let read_resource = format!(
+            "ios/compressed-blobs/zstd/{}/{}",
+            digest_hash, uncompressed_size
+        );
+        let mut stream = client
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: read_resource,
+                read_offset: 0,
+                read_limit: 0,
+            }))
+            .await
+            .expect("compressed bytestream read should succeed")
+            .into_inner();
+        let mut received = Vec::new();
+        while let Some(response) = stream.next().await {
+            received.extend(response.expect("stream response").data);
+        }
+        let decoded = zstd::stream::decode_all(received.as_slice()).expect("decode stream");
+        assert_eq!(decoded, blob, "the compressed read must round-trip");
+
+        // REAPI defines read_offset on a compressed-blobs resource as the
+        // offset in the *uncompressed* form; Kura seeks the uncompressed
+        // reader and starts the encoder there, so a partial compressed read
+        // decodes to the tail of the original blob.
+        let mut tail_stream = client
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!(
+                    "ios/compressed-blobs/zstd/{}/{}",
+                    digest_hash, uncompressed_size
+                ),
+                read_offset: 1,
+                read_limit: 0,
+            }))
+            .await
+            .expect("a compressed read with a non-zero offset must succeed")
+            .into_inner();
+        let mut tail_bytes = Vec::new();
+        while let Some(response) = tail_stream.next().await {
+            tail_bytes.extend(response.expect("tail stream response").data);
+        }
+        let tail_decoded = zstd::stream::decode_all(tail_bytes.as_slice()).expect("tail decode");
+        assert_eq!(
+            tail_decoded,
+            blob[1..],
+            "a compressed read with read_offset=1 must decode to the blob's tail",
+        );
+
+        // The spec requires INVALID_ARGUMENT for a non-zero read_limit on a
+        // compressed-blobs resource; UNIMPLEMENTED would turn into a hard
+        // IOException on Bazel instead of the retryable client error the
+        // spec expects.
+        let limit_error = client
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!(
+                    "ios/compressed-blobs/zstd/{}/{}",
+                    digest_hash, uncompressed_size
+                ),
+                read_offset: 0,
+                read_limit: 1,
+            }))
+            .await
+            .expect_err("read_limit is not supported on compressed-blobs");
+        assert_eq!(limit_error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
     }
 }

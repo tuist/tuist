@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "translate.exs"
+      - "translate_test.exs"
+      - ".github/workflows/l10n.yml"
+      - ".github/scripts/restore-translations*"
       - "server/priv/gettext/*.pot"
       - "L10N.md"
       - "server/L10N.md"
@@ -15,42 +18,71 @@ on:
       - "server/priv/docs/en/guides/install-tuist.md"
       - "server/priv/docs/en/guides/features/cache.md"
 
-permissions:
-  contents: write
-  pull-requests: write
+  pull_request:
+    paths:
+      - "translate.exs"
+      - "translate_test.exs"
+      - ".github/workflows/l10n.yml"
+      - ".github/scripts/restore-translations*"
 
-concurrency:
-  group: l10n-translations
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  translate:
-    name: Translate
+  test:
+    name: Test translation recovery
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
+          install_args: "elixir erlang"
+          cache: "true"
+      - run: elixir translate_test.exs
+
+  translate:
+    name: Translate
+    if: github.event_name == 'push'
+    needs: test
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: l10n-translations
+      cancel-in-progress: false
+    runs-on: tuist-linux
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore saved translations
+        run: bash .github/scripts/restore-translations.sh
+      - uses: ./.github/actions/mise
+        with:
           install_args: "elixir erlang"
           cache: "true"
       - name: Install server dependencies
         working-directory: server
         run: mix deps.get
       - name: Run translations
+        id: translate
+        timeout-minutes: 75
+        continue-on-error: true
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: elixir translate.exs --model "openai:gpt-4.1-mini"
+          HIVE_INFERENCE_API_KEY: ${{ secrets.HIVE_INFERENCE_API_KEY }}
+        run: elixir translate.exs --model "hive:Translator"
       - name: Check for changes
         id: changes
         run: |
-          if [[ -n $(git diff --name-only -- '*.po' '.l10n/' 'server/priv/docs/**/*.md') ]]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
+          if [[ -n $(git status --porcelain -- '*.po' '.l10n/' 'server/priv/docs/**/*.md') ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Create PR
         if: steps.changes.outputs.has_changes == 'true'
@@ -62,9 +94,17 @@ jobs:
           title: "chore(server): update translations"
           body: |
             Automated translation update triggered by changes to `.pot` files or `L10N.md` context.
+
+            Validated partial progress is saved even when some translations fail.
+            Subsequent runs reuse this branch before translating missing entries.
           add-paths: |
             .l10n/**
             server/priv/gettext/**/*.po
             server/priv/docs/**/*.md
           committer: "tuistit <tuistit@users.noreply.github.com>"
           author: "tuistit <tuistit@users.noreply.github.com>"
+      - name: Report incomplete translations
+        if: steps.translate.outcome == 'failure'
+        run: |
+          echo "::error::Some translations failed. Validated progress was saved for the next run."
+          exit 1

@@ -2,9 +2,6 @@ name: Setup Server Mix
 description: Install mise tools, restore mix deps + _build cache, fetch hex deps for server jobs.
 
 inputs:
-  mise-version:
-    description: Version of mise to install
-    required: true
   mise-install-args:
     description: Tools to install via mise (passed to install_args)
     required: false
@@ -41,7 +38,6 @@ runs:
       run: echo "MIX_OS_DEPS_COMPILE_PARTITION_COUNT=${{ inputs.mix-os-deps-compile-partition-count }}" >> "$GITHUB_ENV"
     - uses: ./.github/actions/mise-install
       with:
-        version: ${{ inputs.mise-version }}
         install: ${{ inputs.mise-install-args }}
         cache: "true"
         working-directory: server
@@ -56,7 +52,7 @@ runs:
         key: ${{ inputs.mix-cache-key }}-${{ hashFiles('server/mix.lock') }}
         restore-keys: |
           ${{ inputs.mix-cache-restore-key }}
-    - name: Install dependencies
-      shell: bash
-      working-directory: server
-      run: mix deps.get
+    - uses: ./.github/actions/mix-deps-get
+      with:
+        working-directory: server
+        github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}

@@ -3,7 +3,7 @@
     <.dropdown
       id="tests-analytics-scheme-dropdown"
       label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
-      secondary_text={dgettext("dashboard_tests", "Scheme:")}
+      secondary_text={"#{scheme_label(@selected_project)}:"}
     >
       <:search>
         <input
@@ -163,6 +163,36 @@
         trend_label={@analytics_trend_label}
         empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
       />
+      <.widget
+        :if={@coverage_enabled}
+        title={dgettext("dashboard_tests", "Line coverage")}
+        legend_color="tertiary"
+        description={
+          dgettext(
+            "dashboard_tests",
+            "Share of executable lines covered across the test runs that gathered code coverage."
+          )
+        }
+        value={
+          if @test_runs_coverage_analytics.ok?,
+            do: "#{@test_runs_coverage_analytics.result.coverage}%"
+        }
+        loading={!@test_runs_coverage_analytics.ok?}
+        id="widget-coverage"
+        phx_click="select_widget"
+        phx_value_widget="coverage"
+        selected={@analytics_selected_widget == "coverage"}
+        trend_value={
+          if @test_runs_coverage_analytics.ok?, do: @test_runs_coverage_analytics.result.trend
+        }
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        empty={
+          @test_runs_coverage_analytics.ok? &&
+            @test_runs_coverage_analytics.result.runs_count == 0
+        }
+        empty_label={dgettext("dashboard_tests", "No coverage yet")}
+      />
       <.percentile_dropdown_widget
         loading={!@test_runs_duration_analytics.ok?}
         id="widget-test-run-duration"
@@ -254,7 +284,9 @@
              (@analytics_selected_widget == "flaky_test_run_count" and
                 @flaky_test_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "failed_test_run_count" and
-                @failed_test_runs_analytics.result.count != 0))
+                @failed_test_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "coverage" and
+                @test_runs_coverage_analytics.result.runs_count != 0))
       }
       data-part="analytics-card-chart-section"
     >
@@ -264,7 +296,7 @@
         chart_type={@duration_chart_type}
         chart_type_event="select_duration_chart_type"
         group_by_options={[
-          %{value: "scheme", label: dgettext("dashboard_tests", "Scheme")},
+          %{value: "scheme", label: scheme_label(@selected_project)},
           %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
         ]}
         selected_group_by={@duration_scatter_group_by}
@@ -611,6 +643,74 @@
         ]}
         y_axis_min={0}
       />
+      <.chart
+        :if={@coverage_enabled and @analytics_selected_widget == "coverage"}
+        id="coverage-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "{value}%"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour", valueFormat: "{value}%"}
+              else
+                %{valueFormat: "{value}%"}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-tertiary",
+            data:
+              Enum.zip(
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Line coverage"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "circle",
+            symbolSize: 4,
+            connectNulls: true
+          }
+        ]}
+        y_axis_min={0}
+        y_axis_max={100}
+      />
     </.card_section>
     <.empty_card_section
       :if={
@@ -637,7 +737,7 @@
   </.card>
 
   <.card
-    :if={!Tuist.Projects.Project.gradle_project?(@selected_project)}
+    :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
     title={dgettext("dashboard_tests", "Selective Testing")}
     icon="subtask"
     data-part="selective-testing"
@@ -1048,7 +1148,7 @@
             label={dgettext("dashboard_tests", "View more")}
             size="small"
             navigate={
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=duration_p50&sort_order=desc"
             }
           />
         </div>
@@ -1070,7 +1170,7 @@
               <span data-part="duration">
                 <.clock_hour_4 />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
+                  test_case.duration_p50_ms
                 )}
               </span>
             </div>
@@ -1126,7 +1226,7 @@
                 </span>
               </div>
               <.badge
-                label={to_string(test_case.flaky_runs_count)}
+                label={format_number(test_case.flaky_runs_count)}
                 color="attention"
                 style="light-fill"
                 size="small"

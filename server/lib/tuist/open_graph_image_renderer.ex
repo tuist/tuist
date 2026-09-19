@@ -14,11 +14,15 @@ defmodule Tuist.OpenGraphImageRenderer do
   @doc """
   Child specification for the browser pool backing the renderer.
 
-  `BrowseChrome.BrowserPool` is a NimblePool that warms its browsers eagerly, so
-  a machine without a usable Chrome would otherwise abort the whole supervision
-  tree at boot. Returning `:ignore` keeps the node booting without a pool and
-  lets `render/2` degrade to the fallback renderer, which is the right trade for
-  a feature that only backs social cards.
+  Returning `:ignore` on a `start_link/1` error keeps the node booting without a
+  pool and lets `render/2` degrade to the fallback renderer, which is the right
+  trade for a feature that only backs social cards.
+
+  This does not cover a missing Chrome. `BrowseChrome.BrowserPool` warms its
+  browsers eagerly, but NimblePool absorbs an `init_worker/1` raise and retries
+  it forever instead of failing `start_link/1`, so the pool must not be started
+  at all on a host without Chrome — see
+  `Tuist.Application.RuntimeChildren.open_graph_image_renderer/1`.
   """
   def child_spec(opts) do
     %{id: @pool, start: {__MODULE__, :start_pool, [opts]}, type: :worker}

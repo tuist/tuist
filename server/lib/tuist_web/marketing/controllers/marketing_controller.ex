@@ -4,6 +4,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   import TuistWeb.Marketing.StructuredMarkup
 
+  alias Tuist.Atlas.Email
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
@@ -14,6 +15,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.SocialCards
 
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
@@ -23,25 +25,12 @@ defmodule TuistWeb.Marketing.MarketingController do
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
 
-  def qa(conn, _params) do
-    read_more_posts = Enum.take(Blog.get_posts(), 3)
-
-    conn
-    |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: home_open_graph_image_path())
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:read_more_posts, read_more_posts)
-    |> render(:home, layout: false)
-  end
-
   def home(conn, _params) do
-    locale = Gettext.get_locale(TuistWeb.Gettext)
-
     conn
-    |> assign(:head_title, "Tuist")
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(get_website_structured_data())
+    |> assign_structured_data(get_software_application_structured_data())
+    |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
     |> assign(
       :head_description,
       dgettext(
@@ -51,89 +40,202 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: home_open_graph_image_path())
+      SocialCards.image_url("home")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:featured_testimonials, get_featured_testimonials(locale))
-    |> assign(:testimonial_columns, get_testimonial_columns(locale))
+    |> assign(:home_testimonials, get_home_testimonials())
     |> render(:home, layout: false)
   end
 
-  defp get_featured_testimonials("ko") do
+  # The new home's testimonial marquee: two rows in the design's order,
+  # reusing the existing testimonial entries (quotes stay translatable
+  # through their original dgettext calls) plus the OpenAI quote.
+  # The Toss quotes sit antipodally within each row (4 apart on the 8-card
+  # marquee loop, so two can't share the ~3-card viewport — "2nd last" would
+  # wrap around next to the 1st at the loop seam), and the two rows' pairs
+  # are staggered against each other to keep cross-row coincidences rare.
+  @home_testimonial_rows [
+    [:junyoung, "Alon Zilbershtein", "Shahzad Majeed", "Kai Oelfke", :hyojun, :openai, :yusuf, :wojtek],
+    [
+      "Garnik Harutyunyan",
+      :fetch,
+      :jinkyu,
+      "Yousef Moahmed",
+      :gustavo,
+      "Cedric Gatay",
+      :wanbok,
+      "Alberto Salas",
+      :youngjun
+    ]
+  ]
+
+  defp get_home_testimonials do
+    testimonials = List.flatten(get_english_testimonial_columns())
+
+    Enum.map(@home_testimonial_rows, fn row ->
+      Enum.map(row, fn
+        :openai -> get_openai_testimonial()
+        :fetch -> get_fetch_testimonial()
+        :wojtek -> get_wojtek_testimonial()
+        :gustavo -> get_gustavo_testimonial()
+        :yusuf -> get_yusuf_testimonial()
+        :junyoung -> get_junyoung_testimonial()
+        :hyojun -> get_hyojun_testimonial()
+        :jinkyu -> get_jinkyu_testimonial()
+        :wanbok -> get_wanbok_testimonial()
+        :youngjun -> get_youngjun_testimonial()
+        name -> Enum.find(testimonials, &(&1.name == name))
+      end)
+    end)
+  end
+
+  defp get_openai_testimonial do
     %{
-      quote_line_one: "Tuist를 적용했을 뿐인데 빌드 속도가 25% 단축되었어요!",
-      quote_line_two: "한국 iOS 개발자들에게 정말 인기 있는 도구 입니다",
-      author_name: "이영준 (Youngjun Lee), 게임도우미",
-      author_avatar: "https://www.gravatar.com/avatar/placeholder"
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist has made a meaningful difference to developer productivity across our growing iOS engineering organization which means faster iteration for both our engineers and coding agents working alongside them. Tuist has helped us turn build performance into a scalable advantage"
+        ),
+      name: "Eric Burke",
+      role: dgettext("marketing", "Member of Technical Staff, OpenAI"),
+      avatar_src: "/marketing/images/home/testimonials/eric.jpeg",
+      highlighted: false,
+      logo_svg: nil
     }
   end
 
-  defp get_featured_testimonials("ru") do
-    get_english_featured_testimonials()
-  end
-
-  defp get_featured_testimonials(_locale) do
-    get_english_featured_testimonials()
-  end
-
-  defp get_testimonial_columns("ko") do
-    english_columns = get_english_testimonial_columns()
-
-    [
-      [
-        %{
-          quote:
-            "Tuist는 iOS 개발자들에게 정말 멋진 도구에요. 이걸 적용한 후 더 이상 Xcode 프로젝트에서 Conflicts를 경험하지 않게 되었어요. 게다가, 빌드에 걸리는 시간도 줄여줘서 더 중요한 일에 시간을 사용할 수 있게 되었어요. 그리고 고맙게도, Tuist는 한국의 SNS에서도 피드백을 받고 있어서 문제가 있다면 언제든 도와줄 겁니다.",
-          name: "이영준 (Youngjun Lee)",
-          role: "CEO of 게임도우미",
-          avatar_src: "/marketing/images/testimonials/youngjun-lee.jpeg",
-          highlighted: true,
-          logo_svg: """
-          <!-- TODO: Add company logo SVG here if needed -->
-          """
-        },
-        %{
-          quote:
-            "Tuist를 도입한 이후 의존성 관리와 외부 라이브러리 업데이트가 훨씬 간결해졌습니다. Project.swift로 프로젝트 구조와 의존성을 정의하다 보니 구성 검토와 리팩터링이 수월해졌고, 모듈 단위로 테스트를 분리할 수 있어 TDD에 최적화되었습니다. 캐시 기능 덕분에 클린 빌드와 증분 빌드 시간이 크게 줄어 개발 루프가 빨라졌고, 스캐폴딩 기능으로 신규 기능 파일을 손쉽게 생성할 수 있어 반복 작업이 줄었습니다. 또한 .pbxproj 충돌을 없애 병합 과정이 깔끔해진 점도 만족스러웠습니다. 빠르게 변화하는 iOS 환경에 맞추어 Tuist 또한 빠른 업데이트 속도가 제일 좋았습니다.",
-          name: "Akaps",
-          role: "iOS Developer at HSociety",
-          avatar_src: "/marketing/images/testimonials/akaps.jpeg",
-          highlighted: false,
-          logo_svg: nil
-        },
-        %{
-          quote:
-            "Tuist는 비누랩스의 iOS 개발 워크플로우를 획기적으로 개선했습니다. 프로젝트 파일을 코드로 관리하고 자동 생성하는 방식 덕분에 팀원 간 pbxproj 파일 충돌이 완전히 사라졌고, Git 머지가 훨씬 수월해졌습니다. 특히 Tuist Cache를 활용해 의존성을 사전 빌드함으로써 개발 환경의 빌드 시간을 대폭 단축할 수 있었습니다. Swift Macro 모듈을 도입할 때도 바이너리 캐싱 기능 덕분에 매번 매크로를 재컴파일할 필요 없이 빠르게 개발할 수 있었습니다. 변경되지 않은 모듈은 캐시된 바이너리로 대체하고 작업 중인 모듈만 소스로 빌드하는 방식으로, 대규모 모듈화 프로젝트에서도 빠른 피드백 루프를 유지하며 팀 전체의 생산성을 크게 높일 수 있었습니다.",
-          name: "김인환 (Inhwan Kim)",
-          role: "iOS Developer at 비누랩스",
-          avatar_src: "/marketing/images/testimonials/inhwan-kim.jpg",
-          highlighted: false,
-          logo_svg: nil
-        }
-      ],
-      Enum.at(english_columns, 1),
-      Enum.at(english_columns, 2)
-    ]
-  end
-
-  defp get_testimonial_columns("ru") do
-    get_english_testimonial_columns()
-  end
-
-  defp get_testimonial_columns(_locale) do
-    get_english_testimonial_columns()
-  end
-
-  defp get_english_featured_testimonials do
+  defp get_fetch_testimonial do
     %{
-      quote_line_one:
+      quote:
         dgettext(
           "marketing",
-          "\"We could solve our immediate problems and do so while maintaining a familiar"
+          "Tuist has made a real difference in how we work with Fetch's large, highly modular iOS codebase. Its remote module cache has materially reduced build times and tightened feedback loops for engineers locally and in CI, while Build Insights gives us valuable visibility into build performance and where to focus next. That combination of speed and observability has made the developer experience meaningfully better."
         ),
-      quote_line_two: dgettext("marketing", "core development experience\""),
-      author_name: dgettext("marketing", "Jonathan Crooke, Bumble"),
-      author_avatar: "https://www.gravatar.com/avatar/292c129cf17a552c08b4d9dcf2c6c1f8"
+      name: "Greg Young",
+      role: dgettext("marketing", "Senior iOS Engineer at Fetch"),
+      avatar_src: "/marketing/images/home/testimonials/greg.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_yusuf_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist cuts our build times by 65% and reduces project conflicts, letting us focus on developer experience and testing. Hundreds of devs across multiple organizations, alongside AI agents, collaborate on Trendyol. Tuist is key to running tens of thousands of UI and unit tests across thousands of pipelines every day."
+        ),
+      name: "Yusuf Özgül",
+      role: dgettext("marketing", "Senior Software Engineer II at Trendyol"),
+      avatar_src: "/marketing/images/home/testimonials/yusuf.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_gustavo_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Since adopting Tuist as our iOS build system and Gradle remote caching solution, the results have been nothing short of incredible. It's directly impacted both our CI and local build times, and increased the visibility of our platform through Tuist's insights dashboard. We're now seeing a 64% reduction in CI time and 4x faster clean builds. It's been just a month since we completed the integration, and the value is already showing across the company."
+        ),
+      name: "Gustavo Tiago",
+      role: dgettext("marketing", "Senior Software Engineer at SafetyCulture"),
+      avatar_src: "/marketing/images/home/testimonials/gustavo.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_wojtek_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
+        ),
+      name: "Wojtek Mandrysz",
+      role: dgettext("marketing", "Senior Software Engineer at Zabka"),
+      avatar_src: "/marketing/images/home/testimonials/wojtek.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_junyoung_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist made git worktrees practical on our huge codebase. Worktrees used to be painful here — every new one ate serious disk space, opening the project over and over had real overhead, and each fresh worktree meant another clean build. Tuist shrank all of those hurdles, so now I spin up worktrees without hesitation — which is exactly what AI-assisted development needs."
+        ),
+      name: "Junyoung Jung",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/junyoung.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_hyojun_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "With Tuist's development cache and focused modules, our local feedback loop got dramatically shorter. A build that took around 4 minutes drops to about 25 seconds on the next run — 123 of 124 targets served straight from cache. The feeling of facing the entire project on every build is gone; I just iterate on the modules I'm actually changing, and I rarely think about project file conflicts anymore."
+        ),
+      name: "Hyojun Park",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/hyojun.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_jinkyu_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Our workspace definition became pure Swift code. Touching the project structure used to mean editing .pbxproj files whose diffs no human can read; now each domain team declares and owns its module configuration in Swift, and structure changes are reviewable diffs. Dependencies became visible data too — with the module graph declared in code, we finally have concrete, shared data to ground our dependency discussions."
+        ),
+      name: "Jinkyu Kim",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/jinkyu.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_wanbok_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "It's now trivial to spin up a compact Example app for any module. Even app extensions like widgets and Live Activities can be wrapped in their own Example apps just as easily. Instead of launching the entire app to try something out, I work against a small app that contains only the part I care about — and that alone changes how quickly you can iterate."
+        ),
+      name: "Wanbok Choi",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/wanbok.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_youngjun_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist is an amazing tool for iOS developers. Since adopting this tool, I haven't had to face conflicts in Xcode projects. Overall, Tuist has reduced build time, so I can use more time on meaningful tasks. Thankfully, Tuist is receiving feedback from Korean users in local social communities. They are always there for you."
+        ),
+      name: "Lee Young-jun",
+      role: dgettext("marketing", "Game Assistant"),
+      avatar_src: "/marketing/images/home/testimonials/youngjun-lee.jpeg",
+      highlighted: false,
+      logo_svg: nil
     }
   end
 
@@ -145,7 +247,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           quote:
             dgettext(
               "marketing",
-              "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+              "It made the transition to SPM and the migration of our private pods to our monorepo super easy. We were able to create a framework template, making the option to build a modular project very simple. After integrating Tuist, we reduced our build time by 30%! We have no more project file conflicts and honestly - once you try it, you'll never go back"
             ),
           name: "Alon Zilbershtein",
           role: "Staff Software Engineer at Chegg",
@@ -162,7 +264,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
             ),
           name: "Garnik Harutyunyan",
-          role: "Senior iOS developer at FREENOW",
+          role: "Senior iOS Developer at FREENOW",
           avatar_src: "/marketing/images/home/testimonials/garnik.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -177,7 +279,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
             ),
           name: "Shahzad Majeed",
-          role: "Sr Lead Software Engineer at DraftKings",
+          role: "Senior Software Engineer at DraftKings",
           avatar_src: "/marketing/images/home/testimonials/shahzad.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -201,7 +303,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
             ),
           name: "Yousef Moahmed",
-          role: "Senior iOS Dev at Bazargate",
+          role: "Senior iOS Developer at Bazargate",
           avatar_src: "/marketing/images/home/testimonials/yousef.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -216,7 +318,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
             ),
           name: "Kai Oelfke",
-          role: "Indie developer",
+          role: "Indie Developer",
           avatar_src: "/marketing/images/home/testimonials/kai.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -228,7 +330,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
             ),
           name: "Cedric Gatay",
-          role: "iOS Lead Dev (Contractor) at Chanel",
+          role: "iOS Lead Developer (Contractor) at Chanel",
           avatar_src: "/marketing/images/home/testimonials/cedric.jpeg",
           highlighted: true,
           logo_svg: """
@@ -240,53 +342,124 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def about(conn, _params) do
-    conn
-    |> assign_structured_data(get_organization_structured_data())
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "About"), Tuist.Environment.app_url(path: ~p"/about")}
-      ])
-    )
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing,
-            title: dgettext("marketing", "About Tuist"),
-            icon: "static/marketing/images/about/logo.webp"
-          )
+    conn =
+      conn
+      |> assign_structured_data(get_organization_structured_data())
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "About"), Tuist.Environment.app_url(path: ~p"/about")}
+        ])
       )
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      "Learn more about Tuist, the open-source project that helps you scale your Swift development."
-    )
-    |> assign(:head_title, "About Tuist")
-    |> render(:about, layout: false)
+      |> assign(
+        :head_image,
+        SocialCards.image_url("about")
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign(
+        :head_description,
+        "Learn more about Tuist, the open-source project that helps you scale your Swift development."
+      )
+      |> assign(:head_title, "About Tuist")
+
+    render(conn, :about, layout: false)
   end
 
-  def support(conn, _params) do
+  def brand(conn, _params) do
     conn
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Support"), Tuist.Environment.app_url(path: ~p"/support")}
+        {dgettext("marketing", "Brand"), Tuist.Environment.app_url(path: ~p"/brand")}
       ])
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Support")))
+      SocialCards.image_url("brand")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
       :head_description,
-      "Get help with Tuist. Access our support channels, documentation, and community resources."
+      dgettext(
+        "marketing",
+        "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
+      )
     )
-    |> assign(:head_title, "Support · Tuist")
-    |> render(:support, layout: false)
+    |> assign(:head_title, dgettext("marketing", "Brand guidelines"))
+    |> render(:brand, layout: false)
+  end
+
+  def download(conn, _params) do
+    render_download(conn, Tuist.GitHub.Releases.get_latest_app_release())
+  end
+
+  defp render_download(conn, latest_app_release) do
+    macos_version = macos_app_version(latest_app_release)
+    macos_download_url = macos_app_dmg_url(latest_app_release) || "https://github.com/tuist/tuist/releases"
+    ios_version = Tuist.AppStore.get_latest_ios_app_version()
+
+    {hero_platform, hero_download_url, hero_version} =
+      if ios_visitor?(conn) do
+        {:ios, Tuist.AppStore.ios_app_url(), ios_version}
+      else
+        {:macos, macos_download_url, macos_version}
+      end
+
+    conn
+    # The hero swaps its CTA and version on the visitor's OS, so shared
+    # caches must key the cached page on the user agent.
+    |> put_resp_header("vary", "user-agent")
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Download"), Tuist.Environment.app_url(path: ~p"/download")}
+      ])
+    )
+    |> assign(
+      :head_image,
+      SocialCards.image_url("download")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Download the Tuist apps for macOS and iOS to launch, manage, and run Tuist Previews from your Mac and iPhone."
+      )
+    )
+    |> assign(:head_title, dgettext("marketing", "Download Tuist"))
+    # The macOS demo's desktop is the biggest thing above the fold and a
+    # CSS background, so it is preloaded rather than found late.
+    |> assign(:head_preload_images, [~p"/marketing/images/download/macos-wallpaper.webp"])
+    |> assign(:hero_platform, hero_platform)
+    |> assign(:hero_download_url, hero_download_url)
+    |> assign(:hero_version, hero_version)
+    |> assign(:macos_download_url, macos_download_url)
+    |> assign(:ios_download_url, Tuist.AppStore.ios_app_url())
+    |> render(:download, layout: false)
+  end
+
+  defp macos_app_dmg_url(nil), do: nil
+
+  defp macos_app_dmg_url(%{assets: assets}) do
+    Enum.find_value(assets, fn asset ->
+      String.ends_with?(asset.browser_download_url, "dmg") && asset.browser_download_url
+    end)
+  end
+
+  defp macos_app_version(%{tag_name: "app@" <> version}), do: version
+  defp macos_app_version(_latest_app_release), do: nil
+
+  defp ios_visitor?(conn) do
+    case get_req_header(conn, "user-agent") do
+      [user_agent | _] ->
+        match?(%{os: %{family: "iOS"}}, UAParser.parse(user_agent))
+
+      [] ->
+        false
+    end
   end
 
   def newsletter(conn, _params) do
@@ -300,12 +473,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing_newsletter,
-            title: dgettext("marketing", "Newsletter")
-          )
-      )
+      SocialCards.image_url("newsletter")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_title, dgettext("marketing", "Tuist Digest Newsletter"))
@@ -313,6 +481,12 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       Newsletter.description()
     )
+    |> render_newsletter()
+  end
+
+  defp render_newsletter(conn) do
+    conn
+    |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
     |> render(:newsletter, layout: false)
   end
 
@@ -322,7 +496,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     verification_token = sign_newsletter_verification_token(email)
     verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
 
-    case Tuist.Loops.send_newsletter_confirmation(email, verification_url) do
+    case Email.send_newsletter_confirmation(email, verification_url) do
       :ok ->
         conn
         |> put_resp_content_type("application/json")
@@ -352,7 +526,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(:verification_token, token)
         |> assign(:subscription_confirmed, false)
         |> assign(:error_message, nil)
-        |> render(:newsletter_verify, layout: false)
+        |> render_newsletter_verify()
 
       {:error, _reason} ->
         render_newsletter_verify_error(
@@ -372,7 +546,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   def newsletter_confirm(conn, %{"token" => token} = _params) do
     case verify_newsletter_verification_token(token) do
       {:ok, email} ->
-        case Tuist.Loops.add_to_newsletter_list(email) do
+        case Email.add_to_newsletter_list(email) do
           :ok ->
             conn
             |> assign(:head_title, dgettext("marketing", "Successfully Subscribed!"))
@@ -381,7 +555,7 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(:verification_token, nil)
             |> assign(:subscription_confirmed, true)
             |> assign(:error_message, nil)
-            |> render(:newsletter_verify, layout: false)
+            |> render_newsletter_verify()
 
           {:error, _reason} ->
             render_newsletter_verify_error(
@@ -435,10 +609,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn =
       if email_version? do
         conn
-        |> put_resp_header("Content-Type", "text/plain; charset=utf-8")
+        |> put_resp_header("content-type", "text/plain; charset=utf-8")
         |> PlugMinifyHtml.call(PlugMinifyHtml.init([]))
       else
-        put_resp_header(conn, "Content-Type", "text/html")
+        put_resp_header(conn, "content-type", "text/html")
       end
 
     open_graph_image_url =
@@ -447,8 +621,12 @@ defmodule TuistWeb.Marketing.MarketingController do
         marketing: true
       )
 
+    issues = Newsletter.issues()
+
     render(conn, String.to_atom("newsletter_issue"),
       issue: issue,
+      previous_issue: Enum.find(issues, &(&1.number == issue.number - 1)),
+      next_issue: Enum.find(issues, &(&1.number == issue.number + 1)),
       email_version?: email_version?,
       open_graph_image_url: open_graph_image_url
     )
@@ -494,90 +672,109 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:changelog_atom, layout: false)
   end
 
+  # Localized marketing pages that live in the router rather than in content
+  # files. Everything else in the sitemap is derived from the content modules.
+  @sitemap_base_paths [
+    "/",
+    "/pricing",
+    "/blog",
+    "/changelog",
+    "/customers",
+    "/cache",
+    "/tests",
+    "/compute",
+    "/previews",
+    "/download",
+    "/about",
+    "/brand",
+    "/newsletter"
+  ]
+
   def sitemap(conn, _params) do
-    page_urls = Enum.map(Pages.get_pages(), &Tuist.Environment.app_url(path: &1.slug))
+    page_entries =
+      Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
 
-    post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
+    post_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
 
-    case_study_urls =
+    case_study_entries =
       for locale <- Localization.all_locales(),
           case_study <- Customers.get_case_studies(),
           Customers.local_case_study?(case_study) do
-        localized_path = Localization.localized_href(case_study.slug, locale)
-        Tuist.Environment.app_url(path: localized_path)
+        case_study.slug
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(case_study.date)
       end
 
-    newsletter_issue_urls =
+    newsletter_issue_entries =
       Enum.map(
         Newsletter.issues(),
-        &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
+        &sitemap_entry(~p"/newsletter/issues/#{&1.number}", &1.date)
       )
 
-    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/customers"]
+    # Section indexes get the date of their newest entry. The rest have no
+    # trustworthy modification signal, and Google discards a sitemap's lastmod
+    # entirely once it catches one that is wrong, so we leave those out.
+    section_last_modified = %{
+      "/blog" => latest_date(Blog.get_posts(), & &1.date),
+      "/changelog" => latest_date(Changelog.get_entries(), & &1.date),
+      "/customers" => latest_date(Customers.get_case_studies(), & &1.date)
+    }
 
-    # Generate URLs for all locales
     localized_entries =
       for locale <- Localization.all_locales(),
-          path <- base_paths do
-        localized_path = Localization.localized_href(path, locale)
-        Tuist.Environment.app_url(path: localized_path)
+          path <- @sitemap_base_paths do
+        path
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(Map.get(section_last_modified, path))
       end
 
-    docs_urls =
+    docs_entries =
       Enum.map(
         Tuist.Docs.slugs(),
-        &Tuist.Environment.app_url(path: Tuist.Docs.Paths.public_path_from_slug(&1))
+        &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
     entries =
       localized_entries ++
-        case_study_urls ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
+        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
-    |> assign(:entries, entries)
+    |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
     |> render(:sitemap, layout: false)
   end
 
-  defp blog_entries do
-    Content.get_entries()
+  defp sitemap_entry(path, last_modified) do
+    lastmod =
+      case to_sitemap_date(last_modified) do
+        nil -> nil
+        date -> Date.to_iso8601(date)
+      end
+
+    %{loc: Tuist.Environment.app_url(path: path), lastmod: lastmod}
   end
 
-  def blog_post(%{request_path: request_path} = conn, _params) do
-    request_path = Localization.path_without_locale(request_path)
+  defp latest_date(entries, getter) do
+    entries
+    |> Enum.map(&(&1 |> getter.() |> to_sitemap_date()))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max_by(&Date.to_erl/1, fn -> nil end)
+  end
 
-    post = Enum.find(Blog.get_posts(), &(&1.slug == String.trim_trailing(request_path, "/")))
+  defp to_sitemap_date(%Date{} = date), do: date
+  defp to_sitemap_date(%DateTime{} = date_time), do: DateTime.to_date(date_time)
+  defp to_sitemap_date(%NaiveDateTime{} = naive), do: NaiveDateTime.to_date(naive)
 
-    if is_nil(post) do
-      raise NotFoundError
-    else
-      related_posts = Enum.take_random(Blog.get_posts(), 3)
-      author = Blog.get_authors()[post.author]
-      post_image_url = blog_post_image_url(post)
-
-      conn
-      |> assign(:head_title, post.title)
-      |> assign(:head_description, post.excerpt)
-      |> assign(:head_keywords, post.tags)
-      |> assign(:head_fediverse_creator, author["fediverse_username"])
-      |> assign(
-        :head_image,
-        post_image_url
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_blog_post_structured_markup_data(post))
-      |> assign_structured_data(
-        get_breadcrumbs_structured_data([
-          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
-          {post.title, Tuist.Environment.app_url(path: post.slug)}
-        ])
-      )
-      |> assign(:post, post)
-      |> assign(:post_image_url, post_image_url)
-      |> assign(:author, author)
-      |> assign(:related_posts, related_posts)
-      |> render(:blog_post, layout: false)
+  defp to_sitemap_date(date) when is_binary(date) do
+    case Date.from_iso8601(date) do
+      {:ok, date} -> date
+      {:error, _reason} -> nil
     end
+  end
+
+  defp to_sitemap_date(_date), do: nil
+
+  defp blog_entries do
+    Content.get_entries()
   end
 
   def case_study(%{request_path: request_path} = conn, _params) do
@@ -601,90 +798,154 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         customers_path = Localization.localized_href("/customers", locale)
         case_study_path = Localization.localized_href(case_study.slug, locale)
+        # The generated cover artwork (or the title card without it) — the
+        # static photos are gone.
+        head_image_path = TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)
 
-        conn
-        |> assign(:head_title, case_study.title)
-        |> assign(:head_description, case_study.excerpt)
-        |> assign(
-          :head_image,
-          Tuist.Environment.app_url(path: case_study.og_image_path)
-        )
-        |> assign(:head_twitter_card, "summary_large_image")
-        |> assign_structured_data(
-          get_breadcrumbs_structured_data([
-            {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-            {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
-            {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
-          ])
-        )
-        |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
-        |> assign(:case_study, case_study)
-        |> assign(:related_case_studies, related_case_studies)
-        |> render(:case_study, layout: false)
+        conn =
+          conn
+          |> assign(:head_title, case_study.title)
+          |> assign(:head_description, case_study.excerpt)
+          |> assign(
+            :head_image,
+            Tuist.Environment.app_url(path: head_image_path)
+          )
+          |> assign(:head_twitter_card, "summary_large_image")
+          |> assign_article_head_meta(published_at: case_study.date, author_url: case_study.url)
+          |> assign_structured_data(
+            get_breadcrumbs_structured_data([
+              {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+              {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+              {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
+            ])
+          )
+          |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
+          |> assign(:case_study, case_study)
+          |> assign(:related_case_studies, related_case_studies)
+
+        render(conn, :case_study, layout: false)
     end
   end
 
   def pricing(conn, _params) do
     faqs = [
-      {dgettext(
-         "marketing",
-         "Why is your pricing model more accessible compared to traditional enterprise models?"
-       ),
+      {dgettext("marketing", "Do you support a seat-based pricing model?"),
        dgettext(
          "marketing",
-         ~S"""
-         <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
-         <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
-         """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
        )},
-      {dgettext("marketing", "How can I estimate the cost of my project?"),
+      {dgettext("marketing", "What payment methods do you accept?"),
+       dgettext("marketing", "We accept credit card payments and wire transfers.")},
+      {dgettext("marketing", "Can I change or cancel my plan at any time?"),
+       dgettext("marketing", "Yes, you can manage your plan at any time through our management interface.")},
+      {dgettext("marketing", "What happens if I exceed my plan limits?"),
        dgettext(
          "marketing",
-         "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+         "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
        )},
-      {dgettext("marketing", "Is there a free trial on paid plans?"),
+      {dgettext("marketing", "Do you offer annual billing discounts?"),
+       dgettext(
+         "marketing",
+         "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+       )},
+      {dgettext("marketing", "Is there a minimum contract length?"),
+       dgettext("marketing", "No, there's no minimum contract length. You're free to cancel at any time.")},
+      {dgettext("marketing", "What support is included with each plan?"),
+       dgettext(
+         "marketing",
+         "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+       )},
+      {dgettext("marketing", "How can I estimate the cost for my project?"),
+       dgettext(
+         "marketing",
+         "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+       )},
+      {dgettext("marketing", "Is there a free trial for paid plans?"),
        dgettext(
          "marketing",
          "We have a generous free tier on every paid plan so you can try out the features before paying any money."
        )},
       {dgettext("marketing", "Do you offer discounts for non-profits and open-source?"),
-       dgettext("marketing", "Yes, we do. Please reach out to oss@tuist.io for more information.")}
+       dgettext("marketing", "Yes, we do. Please reach out to contact@tuist.dev for more information.")}
     ]
 
     plans = Tuist.Billing.get_plans()
 
+    conn =
+      conn
+      |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
+      |> assign(:faqs, faqs)
+      |> assign(:plans, plans)
+      |> assign(
+        :head_image,
+        SocialCards.image_url("pricing")
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(get_faq_structured_data(faqs))
+      |> assign_structured_data(get_pricing_plans_structured_data(plans))
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
+        ])
+      )
+      |> assign(
+        :head_description,
+        dgettext(
+          "marketing",
+          "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+        )
+      )
+
+    render(conn, :pricing, layout: false)
+  end
+
+  def compute(conn, _params) do
     conn
-    |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
-    |> assign(:faqs, faqs)
-    |> assign(:plans, plans)
+    |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing,
-            title: dgettext("marketing", "Pricing"),
-            icon: "static/marketing/images/pricing/logo-og.svg"
-          )
-      )
+      SocialCards.image_url("compute")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign_structured_data(get_faq_structured_data(faqs))
-    |> assign_structured_data(get_pricing_plans_structured_data(plans))
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
-      ])
-    )
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+        "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
       )
     )
-    |> render(:pricing, layout: false)
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
+      ])
+    )
+    |> render(:compute, layout: false)
+  end
+
+  def tests(conn, _params) do
+    conn
+    |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
+    |> assign(
+      :head_image,
+      SocialCards.image_url("tests")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+      )
+    )
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
+      ])
+    )
+    |> render(:tests, layout: false)
   end
 
   def page(conn, _params) do
@@ -699,22 +960,26 @@ defmodule TuistWeb.Marketing.MarketingController do
     head_title = page.head_title || "#{page.title} · Tuist"
     head_description = page.head_description || page.excerpt
 
-    conn
-    |> assign(:head_title, head_title)
-    |> assign(:head_description, head_description)
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: page.title))
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {page.title, Tuist.Environment.app_url(path: page.slug)}
-      ])
-    )
-    |> assign(:page, page)
-    |> render(:page, layout: false)
+    conn =
+      conn
+      |> assign(:head_title, head_title)
+      |> assign(:head_description, head_description)
+      |> assign(
+        :head_image,
+        SocialCards.head_image(Path.basename(page.slug), fn ->
+          OpenGraph.image_path(:marketing, title: page.title)
+        end)
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {page.title, Tuist.Environment.app_url(path: page.slug)}
+        ])
+      )
+      |> assign(:page, page)
+
+    render(conn, :page, layout: false)
   end
 
   def assign_default_head_tags(conn, _params) do
@@ -738,16 +1003,15 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
   end
 
+  # The verify pages render the visitor's email address and signed token,
+  # and the confirm form's CSRF token only validates for the session that
+  # rendered it, so shared caches must not store them.
   defp assign_newsletter_verify_head(conn) do
     conn
+    |> put_resp_header("cache-control", "private, no-store")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing_newsletter,
-            title: dgettext("marketing", "Newsletter")
-          )
-      )
+      SocialCards.image_url("newsletter")
     )
     |> assign(:head_twitter_card, "summary_large_image")
   end
@@ -760,31 +1024,27 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:verification_token, nil)
     |> assign(:subscription_confirmed, false)
     |> assign(:error_message, error_message)
-    |> render(:newsletter_verify, layout: false)
+    |> render_newsletter_verify()
   end
 
-  defp home_open_graph_image_path do
-    title =
-      dgettext("marketing", "Your mobile platform team,") <>
-        " " <> dgettext("marketing", "as a service")
-
-    OpenGraph.image_path(:marketing_home, title: title)
-  end
-
-  defp blog_post_image_url(post) do
-    path =
-      post.og_image_path ||
-        OpenGraph.image_path(:marketing_text, title: post.title)
-
-    Tuist.Environment.app_url(path: path, marketing: true)
+  defp render_newsletter_verify(conn) do
+    render(conn, :newsletter_verify, layout: false)
   end
 
   defp put_agent_discovery_links(conn, _opts) do
     put_resp_header(conn, "link", AgentDiscovery.homepage_link_header_value())
   end
 
+  # Only anonymous responses may be stored by shared caches: a signed-in
+  # visitor's page can differ from the anonymous one at the same URL (the
+  # navbar's dashboard link, for one), and nothing else would stop a shared
+  # cache from serving their variant to every visitor.
   defp put_resp_header_cache_control(conn, _opts) do
-    put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
+    if conn.assigns[:current_user] do
+      put_resp_header(conn, "cache-control", "private, no-store")
+    else
+      put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
+    end
   end
 
   defp put_resp_header_server(conn, _opts) do

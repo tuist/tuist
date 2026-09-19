@@ -1,0 +1,14 @@
+# Management cluster overrides for cloudflare-operator. The operator
+# runs here (not in the workload clusters) because Cloudflare zone
+# configuration is global, not per-env.
+
+image:
+  # Bumped by Flux's image-automation-controller — see
+  # `infra/flux/cloudflare-operator/image-automation.yaml`. The
+  # trailing `$imagepolicy` marker is what the Setters strategy scans
+  # for; every merge to main that publishes a newer
+  # `sha-<epoch>-<sha>` tag triggers a `fluxcdbot` commit that rewrites
+  # this line and only this line. Editing the marker (or removing it)
+  # stops the automation for this pin.
+  # https://fluxcd.io/flux/components/image/imageupdateautomations/#update-strategy
+  tag: sha-1789645544-ead11e6f8509 # {"$imagepolicy": "flux-system:cloudflare-operator:tag"}

@@ -502,7 +502,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.platform_ref }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl jq"
           cache: "false"
@@ -722,7 +722,6 @@ jobs:
             --set "kuraRuntime.instance.publicHost=$KURA_HOST" \
             --set-string "kuraRuntime.instance.labels.tuist\.dev/slug=$SLUG" \
             --set-string "kuraRuntime.instance.labels.tuist\.dev/preview-source=$SOURCE" \
-            --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
             --atomic --timeout 20m --wait --wait-for-jobs
       - name: Wait for KuraInstance
@@ -1113,7 +1112,10 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
-      - uses: jdx/mise-action@v3.2.0
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl"
           cache: "false"

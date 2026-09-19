@@ -516,6 +516,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         build_duration: 1000,
                         subhashes: %{
                           sources: "abc123sources",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "embedded-hash",
+                          foreign_build: "foreign-hash",
+                          test_device: "",
+                          test_runtime: "",
                           resources: "def456resources",
                           dependencies: "ghi789dependencies",
                           environment: "jkl012environment",
@@ -586,6 +591,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target_a.additional_hashing_inputs_hash == "vwx234additionalinputs"
       assert target_a.additional_strings == ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
       assert target_a.external_hash == ""
+      assert target_a.hashed_destinations == ["iPhone"]
+      assert target_a.embedded_product_references_hash == "embedded-hash"
+      assert target_a.foreign_build_hash == "foreign-hash"
+      assert target_a.test_device == ""
+      assert target_a.test_runtime == ""
 
       # Verify ExternalTarget metadata
       assert external_target.product == "static_library"
@@ -641,6 +651,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         hit: "miss",
                         subhashes: %{
                           sources: "tests-sources-hash",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "",
+                          foreign_build: "foreign-hash",
+                          test_device: "",
+                          test_runtime: "",
                           dependencies: "tests-deps-hash",
                           environment: "tests-env-hash",
                           project_settings: "tests-project-settings",
@@ -676,6 +691,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target.environment_hash == "tests-env-hash"
       assert target.project_settings_hash == "tests-project-settings"
       assert target.additional_hashing_inputs_hash == "tests-additional-inputs-hash"
+      assert target.hashed_destinations == ["iPhone"]
+      assert target.embedded_product_references_hash == ""
+      assert target.foreign_build_hash == "foreign-hash"
+      assert target.test_device == ""
+      assert target.test_runtime == ""
     end
 
     test "returns command event URL with runs route when build_run_id is not provided", %{
@@ -714,6 +734,51 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
+      assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+    end
+
+    test "returns command event URL with runs route when build_run_id is provided", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      build_run_id = UUIDv7.generate()
+
+      # When a test execution reuses the build phase's build_run_id to link its
+      # report back to the build.
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-tuist-cli-version", "4.203.4")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "--without-building"],
+            duration: 100,
+            tuist_version: "4.203.4",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: true,
+            client_id: "client-id",
+            build_run_id: build_run_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.build_run_id == build_run_id
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
     end
 
@@ -906,6 +971,41 @@ defmodule TuistWeb.AnalyticsControllerTest do
                url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
     end
 
+    test "strips credentials from the remote URL before enqueuing the VCS comment", %{conn: conn, user: user} do
+      test_pid = self()
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn args ->
+        send(test_pid, {:vcs_comment_enqueued, args})
+        :ok
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/api/analytics?project_id=#{account.name}/#{project.name}",
+        %{
+          name: "share",
+          command_arguments: ["share"],
+          duration: 3000,
+          tuist_version: "4.56.0",
+          swift_version: "5.9",
+          macos_version: "14.0",
+          is_ci: true,
+          client_id: "client-id",
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git"
+        }
+      )
+      |> json_response(:ok)
+
+      assert_received {:vcs_comment_enqueued, args}
+      assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
+    end
+
     test "does not create test run when CLI version is 4.110.0 or higher", %{
       conn: conn,
       user: user
@@ -1001,7 +1101,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -1032,7 +1132,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -1064,7 +1164,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -1446,7 +1546,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Authenticate with user instead of project token
@@ -1466,6 +1566,35 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert response_data["upload_id"] == upload_id
     end
 
+    test "returns a storage error when the object storage rejects the upload start",
+         %{conn: conn, user: user} do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
+        {:error, {:http_error, 403, %{body: "<Code>InvalidAccessKeyId</Code>"}}}
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      # Then
+      assert json_response(conn, :internal_server_error)["message"] =~ "object storage"
+    end
+
     test "starts multipart upload for a result_bundle_object using project from URL",
          %{conn: conn, user: user} do
       # Given
@@ -1478,7 +1607,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Authenticate with user instead of project token
@@ -1511,7 +1640,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -1546,7 +1675,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key = "#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -1779,6 +1908,39 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :no_content)
       assert response == %{}
     end
+
+    test "returns a storage error when the object storage rejects the upload completion", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "1234"
+
+      expect(Storage, :multipart_complete_upload, fn _object_key, ^upload_id, _parts, _account ->
+        {:error, {:http_error, 403, %{body: "<Code>InvalidAccessKeyId</Code>"}}}
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/complete",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_parts: %{
+            parts: [%{part_number: 1, etag: "etag1"}],
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      assert json_response(conn, :internal_server_error)["message"] =~ "object storage"
+    end
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle/runs/:run_id/complete_artifacts_uploads" do
@@ -1844,7 +2006,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Using project authentication (old way)

@@ -355,3 +355,47 @@ func TestAttachFailoverIP(t *testing.T) {
 		t.Fatalf("attach body = %s", b)
 	}
 }
+
+// /data is the filesystem every Kura cache directory lives on, and XFS project
+// quotas are the only thing bounding what one account writes onto a shared box.
+// The rest of the default layout is passed through untouched.
+func TestToInstallPartitionsFormatsDataAsXFS(t *testing.T) {
+	mount := func(s string) *string { return &s }
+	parts := []*scwdedibox.Partition{
+		{MountPoint: mount("/"), FileSystem: scwdedibox.PartitionFileSystemExt4, RaidLevel: scwdedibox.RaidArrayRaidLevelRaid1},
+		{MountPoint: mount("swap"), FileSystem: scwdedibox.PartitionFileSystemSwap},
+		{MountPoint: mount(DataMountPoint), FileSystem: scwdedibox.PartitionFileSystemExt4, RaidLevel: scwdedibox.RaidArrayRaidLevelRaid1},
+	}
+	allowed := []scwdedibox.PartitionFileSystem{scwdedibox.PartitionFileSystemExt4, scwdedibox.PartitionFileSystemXfs}
+
+	got := toInstallPartitions(parts, allowed)
+
+	if len(got) != 3 {
+		t.Fatalf("toInstallPartitions returned %d partitions, want 3", len(got))
+	}
+	if got[0].FileSystem != scwdedibox.PartitionFileSystemExt4 {
+		t.Fatalf("root filesystem = %q, want the default ext4 left alone", got[0].FileSystem)
+	}
+	if got[2].FileSystem != scwdedibox.PartitionFileSystemXfs {
+		t.Fatalf("/data filesystem = %q, want xfs", got[2].FileSystem)
+	}
+	if got[2].RaidLevel != scwdedibox.RaidArrayRaidLevelRaid1 {
+		t.Fatalf("/data raid level = %q, want the default mirror preserved", got[2].RaidLevel)
+	}
+}
+
+// An OS that cannot format XFS keeps its default layout rather than having the
+// install rejected for an unsupported filesystem. The box then installs without
+// an enforceable per-account boundary, which the self-join refuses to bootstrap.
+func TestToInstallPartitionsKeepsDefaultWhenXFSUnavailable(t *testing.T) {
+	mount := func(s string) *string { return &s }
+	parts := []*scwdedibox.Partition{
+		{MountPoint: mount(DataMountPoint), FileSystem: scwdedibox.PartitionFileSystemExt4},
+	}
+
+	got := toInstallPartitions(parts, []scwdedibox.PartitionFileSystem{scwdedibox.PartitionFileSystemExt4})
+
+	if got[0].FileSystem != scwdedibox.PartitionFileSystemExt4 {
+		t.Fatalf("/data filesystem = %q, want the default ext4 when xfs is unavailable", got[0].FileSystem)
+	}
+}

@@ -1,0 +1,392 @@
+package agent
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"os"
+	"path/filepath"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+)
+
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -no-strip -target bpfel redirect bpf/redirect.c
+
+// Map keys of the per-device config array; must match enum config_key in
+// bpf/redirect.c.
+const (
+	configTrampolineIfindex uint32 = 0
+	configClassID           uint32 = 1
+	configSelfIfindex       uint32 = 2
+)
+
+// Counter indexes; must match enum counter in bpf/redirect.c.
+const (
+	counterRedirected    uint32 = 0
+	counterGuardPass     uint32 = 1
+	counterSiblingBypass uint32 = 2
+	counterReturned      uint32 = 3
+	counterReturnDropped uint32 = 4
+	counterIndexes       uint32 = 5
+)
+
+// Attacher owns the tcx links and their pinned state under PinRoot.
+//
+// Layout:
+//
+//	<PinRoot>/return/{link,counters}
+//	<PinRoot>/pods/<device>/{link,config,siblings,counters}
+//
+// Links are pinned so enforcement survives agent restarts; a dead device
+// (pod gone) leaves an orphaned pin that CleanupStale removes.
+type Attacher struct {
+	PinRoot string
+
+	Log     *slog.Logger
+	Metrics *Metrics
+}
+
+func (a Attacher) returnDir() string { return filepath.Join(a.PinRoot, "return") }
+func (a Attacher) podDir(dev string) string {
+	return filepath.Join(a.PinRoot, "pods", dev)
+}
+
+// EnsureReturn keeps the return program attached to the trampoline peer. It
+// must be confirmed before any pod program is attached or kept: without it,
+// shaped packets surface on the peer and are dropped by the stack (forwarding
+// is disabled there), which is safe but an outage.
+func (a Attacher) EnsureReturn(returnDev string) error {
+	iface, err := net.InterfaceByName(returnDev)
+	if err != nil {
+		return fmt.Errorf("resolving %s: %w", returnDev, err)
+	}
+	dir := a.returnDir()
+	if a.linkAttached(dir, iface.Index) {
+		return nil
+	}
+	a.removePins(dir)
+
+	objects := redirectObjects{}
+	if err := loadRedirectObjects(&objects, nil); err != nil {
+		return fmt.Errorf("loading return program: %w", err)
+	}
+	defer objects.Close()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	// The counters pin lands before the link pin, mirroring EnsurePod: a
+	// failure between the two then leaves no pinned link, so the next cycle
+	// sees the program as detached and rebuilds everything. The opposite
+	// order would strand an attached link without a readable counters map,
+	// silencing the return-drop metric until manual cleanup.
+	if err := objects.Counters.Pin(filepath.Join(dir, "counters")); err != nil {
+		return err
+	}
+	l, err := link.AttachTCX(link.TCXOptions{
+		Interface: iface.Index,
+		Program:   objects.KuraShaperRet,
+		Attach:    ebpf.AttachTCXIngress,
+		Anchor:    link.Head(),
+	})
+	if err != nil {
+		return fmt.Errorf("attaching return program to %s: %w", returnDev, err)
+	}
+	defer l.Close()
+	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
+		return err
+	}
+	a.Log.Info("attached return program", "dev", returnDev)
+	return nil
+}
+
+// AttachOutcome describes what EnsurePod did to a pod device's tcx link.
+// The distinction matters to the metrics: a first attach is routine (every
+// pod creation produces exactly one), while a reattach means something
+// stripped or displaced a link we had already installed.
+type AttachOutcome int
+
+const (
+	// AttachUnchanged: the pinned link was already attached and still first
+	// in the chain, so only the maps were synced.
+	AttachUnchanged AttachOutcome = iota
+	// AttachFirst: no link pin existed, so this is a new pod device. A
+	// rolling update of N pods produces exactly N of these.
+	AttachFirst
+	// AttachReattach: a link pin existed, but the link was missing, bound to
+	// a stale ifindex, unreadable, or no longer first in the chain. Cilium
+	// replaces its own link in place and leaves foreign links alone, so this
+	// means something else manipulated the chain.
+	AttachReattach
+)
+
+// EnsurePod converges one pod device: program attached first in the tcx
+// chain (before cil_from_container) and maps in sync. The returned outcome
+// feeds the attach and churn metrics — repeated reattaches mean something
+// else is manipulating the chain.
+func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAttachment) (AttachOutcome, error) {
+	iface, err := net.InterfaceByName(dev)
+	if err != nil {
+		return AttachUnchanged, fmt.Errorf("resolving %s: %w", dev, err)
+	}
+	dir := a.podDir(dev)
+
+	// Pin existence, not linkAttached, is what separates a new pod device
+	// from a displaced link: linkAttached deliberately reads a present but
+	// unreadable pin as detached, and that case is interference to report,
+	// not a pod that never had a program.
+	outcome := AttachFirst
+	if pathExists(filepath.Join(dir, "link")) {
+		outcome = AttachReattach
+	}
+
+	if a.linkAttached(dir, iface.Index) {
+		first, err := a.linkIsFirst(dir, iface.Index)
+		if err != nil {
+			return AttachUnchanged, err
+		}
+		if first {
+			return AttachUnchanged, a.syncPodMaps(dir, trampolineIfindex, attachment)
+		}
+	}
+	a.removePins(dir)
+
+	objects := redirectObjects{}
+	if err := loadRedirectObjects(&objects, nil); err != nil {
+		return AttachUnchanged, fmt.Errorf("loading pod program: %w", err)
+	}
+	defer objects.Close()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return AttachUnchanged, err
+	}
+	if err := objects.Config.Pin(filepath.Join(dir, "config")); err != nil {
+		return AttachUnchanged, err
+	}
+	if err := objects.Siblings.Pin(filepath.Join(dir, "siblings")); err != nil {
+		return AttachUnchanged, err
+	}
+	if err := objects.Counters.Pin(filepath.Join(dir, "counters")); err != nil {
+		return AttachUnchanged, err
+	}
+	// Maps are fully populated before the program can see a packet.
+	if err := a.syncPodMaps(dir, trampolineIfindex, attachment); err != nil {
+		return AttachUnchanged, err
+	}
+	l, err := link.AttachTCX(link.TCXOptions{
+		Interface: iface.Index,
+		Program:   objects.KuraShaperOut,
+		Attach:    ebpf.AttachTCXIngress,
+		Anchor:    link.Head(),
+	})
+	if err != nil {
+		return AttachUnchanged, fmt.Errorf("attaching pod program to %s: %w", dev, err)
+	}
+	defer l.Close()
+	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
+		return AttachUnchanged, err
+	}
+	return outcome, nil
+}
+
+func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodAttachment) error {
+	config, err := ebpf.LoadPinnedMap(filepath.Join(dir, "config"), nil)
+	if err != nil {
+		return err
+	}
+	defer config.Close()
+	iface, err := net.InterfaceByName(filepath.Base(dir))
+	if err != nil {
+		return err
+	}
+	for key, value := range map[uint32]uint32{
+		configTrampolineIfindex: uint32(trampolineIfindex),
+		configClassID:           PriorityForMinor(attachment.Minor),
+		configSelfIfindex:       uint32(iface.Index),
+	} {
+		if err := config.Put(key, value); err != nil {
+			return err
+		}
+	}
+
+	siblings, err := ebpf.LoadPinnedMap(filepath.Join(dir, "siblings"), nil)
+	if err != nil {
+		return err
+	}
+	defer siblings.Close()
+	desired := map[uint32]bool{}
+	for _, ip := range attachment.SiblingIPs {
+		parsed := net.ParseIP(ip).To4()
+		if parsed == nil {
+			continue
+		}
+		desired[binary.LittleEndian.Uint32(parsed)] = true
+	}
+	var stale []uint32
+	var key uint32
+	var value uint8
+	present := map[uint32]bool{}
+	iterator := siblings.Iterate()
+	for iterator.Next(&key, &value) {
+		if desired[key] {
+			present[key] = true
+		} else {
+			stale = append(stale, key)
+		}
+	}
+	if err := iterator.Err(); err != nil {
+		return err
+	}
+	for _, key := range stale {
+		if err := siblings.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return err
+		}
+	}
+	// A full map stops taking new entries instead of erroring: a sibling
+	// missing from the map is shaped, never wrongly unshaped, so overflow
+	// degrades gracefully. Surfaced as a counter, not a log — a stuck
+	// overflow would otherwise log every cycle.
+	capacity := int(siblings.MaxEntries())
+	for key := range desired {
+		if !present[key] && len(present) >= capacity {
+			if a.Metrics != nil {
+				a.Metrics.SiblingOverflow.Inc()
+			}
+			continue
+		}
+		if err := siblings.Put(key, uint8(1)); err != nil {
+			return err
+		}
+		present[key] = true
+	}
+	return nil
+}
+
+// CleanupStale detaches and unpins pod-device state that is no longer
+// desired (pod deleted, device renamed, annotation removed).
+func (a Attacher) CleanupStale(active map[string]bool) error {
+	entries, err := os.ReadDir(filepath.Join(a.PinRoot, "pods"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var firstErr error
+	for _, entry := range entries {
+		if active[entry.Name()] {
+			continue
+		}
+		if err := a.removePins(a.podDir(entry.Name())); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		a.Log.Info("removed stale pod pins", "device", entry.Name())
+	}
+	return firstErr
+}
+
+// Counters sums the per-CPU counters of a pinned counters map.
+func (a Attacher) Counters(dir string) ([]uint64, error) {
+	m, err := ebpf.LoadPinnedMap(filepath.Join(dir, "counters"), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer m.Close()
+	sums := make([]uint64, counterIndexes)
+	for i := range sums {
+		var perCPU []uint64
+		if err := m.Lookup(uint32(i), &perCPU); err != nil {
+			return nil, err
+		}
+		for _, v := range perCPU {
+			sums[i] += v
+		}
+	}
+	return sums, nil
+}
+
+// PodCounters returns the counter sums for one pod device.
+func (a Attacher) PodCounters(dev string) ([]uint64, error) {
+	return a.Counters(a.podDir(dev))
+}
+
+// ReturnCounters returns the counter sums of the return program.
+func (a Attacher) ReturnCounters() ([]uint64, error) {
+	return a.Counters(a.returnDir())
+}
+
+// linkAttached reports whether the pinned link exists and is still attached
+// to the given ifindex (a recreated device gets a new ifindex, orphaning the
+// old link). Every failure — missing pin, unreadable pin, unreadable link
+// info — deliberately reads as "detached": the caller then removes the pins
+// and reattaches, which self-heals within one cycle, and persistent trouble
+// surfaces through the link_reattach_total churn alert plus the attach
+// error log rather than wedging the pod unshaped.
+func (a Attacher) linkAttached(dir string, ifindex int) bool {
+	l, err := link.LoadPinnedLink(filepath.Join(dir, "link"), nil)
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+	info, err := l.Info()
+	if err != nil {
+		return false
+	}
+	tcx := info.TCX()
+	return tcx != nil && int(tcx.Ifindex) == ifindex
+}
+
+// linkIsFirst reports whether our program sits first in the device's
+// tcx_ingress chain, i.e. ahead of cil_from_container. Cilium replaces its
+// own link in place and leaves foreign links alone (lab-verified across
+// endpoint regeneration and agent restart), so a lost first position means
+// manual interference and is worth both a reattach and a metric.
+func (a Attacher) linkIsFirst(dir string, ifindex int) (bool, error) {
+	l, err := link.LoadPinnedLink(filepath.Join(dir, "link"), nil)
+	if err != nil {
+		return false, err
+	}
+	defer l.Close()
+	info, err := l.Info()
+	if err != nil {
+		return false, err
+	}
+	result, err := link.QueryPrograms(link.QueryOptions{
+		Target: ifindex,
+		Attach: ebpf.AttachTCXIngress,
+	})
+	if err != nil {
+		return false, err
+	}
+	if len(result.Programs) == 0 {
+		return false, nil
+	}
+	return result.Programs[0].ID == info.Program, nil
+}
+
+func (a Attacher) removePins(dir string) error {
+	if path := filepath.Join(dir, "link"); pathExists(path) {
+		if l, err := link.LoadPinnedLink(path, nil); err == nil {
+			_ = l.Unpin()
+			_ = l.Close()
+		} else {
+			os.Remove(path)
+		}
+	}
+	for _, name := range []string{"config", "siblings", "counters"} {
+		os.Remove(filepath.Join(dir, name))
+	}
+	if pathExists(dir) {
+		return os.Remove(dir)
+	}
+	return nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}

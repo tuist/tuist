@@ -6,7 +6,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
     unique: [
       fields: [:queue, :worker],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   import Ecto.Query

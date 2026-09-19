@@ -21,20 +21,27 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.CacheEndpoints
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Kura
+  alias Tuist.Kura.Demand
+  alias Tuist.Kura.Origins
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
+  alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 
   @reset_password_delivery_cooldown_in_minutes 5
   @confirmation_delivery_cooldown_in_minutes 5
+  @last_sign_in_touch_interval_seconds 12 * 60 * 60
   @sso_configuration_attr_keys [
     :sso_provider,
     :sso_organization_id,
@@ -89,12 +96,24 @@ defmodule Tuist.Accounts do
     to: AgentAuth,
     as: :get_claim_view
 
-  def new_organizations_in_last_hour do
-    Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
+  def new_organizations_in_period(start_at, end_at) do
+    Repo.all(
+      from(o in Organization,
+        where: o.created_at >= ^start_at and o.created_at < ^end_at,
+        order_by: [asc: o.created_at, asc: o.id],
+        preload: [:account]
+      )
+    )
   end
 
-  def new_users_in_last_hour do
-    Repo.all(from(u in User, where: u.created_at > ago(1, "hour"), preload: [:account]))
+  def new_users_in_period(start_at, end_at) do
+    Repo.all(
+      from(u in User,
+        where: u.created_at >= ^start_at and u.created_at < ^end_at,
+        order_by: [asc: u.created_at, asc: u.id],
+        preload: [:account]
+      )
+    )
   end
 
   def create_customer_when_absent(%Account{} = account) do
@@ -134,34 +153,47 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
+    Repo.one(from(a in Account, where: a.name == ^handle))
   end
 
   @doc """
   Batch lookup for `get_account_by_handle/1`. Returns a map of
-  `handle => account_id` for every handle that resolves. Handles that
-  don't match an account are simply absent from the map.
+  `handle => account_id` for every handle that resolves, keyed by the handle
+  as requested. Handles match regardless of casing, like account names, so a
+  handle that differs from the account's only in casing still resolves.
+  Handles that don't match an account are absent from the map.
 
   Use this instead of mapping over `get_account_by_handle/1` to avoid
   the N+1 query pattern when resolving Kura-style handle batches.
   """
   def get_account_ids_by_handles(handles) when is_list(handles) do
-    handles = Enum.uniq(handles)
+    handles = handles |> Enum.filter(&is_binary/1) |> Enum.uniq()
 
-    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
-    |> Repo.all()
-    |> Map.new()
+    ids =
+      from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
+      |> Repo.all()
+      |> Map.new(fn {name, id} -> {String.downcase(name), id} end)
+
+    for handle <- handles, {:ok, id} <- [Map.fetch(ids, String.downcase(handle))], into: %{}, do: {handle, id}
   end
 
   @doc ~S"""
   Given an id, it returns the organization associated with it.
+
+  The id may be an integer or a string of digits; any other value returns
+  `{:error, :not_found}` rather than raising, so callers exposed to
+  user-controlled input (e.g. the SSO entry point at
+  `/users/auth/okta?organization_id=...`) don't crash on malformed values.
   """
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
-      nil -> {:error, :not_found}
-      %Organization{} = organization -> {:ok, organization}
+    with {:ok, id} when not is_nil(id) <- Ecto.Type.cast(:id, id),
+         %Organization{} = organization <-
+           Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -202,56 +234,114 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id}) do
-    Repo.all(
+  def list_organization_members_with_role(%Organization{id: organization_id}, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    query =
       from(u in User,
-        preload: [:account],
         join: ur in UserRole,
         on: ur.user_id == u.id,
         join: r in Role,
         on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        distinct: u.id,
-        select: [u, r.name]
+        join: a in assoc(u, :account),
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
       )
-    )
+
+    query =
+      case opts |> Keyword.get(:search, "") |> String.trim() do
+        "" ->
+          query
+
+        search ->
+          pattern = "%#{escape_like(search)}%"
+          from([u, _ur, _r, a] in query, where: ilike(u.email, ^pattern) or ilike(a.name, ^pattern))
+      end
+
+    total_count = Repo.one(from([u, ...] in query, select: count(u.id, :distinct)))
+
+    members =
+      Repo.all(
+        from([u, _ur, r, a] in query,
+          distinct: [asc: a.name, asc: u.id],
+          order_by: [asc: a.name, asc: u.id],
+          limit: ^page_size,
+          offset: ^((page - 1) * page_size),
+          preload: [account: a],
+          select: [u, r.name]
+        )
+      )
+
+    {members, total_count}
   end
 
-  def get_organization_members(%Organization{id: organization_id}, role) do
-    query =
-      from(user_role in UserRole,
-        join: r in Role,
-        on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        join: u in User,
-        on: user_role.user_id == u.id,
-        on: user_role.role_id == r.id,
-        where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
-        select: u
+  defp escape_like(value), do: String.replace(value, ~r/[\\%_]/, "\\\\\\0")
+
+  def get_organization_members(%Organization{id: organization_id} = organization, role) do
+    stored_members =
+      Repo.all(
+        from(user_role in UserRole,
+          join: r in Role,
+          on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+          join: u in User,
+          on: user_role.user_id == u.id,
+          on: user_role.role_id == r.id,
+          where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
+          select: u
+        )
       )
 
-    invited_members = Repo.all(query)
+    # A member SSO enrolled without a role row of their own resolves to the
+    # organization's configured enrollment role, the same one
+    # `organization_user?/2` and `organization_viewer?/2` answer with, so they
+    # are listed under that role and no other. Anyone holding a stored role is
+    # already covered by it above, whatever that role is.
+    members =
+      if sso_default_role(organization) == Atom.to_string(role) do
+        stored_members ++ sso_enrolled_members_without_role(organization)
+      else
+        stored_members
+      end
 
-    case role do
-      :admin ->
-        Repo.preload(invited_members, :account)
+    Repo.preload(members, :account)
+  end
 
-      :user ->
-        invited_members_ids = Enum.map(invited_members, & &1.id)
+  # "Holds no role in this organization" has to be an anti-join rather than a
+  # left join tested for nil: a left join over the user's roles produces a
+  # non-matching row for every role they hold elsewhere, so a viewer who is also
+  # a member of another organization would satisfy `is_nil(r.id)` and be counted
+  # under the enrollment role as well as their own.
+  #
+  # Eligibility is then the same predicate the membership checks apply, so an
+  # organization that has automatic enrollment switched off lists nobody here,
+  # matching `organization_user?/2` and `organization_viewer?/2` answering false
+  # for those identities.
+  defp sso_enrolled_members_without_role(%Organization{id: organization_id} = organization) do
+    stored_role_for_organization =
+      from(ur in UserRole,
+        join: r in Role,
+        on: r.id == ur.role_id,
+        where:
+          ur.user_id == parent_as(:sso_user).id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: 1
+      )
 
-        oauth2_identity_query =
-          from(u in User,
-            join: oauth in Oauth2Identity,
-            on: oauth.user_id == u.id,
-            join: org in Organization,
-            on:
-              org.id == ^organization_id and
-                oauth.provider_organization_id == org.sso_organization_id and
-                oauth.provider == org.sso_provider,
-            where: org.id == ^organization_id and u.id not in ^invited_members_ids
-          )
-
-        Repo.preload(invited_members ++ Repo.all(oauth2_identity_query), :account)
-    end
+    from(u in User,
+      as: :sso_user,
+      join: oauth in Oauth2Identity,
+      on: oauth.user_id == u.id,
+      join: org in Organization,
+      on:
+        org.id == ^organization_id and
+          oauth.provider_organization_id == org.sso_organization_id and
+          oauth.provider == org.sso_provider,
+      where: not exists(stored_role_for_organization),
+      distinct: u.id,
+      select: u
+    )
+    |> Repo.all()
+    |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
   end
 
   @doc """
@@ -544,6 +634,7 @@ defmodule Tuist.Accounts do
     sso_login_domain_verification_token = Keyword.get(opts, :sso_login_domain_verification_token)
     sso_login_domain_verified_at = Keyword.get(opts, :sso_login_domain_verified_at)
     sso_automatic_enrollment = Keyword.get(opts, :sso_automatic_enrollment, false)
+    sso_default_role = Keyword.get(opts, :sso_default_role, "user")
     sso_legacy_email_domain_fallback = Keyword.get(opts, :sso_legacy_email_domain_fallback, false)
     oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
     oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
@@ -565,6 +656,7 @@ defmodule Tuist.Accounts do
         sso_login_domain_verification_token: sso_login_domain_verification_token,
         sso_login_domain_verified_at: sso_login_domain_verified_at,
         sso_automatic_enrollment: sso_automatic_enrollment,
+        sso_default_role: sso_default_role,
         sso_legacy_email_domain_fallback: sso_legacy_email_domain_fallback,
         oauth2_client_id: oauth2_client_id,
         oauth2_encrypted_client_secret: oauth2_client_secret,
@@ -854,6 +946,7 @@ defmodule Tuist.Accounts do
          |> String.replace(".", "-")
          |> String.replace("_", "-")
          |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
@@ -1087,7 +1180,11 @@ defmodule Tuist.Accounts do
     if organization &&
          (not is_nil(get_user_role_in_organization(user, organization)) ||
             sso_automatic_enrollment_allowed?(organization, user.email)) do
-      add_user_to_organization(user, organization, role: :user)
+      # The organization's configured enrollment role, `user` unless it was
+      # changed. It only applies to members with no role row yet:
+      # `add_user_to_organization/3` is a no-op once a role exists, so a role an
+      # admin set by hand survives the member's next login.
+      add_user_to_organization(user, organization, role: sso_enrollment_role(organization))
     end
   end
 
@@ -1128,8 +1225,10 @@ defmodule Tuist.Accounts do
       |> find_unassigned_sso_users(provider, provider_organization_id)
       |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
 
+    role = sso_enrollment_role(organization)
+
     Enum.each(users, fn user ->
-      add_user_to_organization(user, organization, role: :user)
+      add_user_to_organization(user, organization, role: role)
     end)
 
     length(users)
@@ -1167,31 +1266,65 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
-  def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
+  # The decision only needs the account and its organization, so a caller that
+  # already holds both answers it without touching the database. Resolving cache
+  # grants walks every accessible project, and those projects share a handful of
+  # accounts, so re-reading the account per project dominated the call.
+  def owns_account_or_belongs_to_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin, :user])
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin])
+  end
+
+  @doc """
+  Whether the user is a read-only viewer of the account's organization. Backs the
+  `user_role: :viewer` policy condition, which is granted on read actions only.
+  """
+  def owns_account_or_is_viewer_of_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:viewer])
+  end
+
+  @doc """
+  Whether the user holds any organization role, `viewer` included. Use this where
+  the question is membership rather than what the member is allowed to do.
+  """
+  def owns_account_or_is_member_of_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin, :user, :viewer])
+  end
+
+  defp owns_account_or_holds_organization_role?(
+         user,
+         %Account{organization: %Organization{} = organization} = account,
+         roles
+       ) do
+    owns_account?(user, account) or holds_any_organization_role?(user, organization, roles)
+  end
+
+  defp owns_account_or_holds_organization_role?(user, %Account{organization: nil} = account, _roles) do
+    owns_account?(user, account)
+  end
+
+  defp owns_account_or_holds_organization_role?(user, %{id: account_id}, roles) do
     case get_account_by_id(account_id, preload: [:organization]) do
       {:ok, %Account{organization: nil} = account} ->
         owns_account?(user, account)
 
       {:ok, %Account{organization: organization} = account} ->
-        owns_account?(user, account) or organization_admin?(user, organization) or
-          organization_user?(user, organization)
+        owns_account?(user, account) or holds_any_organization_role?(user, organization, roles)
 
       {:error, :not_found} ->
         false
     end
   end
 
-  def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
-    case get_account_by_id(account_id, preload: [:organization]) do
-      {:ok, %Account{organization: nil} = account} ->
-        owns_account?(user, account)
-
-      {:ok, %Account{organization: organization} = account} ->
-        owns_account?(user, account) or organization_admin?(user, organization)
-
-      {:error, :not_found} ->
-        false
-    end
+  defp holds_any_organization_role?(user, organization, roles) do
+    Enum.any?(roles, fn
+      :admin -> organization_admin?(user, organization)
+      :user -> organization_user?(user, organization)
+      :viewer -> organization_viewer?(user, organization)
+    end)
   end
 
   defp owns_account?(user, account) do
@@ -1314,15 +1447,30 @@ defmodule Tuist.Accounts do
     Repo.all(query)
   end
 
-  def list_invitations(organization) do
-    Repo.one(
-      from(o in Organization,
-        join: i in Invitation,
-        on: i.organization_id == o.id,
-        where: o.id == ^organization.id,
-        select: i
+  def list_organization_invitations(%Organization{id: organization_id}, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    query = from(i in Invitation, where: i.organization_id == ^organization_id)
+
+    query =
+      case opts |> Keyword.get(:search, "") |> String.trim() do
+        "" -> query
+        search -> from(i in query, where: ilike(i.invitee_email, ^"%#{escape_like(search)}%"))
+      end
+
+    total_count = Repo.aggregate(query, :count)
+
+    invitations =
+      Repo.all(
+        from(i in query,
+          order_by: [desc: i.created_at, desc: i.id],
+          limit: ^page_size,
+          offset: ^((page - 1) * page_size)
+        )
       )
-    )
+
+    {invitations, total_count}
   end
 
   def invite_user_to_organization(
@@ -1333,6 +1481,7 @@ defmodule Tuist.Accounts do
       when is_function(url_fun, 1) do
     account = get_account_from_organization(organization)
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
+    role = opts |> Keyword.get(:role, :user) |> to_string()
 
     invitation =
       %Invitation{}
@@ -1340,7 +1489,8 @@ defmodule Tuist.Accounts do
         token: token,
         invitee_email: email,
         inviter_id: user_id,
-        organization_id: organization_id
+        organization_id: organization_id,
+        role: role
       })
       |> Repo.insert()
 
@@ -1378,12 +1528,13 @@ defmodule Tuist.Accounts do
 
   def invitation_expired?(%Invitation{} = invitation), do: Invitation.expired?(invitation)
 
-  def invite_users_to_organization(emails, %{
-        inviter: %User{id: user_id} = inviter,
-        to: %Organization{id: organization_id} = organization,
-        url: url_fun
-      }) do
+  def invite_users_to_organization(
+        emails,
+        %{inviter: %User{id: user_id} = inviter, to: %Organization{id: organization_id} = organization, url: url_fun},
+        opts \\ []
+      ) do
     account = get_account_from_organization(organization)
+    role = opts |> Keyword.get(:role, :user) |> to_string()
 
     multi =
       Enum.reduce(emails, Multi.new(), fn email, multi_acc ->
@@ -1394,7 +1545,8 @@ defmodule Tuist.Accounts do
             token: token,
             invitee_email: email,
             inviter_id: user_id,
-            organization_id: organization_id
+            organization_id: organization_id,
+            role: role
           })
 
         Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
@@ -1441,7 +1593,7 @@ defmodule Tuist.Accounts do
         if Invitation.expired?(invitation) do
           {:error, :expired}
         else
-          add_user_to_organization(invitee, organization)
+          add_user_to_organization(invitee, organization, role: String.to_existing_atom(invitation.role))
           Repo.delete(invitation)
         end
     end
@@ -1480,7 +1632,8 @@ defmodule Tuist.Accounts do
   end
 
   def belongs_to_organization?(%User{} = user, %Organization{} = organization) do
-    organization_user?(user, organization) or organization_admin?(user, organization)
+    organization_user?(user, organization) or organization_admin?(user, organization) or
+      organization_viewer?(user, organization)
   end
 
   def belongs_to_sso_organization?(%User{} = user, %Organization{} = organization) do
@@ -1608,32 +1761,103 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
-    query =
-      from(u in UserRole,
-        join: r in Role,
-        on: u.role_id == r.id,
-        where:
-          u.user_id == ^user_id and r.name == "admin" and r.resource_type == "Organization" and
-            r.resource_id == ^organization_id
-      )
-
-    Repo.exists?(query)
+  def organization_admin?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "admin")
   end
 
-  def organization_user?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
-    query =
+  def organization_user?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "user") or
+      holds_sso_enrollment_role?(user, organization, "user")
+  end
+
+  def organization_viewer?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "viewer") or
+      holds_sso_enrollment_role?(user, organization, "viewer")
+  end
+
+  @doc """
+  The role a member gets when SSO automatic enrollment adds them to the
+  organization. Defaults to `user`, and can be set to `viewer` so that an
+  organization can open SSO up to everyone without handing out write access.
+  Never `admin`: see `Tuist.Accounts.Organization`.
+  """
+  def sso_default_role(%Organization{sso_default_role: role}) when role in ["user", "viewer"], do: role
+  def sso_default_role(%Organization{}), do: "user"
+
+  defp sso_enrollment_role(%Organization{} = organization) do
+    organization |> sso_default_role() |> String.to_existing_atom()
+  end
+
+  # SSO automatic enrollment resolves a role for members that have no role row
+  # of their own, which is how a user signing in through SSO gets access before
+  # anything has been written for them. A stored role always wins, so promoting
+  # or demoting a member is not undone by their next login.
+  defp holds_sso_enrollment_role?(%User{} = user, %Organization{} = organization, name) do
+    sso_default_role(organization) == name and
+      sso_automatic_enrollment_allowed?(organization, user.email) and
+      belongs_to_sso_organization?(user, organization) and
+      not holds_any_stored_organization_role?(user, organization)
+  end
+
+  defp holds_any_stored_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id})
+       when is_map(roles) do
+    Map.get(roles, organization_id, []) != []
+  end
+
+  defp holds_any_stored_organization_role?(%User{id: user_id}, %Organization{id: organization_id}) do
+    Repo.exists?(
       from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
-          u.user_id == ^user_id and r.name == "user" and r.resource_type == "Organization" and
+          u.user_id == ^user_id and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
       )
+    )
+  end
 
-    Repo.exists?(query) or
-      (sso_automatic_enrollment_allowed?(organization, user.email) and
-         belongs_to_sso_organization?(user, organization))
+  @doc """
+  The role names an organization membership can hold.
+  """
+  defdelegate organization_role_names(), to: Role, as: :names
+
+  @doc """
+  Resolves every organization role the user holds in one query and attaches it
+  to the user, so that subsequent membership checks answer from memory.
+
+  Callers that check the same user against many organizations should do this
+  first. Without it each check is its own query, which is what made resolving
+  cache grants scale with the number of projects an account owns.
+  """
+  def put_organization_roles(%User{id: user_id} = user) do
+    roles =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where: u.user_id == ^user_id and r.resource_type == "Organization",
+        select: {r.resource_id, r.name}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    %{user | organization_roles: roles}
+  end
+
+  defp holds_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id}, name)
+       when is_map(roles) do
+    name in Map.get(roles, organization_id, [])
+  end
+
+  defp holds_organization_role?(%User{id: user_id}, %Organization{id: organization_id}, name) do
+    Repo.exists?(
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.name == ^name and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id
+      )
+    )
   end
 
   def get_invitation_by_id(id) do
@@ -1683,6 +1907,48 @@ defmodule Tuist.Accounts do
       |> Repo.update()
 
     user
+  end
+
+  @doc """
+  Records that a user authenticated, so account inactivity can be measured.
+
+  Called from every path that resolves a request to a `User`, including token
+  and OAuth authentication, not just interactive log-ins. Writes are throttled
+  to at most one per user per `@last_sign_in_touch_interval_seconds` because
+  the caller sits on the hot path of every authenticated request, and day
+  granularity is all the dormancy thresholds need.
+  """
+  def touch_last_sign_in(%User{} = user) do
+    now = NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
+
+    if last_sign_in_stale?(user.last_sign_in_at, now) do
+      # The staleness test is repeated in the WHERE clause rather than trusted
+      # from the struct the caller is holding. Concurrent requests all read the
+      # same stale row, so an in-memory check alone lets every one of them
+      # write; re-asserting it in SQL makes them serialize on the row and all
+      # but the first find the condition no longer true.
+      stale_before = NaiveDateTime.add(now, -@last_sign_in_touch_interval_seconds, :second)
+
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id,
+          where: is_nil(u.last_sign_in_at) or u.last_sign_in_at <= ^stale_before
+        ),
+        set: [last_sign_in_at: now]
+      )
+
+      %{user | last_sign_in_at: now}
+    else
+      user
+    end
+  end
+
+  def touch_last_sign_in(other), do: other
+
+  defp last_sign_in_stale?(nil, _now), do: true
+
+  defp last_sign_in_stale?(last_sign_in_at, now) do
+    NaiveDateTime.diff(now, last_sign_in_at, :second) >= @last_sign_in_touch_interval_seconds
   end
 
   ## Database getters
@@ -1777,6 +2043,16 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Marks the account's non-admin dashboards as readable by signed-out
+  visitors, or takes them back private. Operator-only.
+  """
+  def update_account_visibility(%Account{} = account, visibility) do
+    account
+    |> Account.visibility_changeset(%{visibility: visibility})
+    |> Repo.update()
+  end
+
+  @doc """
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
@@ -1800,12 +2076,12 @@ defmodule Tuist.Accounts do
   ## Confirmation
 
   @doc ~S"""
-  Delivers the confirmation email instructions to the given user.
+  Queues the confirmation email instructions for the given user.
 
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      :ok
 
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
@@ -1821,15 +2097,25 @@ defmodule Tuist.Accounts do
         :ok
 
       true ->
-        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["confirm"]))
+        fn ->
+          Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["confirm"]))
 
-        {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
-        Repo.insert!(user_token)
+          {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
+          Repo.insert!(user_token)
 
-        UserNotifier.deliver_confirmation_instructions(%{
-          user: user,
-          confirmation_url: confirmation_url.(encoded_token)
-        })
+          user.id
+          |> DeliverConfirmationInstructionsWorker.new_confirmation_instructions(confirmation_url.(encoded_token))
+          |> Oban.insert()
+          |> case do
+            {:ok, _job} -> :ok
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end
+        |> Repo.transaction()
+        |> case do
+          {:ok, :ok} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 
@@ -2164,6 +2450,10 @@ defmodule Tuist.Accounts do
   @okta_token_path "/oauth2/v1/token"
   @okta_userinfo_path "/oauth2/v1/userinfo"
 
+  @entra_authority "https://login.microsoftonline.com"
+  @entra_user_info_url "https://graph.microsoft.com/oidc/userinfo"
+  @entra_tenant_regex ~r/\A[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
+
   def oauth2_config_for_organization(%Organization{
         sso_provider: provider,
         sso_organization_id: sso_organization_id,
@@ -2197,6 +2487,55 @@ defmodule Tuist.Accounts do
   def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
   def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"
   def okta_userinfo_url(domain), do: "https://#{domain}#{@okta_userinfo_path}"
+
+  @doc """
+  Microsoft Entra ID is a standards-compliant OpenID Connect provider, so it is
+  stored as a `:oauth2` organization. These helpers derive the endpoints from
+  the directory (tenant) identifier so administrators enter one value instead
+  of three URLs. The site is the `iss` value Entra puts in its v2.0 tokens.
+  """
+  def entra_site_url(tenant), do: "#{@entra_authority}/#{tenant}/v2.0"
+  def entra_authorize_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/authorize"
+  def entra_token_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/token"
+  def entra_userinfo_url, do: @entra_user_info_url
+
+  def valid_entra_tenant?(tenant) when is_binary(tenant), do: Regex.match?(@entra_tenant_regex, tenant)
+  def valid_entra_tenant?(_tenant), do: false
+
+  @doc """
+  Returns the directory (tenant) identifier when the organization's stored
+  configuration is exactly what `entra_*_url/1` would generate, and `nil`
+  otherwise.
+
+  The match has to be exact. An organization that points at Entra through
+  hand-entered endpoints keeps the generic form, because rewriting its stored
+  URLs would change `sso_organization_id` — the issuer that linked identities
+  are keyed on — and strand every existing member.
+  """
+  def entra_tenant(%Organization{sso_provider: :oauth2} = organization) do
+    with tenant when is_binary(tenant) <- entra_tenant_from_site(organization.sso_organization_id),
+         true <- organization.oauth2_authorize_url == entra_authorize_url(tenant),
+         true <- organization.oauth2_token_url == entra_token_url(tenant),
+         true <- organization.oauth2_user_info_url == entra_userinfo_url() do
+      tenant
+    else
+      _ -> nil
+    end
+  end
+
+  def entra_tenant(_organization), do: nil
+
+  defp entra_tenant_from_site(site) when is_binary(site) do
+    case String.split(site, "/") do
+      ["https:", "", "login.microsoftonline.com", tenant, "v2.0"] ->
+        if valid_entra_tenant?(tenant), do: tenant
+
+      _ ->
+        nil
+    end
+  end
+
+  defp entra_tenant_from_site(_site), do: nil
 
   def sso_organization_for_user_email(email) do
     with {:ok, user} <- get_user_by_email(email),
@@ -2320,6 +2659,8 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
+    destroy_account_kura_servers(account)
+
     result =
       cond do
         user?(account) ->
@@ -2332,7 +2673,24 @@ defmodule Tuist.Accounts do
       end
 
     purge_account_cache_masters(account)
+    purge_account_gitlab_caches(account)
     result
+  end
+
+  # Runs before the deletion, not after it like the cache-master purge: the
+  # `kura_servers` rows cascade with the account, and the reconciler needs them
+  # to reach the cluster. Destroying afterwards would find nothing to destroy
+  # and leave the instance running forever.
+  defp destroy_account_kura_servers(account) do
+    Kura.destroy_servers_for_account(account.id)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to destroy Kura servers on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   # The runner cache-volume master archive is customer-derived build cache
@@ -2347,6 +2705,20 @@ defmodule Tuist.Accounts do
     e ->
       Logger.warning(
         "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
+  # Retention would expire these once the account ID no longer resolves, but
+  # not before the window passes. Best-effort, like the cache-master purge.
+  defp purge_account_gitlab_caches(account) do
+    Tuist.Storage.delete_all_objects(GitLabCache.account_prefix(account), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge GitLab cache archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
       )
 
       :ok
@@ -2381,13 +2753,21 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle and cache technology.
+  The cache endpoints for an account handle, plus whether a dedicated instance
+  is expected to start serving shortly.
 
-  The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura`, the account's provisioned Kura endpoints are returned if it has
-  any, so routing to Kura is opt-in from the CLI alone. In every other case
-  (technology is `:default`, or the account has no Kura endpoint), the custom
-  and default endpoint fallback behavior is preserved.
+  `technology` is how the client is routed:
+
+  - `:kura`, the default, for clients that no longer send the `kura` client
+    feature flag. They get the account's Kura endpoints and never the
+    Tuist-hosted legacy cache nodes: while no instance is serving, a
+    lifecycle-managed account gets no endpoints, and an account that has never
+    routed through Kura gets only its own custom endpoints.
+  - `:kura_with_legacy_fallback` for earlier clients that send the `kura` client
+    feature flag. They get the account's Kura endpoints, and the Tuist-hosted
+    legacy cache nodes while no instance is serving.
+  - `:legacy` for earlier clients that do not. They get the account's custom
+    endpoints, or the Tuist-hosted legacy cache nodes.
 
   Custom endpoints are only returned when:
   - The account exists
@@ -2397,39 +2777,96 @@ defmodule Tuist.Accounts do
 
   Preview environments use the same routing as production: a `kura_servers`
   row per account points at the preview's `KuraInstance`, and the Lua hook
-  enforces tenant matching strictly. The earlier "shared mesh" override that
-  short-circuited per-account routing is gone (see PR #11348 review).
-  """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
-    cache_endpoints_for_handle(account_handle, technology)
-  end
+  enforces tenant matching strictly.
 
-  defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
-    if Environment.tuist_hosted?() do
-      hosted_cache_endpoints_for_handle(account_handle, technology)
-    else
-      CacheEndpoints.active_endpoint_urls()
+  `provisioning` is true when the account is under the demand-driven Kura
+  lifecycle and has no Kura endpoint right now: archived and just asked for by
+  this very request, still rolling out, or draining. Clients use it to decide
+  how long to cache the answer, because caching a transient absence for the
+  usual interval leaves a build on the wrong lane long after its instance is
+  back.
+
+  It is deliberately not true for an account that has no instance and is not
+  getting one, so a region at capacity does not turn every refused account into
+  a poller.
+  """
+  def get_cache_resolution_for_handle(account_handle, technology \\ :kura, origin \\ nil) do
+    cond do
+      not Environment.tuist_hosted?() ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+
+      technology == :legacy ->
+        %{endpoints: legacy_cache_endpoint_urls(account_handle), provisioning: false}
+
+      is_binary(account_handle) ->
+        hosted_kura_resolution(account_handle, technology, origin)
+
+      technology == :kura ->
+        %{endpoints: [], provisioning: false}
+
+      true ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
     end
   end
 
-  defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
-
-  defp hosted_cache_endpoints_for_handle(account_handle, technology) do
+  # Resolved in one pass so `provisioning` is derived from the same Kura
+  # endpoint lookup that produced `endpoints`, rather than a second query that
+  # could disagree with it.
+  defp hosted_kura_resolution(account_handle, technology, origin) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> cache_endpoint_urls(account, technology)
+      %Account{} = account ->
+        # A Kura client asking where to send cache traffic is the request
+        # boundary the demand-driven lifecycle measures: it covers the Xcode,
+        # Module, and Gradle lanes uniformly, and it is the same call whether
+        # the client is a developer machine or a runner. The write is buffered
+        # in memory and flushed periodically, so this stays one ETS insert,
+        # except for the origin of a request that has an instance provisioned
+        # for it: the job placing that instance may run on another node, so the
+        # origin it places from is written through first.
+        urls = kura_cache_endpoint_urls(account, Origins.value(origin))
+        provisioning? = urls == [] and Demand.instance_expected?(account)
+        Demand.record(account.id, origin, persist_origin: provisioning?)
+        if provisioning?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
+
+        case urls do
+          [] -> %{endpoints: absent_kura_endpoint_urls(account, technology), provisioning: provisioning?}
+          urls -> %{endpoints: urls, provisioning: false}
+        end
+
+      _ ->
+        endpoints = if technology == :kura, do: [], else: CacheEndpoints.active_endpoint_urls()
+        %{endpoints: endpoints, provisioning: false}
+    end
+  end
+
+  defp legacy_cache_endpoint_urls(account_handle) when is_binary(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account -> custom_cache_endpoint_urls(account)
       _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  defp cache_endpoint_urls(%Account{} = account, :kura) do
-    case kura_cache_endpoint_urls(account) do
-      [] -> custom_cache_endpoint_urls(account)
-      endpoints -> endpoints
-    end
-  end
+  defp legacy_cache_endpoint_urls(_account_handle), do: CacheEndpoints.active_endpoint_urls()
 
-  defp cache_endpoint_urls(%Account{} = account, :default) do
-    custom_cache_endpoint_urls(account)
+  # What to answer while the account has no Kura instance serving: archived,
+  # provisioning, draining, or refused for capacity. For an account under the
+  # demand-driven lifecycle that is not the account's own custom endpoints:
+  # routing archived accounts down the custom-endpoint path would make archival
+  # the thing that keeps that path alive. Accounts that have never routed
+  # through Kura keep the custom-endpoint behaviour.
+  #
+  # Earlier clients with the `kura` flag get the Tuist-hosted legacy lane
+  # instead, a different content store from the account's Kura instance, so an
+  # archived account gets cold misses there rather than its own artifacts.
+  # `:kura` clients never get that lane: they build locally while they wait for
+  # the instance.
+  defp absent_kura_endpoint_urls(%Account{} = account, technology) do
+    case {Demand.lifecycle_managed?(account), technology} do
+      {true, :kura} -> []
+      {true, :kura_with_legacy_fallback} -> CacheEndpoints.active_endpoint_urls()
+      {false, :kura} -> account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      {false, :kura_with_legacy_fallback} -> custom_cache_endpoint_urls(account)
+    end
   end
 
   defp custom_cache_endpoint_urls(%Account{} = account) do
@@ -2451,26 +2888,23 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account) do
-    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
-    # nodes are not static rows: each one self-registers its advertised URL via
-    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
-    # these are handed to the CLI is decided upstream by the `kura` client
-    # feature flag, so provisioning is the only server-side gate.
-    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
-  end
-
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
-  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
-  derives its in-cluster fallback from the exact candidate set the CLI
-  sees, rather than a parallel query that could drift.
+
+  Two sources, each read from the record that owns it: Tuist-managed instances
+  from `kura_servers`, and enrolled self-hosted nodes from their registration
+  heartbeats. Whether these are handed to the CLI at all is decided upstream by
+  how the client is routed, so provisioning is the only server-side gate.
+
+  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
+  its in-cluster fallback from these, rather than a parallel query that could
+  drift.
   """
-  def kura_cache_endpoint_urls(%Account{} = account) do
-    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+  def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
+    managed_urls = Kura.managed_cache_endpoint_urls(account, origin)
     registered_urls = registered_kura_endpoint_urls(account)
 
-    Enum.uniq(static_urls ++ registered_urls)
+    Enum.uniq(managed_urls ++ registered_urls)
   end
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that

@@ -37,12 +37,15 @@ packer {
 # ~30 min.
 #
 # Active Xcode versions baked per release are listed in
+# `infra/runner-image/profiles.json`. `check-releases` reads that list
+# into `server-production-deployment.yml`'s `runner-image-build`
+# matrix, which fans out one build per profile, publishing one
+# `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
+# that the managed envs' charts reference via
+# `runnersFleet.runnerImageSemver`. Keep the list aligned with
 # `runnersFleet.xcodeVersions` in
-# `infra/helm/tuist/values-managed-common.yaml`. `release.yml`'s
-# `runner-image-build` job fans out across those versions, publishing
-# one `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag
-# per profile that each managed env's chart references via
-# `runnersFleet.runnerImageSemver`.
+# `infra/helm/tuist/values-managed-common.yaml` — every Xcode that
+# ships a pool needs an image published for it.
 #
 # Image layout (mirrors GitHub-hosted macOS paths so on-disk
 # artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
@@ -57,16 +60,31 @@ packer {
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
+#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
+#                                                  the last-resort one for jobs that never
+#                                                  run Tuist and so install no proxy of
+#                                                  their own; see cas_proxy_client
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
-# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
-# with a `/Users/runner` symlink to `/Users/admin` plus a configured
-# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
-# a real `runner` user that *also* points at `/Users/runner` —
-# sysadminctl can't overwrite the existing path, so it assigns a
-# fresh UID against the symlinked home. Both users end up sharing
-# `.zprofile`, which is how the runner's login shell sees the
-# brew-installed tools from the base.
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
+# user and a `/Users/runner` placeholder. Our flow wipes that
+# placeholder and creates a real `runner` user with a home of its
+# own (see the addUser provisioner below), so `admin` and `runner`
+# are distinct accounts with distinct homes — the account that
+# builds the image is not the account that runs jobs.
+#
+# That split is the thing to keep in mind when changing this file.
+# Anything the base set up under `admin` is not automatically
+# usable by `runner`: the Homebrew prefix has to be handed over
+# explicitly, `~/.zprofile` has to be copied into the new home
+# (see the two provisioners below), and the sanity checks at the
+# end assert against `runner`, never `admin`.
+#
+# Those checks run as `sudo -u runner -H`. The `-H` is load-
+# bearing: macOS sudoers carries `env_keep += "HOME"`, so a plain
+# `sudo -u runner` leaves `HOME=/Users/admin` and the checks
+# silently exercise `admin`'s login shell and `admin`'s caches
+# while appearing to test the runtime account.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -102,8 +120,32 @@ variable "runner_version" {
   # deps; falling more than ~1 release behind would re-introduce
   # the v2.328-style deprecation risk so the cadence is
   # load-bearing.
+  #
+  # That cadence is only as good as Renovate's PR budget: a backlog
+  # of unreviewed PRs once filled the concurrency limit and this pin
+  # silently sat three releases behind until GitHub retired it. See
+  # renovate.json for the limits and the dependency dashboard that
+  # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.334.0"
+  default = "2.337.0"
+}
+
+variable "buildkite_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 agent tarball, from the release's own SHA256SUMS."
+  # Carried with `buildkite_agent_version`: the download is verified
+  # against this before extraction, so a stale value fails the build
+  # rather than installing an unchecked binary.
+  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+}
+
+variable "buildkite_agent_version" {
+  type        = string
+  description = "Buildkite agent version. https://github.com/buildkite/agent/releases."
+  # Same pinning rationale as `runner_version`, and the same Renovate
+  # flow keeps it current.
+  # renovate: datasource=github-releases depName=buildkite/agent
+  default = "3.138.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -184,6 +226,57 @@ build {
     ]
   }
 
+  # Hand the Homebrew prefix to `runner`. The base images install
+  # brew and its formulae as `admin`, so the prefix ends up owned
+  # by an account that never runs jobs — `brew install <formula>`
+  # from a workflow step then fails the writability audit with
+  # "/opt/homebrew is not writable" across ~16 directories.
+  #
+  # GitHub-hosted macOS images build and run under a single
+  # account, so the job user owns the prefix and unprivileged
+  # `brew install` just works. Customer workflows assume that.
+  # Reachability was never the problem (the login shell resolves
+  # `brew` fine, and the sanity check below has always covered
+  # it) — ownership was.
+  #
+  # This belongs here and not in macos-xcode-image: that base is
+  # shared with xcresult-processor, which keeps running as `admin`
+  # and drives brew-installed binaries itself (`sudo
+  # /opt/homebrew/bin/tailscaled install-system-daemon`). Chowning
+  # in the shared layer would fix this image and break that one.
+  #
+  # `runner:admin` matches Homebrew's own default ownership on
+  # macOS rather than inventing a scheme.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S chown -R runner:admin /opt/homebrew"
+    ]
+  }
+
+  # Hand the login-shell environment to `runner`. The cirruslabs
+  # base builds `~/.zprofile` for `admin` (Homebrew shellenv,
+  # rbenv init, LANG=en_US.UTF-8, node@24 on PATH) and symlinks
+  # `/Users/runner` at `/Users/admin`, so its runner user reads
+  # the same file. Wiping that symlink above gives `runner` a home
+  # created from macOS's user template, which carries no
+  # `.zprofile` at all — every login shell on this image (the
+  # LaunchAgent entrypoint, and therefore every workflow step
+  # shell that inherits its environment) would resolve none of the
+  # base's tooling.
+  #
+  # Copy rather than symlink back into admin's home: the accounts
+  # are separate here (see the header), and a job appending to its
+  # own `~/.zprofile` must not rewrite the provisioning user's.
+  # The file's contents are $HOME-independent, so the copy behaves
+  # identically under the new owner.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S install -m 0644 -o runner -g staff /Users/admin/.zprofile /Users/runner/.zprofile"
+    ]
+  }
+
   # The runner auto-login opens a real desktop session so launchd can
   # run the GitHub Actions agent. On fresh macOS images that first
   # desktop can be intercepted by Setup Assistant's "Update Mac
@@ -219,6 +312,31 @@ build {
       "sudo -u runner defaults write com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
       "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false",
       "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticDownload -bool false"
+    ]
+  }
+
+  # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
+  # only exposes a downloaded toolchain to the user that installed
+  # it. Running the download as `runner` registers it for the user
+  # jobs run as.
+  #
+  # The toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
     ]
   }
 
@@ -260,6 +378,29 @@ build {
     ]
   }
 
+  # The Buildkite agent lives alongside the GitHub one rather than in a
+  # second image. Which of the two runs is a per-job decision the server
+  # makes at dispatch, so a Pod has to be able to serve either; forking
+  # the image would double the fleet's warm-pool partitioning to save
+  # about 30 MB.
+  #
+  # Pinned for the same reason `runner_version` is: the version that ran a
+  # job should be the version we baked. The agent has no self-update, so
+  # pinning here is the whole mechanism.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
+      "echo '${var.buildkite_agent_sha256_darwin_arm64}  buildkite-agent.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/buildkite-agent-dist",
+      "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
+      "rm -rf buildkite-agent.tar.gz /tmp/buildkite-agent-dist",
+      "/opt/tuist/buildkite-agent --version"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
@@ -276,6 +417,16 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/buildkite-hooks"
+    destination = "/tmp/buildkite-hooks"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-gitlab-runner"
+    destination = "/tmp/tuist-gitlab-runner"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/runner-shell-agent"
     destination = "/tmp/runner-shell-agent"
   }
@@ -283,6 +434,14 @@ build {
   provisioner "file" {
     source      = "${path.root}/runner-shell-agent-supervisor.sh"
     destination = "/tmp/runner-shell-agent-supervisor.sh"
+  }
+
+  # Built by the workflow from cas-plugin/ (see "Build CAS prune client"), the
+  # same way runner-shell-agent is. It is only ever invoked as
+  # `--prune`/`--drain`; it never serves, so the image carries no daemon.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-cas-proxy"
+    destination = "/tmp/tuist-cas-proxy"
   }
 
   provisioner "file" {
@@ -296,9 +455,18 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
+      # Global agent hooks: `buildkite-agent --hooks-path` points here, so
+      # these run for every job the agent takes regardless of what the
+      # customer's own repository defines.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/buildkite-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 
@@ -383,23 +551,51 @@ build {
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
-  # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
-  # PATH additions for the macos-tahoe-xcode base's pre-installed
-  # tools). A future base-image bump that moves Homebrew's prefix
+  # the ~/.zprofile copied into the runner's home above is sourced
+  # (Homebrew shellenv, rbenv init, PATH additions for the
+  # macos-tahoe-xcode base's pre-installed tools) — which is why
+  # these run with `-H` and not against `admin`'s copy of the same
+  # file. A future base-image bump that moves Homebrew's prefix
   # or drops a formula would silently make tools unreachable from
   # step shells; resolve each tool against the same login-shell
   # environment so image-build CI fails loudly instead of customer
   # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
   # explicit `xcrun xcresulttool version` below doubles as proof
   # that the base's Xcode install + `xcode-select -s` propagated.
+  # `xcrun metal --version` proves the base's Metal Toolchain is
+  # visible to `runner` and not only to the user that installed it.
   #
   # Tuist itself isn't in the list — customer workflows install it
   # via mise / brew so they own the version pin.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
+    ]
+  }
+
+  # Sanity check: `brew` being on PATH says nothing about whether a
+  # workflow step can install with it. The check above passed for
+  # months while every `brew install` on this image failed on prefix
+  # ownership, so assert the operation rather than the binary.
+  # `hello` is Homebrew's own smoke-test formula: no dependencies,
+  # installs in seconds, and uninstalling leaves the image clean.
+  #
+  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
+  # critical path — it would otherwise re-fetch every tap and make
+  # image builds fail on transient GitHub blips. The chown is
+  # recursive, so tap writability moves with the prefix; what's
+  # actually at risk of regressing, and what this exercises, is
+  # writing into Cellar and the lock/var dirs. `brew` also writes
+  # its download and bootsnap caches under `$HOME`, which is the
+  # other half of why these run with `-H`.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
     ]
   }
 }

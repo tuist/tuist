@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -20,8 +21,12 @@ defmodule Tuist.Application do
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -30,6 +35,9 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunError
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
@@ -44,7 +52,6 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
-    start_posthog()
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
@@ -60,29 +67,22 @@ defmodule Tuist.Application do
     application
   end
 
-  defp load_secrets_in_application do
-    Environment.put_application_secrets(Environment.decrypt_secrets())
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
   end
 
-  defp start_posthog do
-    if Environment.analytics_enabled?() do
-      case Application.start(:posthog) do
-        :ok ->
-          Logger.info("PostHog analytics started")
-
-        {:error, {:already_started, _}} ->
-          Logger.info("PostHog analytics already started")
-
-        {:error, reason} ->
-          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
-      end
-    end
+  defp load_secrets_in_application do
+    Environment.put_application_secrets(Environment.decrypt_secrets())
   end
 
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
+    QueryErrorContext.attach()
+    Tuist.Repo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -297,12 +297,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -311,6 +307,7 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
         Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
         Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
         Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
@@ -323,6 +320,12 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+        Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
+        Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
+        Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
+        Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+        Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
@@ -335,19 +338,19 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        Tuist.Kura.Demand,
+        Tuist.Kura.Origins,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
+        shadow_ingest_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
@@ -399,12 +402,35 @@ defmodule Tuist.Application do
     )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
-    # may not exist) and dev (noisy debug logs every 5 s).
+    # may not exist) and dev (noisy debug logs every 5 s), and outside web
+    # mode — see `RuntimeChildren.marketing_stats/1`.
     |> Kernel.++(
       if Environment.test?() or Environment.dev?(),
         do: [],
-        else: [Tuist.Marketing.Stats]
+        else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp shadow_ingest_children do
+    if Environment.clickhouse_bare_metal_url() do
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp ops_clickhouse_children do
@@ -421,14 +447,20 @@ defmodule Tuist.Application do
 
   # Runtime Open Graph image rendering (headless-browser pool + its task
   # supervisor) backs the marketing/docs site, which only the hosted service
-  # serves. On-premise instances do not need it, so it is started only when
-  # hosted or in local dev (where the marketing site is developed).
+  # serves. The pool eagerly warms Chrome instances that each hold a temporary
+  # user-data directory, so it is started only when hosted, and only in web
+  # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
+  # render/2 falls back to libvips.
+  #
+  # Test is excluded on top of those gates: `mise.toml` exports TUIST_HOSTED=1
+  # for the whole repo, so the suite would otherwise start the pool on CI
+  # runners that have no Chrome and hit the retry loop documented in
+  # `RuntimeChildren.open_graph_image_renderer/1`. The suite never needs it —
+  # `Tuist.OpenGraphImageRenderer` is stubbed through Mimic wherever a test
+  # exercises Open Graph rendering.
   defp open_graph_image_children do
-    if Environment.tuist_hosted?() or Environment.dev?() do
-      [
-        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
-        Tuist.OpenGraphImageRenderer
-      ]
+    if Environment.tuist_hosted?() and not Environment.test?() do
+      RuntimeChildren.open_graph_image_renderer(Environment.mode())
     else
       []
     end
@@ -530,21 +562,6 @@ defmodule Tuist.Application do
               ]
             ],
             size: 10,
-            count: 1,
-            protocols: [:http2, :http1],
-            start_pool_metrics?: true
-          ],
-          Environment.posthog_url() => [
-            conn_opts: [
-              log: true,
-              protocols: [:http2, :http1],
-              transport_opts: [
-                inet6: Environment.use_ipv6?() in ~w(true 1),
-                cacertfile: CAStore.file_path(),
-                verify: :verify_peer
-              ]
-            ],
-            size: 5,
             count: 1,
             protocols: [:http2, :http1],
             start_pool_metrics?: true

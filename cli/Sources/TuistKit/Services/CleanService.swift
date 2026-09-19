@@ -155,7 +155,7 @@ struct CleanService {
                 let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
                     serverURL: serverURL,
                     accountHandle: accountHandle
-                )
+                ).endpoints
 
                 try await withThrowingTaskGroup(of: Void.self) { group in
                     for endpoint in endpoints {

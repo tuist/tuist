@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistEnvironment
 import TuistSupport
+import TuistTestSupport
 
 @testable import TuistTesting
 @testable import TuistXCActivityLog
@@ -21,8 +22,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseCleanBuildXCActivityLog() async throws {
         // Given
-        let cleanBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
+        let cleanBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "clean-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(cleanBuildXCActivityLog)
@@ -33,8 +33,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseBuildWithWarningXCActivityLog() async throws {
         // Given
-        let buildWithWarningXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-warning.xcactivitylog"))
+        let buildWithWarningXCActivityLog = TestPaths.fixturesDirectory.appending(component: "build-with-warning.xcactivitylog")
 
         // When
         let got = try await subject.parse(buildWithWarningXCActivityLog)
@@ -46,8 +45,7 @@ struct XCActivityLogControllerTests {
 
     @Test func xcode_26_2() async throws {
         // Given
-        let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_2.xcactivitylog"))
+        let incrementalBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "xcode_26_2.xcactivitylog")
 
         // When
         let got = try await subject.parse(incrementalBuildXCActivityLog)
@@ -58,8 +56,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseCleanBuildWithCompilationCacheXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_clean_build_with_cache.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_4_clean_build_with_cache.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -70,8 +67,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildWithCompilationCacheXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_incremental_build_with_cache.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_4_incremental_build_with_cache.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -82,12 +78,8 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildWithCompilationCacheMultiplatformXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(
-                try RelativePath(
-                    validating: "../../Fixtures/xcode_26_incremental_build_with_cache_multiplatform.xcactivitylog"
-                )
-            )
+        let logPath = TestPaths.fixturesDirectory
+            .appending(component: "xcode_26_incremental_build_with_cache_multiplatform.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -98,8 +90,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildXCActivityLog() async throws {
         // Given
-        let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/incremental-build.xcactivitylog"))
+        let incrementalBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "incremental-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(incrementalBuildXCActivityLog)
@@ -110,8 +101,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseFailedBuildXCActivityLog() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/failed-build.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "failed-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(xcactivityLog)
@@ -275,7 +265,7 @@ struct XCActivityLogControllerTests {
         // When
         let result = try await subject.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
-            filter: { $0.signature.contains("Building") }
+            filter: { $0.signature?.contains("Building") == true }
         )
 
         // Then
@@ -326,7 +316,7 @@ struct XCActivityLogControllerTests {
         // When
         let result = try await subject.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
-            filter: { $0.signature.contains("Building") }
+            filter: { $0.signature?.contains("Building") == true }
         )
 
         // Then
@@ -384,11 +374,280 @@ struct XCActivityLogControllerTests {
         #expect(expectedResult.timeStoppedRecording == Date(timeIntervalSinceReferenceDate: 768_154_246.5))
     }
 
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsLogOnDisk_whenManifestHasNoEntries() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+
+        let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try writeActivityLog(at: logPath)
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 768_154_246.0)
+        try setModificationDate(modificationDate, at: logPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        let expectedResult = try #require(result)
+        #expect(expectedResult.path == logPath)
+        #expect(expectedResult.signature == nil)
+        #expect(expectedResult.timeStoppedRecording == modificationDate)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsLogOnDisk_whenManifestDoesNotExist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try writeActivityLog(at: logPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == logPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsMostRecentLogOnDisk_whenMultipleUnregisteredLogsExist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let olderLogPath = buildLogsDirectory.appending(component: "older-log-id.xcactivitylog")
+        let newerLogPath = buildLogsDirectory.appending(component: "newer-log-id.xcactivitylog")
+        try writeActivityLog(at: olderLogPath)
+        try writeActivityLog(at: newerLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: olderLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: newerLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == newerLogPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_prefersManifestEntries_overUnregisteredLogsOnDisk() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+
+        let manifestContent = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>11</integer>
+            <key>logs</key>
+            <dict>
+                <key>registered-log-id</key>
+                <dict>
+                    <key>fileName</key>
+                    <string>registered-log-id.xcactivitylog</string>
+                    <key>timeStartedRecording</key>
+                    <real>768154243.5</real>
+                    <key>timeStoppedRecording</key>
+                    <real>768154244.0</real>
+                    <key>signature</key>
+                    <string>Building project App with scheme App</string>
+                </dict>
+            </dict>
+        </dict>
+        </plist>
+        """
+        try await fileSystem.writeText(manifestContent, at: buildLogsDirectory.appending(component: "LogStoreManifest.plist"))
+
+        let registeredLogPath = buildLogsDirectory.appending(component: "registered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: registeredLogPath)
+        let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try writeActivityLog(at: unregisteredLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: unregisteredLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        let expectedResult = try #require(result)
+        #expect(expectedResult.path == registeredLogPath)
+        #expect(expectedResult.signature == "Building project App with scheme App")
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_fallsBackToUnregisteredLog_whenManifestEntriesAreFilteredOut() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+
+        let manifestContent = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>11</integer>
+            <key>logs</key>
+            <dict>
+                <key>clean-log-id</key>
+                <dict>
+                    <key>fileName</key>
+                    <string>clean-log-id.xcactivitylog</string>
+                    <key>timeStartedRecording</key>
+                    <real>768154243.5</real>
+                    <key>timeStoppedRecording</key>
+                    <real>768154244.0</real>
+                    <key>signature</key>
+                    <string>Cleaning project App with scheme App</string>
+                </dict>
+            </dict>
+        </dict>
+        </plist>
+        """
+        try await fileSystem.writeText(manifestContent, at: buildLogsDirectory.appending(component: "LogStoreManifest.plist"))
+
+        try await fileSystem.writeText("activity-log", at: buildLogsDirectory.appending(component: "clean-log-id.xcactivitylog"))
+        let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try writeActivityLog(at: unregisteredLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            filter: { !($0.signature ?? "").hasPrefix("Clean") }
+        )
+
+        // Then
+        #expect(try #require(result).path == unregisteredLogPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_ignoresEmptyUnregisteredLogs() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+        try await fileSystem.touch(buildLogsDirectory.appending(component: "empty-log-id.xcactivitylog"))
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(result == nil)
+    }
+
+    private var emptyManifestContent: String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>12</integer>
+            <key>logs</key>
+            <dict/>
+        </dict>
+        </plist>
+        """
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_ignoresPartiallyWrittenUnregisteredLogs() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+        try writeActivityLog(at: buildLogsDirectory.appending(component: "partial-log-id.xcactivitylog"), truncatedTo: 128)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(result == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsOlderCompleteLog_whenMostRecentUnregisteredLogIsPartiallyWritten() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let completeLogPath = buildLogsDirectory.appending(component: "complete-log-id.xcactivitylog")
+        let partialLogPath = buildLogsDirectory.appending(component: "partial-log-id.xcactivitylog")
+        try writeActivityLog(at: completeLogPath)
+        try writeActivityLog(at: partialLogPath, truncatedTo: 128)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: completeLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: partialLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == completeLogPath)
+    }
+
+    private func setModificationDate(_ date: Date, at path: AbsolutePath) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
+    }
+
+    private func writeActivityLog(at path: AbsolutePath, truncatedTo bytes: Int? = nil) throws {
+        let fixture = TestPaths.fixturesDirectory.appending(component: "clean-build.xcactivitylog")
+        let contents = try Data(contentsOf: fixture.url)
+        try (bytes.map { Data(contents.prefix($0)) } ?? contents).write(to: path.url)
+    }
+
     @Test(.withMockedEnvironment())
     func parseFailedBuildXCActivityLogWithMissesAndRemoteHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/failed-build-with-cache-misses.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "failed-build-with-cache-misses.xcactivitylog")
         let environment = try #require(Environment.mocked)
         environment.cacheDirectory = xcactivityLog.parentDirectory.appending(component: "cache")
 
@@ -409,8 +668,10 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithRemoteHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits/build-with-remote-hits.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(
+            components: "build-with-remote-hits",
+            "build-with-remote-hits.xcactivitylog"
+        )
         let environment = try #require(Environment.mocked)
         environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
 
@@ -456,8 +717,10 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithUploads() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-uploads/build-with-uploads.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(
+            components: "build-with-uploads",
+            "build-with-uploads.xcactivitylog"
+        )
         let environment = try #require(Environment.mocked)
         environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
 
@@ -479,8 +742,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseXcode26CASCleanBuild() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_clean_build.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_cas_clean_build.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -491,8 +753,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseXcode26CASIncrementalBuild() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_incremental_build.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_cas_incremental_build.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -504,8 +765,7 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithLocalHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-local-hits.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "build-with-local-hits.xcactivitylog")
 
         // When
         let got = try await subject.parse(xcactivityLog)

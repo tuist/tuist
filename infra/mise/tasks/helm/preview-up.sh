@@ -193,7 +193,6 @@ HELM_KURA_ARGS=(
     --set "kuraRuntime.instance.storageSize=1Gi"
     --set "kuraRuntime.instance.accountHandle=${PREVIEW_ACCOUNT_HANDLE}"
     --set "kuraRuntime.instance.tenantID=${PREVIEW_ACCOUNT_HANDLE}"
-    --set-file "kuraRuntime.instance.extensionScript=${REPO_ROOT}/kura/ops/helm/kura/hooks/tuist.lua"
 )
 
 HELM_REGISTRY_ARGS=(

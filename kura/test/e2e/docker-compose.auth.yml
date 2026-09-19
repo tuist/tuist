@@ -1,0 +1,18 @@
+# Authorization driven entirely from the token. A token Kura can verify carries
+# the grants that answer the request, so these nodes need no Tuist server; the
+# URL below is deliberately unreachable to keep it that way.
+services:
+  kura-us:
+    environment: &kura_auth_env
+      KURA_AUTH_ENABLED: "true"
+      KURA_AUTH_TUIST_URL: http://127.0.0.1:1
+      KURA_AUTH_JWT_ALGORITHM: HS256
+      KURA_AUTH_JWT_SECRET: kura-auth-jwt-secret
+
+  kura-eu:
+    environment:
+      <<: *kura_auth_env
+
+  kura-ap:
+    environment:
+      <<: *kura_auth_env

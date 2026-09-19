@@ -62,14 +62,6 @@ values field is the one-knob change needed to cross-cluster mesh
 {{- end -}}
 {{- end -}}
 
-{{- define "kura.extensionConfigMapName" -}}
-{{- if .Values.extension.existingConfigMap -}}
-{{- .Values.extension.existingConfigMap -}}
-{{- else -}}
-{{- printf "%s-extension" (include "kura.fullname" .) -}}
-{{- end -}}
-{{- end -}}
-
 {{- define "kura.peerTlsSecretName" -}}
 {{- if .Values.peerTls.secretName -}}
 {{- .Values.peerTls.secretName -}}

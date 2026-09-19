@@ -150,7 +150,7 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
   defp create_test_case_with_state(project, name, state) do
     test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, state: state)
 
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
     test_case
   end

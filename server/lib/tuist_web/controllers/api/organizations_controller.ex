@@ -266,31 +266,60 @@ defmodule TuistWeb.API.OrganizationsController do
             }
           )
 
+        member_ids = admin_ids ++ Enum.map(users, & &1.id)
+
+        viewers =
+          organization
+          |> Accounts.get_organization_members(:viewer)
+          |> Enum.filter(fn member ->
+            member.id not in member_ids
+          end)
+          |> Enum.map(
+            &%{
+              id: &1.id,
+              email: &1.email,
+              name: &1.account.name,
+              role: "viewer"
+            }
+          )
+
         json(conn, %{
           id: organization.id,
           name: organization_name,
           plan: Billing.effective_plan(organization.account),
-          members: admins ++ users,
+          members: admins ++ users ++ viewers,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
-          invitations:
-            Enum.map(
-              Tuist.Repo.preload(organization, invitations: [inviter: :account]).invitations,
-              &%{
-                id: &1.id,
-                invitee_email: &1.invitee_email,
-                inviter: %{
-                  id: &1.inviter.id,
-                  email: &1.inviter.email,
-                  name: &1.inviter.account.name
-                },
-                token: &1.token,
-                organization_id: &1.organization_id
-              }
-            )
+          invitations: invitations(organization, subject)
         })
     end
+  end
+
+  defp invitations(organization, subject) do
+    if Authorization.authorize(:invitation_read, subject, organization.account) == :ok do
+      organization
+      |> Tuist.Repo.preload(invitations: [inviter: :account])
+      |> Map.fetch!(:invitations)
+      |> Enum.map(&serialize_invitation/1)
+    else
+      []
+    end
+  end
+
+  defp serialize_invitation(invitation) do
+    %{
+      id: invitation.id,
+      invitee_email: invitation.invitee_email,
+      inviter: %{
+        id: invitation.inviter.id,
+        email: invitation.inviter.email,
+        name: invitation.inviter.account.name
+      },
+      token: invitation.token,
+      organization_id: invitation.organization_id,
+      role: invitation.role
+    }
   end
 
   operation(:usage,
@@ -613,7 +642,7 @@ defmodule TuistWeb.API.OrganizationsController do
          properties: %{
            role: %Schema{
              type: :string,
-             enum: ["admin", "user"],
+             enum: Accounts.organization_role_names(),
              description: "The role to update the member to"
            }
          },

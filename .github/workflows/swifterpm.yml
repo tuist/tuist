@@ -16,9 +16,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MISE_VERSION: "2026.5.15"
-
 concurrency:
   group: swifterpm-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -26,13 +23,13 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "bazel"
           working_directory: swifterpm
           cache: "false"

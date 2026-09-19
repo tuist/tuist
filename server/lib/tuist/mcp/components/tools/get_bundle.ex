@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
   use Tuist.MCP.Tool,
     name: "get_bundle",
     title: "Get App Bundle",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "bundle_id" => %{
           "type" => "string",
-          "description" => "The ID of the bundle."
+          "description" => "The ID of the bundle, or a Tuist dashboard URL."
         }
       },
       "required" => ["bundle_id"]
@@ -59,6 +60,8 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
       "Get detailed information about a specific bundle. Use get_bundle_artifact_tree to get the full artifact list. The bundle_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/bundles/{id}."
 
   def execute(conn, %{"bundle_id" => bundle_id}) do
+    bundle_id = MCPTool.resource_id(bundle_id)
+
     with {:ok, bundle, _project} <-
            MCPTool.load_and_authorize(
              Bundles.get_bundle(bundle_id),

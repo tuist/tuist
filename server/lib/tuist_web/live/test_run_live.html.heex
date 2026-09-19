@@ -96,6 +96,21 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.build_system == "bazel" && @run.bazel_invocation_id != ""}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name: test_run_label(@selected_project, @run.scheme)
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button
@@ -213,6 +228,13 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
+      :if={@coverage_summary}
+      label={dgettext("dashboard_tests", "Coverage")}
+      selected={@selected_tab == "coverage"}
+      patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
       :if={@failures_count > 0}
       label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
@@ -224,6 +246,13 @@
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={@run.build_system == "bazel"}
+      label={dgettext("dashboard_tests", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
       replace={true}
     />
   </.tab_menu_horizontal>
@@ -323,7 +352,7 @@
                 data-part="value"
               />
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -332,7 +361,7 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -382,7 +411,10 @@
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
             description={
-              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
+              )
             }
             value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
@@ -492,7 +524,7 @@
               )
             }
           >
-            <.text_cell label={"#{shard.target_count}"} />
+            <.text_cell label={format_number(shard.target_count)} />
           </:col>
           <:col :let={shard} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
@@ -505,7 +537,7 @@
               icon="history"
             />
             <.status_badge_cell
-              :if={!shard.actual_duration_ms}
+              :if={!shard.actual_duration_ms && shard.status != "not_reported"}
               label={dgettext("dashboard_tests", "In Progress")}
               status="in_progress"
             />
@@ -525,6 +557,11 @@
               :if={shard.status == "pending"}
               label={dgettext("dashboard_tests", "Pending")}
               status="warning"
+            />
+            <.status_badge_cell
+              :if={shard.status == "not_reported"}
+              label={dgettext("dashboard_tests", "Not reported")}
+              status="error"
             />
           </:col>
         </.table>
@@ -574,7 +611,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {@failures_count}
+            {format_number(@failures_count)}
           </span>
           <.button
             variant="secondary"
@@ -623,7 +660,7 @@
                     </span>
                   </div>
                   <.badge
-                    label={length(test_case_run.failures)}
+                    label={format_number(length(test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
                     size="large"
@@ -979,11 +1016,11 @@
                   </span>
                   <div data-part="passed-count">
                     <.circle_check />
-                    <span data-part="label">{group.passed_count}</span>
+                    <span data-part="label">{format_number(group.passed_count)}</span>
                   </div>
                   <div data-part="failed-count">
                     <.circle_x />
-                    <span data-part="label">{group.failed_count}</span>
+                    <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
                 <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -1096,6 +1133,7 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@show_test_suites}
         label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
@@ -1198,6 +1236,17 @@
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :for={
+                      candidate <-
+                        [stress_candidate_for(@stress_candidates_by_identity, test_case)]
+                        |> Enum.reject(&is_nil/1)
+                    }
+                    label={stress_badge_label(candidate)}
+                    color={stress_badge_color(candidate)}
                     style="light-fill"
                     size="large"
                   />
@@ -1417,7 +1466,7 @@
             }
             sort_order={@test_suites_sort_by == "test_case_count" && @test_suites_sort_order}
           >
-            <.text_cell label={"#{test_suite.test_case_count}"} />
+            <.text_cell label={format_number(test_suite.test_case_count)} />
           </:col>
           <:col
             :let={test_suite}
@@ -1633,7 +1682,7 @@
             }
             sort_order={@test_modules_sort_by == "test_suite_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_suite_count}"} />
+            <.text_cell label={format_number(test_module.test_suite_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1644,7 +1693,7 @@
             }
             sort_order={@test_modules_sort_by == "test_case_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_case_count}"} />
+            <.text_cell label={format_number(test_module.test_case_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1720,6 +1769,7 @@
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
     <.selective_testing_tab
+      project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
       selective_testing_page={@selective_testing_page}
@@ -1736,6 +1786,7 @@
 
   <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>
     <.module_cache_tab
+      project={@selected_project}
       binary_cache_analytics={@binary_cache_analytics}
       binary_cache_filter={@binary_cache_filter}
       binary_cache_page={@binary_cache_page}
@@ -1744,7 +1795,7 @@
       binary_cache_sort_order={@binary_cache_sort_order}
       expanded_target_names={@expanded_target_names}
       uri={@uri}
-      run={@command_event}
+      run={@binary_cache_command_event}
       module_cache_metrics={@module_cache_metrics}
       available_filters={@binary_cache_available_filters}
       binary_cache_active_filters={@binary_cache_active_filters}
@@ -1766,7 +1817,7 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@failures_count}
+          {format_number(@failures_count)}
         </span>
       </div>
       <div data-part="failures-list">
@@ -1809,7 +1860,7 @@
                   </span>
                 </div>
                 <.badge
-                  label={length(test_case_run.failures)}
+                  label={format_number(length(test_case_run.failures))}
                   color="destructive"
                   style="light-fill"
                   size="large"
@@ -2001,7 +2052,7 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@flaky_runs_meta.total_runs_count}
+          {format_number(@flaky_runs_meta.total_runs_count)}
         </span>
       </div>
       <div
@@ -2056,11 +2107,11 @@
               </span>
               <div data-part="passed-count">
                 <.circle_check />
-                <span data-part="label">{group.passed_count}</span>
+                <span data-part="label">{format_number(group.passed_count)}</span>
               </div>
               <div data-part="failed-count">
                 <.circle_x />
-                <span data-part="label">{group.failed_count}</span>
+                <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
             <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -2170,4 +2221,218 @@
       />
     </.card_section>
   </.card>
+
+  <div
+    :if={@selected_tab == "coverage" and @coverage_summary}
+    data-part="coverage"
+  >
+    <.card
+      title={dgettext("dashboard_tests", "Code Coverage")}
+      icon="chart_arcs"
+      data-part="coverage-summary-card"
+    >
+      <.card_section data-part="coverage-summary-section">
+        <.alert
+          :if={@coverage_summary.partial}
+          id="coverage-partial-run"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "This run skipped tests, so its coverage only reflects the tests that ran. It is left out of the coverage trend."
+            )
+          }
+        />
+        <div data-part="widgets">
+          <.widget
+            title={dgettext("dashboard_tests", "Line coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of executable lines the tests ran at least once, counting each source file once."
+              )
+            }
+            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
+            id="widget-coverage-percentage"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
+            }
+            value={format_number(@coverage_summary.covered_lines)}
+            id="widget-coverage-covered-lines"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Executable lines")}
+            description={
+              dgettext("dashboard_tests", "Lines the compiler instrumented for coverage.")
+            }
+            value={format_number(@coverage_summary.executable_lines)}
+            id="widget-coverage-executable-lines"
+          />
+        </div>
+      </.card_section>
+      <.card_section data-part="coverage-targets-section">
+        <.table id="coverage-targets-table" rows={@coverage_targets}>
+          <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
+            <.text_cell label={target.name} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
+            <.text_cell label={format_number(target.files_count)} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
+            <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@coverage_file}
+      title={@coverage_file.path}
+      icon="file"
+      data-part="coverage-file-card"
+      id="coverage-file"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Close")}
+          variant="secondary"
+          size="medium"
+          patch={"?#{Query.drop(@uri.query, "coverage-file")}"}
+        />
+      </:actions>
+      <.card_section data-part="coverage-file-section">
+        <div data-part="widgets">
+          <.widget
+            title={dgettext("dashboard_tests", "Line coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of the file's executable lines the tests ran at least once."
+              )
+            }
+            value={"#{XcodeCoverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
+            id="widget-coverage-file-percentage"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
+            }
+            value={"#{format_number(@coverage_file.covered_lines)} / #{format_number(@coverage_file.executable_lines)}"}
+            id="widget-coverage-file-lines"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Functions")}
+            description={
+              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
+            }
+            value={length(@coverage_file.functions)}
+            id="widget-coverage-file-functions"
+          />
+        </div>
+        <dl data-part="coverage-file-details">
+          <div :if={@coverage_file.git_blob_id != ""}>
+            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
+            <dd><code>{@coverage_file.git_blob_id}</code></dd>
+          </div>
+          <div :if={@coverage_file.targets != []}>
+            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
+            <dd>{Enum.join(@coverage_file.targets, ", ")}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
+            <dd id="coverage-file-uncovered-lines">
+              {case @coverage_file.uncovered_ranges do
+                nil -> dgettext("dashboard_tests", "Unavailable")
+                [] -> dgettext("dashboard_tests", "None")
+                ranges -> coverage_line_ranges(ranges)
+              end}
+            </dd>
+          </div>
+        </dl>
+      </.card_section>
+      <.card_section :if={@coverage_file_functions != []} data-part="coverage-functions-section">
+        <.table id="coverage-functions-table" rows={@coverage_file_functions}>
+          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
+            <.text_cell label={function.name} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
+            <.text_cell label={Integer.to_string(function.line_number)} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
+            <.text_cell label={format_number(function.execution_count)} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
+            <.text_cell
+              :if={is_nil(function.covered_lines)}
+              label={dgettext("dashboard_tests", "Unavailable")}
+            />
+            <.coverage_cell
+              :if={function.covered_lines}
+              covered={function.covered_lines}
+              executable={function.executable_lines}
+            />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
+      title={dgettext("dashboard_tests", "Files")}
+      icon="file"
+      data-part="coverage-files-card"
+    >
+      <.card_section data-part="coverage-files-section">
+        <.table id="coverage-files-table" rows={@coverage_files}>
+          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+            <div data-part="cell" data-type="text">
+              <.link
+                data-part="coverage-file-link"
+                patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
+              >
+                {file.path}
+              </.link>
+            </div>
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
+            <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@coverage_files_meta.total_pages > 1}
+          current_page={@coverage_files_meta.current_page}
+          number_of_pages={@coverage_files_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "coverage-page", page)}" end}
+        />
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      id="bazel-invocation-logs-list"
+      logs={@bazel_invocation_logs}
+      empty_message={
+        dgettext("dashboard_tests", "No logs were captured for this Bazel invocation.")
+      }
+    />
+    <.pagination_group
+      :if={@bazel_invocation_logs_meta.total_pages > 1}
+      current_page={@bazel_invocation_logs_meta.current_page}
+      number_of_pages={@bazel_invocation_logs_meta.total_pages}
+      page_patch={fn page -> "?#{Query.put(@uri.query, "logs-page", page)}" end}
+    />
+  </div>
 </div>

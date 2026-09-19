@@ -36,6 +36,7 @@ defmodule CacheWeb.CleanController do
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       internal_server_error: {"Failed to clean cache", "application/json", Error}
     }
   )

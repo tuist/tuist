@@ -88,7 +88,7 @@ struct XCWorkspaceMapper: WorkspaceMapping {
                 if refPath.fileExtension == .xcodeproj {
                     paths.append(refPath)
                 }
-            case let .group(group):
+            case let .group(group), let .fileSystemSynchronizedGroup(group):
                 // For each group, create a nested source path and recurse.
                 let nestedSrcPath = srcPath.appending(component: group.location.path)
                 let groupPaths = try await extractProjectPaths(

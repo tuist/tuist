@@ -319,6 +319,55 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// A warm that finds some targets already cached has to swap those in while it builds the rest, and it
+    /// resolves them from the hashes it computed before the build rather than hashing the graph a second
+    /// time. Warming `CoreStaticLibrary` on its own and then warming everything puts one target on the
+    /// cached side of that split and six on the built side, so a hash that did not survive the handover
+    /// would show up as an empty replacement list and a rebuilt `CoreStaticLibrary`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func warming_reuses_an_already_cached_target_while_building_the_rest() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["CoreStaticLibrary", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        TuistTest.expectLogs(
+            "Using cache binaries for the following targets: CoreStaticLibrary",
+            at: .info,
+            <=
+        )
+
+        for target in [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureStaticLibrary",
+            "FeatureFramework",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ] {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should be stored as an xcframework")
+        }
+    }
+
     /// Regression test for static Objective-C xcframeworks whose public headers live in a
     /// `Headers/<Module>/` subdirectory and re-import each other with the `<Module/...>` prefix,
     /// consumed through the binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks
@@ -423,6 +472,89 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// A consumer that links a cached STATIC framework wrapping a nested-header xcframework and
+    /// also links a cached DYNAMIC framework that reaches the same xcframework. `LinkGenerator`'s
+    /// `staticDependenciesPrecompiledLibrariesAndFrameworks` relinks the wrapped xcframework at
+    /// the consumer, so Xcode's `ProcessXCFramework` writes `include/<Module>/module.modulemap`
+    /// into `$(BUILT_PRODUCTS_DIR)/include/`. Without widening the mapper's direct-link
+    /// suppression to see `linkableDependencies` (not just direct graph edges), the mapper still
+    /// added the vendor `Headers/<Module>/module.modulemap` on the search path for the dynamic
+    /// route, and Clang's dependency scanner rejected both maps with `redefinition of module`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_linking_cached_static_and_dynamic_wrappers_over_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "StaticWrapper", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "ToolLinkingStaticAndDynamicWrappers"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticWrapper",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+
+        // The mapper's contract: the vendor `Headers/` path from the nested static xcframeworks
+        // must NOT land on `HEADER_SEARCH_PATHS` for the consumer, because Xcode's
+        // `ProcessXCFramework` already publishes `include/<Module>/module.modulemap` under
+        // `$(BUILT_PRODUCTS_DIR)/include`. Two module maps for the same module on the search
+        // path is exactly what triggers Clang's `redefinition of module` failure. Whether
+        // Clang actually rejects the pair at build time depends on the toolchain's tolerance
+        // for byte-identical duplicates (Xcode 26.3 does; some later versions don't), so we
+        // guard the invariant at the settings level — it holds regardless of Clang version.
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try #require(
+            xcodeproj.pbxproj.projects.flatMap(\.targets)
+                .first(where: { $0.name == "ToolLinkingStaticAndDynamicWrappers" })
+        )
+        let configurations = try #require(target.buildConfigurationList?.buildConfigurations)
+        #expect(configurations.isEmpty == false)
+        for configuration in configurations {
+            let headerSearchPaths = configuration.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue
+                ?? configuration.buildSettings["HEADER_SEARCH_PATHS"].map { [$0.stringValue ?? ""] }
+                ?? []
+            for xcframework in ["NestedObjC.xcframework", "NestedObjCKit.xcframework"] {
+                #expect(
+                    headerSearchPaths.contains(where: { $0.contains("\(xcframework)/") }) == false,
+                    "The \(configuration.name) HEADER_SEARCH_PATHS must not contain the vendor \(xcframework) Headers path; the include/ copy from ProcessXCFramework already covers module resolution."
+                )
+            }
+        }
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "ToolLinkingStaticAndDynamicWrappers",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -439,6 +571,44 @@ struct TuistCacheEEAcceptanceTests {
                 "Library",
                 "--path", fixtureDirectory.pathString,
                 "--cache-profile", "all-possible",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
+    /// Cache hashes must depend on the *resolved* configuration, never on how it was resolved. A CI job
+    /// that fills the cache with an explicit `--configuration` and a developer who generates without one
+    /// resolve to the same configuration, so they must agree on hashes. Regression test for #12012, which
+    /// scoped settings only when the configuration was named explicitly and left an unflagged `generate`
+    /// hashing every configuration, missing 100% of the cache the flagged fill had just stored.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_framework_warmed_with_an_explicit_configuration() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--configuration", "Debug",
             ]
         )
 
@@ -578,6 +748,92 @@ struct TuistCacheEEAcceptanceTests {
 
         TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
+    }
+
+    /// The project is bound to a server that refuses connections, so every upload fails at connect while
+    /// the build and the local cache work as usual.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func cache_warm_fails_when_uploads_fail_and_keeps_the_local_cache() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let unreachableServer = "http://127.0.0.1:1"
+        mockedEnvironment.variables["TUIST_TOKEN"] = "acceptance-test-token"
+        mockedEnvironment.variables["TUIST_CACHE_ENDPOINT"] = unreachableServer
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(fullHandle: "tuist/acceptance", url: "\(unreachableServer)")
+            """,
+            at: fixtureDirectory.appending(component: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let targets = [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureFramework",
+            "FeatureStaticLibrary",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ]
+        let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+            try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        }
+
+        guard case let .uploadsFailed(failures, storedCount) = error else {
+            Issue.record("Expected the warm to fail its uploads, got \(String(describing: error))")
+            return
+        }
+        #expect(failures.map(\.item.name).sorted() == targets)
+        #expect(storedCount == 0)
+        for target in targets {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should still be stored in the local cache")
+        }
+        TuistTest.doesntExpectLogs("All cacheable targets have been cached successfully")
+    }
+
+    /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
+    /// source and Feature, from another project, builds it as a dependency. Built that way, its Swift dependency
+    /// scan receives the module map of the package's clang target only when the warm scheme lists it.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        for targetName in ["Services", "Feature"] {
+            let artifact = try #require(
+                try await fileSystem.glob(
+                    directory: mockedEnvironment.cacheDirectory,
+                    include: ["**/\(targetName).xcframework"]
+                ).collect().first
+            )
+            try await fileSystem.remove(artifact.parentDirectory)
+        }
+
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature, Services")
+        TuistTest.expectLogs("2 targets stored: Feature, Services")
     }
 
     /// Foundation's #bundle macro expands to Bundle.module only when

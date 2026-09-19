@@ -30,7 +30,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
 
         assert unique.fields == [:queue, :worker]
         assert unique.period == :infinity
-        assert unique.states == [:available, :scheduled, :executing, :retryable]
+        assert unique.states == Oban.Job.unique_states(:incomplete)
       end)
     end
 

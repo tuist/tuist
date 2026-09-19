@@ -2,6 +2,7 @@ defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
   alias Tuist.Docs.NimblePublisher.Cache
@@ -16,19 +17,20 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
-    test "loads starting journeys that link to canonical setup guides and verification" do
-      journeys = [
-        {"/en/guides/get-started/existing-xcode-project", "/guides/features/cache/xcode-cache"},
-        {"/en/guides/get-started/generated-xcode-project", "/tutorials/xcode/create-a-generated-project"},
-        {"/en/guides/get-started/gradle-project", "/guides/install-gradle-plugin"},
-        {"/en/guides/get-started/tuist-runners", "/guides/features/runners/getting-started"}
+    test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do
+      pages = [
+        "/en/guides/get-started/existing-xcode-project",
+        "/en/guides/get-started/generated-xcode-project",
+        "/en/guides/get-started/gradle-project",
+        "/en/guides/get-started/bazel-project"
       ]
 
-      for {slug, canonical_guide} <- journeys do
+      for slug <- pages do
         page = Docs.get_page(slug)
 
-        assert page.markdown =~ ~s(href="#{canonical_guide}")
-        assert page.markdown =~ "## Verify your setup"
+        refute is_nil(page), "missing page: #{slug}"
+        assert page.markdown =~ "[Agent prompt]"
+        assert page.markdown =~ "## Prerequisites"
       end
     end
 
@@ -38,7 +40,7 @@ defmodule Tuist.DocsTest do
 
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
-      assert selective_testing_page.source_path == "en/guides/features/selective-testing.md"
+      assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
     end
 
     test "loads static CLI documentation pages" do
@@ -95,6 +97,13 @@ defmodule Tuist.DocsTest do
 
       assert page.body =~
                ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
+
+    test "renders the compatibility matrix from the canonical ClickHouse version" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+
+      assert page.body =~
+               ~s(<td>ClickHouse</td><td>#{ClickHouseVersions.minimum_supported_version()}</td>)
     end
 
     test "does not cache missing pages" do

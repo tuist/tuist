@@ -23,6 +23,39 @@ import XcodeGraph
 
 #if canImport(TuistCacheEE)
 
+    enum CacheWarmCommandServiceError: LocalizedError {
+        case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
+        case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case let .uploadsFailed(failures, storedCount):
+                let failedTargets = failures
+                    .sorted { $0.item.name < $1.item.name }
+                    .map { "  - \($0.item.name) (\($0.item.hash)): \($0.reason)" }
+                    .joined(separator: "\n")
+                return """
+                \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
+                \(failedTargets)
+
+                Warming again uploads them from a machine that doesn't have them in its local cache. On this \
+                machine, run tuist clean binaries first, since targets in the local cache count as cached.
+                """
+            case let .diskExhausted(scratchDirectory, space, underlyingError):
+                return """
+                Warming the cache ran out of disk space. The volume holding the build's scratch directory \
+                (\(scratchDirectory.pathString)) has \(space.formattedFreeSpace).
+
+                A warm builds every scheme and destination before it stores anything, so it needs room for all of \
+                them at once, on top of whatever else shares that volume — the compilation cache store and the \
+                local binary cache included.
+
+                The build reported: \(underlyingError.localizedDescription)
+                """
+            }
+        }
+    }
+
     // swiftlint:disable:next type_body_length
     public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
@@ -51,6 +84,7 @@ import XcodeGraph
         private let cacheStorageFactory: CacheStorageFactorying
         private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
         private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
+        private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
 
         public init() {
             let contentHasher = ContentHasher()
@@ -101,6 +135,7 @@ import XcodeGraph
             self.cacheStorageFactory = cacheStorageFactory
             self.scratchDirectoryPreparer = scratchDirectoryPreparer
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
+            buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
         // swiftlint:disable:next function_body_length
@@ -123,7 +158,7 @@ import XcodeGraph
             }
             let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
-            let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+            let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
@@ -170,7 +205,7 @@ import XcodeGraph
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
-            let cacheableTargets = try await cacheableTargets(
+            let hashedGraph = try await cacheableTargets(
                 for: graph,
                 configuration: requestedConfiguration,
                 config: config,
@@ -178,6 +213,7 @@ import XcodeGraph
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
+            let cacheableTargets = hashedGraph.targetsToBuild
 
             try foreignBuildOutputValidator.validate(
                 targets: cacheableTargets.map(\.0),
@@ -206,7 +242,8 @@ import XcodeGraph
                     config: config,
                     targetsToBinaryCache: targetsToBinaryCache,
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    targetHashes: hashedGraph.targetHashes
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 
@@ -266,6 +303,23 @@ import XcodeGraph
             case .temporary:
                 let compilationCacheCASArgument = try await compilationCacheCASArgument(scratchDirectory: nil)
                 try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
+                    do {
+                        try await archive(
+                            graph,
+                            projectPath: projectPath,
+                            configuration: configuration,
+                            hashesByTargetToBeCached: hashesByTargetToBeCached,
+                            cacheStorage: cacheStorage,
+                            isReleaseConfiguration: isReleaseConfiguration,
+                            in: temporaryDirectory,
+                            compilationCacheCASArgument: compilationCacheCASArgument
+                        )
+                    } catch {
+                        throw diskExhaustionError(for: error, scratchDirectory: temporaryDirectory) ?? error
+                    }
+                }
+            case let .callerOwned(path):
+                do {
                     try await archive(
                         graph,
                         projectPath: projectPath,
@@ -273,22 +327,32 @@ import XcodeGraph
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
-                        in: temporaryDirectory,
-                        compilationCacheCASArgument: compilationCacheCASArgument
+                        in: path,
+                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
                     )
+                } catch {
+                    throw diskExhaustionError(for: error, scratchDirectory: path) ?? error
                 }
-            case let .callerOwned(path):
-                try await archive(
-                    graph,
-                    projectPath: projectPath,
-                    configuration: configuration,
-                    hashesByTargetToBeCached: hashesByTargetToBeCached,
-                    cacheStorage: cacheStorage,
-                    isReleaseConfiguration: isReleaseConfiguration,
-                    in: path,
-                    compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
-                )
             }
+        }
+
+        /// Re-reports a failed warm as an out-of-disk failure when the scratch volume has nothing left.
+        ///
+        /// A warm keeps every destination's derived data, the assembled XCFrameworks and the copies the local
+        /// cache stores on one volume, so it is the command most likely to exhaust it. What surfaces when that
+        /// happens is whatever write lost the race — `error closing '…/Foo.o' for output: No space left on
+        /// device`, or just `The Xcode build system has crashed` — and it never says which volume filled, which
+        /// is why this has repeatedly been chased as a compiler or cache-integrity problem instead.
+        ///
+        /// Returns nil on a volume that still has room, so an ordinary build failure is reported as itself.
+        private func diskExhaustionError(for error: Error, scratchDirectory: AbsolutePath) -> Error? {
+            if case CacheWarmCommandServiceError.uploadsFailed = error { return nil }
+            guard let space = VolumeSpace.read(at: scratchDirectory), space.isExhausted else { return nil }
+            return CacheWarmCommandServiceError.diskExhausted(
+                scratchDirectory: scratchDirectory,
+                space: space,
+                underlyingError: error
+            )
         }
 
         // swiftlint:disable:next function_body_length
@@ -326,6 +390,22 @@ import XcodeGraph
 
             let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
+            // Products directories that must survive the reclaim each destination's build is followed by.
+            //
+            // The configuration's own directory always does: it is where host products land — macro plugins
+            // and other build tools that every destination, not just the macOS one, links against — and it
+            // is also where the macro pass looks for what it built. It is the last destination built anyway,
+            // so keeping it costs nothing at the point where disk usage peaks.
+            //
+            // The bundle pass then adds the directory it builds into, because it reads its artifacts straight
+            // out of derived data rather than from the scratch `artifacts/` tree.
+            var reservedProductsDirectoryNames: Set<String> = [configuration]
+            for (scheme, _) in bundlesSchemes {
+                guard let platform = Platform.allCases.first(where: { scheme.name.hasSuffix($0.caseValue) })
+                else { continue }
+                reservedProductsDirectoryNames.insert(productsDirectory(platform: platform, configuration: configuration))
+            }
+
             var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
             for (scheme, _) in binariesSchemes {
                 try await buildBinarySchemes(
@@ -337,7 +417,8 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
-                    compilationCacheCASArgument: compilationCacheCASArgument
+                    compilationCacheCASArgument: compilationCacheCASArgument,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -350,7 +431,8 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
-                    compilationCacheCASArgument: compilationCacheCASArgument
+                    compilationCacheCASArgument: compilationCacheCASArgument,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -391,11 +473,20 @@ import XcodeGraph
 
             Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
-            let successfullyStoredTargets = try await store(
-                artifactsToStore,
-                cacheStorage: cacheStorage,
-                scratchDirectory: scratchDirectory
-            )
+            let successfullyStoredTargets: [CacheStorableTarget]
+            do {
+                successfullyStoredTargets = try await store(
+                    artifactsToStore,
+                    cacheStorage: cacheStorage,
+                    scratchDirectory: scratchDirectory
+                )
+            } catch let error as CacheUploadError {
+                let targets = Set(artifactsToStore.map { CacheStorableItem(name: $0.graphTarget.target.name, hash: $0.hash) })
+                throw CacheWarmCommandServiceError.uploadsFailed(
+                    failures: error.failures,
+                    storedCount: targets.subtracting(error.failures.map(\.item)).count
+                )
+            }
 
             let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
             if successfullyStoredTargets.isEmpty {
@@ -410,8 +501,23 @@ import XcodeGraph
         /// A caller-owned directory keeps the compilation cache inside the requested boundary and outlives
         /// the build. The temporary mode uses the machine's shared directory so asynchronous uploads do not
         /// race the temporary directory's removal.
+        ///
+        /// `TUIST_COMPILATION_CACHE_CAS_PATH` wins over both, because it is the only case where the
+        /// environment knows a better answer than this command does: a Tuist runner mounts a per-account
+        /// cache volume, folds the compilation-cache store into it, and points every build at it through
+        /// `XCODE_XCCONFIG_FILE`. This argument is passed on the xcodebuild COMMAND LINE, and a command-line
+        /// build setting BEATS an xcconfig (measured on Xcode 26.5 via `xcodebuild -showBuildSettings`) — so
+        /// without this the warm's store landed on the VM's boot volume, died with the VM, and was never
+        /// promoted, which is why the job read ~35% hits with every one served from the remote.
         private func compilationCacheCASArgument(scratchDirectory: AbsolutePath?) async throws -> XcodeBuildArgument {
-            let casPath = if let scratchDirectory {
+            let durableStore = Environment.current.variables["TUIST_COMPILATION_CACHE_CAS_PATH"]
+                .flatMap { raw -> AbsolutePath? in
+                    guard !raw.isEmpty else { return nil }
+                    return try? AbsolutePath(validating: raw)
+                }
+            let casPath = if let durableStore {
+                durableStore
+            } else if let scratchDirectory {
                 scratchDirectory.appending(component: "CompilationCache.noindex")
             } else {
                 try await Environment.current.derivedDataDirectory()
@@ -461,18 +567,11 @@ import XcodeGraph
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 compilationCacheCASArgument,
             ]
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: arguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: arguments
             )
 
             var macrosToStore: [CacheGraphTargetBuiltArtifact] = []
@@ -539,18 +638,11 @@ import XcodeGraph
             } else {
                 arguments.append(.destination("generic/platform=\(platform.caseValue)"))
             }
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: arguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: arguments
             )
 
             // NOTE: This logic doesn't account for multi-platform bundle targets.
@@ -747,7 +839,8 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
@@ -760,13 +853,10 @@ import XcodeGraph
                 try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
                 Logger.current.info("Building scheme \(scheme.name) for the simulator", metadata: .section)
-                try await xcodeBuildController.build(
+                try await build(
                     xcodebuildTarget,
                     scheme: scheme.name,
-                    destination: nil,
-                    rosetta: false,
                     derivedDataPath: derivedDataPath,
-                    clean: false,
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
@@ -787,25 +877,29 @@ import XcodeGraph
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []),
-                    passthroughXcodeBuildArguments: [
-                        "-resultBundlePath",
-                        derivedDataPath.appending(component: UUID().uuidString).pathString,
-                    ]
+                    ] : [])
                 )
 
+                let productsDirectoryName = productsDirectory(
+                    platform: platform,
+                    configuration: configuration,
+                    destination: .simulator
+                )
                 let productsDirectory = derivedDataPath
                     .appending(
                         // swiftlint:disable:next force_try
-                        try RelativePath(
-                            validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .simulator))"
-                        )
+                        try RelativePath(validating: "Build/Products/\(productsDirectoryName)")
                     )
                 try await copyDerivedDataArtifacts(
                     into: simulatorArtifactsDirectory,
                     productsDirectory: productsDirectory,
                     platform: platform,
                     binaryArtifactDirectories: &binaryArtifactDirectories
+                )
+                await buildOutputReclaimer.reclaim(
+                    derivedDataPath: derivedDataPath,
+                    productsDirectoryName: productsDirectoryName,
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
 
@@ -843,26 +937,22 @@ import XcodeGraph
                 deviceArguments.append(.destination("generic/platform=\(platform.caseValue)"))
             }
 
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
-                arguments: deviceArguments,
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                arguments: deviceArguments
             )
 
+            let productsDirectoryName = productsDirectory(
+                platform: platform,
+                configuration: configuration,
+                destination: .device
+            )
             let productsDirectory = derivedDataPath
                 .appending(
                     // swiftlint:disable:next force_try
-                    try RelativePath(
-                        validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .device))"
-                    )
+                    try RelativePath(validating: "Build/Products/\(productsDirectoryName)")
                 )
 
             try await copyDerivedDataArtifacts(
@@ -870,6 +960,11 @@ import XcodeGraph
                 productsDirectory: productsDirectory,
                 platform: platform,
                 binaryArtifactDirectories: &binaryArtifactDirectories
+            )
+            await buildOutputReclaimer.reclaim(
+                derivedDataPath: derivedDataPath,
+                productsDirectoryName: productsDirectoryName,
+                reservedProductsDirectoryNames: reservedProductsDirectoryNames
             )
         }
 
@@ -881,7 +976,8 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "iOS"])
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
@@ -891,13 +987,10 @@ import XcodeGraph
             let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
             try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
-            try await xcodeBuildController.build(
+            try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
-                destination: nil,
-                rosetta: false,
                 derivedDataPath: derivedDataPath,
-                clean: false,
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
@@ -916,25 +1009,61 @@ import XcodeGraph
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                ] : []),
-                passthroughXcodeBuildArguments: [
-                    "-resultBundlePath",
-                    derivedDataPath.appending(component: UUID().uuidString).pathString,
-                ]
+                ] : [])
             )
 
+            let productsDirectoryName = productsDirectory(
+                platform: .iOS,
+                configuration: configuration,
+                destination: .device,
+                isMacCatalystVariant: true
+            )
             let productsDirectory = derivedDataPath
-                .appending(
-                    try RelativePath(
-                        validating: "Build/Products/\(productsDirectory(platform: .iOS, configuration: configuration, destination: .device, isMacCatalystVariant: true))"
-                    )
-                )
+                .appending(try RelativePath(validating: "Build/Products/\(productsDirectoryName)"))
             try await copyDerivedDataArtifacts(
                 into: macCatalystArtifactsDirectory,
                 productsDirectory: productsDirectory,
                 platform: .iOS,
                 binaryArtifactDirectories: &binaryArtifactDirectories
             )
+            await buildOutputReclaimer.reclaim(
+                derivedDataPath: derivedDataPath,
+                productsDirectoryName: productsDirectoryName,
+                reservedProductsDirectoryNames: reservedProductsDirectoryNames
+            )
+        }
+
+        /// Runs one of the warm's builds, giving it a result bundle that is removed as soon as it returns.
+        ///
+        /// `-resultBundlePath` is passed only so xcodebuild does not drop a bundle next to the project. The
+        /// warm never reads them back, so without this every invocation leaves one behind in derived data for
+        /// the rest of the command.
+        private func build(
+            _ xcodebuildTarget: XcodeBuildTarget,
+            scheme: String,
+            derivedDataPath: AbsolutePath,
+            arguments: [XcodeBuildArgument]
+        ) async throws {
+            let resultBundlePath = derivedDataPath.appending(component: UUID().uuidString)
+            do {
+                try await xcodeBuildController.build(
+                    xcodebuildTarget,
+                    scheme: scheme,
+                    destination: nil,
+                    rosetta: false,
+                    derivedDataPath: derivedDataPath,
+                    clean: false,
+                    arguments: arguments,
+                    passthroughXcodeBuildArguments: [
+                        "-resultBundlePath",
+                        resultBundlePath.pathString,
+                    ]
+                )
+            } catch {
+                await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
+                throw error
+            }
+            await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
         }
 
         private func copyDerivedDataArtifacts(
@@ -990,7 +1119,7 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
-        ) async throws -> [(GraphTarget, String)] {
+        ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
             // Apply the same profile-based filtering used by `tuist generate`.
@@ -1011,6 +1140,15 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
+
+            // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the
+            // cache, so it asks for hashes this map does not hold as soon as the profile excludes anything,
+            // and it has to hash the graph itself. Widening the hashing above to cover it is not an option:
+            // hashing a target runs its `additionalHashingInputs` scripts, and excluding a target also makes
+            // its dependents unhashable, which is what keeps a warm from storing artifacts the same profile
+            // could never read back.
+            let reusableHashes = excludedTargets.isEmpty ? hashesByCacheableTarget : [:]
+
             let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
             switch CacheWarmTargetGraphSelector.selection(
                 graphTraverser: graphTraverser,
@@ -1024,7 +1162,7 @@ import XcodeGraph
                 )
             case .noNonTestRoots:
                 Logger.current.info("No non-test targets were selected for binary cache warming")
-                return []
+                return CacheableTargets(targetsToBuild: [], hashes: reusableHashes)
             }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
@@ -1062,9 +1200,34 @@ import XcodeGraph
                 cacheItems.map(\.key.hash)
             )
 
-            return cacheableTargets.compactMap {
-                existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
-            }
+            return CacheableTargets(
+                targetsToBuild: cacheableTargets.compactMap {
+                    existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
+                },
+                hashes: reusableHashes
+            )
+        }
+    }
+
+    /// The outcome of hashing the graph before a warm: what has to be built, and the hashes every
+    /// cacheable target resolved to.
+    struct CacheableTargets {
+        /// Targets whose artifact is missing from the cache, paired with the hash to store it under.
+        let targetsToBuild: [(GraphTarget, String)]
+
+        /// Content hash of every cacheable target in the graph, handed to the warm project's binary
+        /// replacement so it does not hash the same graph a second time. Empty when a cache profile
+        /// narrowed the hashing, since replacement would then need hashes this does not hold. Keyed by
+        /// reference rather than by graph target, because the warm project is a different graph.
+        let targetHashes: [TargetReference: TargetContentHash]
+
+        init(targetsToBuild: [(GraphTarget, String)], hashes: [GraphTarget: TargetContentHash]) {
+            self.targetsToBuild = targetsToBuild
+            targetHashes = Dictionary(
+                uniqueKeysWithValues: hashes.map {
+                    (TargetReference(projectPath: $0.key.path, name: $0.key.target.name), $0.value)
+                }
+            )
         }
     }
 #endif

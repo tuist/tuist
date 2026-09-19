@@ -85,6 +85,14 @@ This runs a local daemon that samples metrics in the background. The data is pic
 >
 > Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
 
+To stop collecting machine metrics, run:
+
+```bash
+tuist teardown insights
+```
+
+This unloads the daemon's LaunchAgent, removes its plist, and deletes the sampled metrics and daemon logs from `~/.local/state`, so nothing is left running in the background.
+
 
 ## Custom metadata {#custom-metadata}
 

@@ -62,7 +62,7 @@ Tuist server has been tested and is compatible with the following minimum versio
 | Component | Minimum Version | Notes |
 | --- | --- | --- |
 | PostgreSQL | 15 | |
-| ClickHouse | 25 | Required for analytics |
+| ClickHouse | {{minimum_supported_clickhouse_version}} | Required for analytics |
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
@@ -88,6 +88,73 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 > **Migrations**
 >
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+
+The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
+
+#### ClickHouse replication topology {#clickhouse-replication-topology}
+
+Multi-replica ClickHouse behind Tuist is supported on ClickHouse Cloud only. Self-managed ClickHouse is single-replica.
+
+The ingest migrations emit a plain `MergeTree` engine. On Cloud that becomes a `SharedMergeTree` transparently, so writes land in shared object storage and any replica count works. On self-managed ClickHouse, `MergeTree` writes to local disk on one replica only; a multi-replica setup will either split ingest silently across replicas or reject the CREATE with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` depending on how `database_replicated_allow_only_replicated_engine` is set on the connecting user.
+
+Run one shard with one replica on self-managed ClickHouse, and take regular backups of the ClickHouse data directory. There is no second replica to fall back to if the node is lost.
+
+#### Capping operational log retention {#capping-operational-log-retention}
+
+Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
+
+Turning it on is a one-time, one-way step on an instance that already has data, which is why neither bundle does it for you. Any retention window at all makes those table definitions stop matching their configuration, so ClickHouse renames each one aside and starts a fresh table, as described under [superseded log tables](#superseded-log-tables). The generation left behind holds everything accumulated so far and carries no retention of its own, so unless you reclaim it in the same step it stays on disk for good and the new window only bounds rows written from then on. Enable both together:
+
+```yaml
+clickhouse:
+  embedded:
+    systemLogs:
+      ttlDays: 14
+      supersededTables: delete
+```
+
+That single `helm upgrade` is self-contained, because moving `ttlDays` from blank to set adds the drop-in mount and rolls the ClickHouse pod: it restarts, supersedes the tables, and the post-upgrade Job then drops them. Deploy with `helm upgrade --wait` so the pod is rolled before the Job runs; otherwise the generations appear after it has looked, and the next `helm upgrade` reclaims them instead.
+
+With Docker Compose, uncomment the `clickhouse-log-ttl.xml` volume on the `clickhouse` service in `docker-compose.yml` and set both variables in `.env`:
+
+```bash
+CLICKHOUSE_SYSTEM_LOG_TTL_DAYS=14
+CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete
+```
+
+Once the space is reclaimed you can drop `supersededTables`/`CLICKHOUSE_SUPERSEDED_LOG_TABLES` back to `ignore`, so that a later ClickHouse upgrade doesn't discard history on its own.
+
+#### Superseded log tables {#superseded-log-tables}
+
+ClickHouse checks at startup whether each system log table still matches its configuration. When it doesn't, it renames the existing table to `system.<name>_0`, then `_1`, `_2`, and so on, and starts a fresh one. This happens when you change the retention window, and on any ClickHouse upgrade that changes a system log schema.
+
+Renaming a table does not copy its data, so this consumes no additional disk. What happens to the superseded table afterwards depends on the table it came from, because it keeps whatever retention the live table had at the moment it was superseded. The first time you enable retention the table being superseded has none, so it holds all the history accumulated so far and keeps it indefinitely. A later change to the window supersedes a table that already carries a TTL, so those expire on their own and leave an empty table behind. ClickHouse never drops the tables themselves, so on a long-lived instance they accumulate either way.
+
+Superseded tables are kept by default, so that an upgrade never discards operational history on its own. Set the policy to `delete` to drop them instead, which happens on `docker compose up` and on each `helm upgrade`:
+
+```bash
+CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete
+```
+
+With the Helm chart, configure the same policy as a value:
+
+```yaml
+clickhouse:
+  embedded:
+    systemLogs:
+      supersededTables: delete
+```
+
+Dropping a superseded table reclaims its disk space. The live table is never touched, and neither are the rows written since it was superseded.
+
+To reclaim the space once without changing the policy, drop the tables by hand:
+
+```sql
+SELECT name FROM system.tables WHERE database = 'system' AND match(name, '_log_[0-9]+$');
+DROP TABLE IF EXISTS system.text_log_0 SYNC;
+```
+
+The `system` database uses the `Atomic` engine, which defers a plain `DROP TABLE` by `database_atomic_delay_before_drop_table_sec` (eight minutes by default). `SYNC` removes the data straight away, which is what you want when you are dropping these because the disk is full.
 
 
 ### Storage {#storage}
@@ -148,7 +215,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_NAME` | The URL version of your GitHub app name | No | | `my-app` |
+| `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
@@ -383,13 +450,62 @@ Tuist can <.localized_link href="/guides/server/authentication">integrate with G
 
 #### GitHub {#platform-github}
 
-You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+A self-hosted Tuist server cannot install the GitHub App that runs on `https://tuist.dev`. GitHub Apps are bound to the server that registered them, so your deployment needs its own App on github.com.
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+##### Registering the App {#platform-github-registering-the-app}
+
+[Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) owned by your GitHub organization. You can reuse the App you created for authentication, unless you created an OAuth App. Configure it with the following, replacing `YOUR_APP_URL` with the value of `TUIST_APP_URL`:
+
+| Setting | Value |
+| --- | --- |
+| Callback URL | `YOUR_APP_URL/users/auth/github/callback` |
+| Setup URL | `YOUR_APP_URL/integrations/github/setup` |
+| Redirect on update | Enabled |
+| Webhook URL | `YOUR_APP_URL/webhooks/github` |
+| Webhook secret | Any random string. You will set it as `TUIST_GITHUB_APP_WEBHOOK_SECRET` |
+
+Grant the following repository permissions:
+
+| Permission | Access |
+| --- | --- |
+| Contents | Read-only |
+| Metadata | Read-only |
+| Issues | Read and write |
+| Pull requests | Read and write |
+| Checks | Read and write |
+
+Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
+
+##### Configuring the server {#platform-github-configuring-the-server}
+
+Set the following environment variables, then restart the server:
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
+| `TUIST_GITHUB_APP_NAME` | The App's slug, which is the last path component of its public page URL `https://github.com/apps/<slug>` | Yes | | `my-company-tuist` |
+| `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key of the GitHub application. Preferred over `TUIST_GITHUB_APP_PRIVATE_KEY`, which is sensitive to how your platform handles newlines | Yes | | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |
+| `TUIST_GITHUB_APP_WEBHOOK_SECRET` | The webhook secret configured on the GitHub application | No | | `a4c1e0f2b8d6...` |
+
+> [!IMPORTANT]
+> **All four required variables must be set**
+>
+> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
+
+Once the server restarts, organization admins install the App and connect repositories to projects following the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link>.
+
+##### OIDC authentication depends on this {#platform-github-oidc}
+
+<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows run `tuist auth login` without a token.
+
+Your Tuist server also needs outbound access to your CI provider's OIDC issuer to fetch its signing keys:
+
+| CI provider | Host |
+| --- | --- |
+| GitHub Actions | `token.actions.githubusercontent.com` |
+| CircleCI | `oidc.circleci.com` |
+| Bitrise | `token.builds.bitrise.io` |
 
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 
@@ -418,6 +534,8 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    ```bash
    curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
    curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
+   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-level.xml
+   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-ttl.xml
    curl -O https://docs.tuist.io/server/self-host/clickhouse-keeper-config.xml
    curl -O https://docs.tuist.io/server/self-host/.env.example
    ```
@@ -427,6 +545,14 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    cp .env.example .env
    # Edit .env and add your TUIST_LICENSE, TUIST_SECRET_KEY_BASE, and authentication credentials
    ```
+
+   The bundled ClickHouse service accepts these optional operational log controls:
+
+   | Environment variable | Description | Default | Example |
+   | --- | --- | --- | --- |
+   | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Retention window, in days, for ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log` | `14` | `7` |
+   | `CLICKHOUSE_TEXT_LOG_LEVEL` | ClickHouse server logger and `system.text_log` level | `information` | `warning` |
+   | `CLICKHOUSE_SUPERSEDED_LOG_TABLES` | What to do with the `<name>_N` tables ClickHouse leaves behind when it supersedes a system log table. `ignore` keeps them, `delete` drops them | `ignore` | `delete` |
 
 3. Start all services:
    ```bash
@@ -499,6 +625,36 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --set server.license.key="YOUR_LICENSE_KEY" \
   --version 0.1.0
 ```
+
+### License {#helm-license}
+
+Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: TUIST_LICENSE
+      certificateBase64: ""
+```
+
+For an air-gapped installation, reference the Base64-encoded license certificate instead:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: ""
+      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
+```
+
+Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
+
+Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 
@@ -596,12 +752,20 @@ clickhouse:
   embedded:
     service:
       nativePort: 9100
+    systemLogs:
+      ttlDays: 7
+      supersededTables: delete
+      level: warning
 ```
 
 Use these overrides only when your cluster requires them:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
+- `clickhouse.embedded.systemLogs.ttlDays` is empty by default, leaving ClickHouse's unbounded retention on the embedded internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Setting it supersedes those tables once, so adopt it alongside `supersededTables: delete` — see <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.
+- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`. Unlike `ttlDays`, it is not part of any table definition, so changing it never supersedes a table.
+- `clickhouse.embedded.systemLogs.supersededTables` defaults to `ignore` and decides what happens to the `<name>_N` tables ClickHouse leaves behind when it supersedes a system log table. Set it to `delete` to drop them on each `helm upgrade`.
+- Edits to `ttlDays` and `level` reach the ClickHouse pod the next time it restarts, since both are `subPath` mounts and the chart does not roll the StatefulSet when its ConfigMap changes.
 
 ### Observability {#helm-observability}
 

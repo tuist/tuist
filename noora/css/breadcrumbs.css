@@ -4,7 +4,7 @@
     var(--noora-neutral-dark-200)
   );
   --noora-breadcrumb-label: light-dark(
-    var(--nora-neutral-light-1100),
+    var(--noora-neutral-light-1100),
     var(--noora-neutral-dark-50)
   );
   --noora-breadcrumb-background: light-dark(

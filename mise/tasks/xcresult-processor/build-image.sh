@@ -8,7 +8,11 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SERVER_DIR="${REPO_ROOT}/server"
 PACKER_DIR="${REPO_ROOT}/infra/xcresult-processor-image"
-BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${usage_xcode_version//./-}"
+# The base lives on the Tuist OCI registry, which is reachable on the
+# tailnet only, so this needs Tailscale up and a registry credential in
+# ~/.docker/config.json (`oras login "$TUIST_OCI_REGISTRY_HOST" ...`).
+: "${TUIST_OCI_REGISTRY_HOST:?set TUIST_OCI_REGISTRY_HOST (e.g. oci.tuist.dev)}"
+BASE_IMAGE="${TUIST_OCI_REGISTRY_HOST}/macos-tahoe-xcode:${usage_xcode_version//./-}"
 
 for cmd in tart packer mix swift; do
   if ! command -v "$cmd" &>/dev/null; then
@@ -50,5 +54,4 @@ packer build \
 
 echo ""
 echo "==> Image 'tuist-xcresult-processor' built. Push with:"
-echo "    tart login ghcr.io"
-echo "    tart push tuist-xcresult-processor ghcr.io/tuist/tuist-xcresult-processor:latest"
+echo "    tart push tuist-xcresult-processor \${TUIST_OCI_REGISTRY_HOST}/tuist-xcresult-processor:latest"

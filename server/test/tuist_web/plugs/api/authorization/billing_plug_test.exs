@@ -151,6 +151,32 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   end
 
   @tag current_month_remote_cache_hits_count: 1000
+  test "returns the same connection when the plan is pro, and the subscription is trialing",
+       %{conn: conn, project: project} do
+    # Given
+    account = project.account
+
+    stub(Billing, :get_current_active_subscription, fn ^account ->
+      %Subscription{plan: :pro, status: "trialing"}
+    end)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
+  @tag current_month_remote_cache_hits_count: 1000
   test "returns an error when the plan is pro, and the subscription is not active",
        %{conn: conn, project: project} do
     # Given

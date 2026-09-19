@@ -7,10 +7,15 @@ public struct TestSummary: Encodable, Sendable {
     public var testModules: [TestModule]
     public let runDestinations: [RunDestination]
     public let errors: [TestRunError]
+    public var coverage: XcodeCoverageReport?
+    /// Why the coverage could not be read, for a bundle that had some. The run's tests are
+    /// reported either way.
+    public var coverageError: String?
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
-        case status, duration, errors
+        case status, duration, errors, coverage
+        case coverageError = "coverage_error"
         case testModules = "test_modules"
         case runDestinations = "run_destinations"
     }
@@ -25,7 +30,8 @@ public struct TestSummary: Encodable, Sendable {
         duration: Int?,
         testModules: [TestModule],
         runDestinations: [RunDestination] = [],
-        errors: [TestRunError] = []
+        errors: [TestRunError] = [],
+        coverage: XcodeCoverageReport? = nil
     ) {
         self.testPlanName = testPlanName
         self.status = status
@@ -33,16 +39,25 @@ public struct TestSummary: Encodable, Sendable {
         self.testModules = testModules
         self.runDestinations = runDestinations
         self.errors = errors
+        self.coverage = coverage
     }
 }
 
-/// A run/target-level error that isn't a test failure: the test runner itself
-/// errored (e.g. a target whose `.xctest` bundle couldn't be loaded, or the app
-/// under test couldn't launch). xcresult surfaces these as synthetic
-/// "<runner-process> (<pid>) encountered an error" cases (the runner process is
-/// `xctest` for unit tests, the app/UI-runner target for UI tests); we lift them
-/// out of the test cases and model them the way Xcode does — as errors, keyed by
-/// target.
+/// A run/target-level entry that isn't a test failure. xcresult surfaces both
+/// kinds as synthetic test cases; we lift them out of the test cases and model
+/// them the way Xcode does, as errors keyed by target.
+///
+/// Runner errors are the test runner itself erroring (e.g. a target whose
+/// `.xctest` bundle couldn't be loaded, or the app under test couldn't launch),
+/// from "<runner-process> (<pid>) encountered an error" cases, where the runner
+/// process is `xctest` for unit tests and the app/UI-runner target for UI tests.
+/// They fail the run, as they do for xcodebuild.
+///
+/// Unattributed issues are Swift Testing issues recorded when no test was
+/// running, from "Issues recorded without an associated test or suite" cases.
+/// `message` carries the recorded issue, so it can include a source path, a line
+/// number, and the asserted expression. They do not fail the run, matching
+/// xcodebuild's exit code.
 public struct TestRunError: Encodable, Sendable {
     /// The test target the error belongs to, or nil for a run-level error.
     public let target: String?

@@ -24,6 +24,12 @@ public struct HTTPRetryPolicy: Sendable {
         self.baseDelayMilliseconds = min(resolvedBaseDelayMilliseconds, Self.maximumDelayMilliseconds)
     }
 
+    /// 408 and 429 are the only 4xx statuses a server can resolve on its own, so every other
+    /// one answers a repeated request the same way it answered the first.
+    public static func isPermanentClientError(statusCode: Int) -> Bool {
+        (400 ..< 500).contains(statusCode) && statusCode != 408 && statusCode != 429
+    }
+
     public func delay(for retry: Int) -> UInt64 {
         let maximumDelayNanoseconds = Self.maximumDelayMilliseconds * Self.nanosecondsPerMillisecond
         let baseDelayNanoseconds = baseDelayMilliseconds * Self.nanosecondsPerMillisecond

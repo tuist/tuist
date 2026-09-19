@@ -7,6 +7,15 @@ defmodule TuistTestSupport.Utilities do
   end
 
   @doc """
+  The attributes of an Ecto struct that `insert_all/2` accepts: the schema's
+  real fields only. Drops `__meta__`, associations, and virtual fields, which
+  a struct read back from a query carries alongside its columns.
+  """
+  def insertable_attrs(%schema{} = struct) do
+    Map.take(struct, schema.__schema__(:fields))
+  end
+
+  @doc """
   Flushes the ingestion buffers after running the callback function.
   """
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do

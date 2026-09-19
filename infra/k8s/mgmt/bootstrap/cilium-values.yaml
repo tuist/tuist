@@ -72,7 +72,18 @@ hubble:
   metrics:
     enabled:
       - dns:query;ignoreAAAA
-      - drop
+      # Context labels on `drop` only. Without them hubble_drop_total is
+      # aggregated cluster-wide to (protocol, reason), which names neither
+      # the source nor the destination. That gap is what leaves a policy-denied
+      # kura cache node unattributable (see
+      # ../../../helm/k8s-monitoring/alerts.md, "Kura cache rejecting runner
+      # traffic"). `pod|ip` falls back to the raw address when the source is
+      # not a known pod, which is exactly the discriminator: an in-cluster pod
+      # source resolves to a pod, a mis-sourced runner VM or a SNATed path
+      # resolves to an IP. Do NOT add contexts to `flow` or `tcp`; those are
+      # high-volume and the cardinality is not worth it. `drop` is inherently
+      # low-volume, so the added series count is bounded.
+      - drop:sourceContext=pod|ip;destinationContext=pod
       - tcp
       - flow
       - icmp

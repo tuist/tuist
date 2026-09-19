@@ -9,7 +9,11 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
+      - mise/tasks/marketing/**
+      - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -17,8 +21,12 @@ on:
       - tuist_common/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - mise/tasks/marketing/**
+      - .trivyignore
   merge_group: {}
 
 permissions:
@@ -29,13 +37,18 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
+  # Same repositories as Trivy's default, in the opposite order. Trivy only
+  # falls through to the next repository on a temporary status code (408, 429,
+  # 5xx) or a BLOB_UNKNOWN diagnostic. mirror.gcr.io intermittently serves a
+  # bare 404 for the blob redirect target, which is neither, so a mirror.gcr.io
+  # fault is fatal when it is first and recoverable when it is second.
+  TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
 
 defaults:
   run:
@@ -44,9 +57,9 @@ defaults:
 jobs:
   swift-test:
     name: Swift Tests (XCActivityLogParser)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcactivitylog_nif
@@ -59,6 +72,25 @@ jobs:
           key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+  # XCResultParser is not server-only: the CLI compiles these sources into its
+  # binary, so this job guards both.
+  swift-test-xcresult:
+    name: Swift Tests (XCResultParser)
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    defaults:
+      run:
+        working-directory: server/native/xcresult_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcresult_nif/.build
+          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project
@@ -67,12 +99,10 @@ jobs:
     # pattern as `setup-server-mix` callers.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       # Pre-compile the project in its own step so the OOM (if any)
       # surfaces here rather than inside the extract heartbeat loop —
       # makes the failure mode obvious. The throttle stack:
@@ -122,54 +152,43 @@ jobs:
             fi
           }
 
-          # Extract only (without --merge) to check if marketing.pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
+          # Extract only (without --merge) to check whether any .pot template
+          # is out of date. DO NOT use --merge here as it would modify the .po
+          # translation files. Every domain under priv/gettext is discovered by
+          # a glob so a newly added domain is guarded without editing this job.
+          POT_LIST=/tmp/gettext-pot-files.txt
+          printf '%s\n' priv/gettext/*.pot | sort > "$POT_LIST"
 
-          # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
-
-          # Backup all dashboard .pot files
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot" ]; then
-              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
-            fi
-          done
+          while read -r pot; do
+            cp "$pot" "${pot}.backup"
+          done < "$POT_LIST"
 
           run_gettext_extract /tmp/gettext-extract.log
 
-          exit_code=0
-
-          if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
-            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit_code=1
-          else
-            echo "✅ Marketing gettext template is up-to-date"
-          fi
-          rm priv/gettext/marketing.pot.backup
-
-          # Check each dashboard domain for changes
           CHANGED_DOMAINS=""
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
-              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
-                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-              fi
-              rm "priv/gettext/${domain}.pot.backup"
-            elif [ -f "priv/gettext/${domain}.pot" ]; then
-              # New domain file was created
-              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+
+          while read -r pot; do
+            if ! diff -q "${pot}.backup" "$pot" > /dev/null 2>&1; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
+            fi
+            rm -f "${pot}.backup"
+          done < "$POT_LIST"
+
+          # A domain created by the extraction has no backup to diff against.
+          for pot in priv/gettext/*.pot; do
+            if ! grep -qxF "$pot" "$POT_LIST"; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
             fi
           done
 
+          rm -f "$POT_LIST"
+
           if [ -n "$CHANGED_DOMAINS" ]; then
-            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit_code=1
-          else
-            echo "✅ All dashboard gettext templates are up-to-date"
+            echo "::error title=Gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit 1
           fi
 
-          exit "$exit_code"
+          echo "✅ All gettext templates are up-to-date"
       - name: Check marketing translations exist
         run: |
           # Check if marketing.pot exists
@@ -216,7 +235,7 @@ jobs:
     # headroom this job had before the default was downsized (#11052).
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Local `mix test` compiles only the "en" locale for fast cold builds
     # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
     # locale set so the `:locale`-tagged i18n tests run and are covered here.
@@ -224,7 +243,7 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -239,7 +258,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
@@ -261,15 +279,88 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
+  test-clickhouse-floor:
+    name: Test (oldest supported ClickHouse)
+    # The self-hosting requirements promise ClickHouse 25, but every ClickHouse
+    # we operate is newer: dev and the Test job pin 26.1, the Helm chart ships
+    # 26.1, and the bundled Compose file ships 26.5. Nothing exercised the
+    # documented floor, so a query setting or function introduced after it
+    # reached self-hosted deployments as a failed migration rather than as a
+    # failed build (#12515). Running the suite here replays every ClickHouse
+    # migration and every runtime query against the floor.
+    #
+    # The release under test comes from Tuist.ClickHouseVersions, which is also
+    # what the migration guard asserts and what the self-hosting requirements
+    # publish, so the three cannot drift apart.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      # Matches the Test job. Several locale assertions live in tests that carry
+      # no `:locale` tag, so they run either way and fail against the "en"-only
+      # locale set that `mix test` compiles by default.
+      TUIST_DEV_ALL_LOCALES: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the oldest supported ClickHouse release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Testing against ClickHouse ${version}"
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mix-cache-key: mix-test-v2
+          mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
+      # Not passed through mise-install-args: that path installs `--locked`, and
+      # mise.lock pins the version the rest of CI runs on.
+      - name: Pin ClickHouse to the oldest supported release
+        run: |
+          mise use "github:ClickHouse/ClickHouse@${CLICKHOUSE_FLOOR_VERSION}"
+          clickhouse --version
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run tests
+        run: mix test --warnings-as-errors
   credo:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
@@ -278,34 +369,59 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: erlang elixir node aube npm:prettier
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install mix dependencies
-        run: mix deps.get
+      - uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install aube dependencies
         run: aube install
       - name: Check Elixir format
         run: mix format --check-formatted
+      - name: Test frontend interactions
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: mise run css:lint-tokens server
+  image-budget:
+    name: Image budget
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image inspection tools
+        uses: ./.github/actions/mise
+        with:
+          working_directory: mise/tasks/marketing
+          install_args: --locked conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
+      - name: Test image budget guard
+        working-directory: ${{ github.workspace }}
+        run: bash mise/tasks/marketing/image-budget-test.sh
+      - name: Check served image budgets
+        working-directory: ${{ github.workspace }}
+        run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
     name: esbuild
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir node aube
       - name: Restore Aube Cache
         uses: actions/cache@v4
@@ -345,12 +461,10 @@ jobs:
     name: Security
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -368,7 +482,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -485,10 +599,10 @@ jobs:
     # 4 vCPU / 16 GB shape restores the headroom from before #11052.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -503,7 +617,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
       - name: Start ClickHouse

@@ -187,6 +187,8 @@ extension PBXProductType {
             return .extensionKitExtension
         case .commandLineTool:
             return .commandLineTool
+        case .hostBuildTool:
+            return .macro
         case .messagesExtension:
             return .messagesExtension
         case .stickerPack:

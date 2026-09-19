@@ -4,11 +4,7 @@ struct Cache: Sendable {
     let root: URL
 
     init(root: URL?) async throws {
-        if let root {
-            self.root = root
-        } else {
-            self.root = try Cache.defaultRoot()
-        }
+        self.root = try Cache.resolvedRoot(root)
         let cacheRoot = self.root
         let topLevelPaths = [
             "sources",
@@ -37,6 +33,10 @@ struct Cache: Sendable {
     }
 
     func sourcePath(pin: ResolvedPin) throws -> URL {
+        try Cache.sourcePath(root: root, pin: pin)
+    }
+
+    static func sourcePath(root: URL, pin: ResolvedPin) throws -> URL {
         if pin.kind == "registry" {
             throw ToolError.message("registry source paths require registry URL and checksum")
         }
@@ -46,21 +46,35 @@ struct Cache: Sendable {
                 .appendingPathComponent("sources")
                 .appendingPathComponent(SafePathComponent.make(pin.identity))
                 .appendingPathComponent(
-                    SafePathComponent.make("\(version)-\(Hashing.shortRevision(pin.revision()))"))
+                    SafePathComponent.make("\(version)-\(pin.revision())"))
     }
 
     func archivePath(url: String, revision: String) -> URL {
         root
             .appendingPathComponent("archives")
             .appendingPathComponent(
-                "\(Hashing.stable(url))-\(Hashing.shortRevision(revision)).tar.gz")
+                "\(Hashing.stable(url))-\(revision).tar.gz")
     }
 
+    /// The path is keyed on what a `Package.resolved` pin already carries, so it can be probed
+    /// without asking the registry anything. The archive checksum identifies the payload rather
+    /// than the location, so it is recorded inside the directory
+    /// (`WorkspaceRestorer.registryChecksumMarkerFilename`) instead of in the path.
     func registrySourcePath(
         identity: String,
         version: String,
-        registryURL: String,
-        checksum: String
+        registryURL: String
+    ) -> URL {
+        Cache.registrySourcePath(
+            root: root, identity: identity, version: version, registryURL: registryURL
+        )
+    }
+
+    static func registrySourcePath(
+        root: URL,
+        identity: String,
+        version: String,
+        registryURL: String
     ) -> URL {
         root
             .appendingPathComponent("sources")
@@ -69,7 +83,6 @@ struct Cache: Sendable {
                 SafePathComponent.make([
                     version,
                     String(Hashing.stable(registryURL).prefix(12)),
-                    checksum,
                     "registry",
                 ].joined(separator: "-"))
             )
@@ -119,6 +132,22 @@ struct Cache: Sendable {
             at: root.appendingPathComponent("locks").appendingPathComponent(namespace)
                 .appendingPathComponent("\(Hashing.stable(key)).lock")
         )
+    }
+
+    func hasCachedSources() async throws -> Bool {
+        try await Cache.hasCachedSources(at: root)
+    }
+
+    static func resolvedRoot(_ root: URL?) throws -> URL {
+        try root ?? defaultRoot()
+    }
+
+    static func hasCachedSources(at root: URL) async throws -> Bool {
+        let sources = root.appendingPathComponent("sources")
+        guard try await fileSystem.exists(sources.absolutePath) else {
+            return false
+        }
+        return try await !fileSystem.contentsOfDirectory(at: sources).isEmpty
     }
 
     private static func defaultRoot() throws -> URL {

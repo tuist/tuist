@@ -103,23 +103,6 @@ struct RegistryTests {
         }
     }
 
-    @Test
-    func netrcAuthorizationMatchesHostAndDefault() throws {
-        let netrc = RegistryNetrc(
-            content: """
-            machine registry.example.com login example password secret
-            default login fallback password fallback-secret
-            """
-        )
-
-        #expect(
-            netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
-                .password == "secret")
-        #expect(
-            netrc.credential(for: try #require(URL(string: "https://other.example.com")))?
-                .password == "fallback-secret")
-    }
-
     private func uniqueRegistryIdentity() -> String {
         "\(uniqueRegistryScope()).package"
     }

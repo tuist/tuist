@@ -1,0 +1,377 @@
+/* The embed sizes the iframe to this page's content height, so the page never
+   needs to scroll itself; without this the iframe shows a transient scrollbar
+   until the first resize handshake lands. The message list scrolls internally. */
+/* Pin light-dark() token resolution to the applied theme, so color tokens and
+   the [data-theme] shadow tokens can never split between light and dark. */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body:has([data-part="support-chat"]) {
+  /* Opaque themed background: the page renders inside the embed's panel, and
+     without this the panel's background bleeds through behind the content
+     whenever the two resolve their color scheme differently. */
+  background: var(--noora-surface-background-primary);
+  overflow: hidden;
+  /* Same scrollbar treatment as the dashboard and website; scrollbar-color
+     inherits into every scroll container below. */
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
+}
+
+[data-part="support-chat"] {
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  color: var(--noora-surface-label-primary);
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  /* Never exceed the iframe viewport or the 700px desktop cap: the page grows
+     with the conversation until then, after which the message list scrolls
+     instead of the page bottom getting clipped. */
+  max-height: min(100dvh, 43.75rem);
+  max-width: 40rem;
+  padding-top: var(--noora-spacing-6);
+
+  & [data-part="header"] {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    display: flex;
+    gap: var(--noora-spacing-3);
+    justify-content: space-between;
+    padding: 0 var(--noora-spacing-7) var(--noora-spacing-6);
+  }
+
+  & [data-part="message-identity"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="heading"] {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="title"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    margin: 0;
+
+    /* On phones the fields sit at 1rem (the iOS focus-zoom guard), which
+       is exactly heading-small there, so the title read smaller than the
+       placeholders. Step it up one size on touch devices. */
+    @media (hover: none), (pointer: coarse) {
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+  }
+
+  & [data-part="close"] {
+    flex: 0 0 auto;
+  }
+
+  & [data-part="response-time"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+    margin: 0;
+  }
+
+  /* The scroll container spans the panel full-bleed so its scrollbar hugs the
+     right edge; the horizontal gutter lives on the scrolled content instead. */
+  & [data-part="conversation"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    min-height: 0;
+    padding: var(--noora-spacing-6) 0 0;
+  }
+
+  & [data-part="message-list"] {
+    /* border-box: with content-box sizing, width 100% plus the side padding
+       made the list 40px wider than the panel, clipping the right gutter,
+       the sender bubbles, and the scrollbar itself. */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    min-height: 0;
+    overflow-y: auto;
+    /* Vertical padding keeps the bubbles' light-border shadow rings from
+       being clipped by the scroll container's edges. The right padding is
+       reduced by the reserved 10px scrollbar gutter, so content stays
+       symmetric and nothing shifts when the scrollbar appears. */
+    padding: var(--noora-spacing-2) calc(var(--noora-spacing-7) - 10px) var(--noora-spacing-2) var(--noora-spacing-7);
+    scrollbar-gutter: stable;
+    width: 100%;
+  }
+
+  /* Always-visible thumb in its own track, like the rest of the widget's
+     references. scrollbar-width would force the macOS overlay scrollbar,
+     which hides at rest and ignores track styling, so the list uses the
+     webkit pseudo-elements instead; Firefox falls back to scrollbar-color.
+     Chromium disables ::-webkit-scrollbar styling when any standard
+     scrollbar property applies, and scrollbar-color inherits from the body
+     rule above — reset it where the pseudo-elements are supported. */
+  @supports selector(::-webkit-scrollbar) {
+    & [data-part="message-list"] {
+      scrollbar-color: auto;
+    }
+  }
+
+  & [data-part="message-list"]::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  /* The transparent border with padding-box clipping insets the visible
+     thumb 2px from both edges, so it never sits flush against the panel. */
+  & [data-part="message-list"]::-webkit-scrollbar-thumb {
+    background: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: var(--noora-radius-99);
+  }
+
+  & [data-part="message-list"]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Thumbless until the list hook marks persistent overflow — transient
+     overflow while the panel is still growing shows no scrollbar. */
+  & [data-part="message-list"]:not([data-scrollable])::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+
+  /* No manual resize anywhere in the widget — the chat composer auto-grows,
+     and the form field has a fixed comfortable height. This is how chat apps
+     built on textareas (Intercom, WhatsApp Web) do it too. */
+  & textarea {
+    resize: none;
+    scrollbar-width: thin;
+  }
+
+  & textarea::-webkit-resizer {
+    display: none;
+  }
+
+  /* Only the newest message carries a timestamp. */
+  & [data-part="message"]:not(:last-child) [data-part="time"] {
+    display: none;
+  }
+
+  /* iMessage-style send: the new bubble springs up from the composer with a
+     subtle overshoot. Applied via [data-entering], which the list hook sets
+     only on genuinely new messages. Transform and opacity only. */
+  & [data-part="message"][data-entering] {
+    animation: support-chat-bubble-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: bottom right;
+  }
+
+  & [data-part="message"][data-kind="outbound"][data-entering] {
+    transform-origin: bottom left;
+  }
+
+  /* Chat bubbles, from the visitor's perspective: their own (inbound)
+     messages sit on the right, team replies (outbound) on the left. The
+     bubble's corner nearest the sender is tightened to 2px for the classic
+     speech-bubble tail impression. */
+  & [data-part="message"] {
+    align-items: flex-end;
+    align-self: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    max-width: calc(100% - var(--noora-spacing-8));
+  }
+
+  & [data-part="message"][data-kind="outbound"] {
+    align-items: flex-start;
+    align-self: flex-start;
+  }
+
+  & [data-part="message-body"] {
+    background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+    border-radius: var(--noora-radius-4) var(--noora-radius-4) var(--noora-radius-1) var(--noora-radius-4);
+    box-shadow: var(--noora-light-border-default);
+    box-sizing: border-box;
+    /* Centers content shorter than the 40px min-width; longer text fills the
+       bubble and stays left-aligned. */
+    display: flex;
+    font: var(--noora-font-body-medium);
+    justify-content: center;
+    margin: 0;
+    min-width: 40px;
+    overflow-wrap: anywhere;
+    padding: var(--noora-spacing-4);
+    white-space: pre-wrap;
+  }
+
+  & [data-part="message"][data-kind="outbound"] [data-part="message-body"] {
+    background: var(--noora-surface-background-tertiary);
+    border-radius: var(--noora-radius-4) var(--noora-radius-4) var(--noora-radius-4) var(--noora-radius-1);
+  }
+
+  & [data-part="time"] {
+    color: var(--noora-surface-label-tertiary);
+    flex: 0 0 auto;
+    font: var(--noora-font-body-xsmall);
+  }
+
+  & [data-part="form"],
+  & [data-part="identity-fields"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="form"] {
+    flex: 0 0 auto;
+    padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-7);
+  }
+
+  & [data-part="message-input"],
+  & [data-part="identity-input"] {
+    gap: var(--noora-spacing-1);
+  }
+
+  /* Noora's text area pads its wrapper 12px on every side while the text
+     inputs pad 8px horizontally, so the Message placeholder sat right of
+     Name and Email. Bring the inputs up to the text area's 12px inset: the
+     column lines up and the text no longer hugs the border. */
+  & [data-part="wrapper"]:has(> [data-part="identity-input"]) {
+    padding: var(--noora-spacing-3) var(--noora-spacing-5);
+  }
+
+  /* Neither Noora field resets the browser's own padding, and iOS Safari's
+     native textfield appearance adds a further inner inset to inputs but
+     not textareas, so the text column drifted per browser. Drop the native
+     appearance and set explicit paddings so the column is the wrapper
+     padding alone everywhere; the input keeps its 1px vertical to hold the
+     same height it had with the UA default. */
+  & input[data-part="identity-input"] {
+    appearance: none;
+    padding: 1px 0;
+  }
+
+  & textarea[data-part="message-input"] {
+    appearance: none;
+    padding: 0;
+  }
+
+  /* Noora bumps inputs to 1rem under 768px to stop iOS focus zoom but
+     leaves text areas at 0.875rem. Focusing either textarea on a phone
+     zoomed the whole page (the panel's header and timestamps ended up
+     clipped at both edges), and the Message placeholder rendered smaller
+     than Name and Email. Same bump, same reason, for both textareas. */
+  @media (max-width: 768px) {
+    & textarea[data-part="message-input"],
+    & textarea[data-part="composer-input"] {
+      font-size: 1rem;
+    }
+  }
+
+  /* Noora bumps inputs to 1rem under 768px viewports to stop iOS focus-zoom,
+     but the embed iframe is always narrower than that, leaving inputs and the
+     textarea at different sizes. With a fine pointer zoom is not a concern, so
+     pin everything to desktop/body-medium regular. */
+  @media (hover: hover) and (pointer: fine) {
+    & input[data-part="identity-input"],
+    & textarea[data-part="message-input"],
+    & textarea[data-part="composer-input"] {
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="form-error"] {
+    color: var(--noora-surface-label-destructive);
+    font: var(--noora-font-body-small);
+    /* The retry countdown re-renders every second; fixed-width digits keep
+       the sentence from shifting as the number ticks down. */
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+
+  & [data-part="email-verification"] {
+    margin: 0 var(--noora-spacing-7) var(--noora-spacing-4);
+  }
+
+  /* Extra headroom under the banner so the first bubble's border ring
+     clears the scroll container's top edge. */
+  & [data-part="email-verification"] + [data-part="message-list"] {
+    padding-top: var(--noora-spacing-4);
+  }
+
+  & [data-part="submit"] {
+    align-self: flex-start;
+  }
+
+  /* Chat-mode composer: a single message box that grows with its content
+     (no drag handle) and carries the icon-only send button bottom-right. */
+  & [data-part="composer"] {
+    position: relative;
+  }
+
+  & [data-part="composer"] textarea {
+    max-height: 10rem;
+    min-height: 2.5rem;
+    overflow-y: auto;
+  }
+
+  /* Reserve the bottom strip of the box for the send button. */
+  & [data-part="composer"] [data-part="wrapper"] {
+    border-radius: var(--noora-radius-4);
+    padding-bottom: calc(1.75rem + var(--noora-spacing-5));
+  }
+
+  & [data-part="composer-submit"] {
+    bottom: var(--noora-spacing-5);
+    position: absolute;
+    right: var(--noora-spacing-5);
+  }
+
+  /* Noora ships no plain arrow-up; rotate arrow_right into one. */
+  & [data-part="composer-submit"] svg {
+    transform: rotate(-90deg);
+  }
+}
+
+@media (max-width: 480px) {
+  [data-part="support-chat"] {
+    & [data-part="header"] {
+      padding: 0 var(--noora-spacing-6) var(--noora-spacing-5);
+    }
+
+    & [data-part="conversation"] {
+      padding: var(--noora-spacing-5) 0 0;
+    }
+
+    & [data-part="message-list"] {
+      padding: 0 var(--noora-spacing-6);
+    }
+
+    & [data-part="email-verification"] {
+      margin: 0 var(--noora-spacing-6) var(--noora-spacing-4);
+    }
+
+    & [data-part="form"] {
+      padding: var(--noora-spacing-5) var(--noora-spacing-6) var(--noora-spacing-6);
+    }
+  }
+}
+
+@keyframes support-chat-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-part="support-chat"] [data-part="message"][data-entering] {
+    animation: none;
+  }
+}

@@ -2,13 +2,18 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -70,6 +75,236 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
+// runnerExitFile is the file the guest writes into the writable status
+// share from its EXIT trap, carrying dispatch-poll.sh's exit code. It is
+// the only way that code reaches the host: the trap halts the VM on every
+// path, so `tart run` exits zero whether the job finished or the runner
+// died, and its status cannot distinguish the two.
+//
+// Absent for a guest killed without running its trap, and for any host
+// where the status share is not attached at all (it rides on the cache
+// volume feature). Absence therefore means "unknown", never "clean" —
+// see runnerTermination.
+const runnerExitFile = "runner-rc"
+
+// runnerLogFile is dispatch-poll.sh's own output, mirrored into the
+// writable status share by the guest so it outlives the VM. The copy
+// inside the guest (/var/log/tuist-runner/poll.log) dies with the VM at
+// teardown, and Tart cannot capture a macOS guest's console, so without
+// this the host has an exit code and nothing that explains it.
+//
+// That gap is not academic: the trap reports 0 both for a finished job
+// and for a runner that halted without ever taking one, so the exit code
+// alone cannot tell those apart. This file is what does.
+//
+// Absent for the same two reasons as runnerExitFile — a guest killed
+// before its trap ran, and hosts with no status share attached at all.
+const runnerLogFile = "runner.log"
+
+// runnerLogTailLines / runnerLogTailBytes bound what publishRunnerLog
+// re-emits. dispatch-poll.sh is quiet by design — the job's own output
+// goes to GitHub server-side, so this log is warm-standby ticks plus the
+// cache teardown trail — but the file is guest-writable, so it is bounded
+// rather than trusted.
+const (
+	runnerLogTailLines = 200
+	runnerLogTailBytes = 64 << 10
+)
+
+// openGuestFile opens a file the guest wrote into the status share and requires
+// it to be a plain file. Both the path and its contents are attacker-chosen: the
+// share is writable by the guest, and the guest runs untrusted customer CI.
+// O_NOFOLLOW stops a guest-planted symlink from making the host resolve and read
+// some other file on its behalf. O_NONBLOCK stops a FIFO from parking the caller
+// inside the open until something writes to the other end, which nothing ever
+// does: one job could otherwise wedge a reconcile for as long as it liked. The
+// regular-file check cannot stand in for O_NONBLOCK there, because it never runs
+// if the open never returns.
+//
+// Returns the handle and its stat together, so a reader that wants metadata
+// rather than bytes fstats what it already opened instead of racing a second
+// path lookup against the guest.
+func openGuestFile(statusDir, name string) (*os.File, os.FileInfo, bool) {
+	if statusDir == "" {
+		return nil, nil, false
+	}
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, name),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		return nil, nil, false
+	}
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		f.Close()
+		return nil, nil, false
+	}
+	return f, fi, true
+}
+
+// guestMarkerMaxBytes bounds the scalar markers: an exit code, a percentage, a
+// millisecond count, a promote outcome. Set orders of magnitude above anything
+// the guest legitimately writes, so it binds only on a file the host has no
+// reason to be holding in memory in the first place.
+const guestMarkerMaxBytes = 4 << 10
+
+// guestHeadMaxBytes bounds volume-head.json, whose presigned download URL is the
+// one field that is not a handful of bytes.
+const guestHeadMaxBytes = 64 << 10
+
+// readGuestFile returns the bytes of a guest-written status file, or false when
+// the guest left something other than a plain file. Oversize reads as absent
+// rather than truncated: every caller parses a whole value, and half of one is
+// not a value.
+func readGuestFile(statusDir, name string, maxBytes int64) ([]byte, bool) {
+	f, _, ok := openGuestFile(statusDir, name)
+	if !ok {
+		return nil, false
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
+	if err != nil || int64(len(b)) > maxBytes {
+		return nil, false
+	}
+	return b, true
+}
+
+// readRunnerExit reads the guest-reported exit code from the status share.
+// The bool is false when the guest reported nothing usable.
+//
+// A wait status is a byte, and the shell reports 128+signal for a
+// signalled child, so anything outside 0-255 did not come from `$?` and
+// is a torn or truncated read of a file the guest was still writing.
+// Rejecting it matters more than it looks: the value decides clean
+// versus abnormal downstream, so a garbage read that happened to land on
+// 0 would report a dead runner as a successful job, which is the bug
+// this file exists to close. Out of range therefore reads as unreported,
+// the same as no file at all.
+func readRunnerExit(statusDir string) (int32, bool) {
+	b, ok := readGuestFile(statusDir, runnerExitFile, guestMarkerMaxBytes)
+	if !ok {
+		return 0, false
+	}
+	// ParseInt over Atoi so an oversized value fails here rather than
+	// silently wrapping on the conversion to int32.
+	code, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 32)
+	if err != nil || code < 0 || code > 255 {
+		return 0, false
+	}
+	return int32(code), true
+}
+
+// readRunnerLog returns a bounded tail of the guest's mirrored log, or
+// "" when there is nothing usable. Callers re-emit it to tart-kubelet's
+// own stdout before teardown deletes the share.
+//
+// Tail rather than head: the interesting part of a runner that gave up
+// is what it said last. Bounded twice because the file is guest-written
+// — by bytes first so a single pathological line cannot blow up the log
+// record, then by lines.
+//
+// Read through openGuestFile, which is what keeps a guest-planted
+// symlink or FIFO at this path from being followed. The stake is highest
+// here of all the status-share readers: this one's output goes to Loki,
+// so a followed symlink publishes up to runnerLogTailBytes of a
+// host-readable file the guest chose.
+func readRunnerLog(statusDir string) string {
+	f, fi, ok := openGuestFile(statusDir, runnerLogFile)
+	if !ok {
+		return ""
+	}
+	defer f.Close()
+
+	offset := int64(0)
+	if fi.Size() > runnerLogTailBytes {
+		offset = fi.Size() - runnerLogTailBytes
+	}
+	b := make([]byte, fi.Size()-offset)
+	if _, err := f.ReadAt(b, offset); err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	// A byte-bounded read almost certainly starts mid-line; drop that
+	// fragment so the tail begins on a real record.
+	if offset > 0 && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	if len(lines) > runnerLogTailLines {
+		lines = lines[len(lines)-runnerLogTailLines:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// readRunnerExitTime returns when the guest wrote its exit report, which
+// is the moment it halted. Used to date a stop on the recovered path,
+// where no `tart run` handle survived to have observed the exit itself.
+func readRunnerExitTime(statusDir string) (time.Time, bool) {
+	f, fi, ok := openGuestFile(statusDir, runnerExitFile)
+	if !ok {
+		return time.Time{}, false
+	}
+	defer f.Close()
+	return fi.ModTime(), true
+}
+
+// runnerHeartbeatFile is the guest's liveness beat: dispatch-poll.sh
+// rewrites it once per poll while it is warm, and once more when it takes
+// a job. The contents are the state it is in; the mtime is the beat.
+//
+// It exists because a macOS Pod's Ready condition says only that the VM
+// process is up and has an IP. tart-kubelet runs no container probes, so
+// a guest whose poller died still reads 1/1 Running indefinitely and the
+// runners-controller goes on counting it as warm capacity that can never
+// take a job. Linux needs none of this: its poller is an init container,
+// so the container runtime already reports whether it is running.
+//
+// Absent on hosts with no status share, and on runner images from before
+// the guest wrote it. Both must read as "no signal" rather than "dead" —
+// see publishRunnerHeartbeat.
+const runnerHeartbeatFile = "runner-heartbeat"
+
+// Heartbeat states dispatch-poll.sh writes. Anything else is a guest
+// writing something we do not model, which reads as no signal at all
+// rather than as a state to act on.
+const (
+	heartbeatStatePolling = "polling"
+	heartbeatStateClaimed = "claimed"
+)
+
+// readRunnerHeartbeat returns the guest's last beat: the state it reported
+// and the mtime of the report.
+//
+// The mtime is the host's, not the guest's — the write lands on the host
+// filesystem through virtio-fs, so the host kernel stamps it, which is
+// what makes it comparable to the host clock here. readRunnerExitTime
+// dates a runner's halt off the same property.
+//
+// An unrecognized state reads as no beat. The file is guest-written and
+// the states drive whether the controller counts this Pod as capacity, so
+// the set is closed rather than passed through.
+func readRunnerHeartbeat(statusDir string) (string, time.Time, bool) {
+	f, fi, ok := openGuestFile(statusDir, runnerHeartbeatFile)
+	if !ok {
+		return "", time.Time{}, false
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, guestMarkerMaxBytes+1))
+	if err != nil || int64(len(b)) > guestMarkerMaxBytes {
+		return "", time.Time{}, false
+	}
+	switch state := strings.TrimSpace(string(b)); state {
+	case heartbeatStatePolling, heartbeatStateClaimed:
+		return state, fi.ModTime(), true
+	default:
+		return "", time.Time{}, false
+	}
+}
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
@@ -77,17 +312,26 @@ const dirtyMarkerFile = "cache-dirty"
 // guest never reads or writes the cache while the host is still clonefiling it.
 const cacheReadyFile = "cache-ready"
 
-// cacheBudgetFile carries the per-branch byte budget the guest exports as
-// TUIST_CACHE_MAX_BYTES for the CLI's LRU self-prune. Staged by the host
-// because the guest sees the whole shared quota volume's free space over the
-// virtio-fs share, which would be a far-too-large budget.
+// cacheBudgetFile carries the binary cache's share of the fixed split, which a
+// runner image older than sharedCacheBudgetFile exports as TUIST_CACHE_MAX_BYTES
+// for the CLI's LRU self-prune. Staged by the host because the guest sees the
+// whole shared quota volume's free space over the virtio-fs share, which would be
+// a far-too-large budget.
 const cacheBudgetFile = "cache-max-bytes"
+
+// sharedCacheBudgetFile carries what the binary cache and the compilation cache
+// may hold together (cacheImageBudget). The guest divides it between them by
+// what each holds, at attach and again at teardown, so this is the one figure the
+// host decides. cacheBudgetFile and the casEnabledFile figure stay staged beside
+// it, because tart-kubelet and the runner image roll out separately and an older
+// image reads only those.
+const sharedCacheBudgetFile = "cache-budget-bytes"
 
 // allocateVolumeBranch prepares an empty per-VM cache branch directory for a
 // booting VM (shared into the guest as a virtio-fs mount), or returns an
-// un-attached zero value when the feature is off or admission declines. The
-// branch is filled later by maybeMaterializeVolume, once dispatch has bound
-// the VM to an account.
+// un-attached zero value when the feature is off or the root is not mounted. The
+// branch is filled, and admitted, later by maybeMaterializeVolume, once dispatch
+// has bound the VM to an account.
 func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, error) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return VolumeAttachment{}, nil
@@ -122,7 +366,7 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// an image of its own: cache-ready tells the guest to attach, and signalling
 	// without one would drop every fork job onto the local cold cache.
 	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
-		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil {
+		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
 			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
 		}
 		entry.Volume.Materialized = true
@@ -138,8 +382,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Materialize this host's LOCAL master into the branch immediately — a CoW
 	// clonefile that touches the network zero times (~tens of ms) — and signal
 	// the guest, so the job starts warm without ever blocking on a download.
+	// A declined branch has no image, so the guest's attach fails and it runs on
+	// its local cold cache. That is logged and counted where admission declines.
 	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
-	if err != nil {
+	declined := errors.Is(err, errAdmissionDeclined)
+	if err != nil && !declined {
 		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
 	}
 	entry.Volume.SourceAccount = account
@@ -157,6 +404,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
+	// A declined job was refused space in this volume, and converging downloads
+	// into the same volume with nothing reserved.
+	if declined {
+		return
+	}
 	RecordVolumeMaterialized(warm)
 
 	// Converge the on-disk master toward the account's HEAD in the background,
@@ -179,32 +431,23 @@ func writeCacheReady(statusDir string) {
 	_ = os.WriteFile(filepath.Join(statusDir, cacheReadyFile), []byte("1"), 0o644)
 }
 
-// writeCacheBudget stages the per-branch byte budget (≈80% of a master's
-// provisioned cap) into the status share before the VM boots, for the guest's
-// TUIST_CACHE_MAX_BYTES.
 const (
-	// cacheVolumeReserveFloorGiB / cacheVolumeReservePercent size the filesystem
-	// reserve kept free in the cache image: reserve = max(floor, percent of cap).
-	// It is max(absolute, proportional) — NOT a flat percent — because the two
-	// risks it guards (APFS metadata/CoW headroom, and a single build's pruner
-	// OVERSHOOT before the LRU/llcas reclaim) scale absolutely, not with cap size.
-	// A flat percent over-reserves a big image and starves a small one; the floor
-	// keeps a real slice on small caps while the percent bounds it on large ones
-	// (crossover at 40 GiB). The binary cache and the folded CAS split the rest.
+	// cacheVolumeReserveFloorGiB / cacheVolumeReservePercent size the space kept
+	// free in the cache image when both caches are at their limits: reserve =
+	// max(floor, percent of cap). It is the room a job has to grow into before
+	// anything prunes, since the compilation cache is pruned only at attach and
+	// teardown, and it also covers APFS metadata and CoW headroom. The floor keeps
+	// a real slice on a small cap. The binary cache and the folded CAS share the
+	// rest: 24 GiB at cap 30, with 6 GiB of room.
 	cacheVolumeReserveFloorGiB = 2
-	cacheVolumeReservePercent  = 5
+	cacheVolumeReservePercent  = 20
 )
 
-// cacheImageSplit computes the coordinated budget split for a capGiB cache image
-// shared by the binary cache and the folded CAS. It returns the binary cache's
-// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's byte budget
-// (COMPILATION_CACHE_LIMIT_SIZE, 0 when the CAS is off). binary + CAS never
-// exceed cap−reserve, so the two independent pruners cannot over-commit the one
-// image to ENOSPC. A CASGiB set larger than the usable space is clamped so the
-// binary cache always keeps a slice.
-func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
+// cacheImageBudget is what the binary cache and the folded CAS may hold together
+// in a capGiB cache image: the cap less the reserve.
+func cacheImageBudget(capGiB int) uint64 {
 	if capGiB <= 0 {
-		return 0, 0
+		return 0
 	}
 	const gib = uint64(1024 * 1024 * 1024)
 	capBytes := uint64(capGiB) * gib
@@ -215,14 +458,27 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	if reserve > capBytes/2 {
 		reserve = capBytes / 2 // a tiny cap never reserves more than half
 	}
-	usable := capBytes - reserve
-	if casGiB <= 0 {
-		b := capBytes * 80 / 100 // CAS off: binary keeps ~80% (its own 20% headroom)
-		if b > usable {
-			b = usable
-		}
-		return b, 0
+	return capBytes - reserve
+}
+
+// cacheImageSplit divides cacheImageBudget at a fixed point, for runner images
+// that predate the guest's division by use. It returns the binary cache's byte
+// budget (TUIST_CACHE_MAX_BYTES) and the CAS's allowance (0 when the CAS is off),
+// which add up to the budget, so the two independent pruners cannot over-commit
+// the one image to ENOSPC. A CASGiB set larger than the budget is clamped so the
+// binary cache always keeps a slice. At cap 30 / cas 14 that is 10 GiB for the
+// binary cache and 14 GiB for the compilation cache.
+//
+// The CAS figure is both what the store may occupy and the limit the compiler
+// and the prune are given: llcas, and `prune_store`, rotate a store once its
+// primary passes HALF the limit, so the limit already covers the primary and the
+// upstream generation it demoted.
+func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
+	usable := cacheImageBudget(capGiB)
+	if usable == 0 || casGiB <= 0 {
+		return usable, 0
 	}
+	const gib = uint64(1024 * 1024 * 1024)
 	casBytes = uint64(casGiB) * gib
 	if maxCAS := usable * 90 / 100; casBytes > maxCAS {
 		casBytes = maxCAS // oversized CASGiB: keep the binary cache a ≥10% slice
@@ -231,13 +487,16 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	return binaryBytes, casBytes
 }
 
-// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
+// writeCacheBudget stages the budget both caches share, and the binary cache's
+// share of the fixed split for runner images that read only that, into the status
+// share before the VM boots.
 func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
 	budget, _ := cacheImageSplit(capGiB, casGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
+	_ = os.WriteFile(filepath.Join(statusDir, sharedCacheBudgetFile), []byte(strconv.FormatUint(cacheImageBudget(capGiB), 10)), 0o644)
 }
 
 // casEnabledFile signals the guest to point the compiler at the folded CAS store
@@ -250,11 +509,15 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	// The marker carries the CAS's exact byte budget (the coordinated other half of
-	// writeCacheBudget's split, from the same cacheImageSplit so the two can't
-	// drift), which the guest emits as COMPILATION_CACHE_LIMIT_SIZE — an absolute
-	// bound, not a percent, because Swift Build's LIMIT_PERCENT is against the
-	// cache-db size plus free space, which shrinks as the binary cache fills.
+	// The marker's presence turns the folded CAS on. Its figure is the CAS's share
+	// of the fixed split (the other half of writeCacheBudget's, from the same
+	// cacheImageSplit so the two can't drift), which only a runner image older
+	// than sharedCacheBudgetFile applies. A newer one divides the shared budget
+	// by use instead. Either way the guest emits the figure as
+	// COMPILATION_CACHE_LIMIT_SIZE — an absolute bound, not a percent, because
+	// Swift Build's LIMIT_PERCENT is against the cache-db size plus free space,
+	// which shrinks as the binary cache fills — and prunes to the same value, so
+	// the bound the build is told to keep is the one that is enforced.
 	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
 }
@@ -267,11 +530,8 @@ const uploadMillisFile = "volume-upload-ms"
 // readUploadMillis returns the guest-reported upload duration in ms, or -1 when
 // absent (no promote, or the job did not upload).
 func readUploadMillis(statusDir string) int64 {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, uploadMillisFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, uploadMillisFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	ms, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
@@ -289,11 +549,8 @@ const fillPercentFile = "cache-fill-percent"
 
 // readFillPercent returns the guest-reported image fill %, or -1 when absent.
 func readFillPercent(statusDir string) int {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, fillPercentFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, fillPercentFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	pct, err := strconv.Atoi(strings.TrimSpace(string(b)))
@@ -318,6 +575,29 @@ func writeBaseGeneration(statusDir string, generation int) {
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
 }
 
+// nodeNameFile carries this host's Kubernetes Node name into the writable status
+// share. The guest relays it with its promote report, which is how a HEAD row
+// records the host that published it — the only attribution the fleet has for a
+// generation once it stands. It is the Node name rather than the Pod name
+// deliberately: the Pod is gone minutes later, whereas the Node name is what the
+// `tuist.dev/cache-master-<account>` advertisements and the volume affinities are
+// keyed on, so a HEAD can be traced back to the host still holding its master.
+//
+// Staged at VM create alongside the branch budget, not at materialize: it is a
+// property of the host, constant for the VM's whole life, and known before
+// dispatch binds the VM to an account.
+const nodeNameFile = "node-name"
+
+// writeNodeName stages the host's Node name for the guest to relay at promote.
+// Best-effort, like every other host to guest signal here: an unstaged name
+// leaves the attribution field empty, which is exactly the status quo.
+func writeNodeName(statusDir, nodeName string) {
+	if statusDir == "" || nodeName == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, nodeNameFile), []byte(nodeName), 0o644)
+}
+
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written
 // by the guest after the bump. It distinguishes the three cases the host must not
 // conflate: "accepted <generation>" (200 — install the branch as the local master
@@ -338,11 +618,8 @@ type promoteResult struct {
 
 // readPromoteResult parses the guest-relayed promote outcome.
 func readPromoteResult(statusDir string) promoteResult {
-	if statusDir == "" {
-		return promoteResult{}
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, promoteResultFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, promoteResultFile, guestMarkerMaxBytes)
+	if !ok {
 		return promoteResult{}
 	}
 	fields := strings.Fields(string(b))
@@ -372,17 +649,19 @@ func readPromoteResult(statusDir string) promoteResult {
 const volumeHeadFile = "volume-head.json"
 
 type volumeHead struct {
-	Generation  int    `json:"generation"`
-	Digest      string `json:"digest"`
-	DownloadURL string `json:"download_url"`
+	Generation int    `json:"generation"`
+	Digest     string `json:"digest"`
+	// ContentDigest is the SHA-256 of the master object's bytes, published by
+	// the promoting guest alongside the inventory digest. Empty for a HEAD
+	// promoted by a runner image that predates the content hash, in which case
+	// the convergence skips the content check (the status quo).
+	ContentDigest string `json:"content_digest"`
+	DownloadURL   string `json:"download_url"`
 }
 
 func readVolumeHead(statusDir string) *volumeHead {
-	if statusDir == "" {
-		return nil
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, volumeHeadFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, volumeHeadFile, guestHeadMaxBytes)
+	if !ok {
 		return nil
 	}
 	var h volumeHead
@@ -411,8 +690,26 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// so the file lands a beat later than this goroutine starts. Reading it once
 	// would usually miss it and permanently skip convergence; since this runs in
 	// the background, it can afford to wait for the file to appear.
-	head := awaitVolumeHead(statusDir)
-	if head == nil || head.Generation <= 0 || head.DownloadURL == "" {
+	logger := log.Log.WithName("volume")
+	head := awaitVolumeHead(statusDir, r.ConvergeHeadWaitInterval, r.ConvergeHeadWaitAttempts)
+	// Each of these three used to share one silent `return`, which made the most
+	// likely reason a convergence does not happen indistinguishable from the
+	// other two — and from convergence never having been attempted. They have
+	// nothing in common: the first is the guest or the wait, the second is an
+	// account that has published nothing yet, the third is the server
+	// deliberately withholding the HEAD from an untrusted job.
+	switch {
+	case head == nil:
+		logger.Info("converge: guest never staged the volume HEAD; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
+		return
+	case head.Generation <= 0:
+		logger.Info("converge: account has no published HEAD yet; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
+		return
+	case head.DownloadURL == "":
+		logger.Info("converge: HEAD carries no download URL (untrusted job?); skipping",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
 	// Skip if this host's master is already at or past the HEAD generation. The
@@ -420,10 +717,15 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// generation >= the HEAD's means this host already holds that HEAD (or its own
 	// newer promote) and has nothing to adopt.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
+		// The healthy no-op. Logged so it can be told apart from a convergence
+		// that failed or never ran, which is the distinction that matters when
+		// asking why a fleet is not converging.
+		logger.Info("converge: host already at or past the HEAD; nothing to adopt",
+			"vm", vmName, "account", account, "volume", volumeName,
+			"local_generation", local, "head_generation", head.Generation)
 		return
 	}
 
-	logger := log.Log.WithName("volume")
 	staging := r.Volumes.ConvergeStagingDir(vmName)
 	_ = os.RemoveAll(staging)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
@@ -437,15 +739,56 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
 	}
+	// Verify the downloaded bytes against the HEAD's content digest before
+	// anything parses them: the promoting guest hashed the settled image file,
+	// so anything short of bit-for-bit equality — corruption in the object
+	// store, on the wire, or in this host's RAM — declines here. This is the
+	// check the inventory digest below cannot make: that one hashes entry names
+	// and sizes, so a flipped bit INSIDE a cached file sails through it.
+	//
+	// The same measure-vs-mismatch split as the inventory check applies: a
+	// hashing failure is a local read fault that says nothing about the object
+	// and declines quietly, while a hash that differs is proof about the object,
+	// reproducible on every host — staged for the guest to report so the server
+	// can retire a HEAD nothing can adopt (see stageUnverifiableHead).
+	if head.ContentDigest != "" {
+		got, err := fileSHA256(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot hash the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.ContentDigest)
+			return
+		case got != head.ContentDigest:
+			logger.Info("converge: image content hash does not match HEAD; keeping local master",
+				"vm", vmName, "account", account, "want", head.ContentDigest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
+			return
+		}
+	}
 	// Verify the downloaded image's inventory matches the HEAD digest before
 	// adopting it, so the host never records a generation for an image that isn't
 	// the one the HEAD advertised. On mismatch, stay on the local master (status
 	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
 	// presigned URL or a partial download can still surface one.
+	//
+	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
+	// apart. The first is a local fault (the read-only attach failed, the disk is
+	// unhappy) and says nothing about the object, so it declines quietly. The
+	// second is proof about the object itself, reproducible on every host that
+	// fetches it — and since the account cannot promote past a HEAD it cannot
+	// adopt, that proof is the only thing that can unwedge it, so it is staged for
+	// the guest to report (see stageUnverifiableHead).
 	if head.Digest != "" {
-		if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+		got, err := r.Volumes.ImageDigest(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
+			return
+		case got != head.Digest:
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
 	}
@@ -458,10 +801,34 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
 		return
 	}
-	if installed {
-		RecordVolumeConverged()
-		logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+	if !installed {
+		// A promote or another convergence moved the master past this HEAD while
+		// the download was in flight, so the generation gate declined the swap.
+		logger.Info("converge: master moved past this HEAD mid-download; discarding",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
+		return
 	}
+	RecordVolumeConverged()
+	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+}
+
+// unverifiableHeadFile carries, into the writable status share, the HEAD digest
+// this host downloaded and found the object does not reproduce. The guest relays
+// it with its promote report, which is what lets the server retire a HEAD nothing
+// can adopt.
+//
+// The status share is the established host→guest direction (cache-ready, the
+// branch budget, the base generation all travel this way) and the host has no
+// server credentials of its own, so this is how host-observed evidence reaches
+// the control plane. Best-effort: an account that stays wedged one more job is
+// the status quo, whereas failing the convergence here would cost the job.
+const unverifiableHeadFile = "volume-head-unverifiable"
+
+func stageUnverifiableHead(statusDir, digest string) {
+	if statusDir == "" || digest == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, unverifiableHeadFile), []byte(digest), 0o644)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
@@ -473,13 +840,21 @@ const (
 )
 
 // awaitVolumeHead polls the status share for the guest-staged HEAD, returning
-// as soon as it appears or nil once the bound elapses.
-func awaitVolumeHead(statusDir string) *volumeHead {
-	for i := 0; i < convergeHeadWaitAttempts; i++ {
+// as soon as it appears or nil once the bound elapses. Interval and attempts are
+// parameters so tests do not wait real seconds, mirroring the manager's
+// mount-check wait.
+func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *volumeHead {
+	if interval <= 0 {
+		interval = convergeHeadWaitInterval
+	}
+	if attempts <= 0 {
+		attempts = convergeHeadWaitAttempts
+	}
+	for i := 0; i < attempts; i++ {
 		if h := readVolumeHead(statusDir); h != nil {
 			return h
 		}
-		time.Sleep(convergeHeadWaitInterval)
+		time.Sleep(interval)
 	}
 	return readVolumeHead(statusDir)
 }
@@ -495,6 +870,22 @@ const convergeImageName = "head.sparseimage"
 // job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
 // and staging disk forever.
 const convergeDownloadTimeout = 30 * time.Minute
+
+// fileSHA256 returns the lowercase hex SHA-256 of the file's bytes — the same
+// digest the promoting guest computed over its settled image and the object
+// store verified at ingest, so all three measure the identical byte stream.
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
 
 // downloadMasterImage fetches the account's master image from a presigned URL to
 // dst. The object IS the image — a settled APFS filesystem carrying the
@@ -582,11 +973,8 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 // Returns (present, dirty): present is false when the guest never wrote it
 // (crashed / incomplete job), which the caller treats as "discard".
 func readDirtyMarker(statusDir string) (present, dirty bool) {
-	if statusDir == "" {
-		return false, false
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, dirtyMarkerFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, dirtyMarkerFile, guestMarkerMaxBytes)
+	if !ok {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"

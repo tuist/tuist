@@ -1,0 +1,1015 @@
+defmodule Tuist.Kura.Capacity do
+  @moduledoc """
+  How full a Kura region is, read from the cluster.
+
+  Admission is not decided here. Every cache pod requests its claim's worth of
+  `ephemeral-storage`, so the scheduler bin-packs instances against each node's
+  disk and simply declines to place one that does not fit. That is exact, per
+  node, and cannot drift from what the cluster actually holds -- which a
+  forecast built from a quota table in this repo did, by a factor of about
+  three, until it was replaced by this.
+
+  Three questions are left that the scheduler cannot answer, and all three are
+  answered from the numbers it places against rather than from a table:
+
+    * whether the region as a whole is tight enough that Air's inactivity
+      window should shorten from 90 complete days to 60, so archival starts
+      making room while admission still admits (`under_pressure?/1`). A
+      region-level reading of the headroom admission refuses against, which
+      stops fitting a new enterprise instance before it stops fitting a
+      smaller one.
+    * whether the region has room for one more instance of a plan at all
+      (`room_for?/2`), so first placement can choose a sibling region that has
+      instead of leaving the instance Pending in one that does not. A per-node
+      reading over every resource the pod requests, because the scheduler
+      declines per node and the resource that binds differs by region, and the
+      region-level headroom `Tuist.Kura.Admission` creates instances against.
+    * whether a particular instance can be placed or grown where it already
+      is (`placeable?/2`), so admission refuses a claim the scheduler will not
+      be able to honour rather than leaving a replica Pending and its rolling
+      rebuild deadlocked. Per node again, and counting back what the
+      instance's own replicas release, because a resize replaces them.
+
+  Reservations rather than live usage on purpose. A freshly provisioned
+  instance holds almost nothing and fills over days, so a region full of new
+  instances reads as empty right up to the moment they all fill at once. What
+  the region has promised is the thing that has to fit.
+
+  A region whose nodes cannot be read is unknown: pressure archival never runs,
+  so the 90-day target holds, and placement chooses as it did before there was
+  a reading. The scheduler still refuses to overfill a node in the meantime,
+  because that has never depended on this module.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.Accounts.Account
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.Admission
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
+  alias Tuist.Repo
+
+  @gib 1024 * 1024 * 1024
+
+  # Share of a region's allocatable disk its instances may reserve. Admission
+  # refuses past it, and pressure engages once what is left under it can no
+  # longer take a new enterprise instance. Below 1 for the margin kubelet needs:
+  # it evicts at `imagefs.available<15%`, on the same disk the cache ring lives
+  # on, and an eviction takes the node's whole region with it.
+  @pressure_fraction 0.85
+
+  # Replicas an instance runs when its region declares none, matching the
+  # kura-controller's own default. Guessing lower would understate what an
+  # instance reserves, which is the direction that overcommits.
+  @default_replicas 3
+
+  # Reserved by an instance whose region declares no claim size, matching the
+  # controller's own fallback.
+  @default_claim_gib 200
+
+  @namespace "kura"
+  # An operator is waiting on these reads, so they are bounded rather than left
+  # on Req's defaults.
+  @read_timeout to_timeout(second: 5)
+  @managed_by_selector "app.kubernetes.io/managed-by=kura-controller"
+
+  # What the controller requests for a cache pod it has never observed: the
+  # CPU cold start (`cpuColdStartMilli` in the kura-controller's
+  # cpu_autosize.go), and the default memory profile where the region does not
+  # size per plan (`defaultResources`). The CPU request is sized from observed
+  # usage after that, so what a new instance asks the scheduler for is the
+  # cold start, not what it will settle at.
+  @pod_cpu_millicores 100
+  @default_memory_floor_mib 2048
+  @default_memory_ceiling_mib 4096
+  @mib 1024 * 1024
+
+  # Every resource a cache pod is scheduled against. The two extended resources
+  # are requested only where the region bin-packs them. `pods` is the node's
+  # pod slots, which the scheduler fits against like any other resource and
+  # every pod takes one of.
+  @cpu "cpu"
+  @memory "memory"
+  @ephemeral_storage "ephemeral-storage"
+  @memory_ceiling "tuist.dev/memory-ceiling-mib"
+  @egress "tuist.dev/egress-mbps"
+  @pods "pods"
+  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @memory_ceiling, @egress, @pods]
+
+  @doc """
+  Bytes of the region's disk one instance reserves, across every replica.
+  """
+  def resident_bytes(region, server), do: resident_gib(region, server) * @gib
+
+  @doc """
+  Gibibytes of the region's disk one instance reserves.
+
+  Every replica requests the instance's claim size, and the bare-metal regions
+  co-locate an account's replicas on one box, so two replicas reserve two
+  claims on the same disk. The claim is a property of the instance, sized from
+  its account's plan where the region asks for that, so an Air instance
+  reserves less than an Enterprise one and the two cannot be counted with a
+  single per-region figure. The replica count stays a property of the region.
+  An instance that carries no claim of its own falls back to what its region
+  declares.
+  """
+  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
+
+  # Through the same quantity parser the node and pod readings use, not a
+  # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
+  # written as `1Ti` renders correctly on the manifest while a narrower parser
+  # reads it as unparseable and silently substitutes the region's claim — an
+  # instance counted at a fraction of what it reserves, in the direction that
+  # overcommits.
+  defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> claim_gib(region)
+    end
+  end
+
+  # A region that sizes per plan declares no claim of its own, so an instance
+  # carrying none is read the way the manifest renders it rather than at the
+  # controller's 200Gi fallback, which would overstate it by an order of
+  # magnitude. The archival loop preloads the account this reads.
+  defp claim_gib(%Regions{} = region, %Server{account: %Account{} = account}) do
+    if Regions.storage_governed?(region) do
+      case parse_quantity(Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size) do
+        bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+        _ -> claim_gib(region)
+      end
+    else
+      claim_gib(region)
+    end
+  end
+
+  defp claim_gib(%Regions{} = region, %Server{}), do: claim_gib(region)
+
+  defp claim_gib(%Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> @default_claim_gib
+    end
+  end
+
+  defp claim_gib(%Regions{}), do: @default_claim_gib
+
+  defp replicas(%Regions{provisioner_config: %{replicas: replicas}}) when is_integer(replicas) and replicas > 0,
+    do: replicas
+
+  defp replicas(%Regions{}), do: @default_replicas
+
+  @doc """
+  Allocatable disk across the region's Ready nodes, in gibibytes, or `nil`
+  when it cannot be read.
+  """
+  def allocatable_gib(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "allocatable_gib", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_allocatable_gib(region_id) end
+    )
+  end
+
+  # Summed from the nodes themselves rather than from a machine count times an
+  # assumed size per machine: the regions do not run the same hardware, and an
+  # assumed figure is wrong in whichever direction the real boxes differ.
+  defp measure_allocatable_gib(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
+      items
+      |> Enum.filter(&ready?/1)
+      |> Enum.map(&allocatable_bytes/1)
+      |> Enum.sum()
+      |> to_gib()
+    else
+      _ -> nil
+    end
+  end
+
+  defp to_gib(0), do: nil
+  defp to_gib(bytes), do: trunc(bytes / @gib)
+
+  @doc """
+  The egress budget, in Mbit/s, that the region's smallest Ready box advertises
+  as `tuist.dev/egress-mbps`, or `nil` when no node advertises one or the
+  cluster cannot be read.
+
+  The *smallest*, not the sum and not the largest: this is the number a single
+  tenant's floor and ceiling have to fit inside, and a pod lands on one box
+  without anybody knowing which in advance. A region can hold boxes of different
+  sizes (the budget is declared per machine, as its NIC ceiling minus headroom),
+  so the only figure that holds wherever the pod lands is the smallest one on
+  offer.
+
+  This is the *only* real bound on a per-account egress override. A region's own
+  floor/ceiling pair is a default sized for the fleet, not a statement about what
+  the hardware can do, so it must never be used in this number's place.
+  """
+  def egress_budget_mbps(region_id) do
+    cached([__MODULE__, "egress_budget_mbps", region_id], fn -> measure_egress_budget_mbps(region_id) end)
+  end
+
+  defp measure_egress_budget_mbps(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
+      items
+      |> Enum.filter(&ready?/1)
+      |> Enum.map(&egress_mbps/1)
+      |> Enum.reject(&is_nil/1)
+      |> case do
+        [] -> nil
+        budgets -> Enum.min(budgets)
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  How much egress the box `account_handle`'s instances in `region_id` sit on can
+  hold for that account, and across how many replicas — or `nil` when it has
+  none placed there yet, where nothing pins it and `egress_budget_mbps/1` is the
+  whole answer.
+
+      %{node:, allocatable_mbps:, available_mbps:, replicas:, boxes:}
+
+  `available_mbps` is the box less what *other* tenants reserve on it: a rollout
+  hands each replica's own reservation in before asking for its replacement, so
+  the account is not charged for what it already holds.
+
+  Every replica reserves the floor, and the rollout replaces them one at a time,
+  releasing the old value at each step. On the last step the old values are all
+  gone, which is what a raise has to fit:
+
+      replicas x floor <= allocatable - other tenants
+
+  Nothing here reads what the replicas hold now. An account mid-rollout holds
+  different values on different replicas, so a bound written in terms of them
+  answers differently depending on when it is asked.
+
+  Read from the boxes the account is on rather than from the region, whose other
+  boxes cannot take the pod however much room they have. Normally that is one
+  box; where an account straddles two, the one that can hold the smallest floor
+  binds.
+
+  Never read on the reconcile path: the manifest resolves an override from the
+  database alone, so a cluster that cannot be read costs an operator a bound on
+  the form, never an instance its limits.
+  """
+  def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
+    cached([__MODULE__, "egress_headroom", region_id, account_handle], fn ->
+      measure_egress_headroom(region_id, account_handle)
+    end)
+  end
+
+  # Two departures from how the disk readings above are cached, both about a
+  # measurement that talks to the apiserver more than once:
+  #
+  # Unlocked, because `locking: true` runs the function inside a Cachex
+  # transaction and Cachex serialises those through one process — a slow
+  # apiserver would park every other locked cache read on the server behind this
+  # one. Two renders measuring the same box at once is harmless.
+  #
+  # Wrapped, because Cachex stores a bare `nil` and reads it back as a miss, so
+  # an unreadable box would be re-measured on every render and every save. The
+  # tuple makes "nothing to report" a cached answer.
+  defp cached(key, measure) do
+    {:ok, value} =
+      KeyValueStore.get_or_update(key, [ttl: to_timeout(minute: 1), locking: false], fn -> {:ok, measure.()} end)
+
+    value
+  end
+
+  @doc """
+  The highest floor a box can hold for an account, from its headroom, or `nil`
+  without a reading.
+
+  One place, because the form refuses against it, labels the column with it and
+  sets the input's `max` from it — and because it is what decides which of an
+  account's boxes binds.
+  """
+  def max_floor_mbps(%{available_mbps: available, replicas: replicas}) when replicas > 0 do
+    div(available, replicas)
+  end
+
+  def max_floor_mbps(_headroom), do: nil
+
+  defp measure_egress_headroom(region_id, account_handle) do
+    with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout),
+         # Terminal pods are excluded from a box's reserved total by the field
+         # selector below, so counting one here would add back a reservation
+         # nobody holds and report the box as roomier than it is.
+         [_ | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
+         [_ | _] = boxes <- measure_boxes(placed, region_id),
+         false <- Enum.any?(boxes, &is_nil/1) do
+      # By what each box can hold per replica, not by what it has left: an
+      # account placed unevenly reserves a different number of replicas on each,
+      # and the bound is the smallest floor any of them can take.
+      boxes
+      |> Enum.min_by(&(max_floor_mbps(&1) || 0))
+      # How many boxes the account sits on, so the form can say why a bound is
+      # lower than the box it names would suggest.
+      |> Map.put(:boxes, length(boxes))
+    else
+      _ -> nil
+    end
+  end
+
+  # Usually one box: the controller's podAffinity co-locates an account's
+  # replicas and their volumes keep them there. It is only preferred, though --
+  # required would deadlock the first replica -- so a box that cannot fit the
+  # second leaves the account straddling two, and pinned that way. Each box
+  # rebuilds its own replicas, so each is measured and the tightest binds.
+  defp measure_boxes(placed, region_id) do
+    placed
+    |> Enum.group_by(&pod_node_name/1)
+    |> Enum.map(&measure_box(&1, region_id, length(placed)))
+  end
+
+  defp measure_box({node, on_box}, region_id, placed_count) do
+    with {:ok, node_body} <- Client.get_node(node, timeout: @read_timeout),
+         allocatable when is_integer(allocatable) <- egress_mbps(node_body),
+         {:ok, reserved} <- box_reserved_mbps(node) do
+      own_mbps = on_box |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
+
+      %{
+        node: node,
+        allocatable_mbps: allocatable,
+        # The account's own reservation is added back: the rollout hands it in
+        # before asking for the replacement.
+        available_mbps: max(allocatable - (reserved - own_mbps), 0),
+        # Replicas this box rebuilds, raised by the replicas the region declares
+        # that no other box accounts for: one between deletion and recreation is
+        # in no pod list, and its volume brings it back here.
+        replicas: max(length(on_box), declared_replicas(region_id) - (placed_count - length(on_box)))
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # Everything on the box, whoever owns it -- an extended resource is reserved
+  # against the node, not against a namespace. There is no API for a node's
+  # allocated total, so this is summed the way `kubectl describe node` sums it.
+  defp box_reserved_mbps(node) do
+    case Client.list_pods_on_node(node, timeout: @read_timeout) do
+      {:ok, pods} ->
+        {:ok, pods |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  # Pods of this account's instance in this region. A box can carry the same
+  # account's pods from another region or from a self-hosted deployment, and
+  # those are neither its replicas nor its reservation.
+  defp account_selector(region_id, account_handle) do
+    "#{@managed_by_selector},tuist.dev/region=#{region_id},tuist.dev/account=#{account_handle}"
+  end
+
+  defp declared_replicas(region_id) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> replicas(region)
+      {:error, _reason} -> 1
+    end
+  end
+
+  defp pod_node_name(%{"spec" => %{"nodeName" => name}}) when is_binary(name) and name != "", do: name
+  defp pod_node_name(_pod), do: nil
+
+  defp pod_egress_mbps(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
+    Enum.reduce(containers, 0, fn container, total -> total + container_egress_mbps(container) end)
+  end
+
+  defp pod_egress_mbps(_pod), do: 0
+
+  defp container_egress_mbps(%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => quantity}}}),
+    do: parse_quantity(quantity) || 0
+
+  defp container_egress_mbps(_container), do: 0
+
+  defp egress_mbps(%{"status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => quantity}}}) do
+    parse_quantity(quantity)
+  end
+
+  defp egress_mbps(_node), do: nil
+
+  # A node that is not Ready contributes nothing: its disk is not reachable
+  # for scheduling, which a declared machine count could never express.
+  defp ready?(%{"status" => %{"conditions" => conditions}}) when is_list(conditions) do
+    Enum.any?(conditions, &match?(%{"type" => "Ready", "status" => "True"}, &1))
+  end
+
+  defp ready?(_node), do: false
+
+  # `ephemeral-storage` is the filesystem kubelet manages, which on every
+  # region in this fleet is the one the cache ring lives on: the bare-metal
+  # boxes whose data disk is separate bind-mount `/var/lib/kubelet` onto it,
+  # and the rest keep both on `/`.
+  defp allocatable_bytes(%{"status" => %{"allocatable" => %{"ephemeral-storage" => quantity}}}) do
+    parse_quantity(quantity) || 0
+  end
+
+  defp allocatable_bytes(_node), do: 0
+
+  @binary_suffixes %{
+    "Ki" => 1024,
+    "Mi" => 1024 ** 2,
+    "Gi" => 1024 ** 3,
+    "Ti" => 1024 ** 4,
+    "Pi" => 1024 ** 5,
+    "Ei" => 1024 ** 6
+  }
+  @decimal_exponents %{
+    "n" => -9,
+    "u" => -6,
+    "m" => -3,
+    "" => 0,
+    "k" => 3,
+    "M" => 6,
+    "G" => 9,
+    "T" => 12,
+    "P" => 15,
+    "E" => 18
+  }
+
+  # A Kubernetes quantity in whole units, at `scale` units per unit of the
+  # quantity: bytes for a storage quantity, millicores for a CPU one read at a
+  # thousand. The API keeps a quantity in whatever form it was written rather
+  # than a canonical one -- a decimal number with a binary suffix (`Ki` to
+  # `Ei`), a decimal one (`n` to `E`) or an exponent (`e3`) -- so every form
+  # is read, and a node whose eviction threshold left it `858993459200000m`
+  # of disk is read as the 800 GiB it has. Rounded down: a fraction of a byte
+  # or a millicore decides nothing.
+  defp parse_quantity(quantity, scale \\ 1)
+
+  defp parse_quantity(quantity, scale) when is_binary(quantity) do
+    with [_match, whole, fraction, suffix] <- Regex.run(~r/^\+?(\d+)(?:\.(\d*))?(.*)$/, quantity),
+         {numerator, denominator} <- multiplier(suffix) do
+      digits = String.to_integer(whole <> fraction)
+
+      div(digits * numerator * scale, Integer.pow(10, String.length(fraction)) * denominator)
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_quantity(quantity, scale) when is_integer(quantity), do: quantity * scale
+  defp parse_quantity(_quantity, _scale), do: nil
+
+  defp multiplier(suffix) when is_map_key(@binary_suffixes, suffix), do: {Map.fetch!(@binary_suffixes, suffix), 1}
+
+  defp multiplier(suffix) when is_map_key(@decimal_exponents, suffix),
+    do: power_of_ten(Map.fetch!(@decimal_exponents, suffix))
+
+  defp multiplier(<<e, exponent::binary>>) when e in [?e, ?E] do
+    case Integer.parse(exponent) do
+      {exponent, ""} -> power_of_ten(exponent)
+      _ -> :error
+    end
+  end
+
+  defp multiplier(_suffix), do: :error
+
+  defp power_of_ten(exponent) when exponent >= 0, do: {Integer.pow(10, exponent), 1}
+  defp power_of_ten(exponent), do: {1, Integer.pow(10, -exponent)}
+
+  @doc """
+  Gibibytes of the region's disk its pods have reserved, or `nil` when the
+  cluster cannot be read.
+
+  Read from the pods' own `ephemeral-storage` requests rather than derived
+  from this repo's rows: it is the number the scheduler places against, it
+  already accounts for replicas and for anything else sharing the region's
+  nodes, and it cannot disagree with the cluster the way a parallel model can.
+  """
+  def reserved_gib(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "reserved_gib", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_reserved_gib(region_id) end
+    )
+  end
+
+  defp measure_reserved_gib(region_id) do
+    case Client.list_pods(@namespace, region_selector(region_id)) do
+      {:ok, pods} ->
+        pods
+        |> Enum.reject(&terminal?/1)
+        |> Enum.map(&requested_bytes/1)
+        |> Enum.sum()
+        |> div(@gib)
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  # A pod that has run to completion or been evicted holds no directory, and
+  # the scheduler counts neither against the node.
+  defp terminal?(%{"status" => %{"phase" => phase}}), do: phase in ["Succeeded", "Failed"]
+  defp terminal?(_pod), do: false
+
+  defp requested_bytes(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
+    Enum.reduce(containers, 0, fn container, total ->
+      total + container_requested_bytes(container)
+    end)
+  end
+
+  defp requested_bytes(_pod), do: 0
+
+  defp container_requested_bytes(%{"resources" => %{"requests" => %{"ephemeral-storage" => quantity}}}),
+    do: parse_quantity(quantity) || 0
+
+  defp container_requested_bytes(_container), do: 0
+
+  @doc """
+  Whether every replica of `server` can be placed on a node of its region:
+  `true`, `false`, or `nil` when the cluster cannot say.
+
+  The region totals above cannot answer this. They compare one sum against
+  another, and the scheduler places each replica whole on one node, so a
+  region with room to spare in aggregate can have no node that takes a
+  replica. On 2026-09-11 one did: 646 GiB of headroom spread over three boxes
+  with 649, 143 and 117 GiB free, and an instance whose two replicas their
+  local volumes pinned to the 117.
+
+  Two questions, because an instance that is already running is not placed
+  the way a new one is:
+
+    * every box the instance's replicas sit on has to hold them at the new
+      size. A local volume pins its pod to its box, and neither side of that
+      will yield: the claim does not release while the pod references it, and
+      the pod does not schedule while the claim pins it. What the replicas
+      reserve today is counted back, because the rebuild hands it in before
+      asking for the replacement. Leaving it out would refuse resizes that
+      plainly fit.
+    * an instance with nothing placed has to fit whole somewhere. Its
+      replicas split across nodes if no single node takes them all, because
+      the controller's affinity only prefers co-location.
+
+  A box is charged for every replica the region declares that no other box
+  holds, not only for the ones it holds right now. A rollout replaces replicas
+  one at a time, and the one between deletion and recreation is in no pod list
+  while its volume is still bringing it back to the box it left. Read without
+  it, a box mid-rollout looks like it only has to hold what is left, and admits
+  a raise the returning replica cannot fit beside its sibling.
+
+  One reading, per node, of everything scheduled there at its effective
+  request, whoever owns it: the one `room_for?/2` reads. The account's own
+  replicas are picked out of those same pods, so what is counted back is
+  always something that reading already charged to the node. Read against what
+  the node makes allocatable rather than against the pressure line the region
+  reads against, because this answers what the scheduler will do; holding it
+  to the lower line would refuse instances `room_for?/2` had already told
+  placement the region had room for. The pressure line still bounds the region
+  as a whole.
+
+  `nil` for everything that stops the reading being trusted: a cluster that
+  cannot be read, a node whose pods cannot be listed or whose allocatable
+  cannot be parsed, a region with no Ready, schedulable node, or an instance
+  with a replica on a node the scheduler places nothing on. All of them admit,
+  deliberately. A false refusal here stops every legitimate claim growth in the
+  region and produces nothing an operator would see, while the scheduler still
+  refuses to overfill a node.
+  """
+  def placeable?(%Regions{} = region, %Server{} = server) do
+    with handle when is_binary(handle) <- account_handle(server),
+         claim when claim > 0 <- claim_gib(region, server) * @gib,
+         %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
+         false <- MapSet.member?(off_pool, handle) do
+      fits?(nodes, handle, claim, replicas(region))
+    else
+      _ -> nil
+    end
+  end
+
+  defp fits?(nodes, handle, claim, replicas) do
+    case for(%{kura_replicas: %{^handle => placed}} = node <- nodes, do: {node, placed}) do
+      [] ->
+        nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
+
+      boxes ->
+        placed_count = boxes |> Enum.map(fn {_node, %{count: count}} -> count end) |> Enum.sum()
+
+        Enum.all?(boxes, fn {node, %{count: count, bytes: bytes}} ->
+          returning = max(count, replicas - (placed_count - count))
+
+          disk_available(node) + bytes >= returning * claim
+        end)
+    end
+  end
+
+  defp disk_available(%{allocatable: allocatable, reserved: reserved}) do
+    Map.fetch!(allocatable, @ephemeral_storage) - Map.fetch!(reserved, @ephemeral_storage)
+  end
+
+  # The handle the controller labels the instance's pods with. Read off the
+  # row rather than asked for, so a caller holding a bare `%Server{}`, which is
+  # what the claim re-pin builds, needs to know nothing about labels.
+  defp account_handle(%Server{account: %Account{name: name}}), do: String.downcase(name)
+
+  defp account_handle(%Server{account_id: account_id}) when is_integer(account_id) do
+    case Repo.one(from(account in Account, where: account.id == ^account_id, select: account.name)) do
+      name when is_binary(name) -> String.downcase(name)
+      _ -> nil
+    end
+  end
+
+  defp account_handle(%Server{}), do: nil
+
+  defp region_selector(region_id), do: "#{@managed_by_selector},tuist.dev/region=#{region_id}"
+
+  @doc """
+  Gibibytes a region's instances may reserve before admission refuses more, or
+  `nil` when its nodes cannot be read.
+  """
+  def pressure_line_gib(region_id) do
+    case allocatable_gib(region_id) do
+      allocatable when is_integer(allocatable) -> trunc(allocatable * @pressure_fraction)
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Whether the region's admission headroom (`Tuist.Kura.Admission.headroom_gib/1`)
+  can no longer take a new enterprise instance, the largest claim a plan starts
+  at, so pressure engages while admission still admits the smaller plans. Only
+  under that pressure may Air instances be drained at 60 complete inactive days
+  instead of 90.
+
+  False where admission is not enforced, and whenever the headroom cannot be
+  read, so pressure archival never runs uninformed.
+  """
+  def under_pressure?(region_id) do
+    case pressure_deficit_gib(region_id) do
+      deficit when is_integer(deficit) -> deficit > 0
+      nil -> false
+    end
+  end
+
+  @doc """
+  Gibibytes the region has to free before it is out of pressure, zero or less
+  when it is not under pressure, or `nil` where admission is not enforced or
+  its headroom cannot be read.
+  """
+  def pressure_deficit_gib(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         headroom when is_integer(headroom) <- Admission.headroom_gib(region) do
+      div(claim_bytes(region, :enterprise), @gib) * replicas(region) - headroom
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Region occupancy as `%{reserved_gib:, allocatable_gib:, instances:, ratio:}`,
+  for the region occupancy metric. Any of them is `nil` when the cluster
+  cannot be read.
+  """
+  def occupancy(region_id) do
+    reserved = reserved_gib(region_id)
+    allocatable = allocatable_gib(region_id)
+
+    %{
+      reserved_gib: reserved,
+      allocatable_gib: allocatable,
+      instances: instance_count(region_id),
+      ratio: if(reserved && allocatable && allocatable > 0, do: reserved / allocatable)
+    }
+  end
+
+  # A move leaves two rows for one account; both hold a directory, so both
+  # count.
+  defp instance_count(region_id) do
+    Repo.aggregate(
+      from(s in Server,
+        where: s.region == ^region_id,
+        where: s.status not in [:destroyed, :archived]
+      ),
+      :count
+    )
+  end
+
+  @doc """
+  Whether `region_id` can take one more instance built for `plan`: `true`,
+  `false`, or `nil` when the cluster cannot say.
+
+  Read the way the scheduler will decide it. A cache pod is placed against six
+  node resources: `cpu`, `memory` (its profile's floor), `ephemeral-storage`
+  (its claim), a pod slot, and on the bare-metal pools the
+  `tuist.dev/memory-ceiling-mib` and `tuist.dev/egress-mbps` extended
+  resources. Each is checked on each Ready,
+  schedulable node of the region's pool, as allocatable less the effective
+  request of every pod already on the node, init containers and overhead
+  included, whoever owns that pod. Each node takes as many
+  replicas as its free resources cover, and the instance has room when the
+  nodes together take all of them. The controller's affinity only prefers
+  co-location, so replicas that cannot share a node split across two, and a
+  pool that can take them split is a pool the scheduler will place them in.
+
+  The instance also has to get past `Tuist.Kura.Admission`, which refuses to
+  create one once the region's reservations would cross 85% of its allocatable
+  disk. A node can have room beyond that line, so the plan's starting claim
+  across every replica has to fit `Tuist.Kura.Admission.headroom_gib/1` too.
+  Where admission is not enforced, only the nodes are read. Either reading
+  saying no is enough for `false`; one that cannot be read, while the other
+  says yes, is `nil`.
+
+  The request is the plan's, not the account's: the plan's starting claim
+  rather than one sizing has already grown, and the region's egress floor for
+  the plans entitled to one rather than a per-account override. Both understate
+  in the direction that admits, and the scheduler is still the last word.
+
+  `nil` covers everything that stops the reading being trusted: a region that
+  pins its instances to no pool, a cluster that cannot be read, a node whose
+  pods cannot be listed or whose allocatable cannot be parsed, or a pool with
+  no Ready node in it. That last one is
+  deliberately not `false`. A box NotReady for the minutes a restart takes has
+  not run out of room, and a placement taken against it is permanent in a way
+  the restart is not.
+
+  A reading of the moment, cached for a minute per region, and bounded: every
+  read carries the same timeout the operator-facing readings do, so an
+  apiserver that hangs costs the caller seconds per region rather than the
+  better part of a minute. An instance created seconds ago holds nothing on a
+  node until its pods are scheduled, so several accounts resolving inside the
+  same minute can each be told the same region has room. The scheduler still
+  refuses to overfill a node; what this bounds is how often it has to.
+  """
+  def room_for?(region_id, plan) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         schedulable when schedulable != false <- schedulable_room?(region, plan),
+         admissible when admissible != false <- admissible_room?(region, plan) do
+      schedulable && admissible
+    else
+      false -> false
+      _ -> nil
+    end
+  end
+
+  defp schedulable_room?(region, plan) do
+    case node_headroom(region) do
+      %{nodes: [_ | _] = nodes} = pool ->
+        request = pod_request(region, plan, pool)
+
+        nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  `Tuist.Kura.Admission.headroom_gib/1` for the region, cached for a minute per
+  region: the reading `room_for?/2` places against, and the one the admission
+  headroom metric reports, so the two cannot disagree.
+
+  Admission reads every live server row in the region to count reservations
+  the cluster has not observed yet, so this is also what keeps that query off
+  every placement and every metric poll.
+  """
+  def admission_headroom_gib(%Regions{id: region_id} = region) do
+    cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end)
+  end
+
+  defp admissible_room?(%Regions{} = region, plan) do
+    case admission_headroom_gib(region) do
+      :unbounded -> true
+      headroom when is_integer(headroom) -> div(claim_bytes(region, plan), @gib) * replicas(region) <= headroom
+      nil -> nil
+    end
+  end
+
+  # How many replicas the node's free resources cover, bound by whichever
+  # resource covers fewest.
+  defp replicas_fitting(%{allocatable: allocatable, reserved: reserved}, request) do
+    request
+    |> Enum.reject(fn {_resource, amount} -> amount == 0 end)
+    |> Enum.map(fn {resource, amount} ->
+      div(max(Map.get(allocatable, resource, 0) - Map.get(reserved, resource, 0), 0), amount)
+    end)
+    |> Enum.min()
+  end
+
+  # One replica's requests, as the controller renders them for the plan in this
+  # region.
+  defp pod_request(%Regions{} = region, plan, pool) do
+    memory = memory_profile(region, plan)
+
+    %{
+      @cpu => @pod_cpu_millicores,
+      @memory => memory.floor_mib * @mib,
+      @ephemeral_storage => claim_bytes(region, plan),
+      @memory_ceiling => if(ceiling_bin_packed?(region, pool), do: memory.ceiling_mib, else: 0),
+      @egress => egress_floor_mbps(region, plan),
+      @pods => 1
+    }
+  end
+
+  defp memory_profile(region, plan) do
+    if Regions.memory_governed?(region),
+      do: Regions.memory_profile(plan),
+      else: %{floor_mib: @default_memory_floor_mib, ceiling_mib: @default_memory_ceiling_mib}
+  end
+
+  defp claim_bytes(region, plan) do
+    plan_claim = if Regions.storage_governed?(region), do: parse_quantity(Regions.storage_profile(plan).claim_size)
+
+    plan_claim || claim_gib(region) * @gib
+  end
+
+  # The controller requests the ceiling only where a node in the pool actually
+  # advertises the budget, whatever the region declares, so a pool the CAPI
+  # provider has not patched yet is not read as full of a resource its pods
+  # will never be asked for. Read from every node the selector matches, Ready
+  # or not, because that is what the controller reads: a budget advertised only
+  # by a cordoned box still puts the request on the pod.
+  defp ceiling_bin_packed?(region, %{ceiling_budget_advertised?: advertised?}) do
+    Regions.memory_ceiling_bin_packed?(region) and advertised?
+  end
+
+  # Enterprise alone is entitled to the guaranteed floor
+  # (`Tuist.Billing.Entitlements`); every other plan reserves none and runs
+  # best-effort under the burst ceiling.
+  defp egress_floor_mbps(region, :enterprise), do: Regions.egress_guaranteed_mbps(region) || 0
+  defp egress_floor_mbps(_region, _plan), do: 0
+
+  # Per Ready, schedulable node of the region's pool: what it makes allocatable,
+  # what the pods already on it request, for every resource a cache pod is
+  # scheduled against, and the region's cache replicas among those pods by
+  # account. Everything on the node counts, whoever owns it, for the same reason
+  # `egress_headroom/2` reads whole boxes: the scheduler does not hand out what
+  # another namespace's pod already holds. Alongside, whether any node the
+  # selector matches advertises the memory-ceiling budget, and which accounts
+  # have a replica on a node the scheduler places nothing on.
+  defp node_headroom(%Regions{id: region_id} = region) do
+    cached([__MODULE__, "node_headroom", region_id], fn -> measure_node_headroom(region) end)
+  end
+
+  defp measure_node_headroom(%Regions{id: region_id} = region) do
+    with selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
+         {[_ | _] = nodes, off_pool} <- Enum.split_with(items, &schedulable?/1),
+         headroom = Enum.map(nodes, &measure_node(&1, region_id)),
+         false <- Enum.any?(headroom, &is_nil/1) do
+      %{
+        nodes: headroom,
+        accounts_off_pool: accounts_off_pool(off_pool, region_id),
+        ceiling_budget_advertised?: Enum.any?(items, &ceiling_budget_advertised?/1)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # A cordoned or NotReady node takes no new pod and its disk is not the
+  # pool's, but a replica on it is still pinned there by its volume. `nil` when
+  # one of them cannot be read, which leaves every account unknown to
+  # `placeable?/2` without costing `room_for?/2` a reading it never needed.
+  defp accounts_off_pool(nodes, region_id) do
+    Enum.reduce_while(nodes, MapSet.new(), fn node, accounts ->
+      with name when is_binary(name) and name != "" <- node_name(node),
+           {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
+        {:cont, pods |> kura_replicas(region_id) |> Map.keys() |> MapSet.new() |> MapSet.union(accounts)}
+      else
+        _ -> {:halt, nil}
+      end
+    end)
+  end
+
+  defp ceiling_budget_advertised?(%{"status" => %{"allocatable" => %{@memory_ceiling => quantity}}}) do
+    (parse_quantity(quantity) || 0) > 0
+  end
+
+  defp ceiling_budget_advertised?(_node), do: false
+
+  defp measure_node(node, region_id) do
+    with name when is_binary(name) and name != "" <- node_name(node),
+         allocatable when is_map(allocatable) <- node_allocatable(node),
+         {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
+      %{
+        name: name,
+        allocatable: allocatable,
+        reserved: pods_requested(pods),
+        kura_replicas: kura_replicas(pods, region_id)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # The region's cache replicas among a node's pods, by the account they serve:
+  # how many, and what they reserve at their effective request. Picked out of
+  # the same pods the node's reservation is summed from, so what a rebuild hands
+  # back is always something that reading already charged. Another region's
+  # instance of the same account on this box is a neighbour like any other.
+  defp kura_replicas(pods, region_id) do
+    pods
+    |> Enum.reject(&terminal?/1)
+    |> Enum.flat_map(fn
+      %{
+        "metadata" => %{
+          "namespace" => @namespace,
+          "labels" => %{
+            "app.kubernetes.io/managed-by" => "kura-controller",
+            "tuist.dev/region" => ^region_id,
+            "tuist.dev/account" => account
+          }
+        }
+      } = pod
+      when is_binary(account) ->
+        [{account, pod_requested(pod, @ephemeral_storage)}]
+
+      _pod ->
+        []
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Map.new(fn {account, requests} -> {account, %{count: length(requests), bytes: Enum.sum(requests)}} end)
+  end
+
+  # Ready and not cordoned: the scheduler places on neither.
+  defp schedulable?(node), do: ready?(node) and not match?(%{"spec" => %{"unschedulable" => true}}, node)
+
+  defp node_name(%{"metadata" => %{"name" => name}}), do: name
+  defp node_name(_node), do: nil
+
+  # A resource the node does not advertise is one it has none of. A quantity
+  # it advertises in a form this cannot read is not: reading it as none would
+  # call the node full, so the node is unreadable instead and the region
+  # unknown.
+  defp node_allocatable(%{"status" => %{"allocatable" => allocatable}}) when is_map(allocatable) do
+    amounts = Enum.map(@scheduled_resources, &{&1, allocatable_amount(&1, Map.get(allocatable, &1))})
+
+    if Enum.any?(amounts, fn {_resource, amount} -> is_nil(amount) end), do: nil, else: Map.new(amounts)
+  end
+
+  defp node_allocatable(_node), do: nil
+
+  defp allocatable_amount(_resource, nil), do: 0
+  defp allocatable_amount(@cpu, quantity), do: parse_quantity(quantity, 1000)
+  defp allocatable_amount(_resource, quantity), do: parse_quantity(quantity)
+
+  defp pods_requested(pods) do
+    scheduled = Enum.reject(pods, &terminal?/1)
+
+    Map.new(@scheduled_resources, fn
+      @pods -> {@pods, length(scheduled)}
+      resource -> {resource, scheduled |> Enum.map(&pod_requested(&1, resource)) |> Enum.sum()}
+    end)
+  end
+
+  # A pod's effective request, as the scheduler computes it, not the sum of its
+  # app containers. Init containers run one at a time before the app, each
+  # alongside the sidecars (init containers with `restartPolicy: Always`) that
+  # started before it, so the pod reserves whichever is larger: the app and
+  # sidecars together, or the busiest moment of initialization. Pod overhead
+  # sits on top. Summing the app containers alone reads a pod whose init
+  # container asked for most of the node as reserving a fraction of it.
+  defp pod_requested(%{"spec" => spec}, resource) when is_map(spec) do
+    app = spec |> containers("containers") |> Enum.map(&container_requested(&1, resource)) |> Enum.sum()
+
+    {init_peak, sidecars} =
+      spec
+      |> containers("initContainers")
+      |> Enum.reduce({0, 0}, fn container, {peak, sidecars} ->
+        amount = container_requested(container, resource)
+        running = sidecars + amount
+
+        {max(peak, running), if(sidecar?(container), do: running, else: sidecars)}
+      end)
+
+    max(app + sidecars, init_peak) + resource_amount(resource, get_in(spec, ["overhead", resource]))
+  end
+
+  defp pod_requested(_pod, _resource), do: 0
+
+  defp containers(spec, key) do
+    case Map.get(spec, key) do
+      containers when is_list(containers) -> containers
+      _ -> []
+    end
+  end
+
+  defp container_requested(container, resource) do
+    resource_amount(resource, get_in(container, ["resources", "requests", resource]))
+  end
+
+  defp sidecar?(%{"restartPolicy" => "Always"}), do: true
+  defp sidecar?(_container), do: false
+
+  # CPU is compared in millicores; everything else in bytes or in units of the
+  # extended resource. A request the API admitted but this cannot read counts
+  # as nothing, which overstates room by at most that pod; the scheduler is
+  # still the last word.
+  defp resource_amount(_resource, nil), do: 0
+  defp resource_amount(@cpu, quantity), do: parse_quantity(quantity, 1000) || 0
+  defp resource_amount(_resource, quantity), do: parse_quantity(quantity) || 0
+end

@@ -4,6 +4,7 @@ defmodule TuistWeb.ProjectsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -39,6 +40,35 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert project.build_system == :gradle
   end
 
+  test "seeds the account's cache from where the page was loaded", %{conn: conn, account: account} do
+    conn =
+      conn
+      |> put_req_header("x-forwarded-for", "203.0.113.10, 173.245.48.10")
+      |> put_req_header("cf-ipcountry", "FR")
+
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    view
+    |> form("#create-project-form", project: %{name: "my-project"})
+    |> render_submit()
+
+    assert_enqueued(worker: SeedProjectCacheDemandWorker, args: %{"account_id" => account.id, "origin" => "FR"})
+  end
+
+  test "creates a Bazel project", %{conn: conn, account: account} do
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    render_hook(view, "select_build_system", %{"value" => ["bazel"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-bazel-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-bazel-project")
+
+    assert project.build_system == :bazel
+  end
+
   test "shows why a reserved project name cannot be created", %{conn: conn, account: account} do
     {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
 
@@ -55,6 +85,21 @@ defmodule TuistWeb.ProjectsLiveTest do
     html = view |> element("#create-project-form-modal-footer-portal") |> render()
 
     assert html =~ ~s(form="create-project-form")
+  end
+
+  test "renders several project cards without duplicating dom ids", %{conn: conn, account: account} do
+    for name <- ["first-project", "second-project", "third-project"] do
+      ProjectsFixtures.project_fixture(account_id: account.id, name: name)
+    end
+
+    {:ok, _view, html} = live(conn, ~p"/#{account.name}/projects")
+
+    document = Floki.parse_fragment!(html)
+
+    assert document |> Floki.find(~s([data-part="project"])) |> length() == 3
+
+    ids = Floki.attribute(document, "[id]", "id")
+    assert ids == Enum.uniq(ids)
   end
 
   test "ignores a stale pagination cursor on initial load", %{conn: conn, account: account} do

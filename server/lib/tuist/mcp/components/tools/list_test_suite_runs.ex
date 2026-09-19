@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
   use Tuist.MCP.Tool,
     name: "list_test_suite_runs",
     title: "List Test Suite Runs",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "test_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the test run."
+          "description" => "The ID of the test run, or a Tuist dashboard URL."
         },
         "module_name" => %{
           "type" => "string",
@@ -73,6 +74,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
       "List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
+    test_run_id = MCPTool.resource_id(test_run_id)
+
     with {:ok, _run, _project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),

@@ -136,7 +136,12 @@
                 while true {
                     if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
                         projectDerivedDataDirectory: projectDerivedDataDirectory,
-                        filter: { !$0.signature.hasPrefix("Clean") }
+                        filter: { activityLogFile in
+                            // A log the manifest doesn't register has no signature, so it can't be
+                            // recognized as a clean log and is taken as a build log.
+                            guard let signature = activityLogFile.signature else { return true }
+                            return !signature.hasPrefix("Clean")
+                        }
                     ),
                         Environment.current.workspacePath == nil || (
                             referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate

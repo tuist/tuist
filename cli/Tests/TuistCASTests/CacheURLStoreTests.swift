@@ -31,7 +31,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([endpoint, endpointTwo])
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint, endpointTwo], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .value(URL(string: endpoint)!))
@@ -61,7 +61,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([endpoint])
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
 
             // When
             let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
@@ -87,7 +87,10 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([slowEndpoint, fastEndpoint, mediumEndpoint])
+                .willReturn(CacheEndpointsResolution(
+                    endpoints: [slowEndpoint, fastEndpoint, mediumEndpoint],
+                    maxAge: nil
+                ))
 
             given(latencyService)
                 .measureLatency(for: .value(URL(string: slowEndpoint)!))
@@ -117,7 +120,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([unreachableEndpoint, reachableEndpoint])
+                .willReturn(CacheEndpointsResolution(endpoints: [unreachableEndpoint, reachableEndpoint], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .value(URL(string: unreachableEndpoint)!))
@@ -135,6 +138,78 @@
         }
 
         @Test(.withMockedEnvironment())
+        func a_single_failed_probe_does_not_rule_out_the_nearest_endpoint() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let near = "https://acme-us-central-1.kura.tuist.dev"
+            let far = "https://acme-ap-southeast-1.kura.tuist.dev"
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [near, far], maxAge: nil))
+
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: near)!))
+                .willReturn(nil)
+                .measureLatency(for: .value(URL(string: near)!))
+                .willReturn(0.007)
+
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: far)!))
+                .willReturn(0.230)
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(result.absoluteString == near)
+            verify(latencyService)
+                .measureLatency(for: .value(URL(string: near)!))
+                .called(2)
+            verify(latencyService)
+                .measureLatency(for: .value(URL(string: far)!))
+                .called(1)
+        }
+
+        @Test(.withMockedEnvironment())
+        func lists_every_endpoint_the_account_is_served_from() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let near = "https://acme-us-central-1.kura.tuist.dev"
+            let far = "https://acme-ap-southeast-1.kura.tuist.dev"
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [near, far], maxAge: nil))
+
+            // When
+            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result == [URL(string: near)!, URL(string: far)!])
+            verify(latencyService)
+                .measureLatency(for: .any)
+                .called(0)
+        }
+
+        @Test(.withMockedEnvironment())
+        func lists_only_the_override_endpoint_when_one_is_set() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let overrideEndpoint = "https://override.example.com"
+            Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = overrideEndpoint
+
+            // When
+            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(result == [URL(string: overrideEndpoint)!])
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .any, accountHandle: .any)
+                .called(0)
+        }
+
+        @Test(.withMockedEnvironment())
         func throws_when_all_endpoints_unreachable() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
@@ -143,7 +218,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([endpoint1, endpoint2])
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint1, endpoint2], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .any)
@@ -162,12 +237,288 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([])
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil))
 
             // When/Then
             await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
                 _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
             }
+        }
+
+        @Test(.withMockedEnvironment())
+        func throws_that_the_endpoint_is_being_prepared_when_the_server_is_provisioning_one() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+        }
+
+        @Test(.withMockedEnvironment())
+        func waits_for_an_endpoint_the_server_is_provisioning() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://acme-us-east-1.kura.tuist.dev"
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.seconds(30)),
+                provisioningPollInterval: .milliseconds(10)
+            )
+            var lookups = 0
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willProduce { _, _ in
+                    lookups += 1
+                    return lookups < 3
+                        ? CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                        : CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil)
+                }
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result.absoluteString == endpoint)
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .called(3)
+        }
+
+        @Test(.withMockedEnvironment())
+        func asks_again_for_a_provisioning_endpoint_within_a_fraction_of_a_second() async throws {
+            // Given: an instance being prepared typically serves within seconds, so a
+            // whole second between requests would be a large share of the wait.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://acme-us-east-1.kura.tuist.dev"
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.seconds(30))
+            )
+            var lookups = 0
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willProduce { _, _ in
+                    lookups += 1
+                    return lookups < 2
+                        ? CacheEndpointsResolution(endpoints: [], maxAge: 5, provisioning: true)
+                        : CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil)
+                }
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+
+            // Then
+            #expect(result.absoluteString == endpoint)
+            #expect(start.duration(to: clock.now) < .milliseconds(750))
+        }
+
+        @Test(.withMockedEnvironment())
+        func stops_waiting_for_a_provisioning_endpoint_after_the_wait() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.milliseconds(100)),
+                provisioningPollInterval: .milliseconds(20)
+            )
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true))
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            #expect(start.duration(to: clock.now) >= .milliseconds(100))
+        }
+
+        @Test(.withMockedEnvironment())
+        func counts_the_time_requests_take_against_the_wait() async throws {
+            // Given: every answer takes 300ms. Counting only the pauses, a 500ms wait
+            // polled every 100ms would make five more requests and run for about 2.3s.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: SlowGetCacheEndpointsService(
+                    delay: .milliseconds(300),
+                    resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                ),
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.milliseconds(500)),
+                provisioningPollInterval: .milliseconds(100)
+            )
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            #expect(start.duration(to: clock.now) < .milliseconds(1200))
+        }
+
+        @Test(.withMockedEnvironment())
+        func does_not_let_a_request_outlast_the_wait() async throws {
+            // Given: every answer takes 1s, longer than the whole 200ms wait. The first
+            // answer is what starts the wait; the next request is cut off when it ends.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: SlowGetCacheEndpointsService(
+                    delay: .seconds(1),
+                    resolution: CacheEndpointsResolution(endpoints: [], maxAge: 30, provisioning: true)
+                ),
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.milliseconds(200)),
+                provisioningPollInterval: .milliseconds(50)
+            )
+            let clock = ContinuousClock()
+            let start = clock.now
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.endpointBeingPrepared) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            #expect(start.duration(to: clock.now) < .milliseconds(1800))
+        }
+
+        @Test(.withMockedEnvironment())
+        func does_not_wait_for_an_endpoint_that_is_not_being_provisioned() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let subject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: getCacheEndpoints,
+                endpointLatencyService: latencyService,
+                provisioningWait: .upTo(.seconds(30)),
+                provisioningPollInterval: .milliseconds(10)
+            )
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil, provisioning: false))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .called(1)
+        }
+
+        @Test
+        func treats_a_missing_endpoint_as_transient_and_a_malformed_one_as_fatal() {
+            // An account whose instance was reclaimed for inactivity, and one whose
+            // instance is still rolling out, both resolve on their own once the
+            // server provisions an endpoint back. A malformed URL never does, so it
+            // must stay fatal: the CAS proxy starts through the first two and
+            // refuses the third.
+            #expect(CacheURLStoreError.noEndpointsAvailable.isTransientAbsence)
+            #expect(CacheURLStoreError.endpointBeingPrepared.isTransientAbsence)
+            #expect(CacheURLStoreError.noReachableEndpoints.isTransientAbsence)
+            #expect(!CacheURLStoreError.invalidURL("not a url").isTransientAbsence)
+        }
+
+        @Test(.withMockedEnvironment())
+        func honours_the_max_age_the_server_puts_on_a_stand_in_answer() async throws {
+            // Given
+            // The stand-in endpoint stops being the right answer the moment the
+            // account's own instance starts serving, so it must not be cached
+            // for the usual hour.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let standIn = "https://default.tuist.dev"
+            let instance = "https://acme-us-east-1.kura.tuist.dev"
+
+            let whileProvisioning = MockGetCacheEndpointsServicing()
+            given(whileProvisioning)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [standIn], maxAge: 0))
+
+            let onceServing = MockGetCacheEndpointsServicing()
+            given(onceServing)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [instance], maxAge: nil))
+
+            // A zero max-age stands in for "the short window the server asked
+            // for has passed"; in production it is seconds.
+            let provisioningSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: whileProvisioning,
+                endpointLatencyService: latencyService
+            )
+            let servingSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: onceServing,
+                endpointLatencyService: latencyService
+            )
+
+            #expect(try await provisioningSubject.getCacheURL(for: serverURL, accountHandle: nil) == URL(string: standIn)!)
+
+            // When
+            // A second store over the same cache stands in for a later request.
+            let url = try await servingSubject.getCacheURL(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(url == URL(string: instance)!)
+        }
+
+        @Test(.withMockedEnvironment())
+        func does_not_cache_a_failed_lookup_so_a_returning_instance_is_picked_up() async throws {
+            // Given
+            // Two stores over one shared cache stand in for two resolutions by the
+            // CAS proxy: the first while the account's instance is still being
+            // provisioned back, the second once it is serving. If a failed lookup
+            // were cached, the proxy would not see the instance again until the
+            // entry expired.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://cache.example.com"
+
+            let whileProvisioning = MockGetCacheEndpointsServicing()
+            given(whileProvisioning)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil))
+
+            let onceServing = MockGetCacheEndpointsServicing()
+            given(onceServing)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
+
+            let provisioningSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: whileProvisioning,
+                endpointLatencyService: latencyService
+            )
+            let servingSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: onceServing,
+                endpointLatencyService: latencyService
+            )
+
+            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
+                _ = try await provisioningSubject.getCacheURL(for: serverURL, accountHandle: nil)
+            }
+
+            // When
+            let url = try await servingSubject.getCacheURL(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(url == URL(string: endpoint)!)
         }
 
         @Test(.withMockedEnvironment())
@@ -182,7 +533,7 @@
                     serverURL: .value(serverURL),
                     accountHandle: .value(accountHandle)
                 )
-                .willReturn([endpoint])
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
 
             // When
             let result = try await subject.getCacheURL(for: serverURL, accountHandle: accountHandle)
@@ -230,39 +581,42 @@
         }
 
         @Test(.withMockedEnvironment())
-        func separates_cached_endpoints_when_kura_feature_flag_is_enabled() async throws {
+        func does_not_reuse_endpoints_stored_by_earlier_releases() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
-            let defaultEndpoint = "https://cache.example.com"
-            let kuraEndpoint = "https://kura-cache.example.com"
-            let kuraGetCacheEndpoints = MockGetCacheEndpointsServicing()
-            let kuraSubject = CacheURLStore(
-                cachedValueStore: cachedValueStore,
-                getCacheEndpointsService: kuraGetCacheEndpoints,
-                endpointLatencyService: latencyService
-            )
+            let legacyEndpoint = "https://cache-eu-central.tuist.dev"
+            let kuraEndpoint = "https://acme-eu-west-1.kura.tuist.dev"
+            for suffix in ["", "_default", "_kura"] {
+                _ = try await cachedValueStore.getValue(key: "cache_url_\(serverURL.absoluteString)_acme\(suffix)") {
+                    (value: legacyEndpoint, expiresAt: Date().addingTimeInterval(3600))
+                }
+            }
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([defaultEndpoint])
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willReturn(CacheEndpointsResolution(endpoints: [kuraEndpoint], maxAge: nil))
 
             // When
-            let defaultResult = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
-            given(kuraGetCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn([kuraEndpoint])
-            let kuraResult = try await kuraSubject.getCacheURL(for: serverURL, accountHandle: nil)
+            let result = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
 
             // Then
-            #expect(defaultResult.absoluteString == defaultEndpoint)
-            #expect(kuraResult.absoluteString == kuraEndpoint)
+            #expect(result.absoluteString == kuraEndpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
                 .called(1)
-            verify(kuraGetCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .called(1)
+        }
+    }
+
+    /// Answers after `delay` whether or not it is cancelled, the way a request does while it waits
+    /// for a token refresh another request started.
+    private struct SlowGetCacheEndpointsService: GetCacheEndpointsServicing {
+        let delay: Duration
+        let resolution: CacheEndpointsResolution
+
+        func getCacheEndpoints(serverURL _: URL, accountHandle _: String?) async throws -> CacheEndpointsResolution {
+            let delay = delay
+            await Task { try? await Task.sleep(for: delay) }.value
+            return resolution
         }
     }
 #endif

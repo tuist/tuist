@@ -17,7 +17,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 
 | Artifact | Air and Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts, including Xcode cache, module cache, and Gradle cache files | 14 days | 30 days | 30 days |
+| Cache artifacts, including Xcode cache, module cache, Gradle cache, Bazel remote-cache files, and GitLab CI cache archives from Tuist Runners | 14 days | 30 days | 30 days |
 | App preview builds and icons | 30 days | 30 days | 30 days |
 | Build archives | 30 days | 30 days | 30 days |
 | Run artifacts, including result bundles and session archives | 30 days | 30 days | 30 days |
@@ -39,7 +39,9 @@ These windows define how long selected dashboard and activity data remains avail
 | Data | Retention |
 | --- | --- |
 | Xcode project graph records | 30 days |
-| Gradle build records, task records, and cache event records | 90 days |
+| Gradle build records, task records, cache event records, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
+
+ClickHouse's internal `system.*` operational log tables are configured at the ClickHouse layer rather than by Tuist's product data-retention policy. They are unbounded by default; the bundled self-hosted Docker Compose and embedded Helm ClickHouse configurations can cap them, as described under <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.

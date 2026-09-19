@@ -101,6 +101,76 @@ struct ConfigGeneratorTests {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
+    @Test(.withMockedXcodeController, .inTemporaryDirectory, arguments: [false, true])
+    func generateTargetConfig_excludesPlaceholderFilesOnlyForBuildableFolders(hasBuildableFolders: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(buildableFolders: hasBuildableFolders ? [
+            BuildableFolder(path: directory, exceptions: .init(exceptions: []), resolvedFiles: []),
+        ] : [])
+        let project = Project.test(path: directory, targets: [target])
+
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: .test(path: directory)),
+            sourceRootPath: directory
+        )
+
+        let configurations = try #require(pbxTarget.buildConfigurationList).buildConfigurations
+        #expect(!configurations.isEmpty)
+        for configuration in configurations {
+            let expected: BuildSetting? = hasBuildableFolders ? .array(["$(inherited)", ".gitkeep", ".DS_Store"]) : nil
+            #expect(configuration.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == expected)
+        }
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_preservesExistingBuildableFolderExclusions() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(
+            settings: Settings(
+                base: [
+                    "EXCLUDED_SOURCE_FILE_NAMES": "Base.swift",
+                    "EXCLUDED_SOURCE_FILE_NAMES[sdk=iphonesimulator*]": ["Simulator.swift", "Other.swift"],
+                ],
+                configurations: [
+                    .debug: Configuration(settings: ["EXCLUDED_SOURCE_FILE_NAMES": "Debug.swift"]),
+                    .release: Configuration(settings: [:]),
+                ]
+            ),
+            buildableFolders: [BuildableFolder(path: directory, exceptions: .init(exceptions: []), resolvedFiles: [])]
+        )
+        let project = Project.test(path: directory, targets: [target])
+
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: .test(path: directory)),
+            sourceRootPath: directory
+        )
+
+        let configurations = try #require(pbxTarget.buildConfigurationList)
+        #expect(configurations.configuration(name: "Debug")?.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == .array([
+            "$(inherited)", "Debug.swift", ".gitkeep", ".DS_Store",
+        ]))
+        #expect(configurations.configuration(name: "Release")?.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == .array([
+            "$(inherited)", "Base.swift", ".gitkeep", ".DS_Store",
+        ]))
+        for configuration in configurations.buildConfigurations {
+            #expect(configuration.buildSettings["EXCLUDED_SOURCE_FILE_NAMES[sdk=iphonesimulator*]"] == .array([
+                "$(inherited)", "Simulator.swift", "Other.swift", ".gitkeep", ".DS_Store",
+            ]))
+        }
+    }
+
     @Test(.withMockedXcodeController, .inTemporaryDirectory)
     func generateTargetConfig_whenXcconfigInsideBuildableFolder_usesAnchoredReference() async throws {
         // Given

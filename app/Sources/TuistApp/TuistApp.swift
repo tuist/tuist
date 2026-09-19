@@ -10,6 +10,7 @@ import TuistServer
     @main
     struct TuistApp: App {
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+        @StateObject private var bootstrapper = AppBootstrapper()
 
         private let updaterController: SPUStandardUpdaterController
 
@@ -23,15 +24,19 @@ import TuistServer
 
         var body: some Scene {
             appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
-                ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
-                ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        MenuBarView(
-                            appDelegate: appDelegate,
-                            updaterController: updaterController
-                        )
+                if bootstrapper.isReady {
+                    ServerCredentialsStore.$current.withValue(
+                        ServerCredentialsStore(backend: .keychain)
+                    ) {
+                        CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                            MenuBarView(
+                                appDelegate: appDelegate,
+                                updaterController: updaterController
+                            )
+                        }
                     }
+                } else {
+                    ProgressView()
                 }
             }
 
@@ -62,14 +67,14 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        @StateObject private var bootstrapper = AppBootstrapper()
+
         var body: some Scene {
             WindowGroup {
-                ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
-                ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        RootView()
-                    }
+                if bootstrapper.isReady {
+                    RootView()
+                } else {
+                    ProgressView()
                 }
             }
         }

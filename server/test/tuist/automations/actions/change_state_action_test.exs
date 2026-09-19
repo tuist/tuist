@@ -14,7 +14,7 @@ defmodule Tuist.Automations.Actions.ChangeStateActionTest do
     test "flips a test case's state to muted" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ChangeStateAction.execute(
@@ -28,7 +28,7 @@ defmodule Tuist.Automations.Actions.ChangeStateActionTest do
     test "flips a muted test case back to enabled" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "muted")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ChangeStateAction.execute(
@@ -42,7 +42,7 @@ defmodule Tuist.Automations.Actions.ChangeStateActionTest do
     test "flips a test case's state to skipped" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ChangeStateAction.execute(
@@ -56,7 +56,7 @@ defmodule Tuist.Automations.Actions.ChangeStateActionTest do
     test "flips a skipped test case back to enabled" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "skipped")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ChangeStateAction.execute(

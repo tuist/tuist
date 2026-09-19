@@ -32,7 +32,7 @@ services:
       KURA_NODE_URL: "http://kura:7443"
       KURA_OTEL_SERVICE_NAME: "kura-e2e"
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "e2e"
-      KURA_EXTENSION_ENABLED: "false"
+      KURA_AUTH_ENABLED: "false"
       RUST_LOG: "warn"
 
   # Both confs are rendered by the confgen step (the client image's `genconfs`

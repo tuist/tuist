@@ -98,6 +98,34 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  def get_user_by_username(%{username: username, installation: installation}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/users/#{username}"
+
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
+      {:ok, %{"id" => id, "login" => login}} ->
+        {:ok, %VCS.User{id: to_string(id), username: login}}
+
+      {:ok, _} ->
+        {:error, :not_found}
+
+      # `github_request/2` flattens every non-2xx into a message. Only a 404
+      # says the account does not exist. A 5xx, a secondary rate limit, an
+      # expired installation token or a transport failure all mean the
+      # question could not be asked, which is a different thing to tell the
+      # caller than "no such user".
+      {:error, message} when is_binary(message) ->
+        if String.starts_with?(message, "Unexpected status code: 404") do
+          {:error, :not_found}
+        else
+          {:error, :unavailable}
+        end
+
+      _ ->
+        {:error, :unavailable}
+    end
+  end
+
   def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
@@ -293,13 +321,44 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Returns a workflow run's GitHub-side status
+  (`"queued"` / `"in_progress"` / `"completed"`) and conclusion, in the
+  same shape as `get_workflow_job/3`.
+
+  A run that has reached `completed` will never assign its remaining
+  jobs to a runner, even though the per-job endpoint keeps reporting
+  them as `queued`: the shape a `startup_failure` run leaves behind.
+  The recovery workers read the run to tell that apart from a job that
+  is genuinely still waiting.
+
+  See: https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
+  """
+  def workflow_run_status(installation, repository_full_handle, run_id)
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    case get_workflow_run(%{
+           repository_full_handle: repository_full_handle,
+           installation: installation,
+           run_id: run_id
+         }) do
+      {:ok, %{"status" => status} = run} when is_binary(status) ->
+        {:ok, %{status: status, conclusion: Map.get(run, "conclusion")}}
+
+      {:ok, _body} ->
+        {:error, :malformed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
 
     json =
       params
-      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url])
+      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url, :external_id])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 

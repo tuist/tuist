@@ -3,6 +3,7 @@ package nodeagent
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -84,8 +85,10 @@ func TestRefreshPersistsDynamicLabels(t *testing.T) {
 		Client:    c,
 		NodeName:  "mac-1",
 		Heartbeat: time.Second,
-		DynamicLabels: func(context.Context) (map[string]string, error) {
-			return map[string]string{goldenKey: "true"}, nil
+		DynamicLabels: []LabelAdvertisement{
+			{Name: "golden-images", Labels: func(context.Context) (map[string]string, error) {
+				return map[string]string{goldenKey: "true"}, nil
+			}},
 		},
 	}
 
@@ -104,7 +107,9 @@ func TestRefreshPersistsDynamicLabels(t *testing.T) {
 	// A later heartbeat that no longer advertises the golden must prune it
 	// from the persisted Node (merge patch deletes via null), not just in
 	// memory.
-	m.DynamicLabels = func(context.Context) (map[string]string, error) { return nil, nil }
+	m.DynamicLabels = []LabelAdvertisement{
+		{Name: "golden-images", Labels: func(context.Context) (map[string]string, error) { return nil, nil }},
+	}
 	if err := m.refresh(context.Background()); err != nil {
 		t.Fatalf("refresh (prune): %v", err)
 	}
@@ -332,5 +337,52 @@ func TestApplyDiskPressureNilProbeIsNoop(t *testing.T) {
 	dp, ok := conditionByType(node.Status.Conditions, corev1.NodeDiskPressure)
 	if !ok || dp.Status != corev1.ConditionFalse {
 		t.Fatalf("expected seeded False to remain, got ok=%v status=%q", ok, dp.Status)
+	}
+}
+
+// Advertisements are independent: a probe that fails must retire only its own
+// labels. Merging every source through one provider made this the caller's
+// problem to get right, and getting it wrong drops advertisements that have
+// nothing to do with the failure — a cache-master scan error taking the golden
+// labels off would silently cost image-locality steering too.
+func TestEvalDynamicLabelsIsolatesAFailingAdvertisement(t *testing.T) {
+	m := &Maintainer{
+		DynamicLabels: []LabelAdvertisement{
+			{Name: "golden-images", Labels: func(context.Context) (map[string]string, error) {
+				return map[string]string{"tuist.dev/golden-abc": "true"}, nil
+			}},
+			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				return nil, errors.New("runner-cache root is not mounted")
+			}},
+		},
+	}
+
+	labels := m.evalDynamicLabels(context.Background())
+	if got := labels["tuist.dev/golden-abc"]; got != "true" {
+		t.Fatalf("a failing advertisement dropped an unrelated one: %v", labels)
+	}
+	if len(labels) != 1 {
+		t.Fatalf("the failing advertisement should contribute nothing: %v", labels)
+	}
+}
+
+// Every advertisement's labels reach the Node, so a host publishes its golden
+// images and its resident cache masters in the same heartbeat.
+func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
+	m := &Maintainer{
+		DynamicLabels: []LabelAdvertisement{
+			{Name: "golden-images", Labels: func(context.Context) (map[string]string, error) {
+				return map[string]string{"tuist.dev/golden-abc": "true"}, nil
+			}},
+			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				return map[string]string{"tuist.dev/cache-master-42": "true"}, nil
+			}},
+		},
+	}
+
+	labels := m.evalDynamicLabels(context.Background())
+	want := map[string]string{"tuist.dev/golden-abc": "true", "tuist.dev/cache-master-42": "true"}
+	if !reflect.DeepEqual(labels, want) {
+		t.Fatalf("merged labels = %v; want %v", labels, want)
 	}
 }

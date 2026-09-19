@@ -4,6 +4,9 @@ defmodule TuistWeb.UserSessionController do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias TuistWeb.Authentication
+  alias TuistWeb.Turnstile
+
+  require Logger
 
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
@@ -33,14 +36,47 @@ defmodule TuistWeb.UserSessionController do
   defp rate_limited_create(conn, params, info) do
     case TuistWeb.RateLimit.Auth.hit(conn) do
       {:allow, _count} ->
-        do_create(conn, params, info)
+        turnstile_verified_create(conn, params, info)
 
       {:deny, _limit} ->
+        log_authentication_outcome("rate_limited")
+
         conn
         |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
         |> redirect(to: ~p"/users/log_in")
         |> halt()
     end
+  end
+
+  # Rate limiting caps per-IP brute force. Turnstile catches distributed
+  # credential stuffing where each attempt comes from a fresh address, so
+  # the per-IP counter never trips. Skipped automatically when the flag is
+  # off, which keeps self-hosted installs unaffected.
+  defp turnstile_verified_create(conn, params, info) do
+    case Turnstile.verify(Map.get(params, "cf-turnstile-response"), expected_action: "email_login") do
+      :ok ->
+        do_create(conn, params, info)
+
+      {:error, _reason} ->
+        log_authentication_outcome("turnstile_failed")
+
+        conn
+        |> put_flash(:email, extract_email(params))
+        |> put_flash(:error, dgettext("dashboard_auth", "Please complete the security check and try again."))
+        |> redirect(to: ~p"/users/log_in")
+        |> halt()
+    end
+  end
+
+  defp extract_email(params) do
+    email =
+      case params do
+        %{"user" => %{"email" => value}} -> value
+        %{"user[email]" => value} -> value
+        _ -> nil
+      end
+
+    if is_binary(email), do: String.trim(email)
   end
 
   defp do_create(conn, params, info) do
@@ -60,11 +96,15 @@ defmodule TuistWeb.UserSessionController do
 
     case Accounts.get_user_by_email_and_password(email, password) do
       {:ok, user} ->
+        log_authentication_outcome("success")
+
         conn
         |> put_flash(:info, info)
         |> Authentication.log_in_user(user, user_params)
 
       {:error, :invalid_email_or_password} ->
+        log_authentication_outcome("invalid_credentials")
+
         # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
         conn
         |> put_flash(:email, email)
@@ -73,6 +113,8 @@ defmodule TuistWeb.UserSessionController do
         |> halt()
 
       {:error, :not_confirmed} ->
+        log_authentication_outcome("unconfirmed")
+
         # Valid credentials but an unconfirmed email. The password already proved
         # ownership, so carry the email to the resend page for a one-click resend
         # instead of dead-ending on the login form.
@@ -81,6 +123,14 @@ defmodule TuistWeb.UserSessionController do
         |> redirect(to: ~p"/users/confirm")
         |> halt()
     end
+  end
+
+  # Every outcome of a sign-in attempt redirects, successes and failures alike,
+  # so the response status cannot tell them apart. Reviewing authentication
+  # needs an explicit outcome to count, which is what this emits. The acting
+  # address is already on the record from the observability context.
+  defp log_authentication_outcome(outcome) do
+    Logger.info("authentication attempt", auth_outcome: outcome)
   end
 
   def new(conn, %{"return_to" => "//" <> _}) do

@@ -320,6 +320,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
+                    packageProducts: externalDependencies.packageProducts,
                     enabledTraits: enabledTraitsPerPackage[
                         Self.canonicalIdentity(packageInfo.id, registryIdentities: registryIdentities)
                     ] ?? []
@@ -334,7 +335,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                         nil
                     } else {
                         SwiftPackageManagerPaths
-                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .scratchDirectory(containingPackageSource: packageInfo.folder)
                             .map { Path.path($0.pathString) }
                     }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
@@ -347,7 +348,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         return (
             DependenciesGraph(
-                externalDependencies: externalDependencies,
+                externalDependencies: externalDependencies.products,
                 externalProjects: externalProjects
             ),
             []

@@ -19,7 +19,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellController do
          {:ok, session} <- InteractiveSessions.validate_token(token, current_user),
          :ok <- RunnerInteractiveShellController.validate_shell_session(session),
          {:ok, account} <- Accounts.get_account_by_id(session.account_id),
-         :ok <- Authorization.authorize(:runners_read, current_user, account) do
+         :ok <- Authorization.authorize(:runners_interactive_access, current_user, account) do
       conn
       |> WebSockAdapter.upgrade(
         RunnerShellClientWebSock,

@@ -212,6 +212,7 @@
   <% end %>
   <%= if @selected_tab == "test-optimizations" do %>
     <.selective_testing_tab
+      project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
       selective_testing_page={@selective_testing_page}
@@ -227,6 +228,7 @@
   <% end %>
   <%= if @selected_tab == "module-cache" do %>
     <.module_cache_tab
+      project={@selected_project}
       module_cache_metrics={@module_cache_metrics}
       binary_cache_analytics={@binary_cache_analytics}
       binary_cache_filter={@binary_cache_filter}

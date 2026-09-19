@@ -18,19 +18,28 @@ const MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES: usize =
 const MAX_RESPONSE_STREAM_RESERVATION_BYTES: usize = MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES * 4;
 const MIN_RESPONSE_STREAM_POOL_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + MAX_RESPONSE_STREAM_RESERVATION_BYTES;
-const MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+const MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + RESPONSE_STREAM_CHUNK_BYTES * 4;
+const DEGRADED_FILE_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+    RESPONSE_STREAM_MIN_CHUNK_BYTES * 2 + RESPONSE_STREAM_SEND_BUFFER_BYTES;
 
 pub(super) struct MemoryPools {
     transient: Arc<Semaphore>,
+    elastic_transient: Arc<Semaphore>,
     mmap_serving: Arc<Semaphore>,
     transient_capacity_bytes: usize,
+    elastic_transient_capacity_bytes: usize,
     reapi_materialization_limit_bytes: usize,
-    response_streaming: Arc<Semaphore>,
     foreground_response_streaming: Arc<Semaphore>,
     elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
+    #[cfg(test)]
+    response_stream_waiter_capacity: usize,
+    response_stream_retry_backlog: usize,
+    response_stream_queued_bytes: Arc<Semaphore>,
+    #[cfg(test)]
+    response_stream_queue_bytes: usize,
     response_stream_admission: Arc<Mutex<()>>,
     degraded_response_streaming: Arc<Semaphore>,
     mmap_serving_bytes: usize,
@@ -46,45 +55,82 @@ impl MemoryPools {
         runtime_limit_bytes: u64,
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
+        anon_budget_bytes: Option<u64>,
     ) -> Self {
         let headroom_bytes = hard_limit_bytes.saturating_sub(soft_limit_bytes);
-        let transient_capacity_bytes = semaphore_capacity(headroom_bytes);
+        // Transient is the anonymous-memory budget: response send buffers,
+        // upload staging, materialization. Above the pod's floor that memory is
+        // unreclaimable and unprotected, so the kernel's only remedy is the OOM
+        // killer. When the orchestrator publishes a floor, bound the budget by
+        // it, which keeps the floor-to-ceiling gap for page cache and
+        // mmap-served segments instead. Without one, fall back to the
+        // ceiling-derived headroom.
+        let transient_capacity_bytes = semaphore_capacity(
+            anon_budget_bytes.map_or(headroom_bytes, |budget| budget.min(headroom_bytes)),
+        );
+        // What the floor clamp above discards, held in its own pool. A caller
+        // that opts in may draw on it while pressure is normal, so a burst that
+        // outgrows the floor is answered from headroom the ceiling already
+        // allows instead of being refused. The sum of the two pools is the
+        // ceiling-derived budget a node with no published floor runs with, so
+        // borrowing cannot admit anonymous memory the ceiling would not have.
+        // The pressure gate is what makes it safe to hand back: anon above the
+        // floor is unprotected by `memory.min`, so it must stop being granted
+        // before the kernel is left with the OOM killer as its only remedy.
+        let elastic_transient_capacity_bytes =
+            semaphore_capacity(headroom_bytes).saturating_sub(transient_capacity_bytes);
         let reapi_materialization_limit_bytes =
             reapi_materialization_limit_bytes(transient_capacity_bytes);
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);
         let response_streaming_bytes =
             response_streaming_pool_bytes(runtime_limit_bytes, hard_limit_bytes, headroom_bytes);
-        let bootstrap_reserved_bytes =
-            response_streaming_bytes.min(MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES);
+        let backfill_reserved_bytes =
+            response_streaming_bytes.min(MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES);
         let foreground_response_streaming_bytes =
-            response_streaming_bytes.saturating_sub(bootstrap_reserved_bytes);
+            response_streaming_bytes.saturating_sub(backfill_reserved_bytes);
+        // Foreground and background have disjoint semaphores whose capacities
+        // sum to the global response budget. A third global semaphore would
+        // enforce the same inequality again while adding an atomic acquisition
+        // and release to every stream. Keep the byte total for sizing and
+        // metrics, and enforce it through this exact partition.
         let elastic_foreground_response_streaming_bytes =
             elastic_foreground_response_streaming_bytes(
                 transient_capacity_bytes,
                 response_streaming_bytes,
                 foreground_response_streaming_bytes,
             );
-        let response_stream_waiters = response_streaming_bytes
+        // Preserve the backoff scale when changing queue limits: a larger
+        // queue must not invite shed HTTP clients and peers to retry sooner.
+        let response_stream_retry_backlog = response_streaming_bytes
             .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
             .max(1);
-        // Bootstrap may make bounded progress, but it cannot take capacity
+        let response_stream_waiters = (response_stream_retry_backlog * 4).min(1024);
+        // Queue at most two batches of the bytes public streams can serve.
+        // This bounds pending work, not allocated buffers or drain time: a
+        // stalled reader can still hold its permits beyond the wait deadline.
+        // Transient capacity is floor-clamped when a floor is published and
+        // ceiling-derived otherwise. Clamp each batch to that shared capacity.
+        let response_stream_queue_bytes = foreground_response_streaming_bytes
+            .saturating_add(elastic_foreground_response_streaming_bytes)
+            .min(transient_capacity_bytes)
+            .saturating_mul(2)
+            .min(u32::MAX as usize);
+        // Backfill may make bounded progress, but it cannot take capacity
         // promised to binary serving. The global response pool leaves exactly
         // this quantum outside the foreground pool.
-        let background_response_streaming_bytes = bootstrap_reserved_bytes;
-        // A degraded reader uses the 8 KiB chunk floor, but Hyper can still
-        // hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer per
-        // stream for a slow client. The shared transient budget charges that real
-        // cost; sizing this concurrency pool from the same value keeps the
-        // aggregate bounded instead of letting it grow with the file-descriptor
-        // pool.
+        let background_response_streaming_bytes = backfill_reserved_bytes;
+        // A degraded file response keeps two reader chunks live alongside
+        // Hyper's send buffer. Size admission from that complete charge so
+        // concurrent degraded responses cannot exceed the response budget.
         let degraded_response_stream_slots =
-            (response_streaming_bytes / RESPONSE_STREAM_SEND_BUFFER_BYTES).max(1);
+            (response_streaming_bytes / DEGRADED_FILE_RESPONSE_STREAM_RESERVATION_BYTES).max(1);
         Self {
             transient: Arc::new(Semaphore::new(transient_capacity_bytes)),
+            elastic_transient: Arc::new(Semaphore::new(elastic_transient_capacity_bytes)),
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
             transient_capacity_bytes,
+            elastic_transient_capacity_bytes,
             reapi_materialization_limit_bytes,
-            response_streaming: Arc::new(Semaphore::new(response_streaming_bytes)),
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
             )),
@@ -95,6 +141,12 @@ impl MemoryPools {
                 background_response_streaming_bytes,
             )),
             response_stream_waiters: Arc::new(Semaphore::new(response_stream_waiters)),
+            #[cfg(test)]
+            response_stream_waiter_capacity: response_stream_waiters,
+            response_stream_retry_backlog,
+            response_stream_queued_bytes: Arc::new(Semaphore::new(response_stream_queue_bytes)),
+            #[cfg(test)]
+            response_stream_queue_bytes,
             response_stream_admission: Arc::new(Mutex::new(())),
             degraded_response_streaming: Arc::new(Semaphore::new(degraded_response_stream_slots)),
             mmap_serving_bytes,
@@ -153,6 +205,25 @@ impl MemoryPools {
             .map_err(|_| ())
     }
 
+    pub(super) fn elastic_transient_capacity_bytes(&self) -> usize {
+        self.elastic_transient_capacity_bytes
+    }
+
+    pub(super) fn elastic_transient_reserved_bytes(&self) -> usize {
+        self.elastic_transient_capacity_bytes
+            .saturating_sub(self.elastic_transient.available_permits())
+    }
+
+    pub(super) fn try_acquire_elastic_transient(
+        &self,
+        permits: u32,
+    ) -> Result<OwnedSemaphorePermit, ()> {
+        self.elastic_transient
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map_err(|_| ())
+    }
+
     pub(super) fn mmap_serving_bytes(&self) -> usize {
         self.mmap_serving_bytes
     }
@@ -166,16 +237,6 @@ impl MemoryPools {
 
     pub(super) fn response_streaming_bytes(&self) -> usize {
         self.response_streaming_bytes
-    }
-
-    pub(super) fn try_acquire_response_streaming(
-        &self,
-        permits: u32,
-    ) -> Result<OwnedSemaphorePermit, ()> {
-        self.response_streaming
-            .clone()
-            .try_acquire_many_owned(permits)
-            .map_err(|_| ())
     }
 
     pub(super) fn foreground_response_streaming_bytes(&self) -> usize {
@@ -207,11 +268,35 @@ impl MemoryPools {
             .map_err(|_| ())
     }
 
-    pub(super) fn try_acquire_response_stream_waiter(&self) -> Result<OwnedSemaphorePermit, ()> {
-        self.response_stream_waiters
+    pub(super) fn response_stream_retry_backlog(&self) -> usize {
+        self.response_stream_retry_backlog
+    }
+
+    #[cfg(test)]
+    pub(super) fn response_stream_waiter_capacity(&self) -> usize {
+        self.response_stream_waiter_capacity
+    }
+
+    #[cfg(test)]
+    pub(super) fn response_stream_queue_bytes(&self) -> usize {
+        self.response_stream_queue_bytes
+    }
+
+    pub(super) fn try_acquire_response_stream_waiter(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<(OwnedSemaphorePermit, OwnedSemaphorePermit), ()> {
+        let count = self
+            .response_stream_waiters
             .clone()
             .try_acquire_owned()
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        let bytes = self
+            .response_stream_queued_bytes
+            .clone()
+            .try_acquire_many_owned(u32::try_from(requested_bytes.max(1)).map_err(|_| ())?)
+            .map_err(|_| ())?;
+        Ok((count, bytes))
     }
 
     pub(super) fn try_acquire_background_response_streaming(

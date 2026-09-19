@@ -14,9 +14,16 @@ defmodule Tuist.SCIM do
   when SCIM POSTs an email that already exists globally. Attached users
   receive an email notification so they can audit/leave if unexpected.
 
-  Groups are synthetic: each organization exposes exactly two groups, "Admins"
-  and "Users", which mirror the existing role hierarchy. Group membership ops
-  (PATCH) translate into role assignments on the organization.
+  A provisioning request that names a role gets that role. One that does not
+  gets the organization's configured SSO enrollment role, so the setting
+  applies whether a member arrives through the identity provider or by signing
+  in.
+
+  Groups are synthetic: each organization exposes one group per organization
+  role, "Tuist Admins", "Tuist Users", and "Tuist Viewers", which mirror the
+  existing role hierarchy. Adding a member to a group assigns that role.
+  Removing a member from the group matching their current role moves them back
+  to the enrollment role rather than out of the organization.
   """
   import Ecto.Query
 
@@ -38,6 +45,9 @@ defmodule Tuist.SCIM do
 
   @group_admins "admins"
   @group_users "users"
+  @group_viewers "viewers"
+
+  @groups %{@group_admins => :admin, @group_users => :user, @group_viewers => :viewer}
 
   ## Tokens
 
@@ -226,7 +236,7 @@ defmodule Tuist.SCIM do
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
-    role = attrs |> Map.get(:role, :user) |> normalize_role()
+    role = attrs |> Map.get(:role) |> normalize_role(organization)
     active = Map.get(attrs, :active, true)
 
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
@@ -331,7 +341,7 @@ defmodule Tuist.SCIM do
 
   defp update_user_role_if_needed(user, organization, role) do
     case Accounts.get_user_role_in_organization(user, organization) do
-      %{name: name} when name in ["admin", "user"] ->
+      %{name: name} when name in ["admin", "user", "viewer"] ->
         if to_string(role) == name do
           {:ok, :unchanged}
         else
@@ -392,7 +402,7 @@ defmodule Tuist.SCIM do
 
   defp maybe_update_email(multi, _user, _attrs), do: multi
 
-  defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user] do
+  defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user, :viewer] do
     Multi.run(multi, :role, fn _repo, _ ->
       :ok = Accounts.add_user_to_organization(user, organization, role: role)
 
@@ -402,6 +412,10 @@ defmodule Tuist.SCIM do
         {:error, reason} -> {:error, reason}
       end
     end)
+  end
+
+  defp maybe_update_role(multi, user, organization, %{role: role} = attrs) when is_binary(role) do
+    maybe_update_role(multi, user, organization, %{attrs | role: normalize_role_string(role)})
   end
 
   defp maybe_update_role(multi, _user, _organization, _attrs), do: multi
@@ -434,6 +448,15 @@ defmodule Tuist.SCIM do
   defp ops_to_attrs([_op | rest], acc), do: ops_to_attrs(rest, acc)
 
   defp put_patch_attr("replace", "active", value, acc) when is_boolean(value), do: Map.put(acc, :active, value)
+
+  defp put_patch_attr("replace", "active", value, acc) when is_binary(value) do
+    case String.downcase(value) do
+      "true" -> Map.put(acc, :active, true)
+      "false" -> Map.put(acc, :active, false)
+      _ -> acc
+    end
+  end
+
   defp put_patch_attr("replace", "username", value, acc) when is_binary(value), do: Map.put(acc, :user_name, value)
 
   defp put_patch_attr(op, "roles", value, acc) when op in ["add", "replace"] do
@@ -445,11 +468,18 @@ defmodule Tuist.SCIM do
 
   defp put_patch_attr(_op, _path, _value, acc), do: acc
 
-  defp extract_role(value) when is_binary(value), do: normalize_role_string(value)
-  defp extract_role([%{"value" => v} | _]) when is_binary(v), do: normalize_role_string(v)
-  defp extract_role([v | _]) when is_binary(v), do: normalize_role_string(v)
-  defp extract_role(%{"value" => v}) when is_binary(v), do: normalize_role_string(v)
+  defp extract_role(value) when is_binary(value), do: value |> unwrap_app_role_assignment() |> normalize_role_string()
+  defp extract_role([%{"value" => v} | _]) when is_binary(v), do: extract_role(v)
+  defp extract_role([v | _]) when is_binary(v), do: extract_role(v)
+  defp extract_role(%{"value" => v}) when is_binary(v), do: extract_role(v)
   defp extract_role(_), do: nil
+
+  defp unwrap_app_role_assignment(value) do
+    case JSON.decode(value) do
+      {:ok, %{"value" => role}} when is_binary(role) -> role
+      _ -> value
+    end
+  end
 
   defp normalize_role_string(s) do
     case String.downcase(s) do
@@ -457,14 +487,27 @@ defmodule Tuist.SCIM do
       "admins" -> :admin
       "user" -> :user
       "users" -> :user
+      "viewer" -> :viewer
+      "viewers" -> :viewer
       _ -> nil
     end
   end
 
-  defp normalize_role(:admin), do: :admin
-  defp normalize_role(:user), do: :user
-  defp normalize_role(other) when is_binary(other), do: normalize_role_string(other) || :user
-  defp normalize_role(_), do: :user
+  # An identity provider that names a role decides it. One that says nothing, or
+  # names something this server does not recognise, falls back to the role the
+  # organization enrolls SSO members at rather than to `user`, so the setting
+  # governs provisioning the same way it governs signing in.
+  defp normalize_role(role, _organization) when role in [:admin, :user, :viewer], do: role
+
+  defp normalize_role(other, organization) when is_binary(other) do
+    normalize_role_string(other) || enrollment_role(organization)
+  end
+
+  defp normalize_role(_other, organization), do: enrollment_role(organization)
+
+  defp enrollment_role(%Organization{} = organization) do
+    organization |> Accounts.sso_default_role() |> String.to_existing_atom()
+  end
 
   @doc """
   Deprovisions a user via SCIM `DELETE /Users/:id` by removing their role in the organization.
@@ -507,36 +550,32 @@ defmodule Tuist.SCIM do
   ## Groups
 
   def list_groups(%Organization{} = organization) do
-    [build_group(organization, :admin), build_group(organization, :user)]
+    Enum.map([:admin, :user, :viewer], &build_group(organization, &1))
   end
 
-  def get_group(%Organization{} = organization, @group_admins), do: {:ok, build_group(organization, :admin)}
-  def get_group(%Organization{} = organization, @group_users), do: {:ok, build_group(organization, :user)}
+  def get_group(%Organization{} = organization, group_id) when is_map_key(@groups, group_id) do
+    {:ok, build_group(organization, Map.fetch!(@groups, group_id))}
+  end
+
   def get_group(_organization, _id), do: {:error, :not_found}
 
   defp build_group(%Organization{} = organization, role) do
-    members = Accounts.get_organization_members(organization, role)
-
-    handle =
-      case organization do
-        %Organization{account: %Account{name: name}} -> name
-        _ -> Repo.preload(organization, :account).account.name
-      end
-
     %{
       id: group_id(role),
-      display_name: "#{handle} #{group_label(role)}",
-      members: members
+      display_name: "Tuist #{group_label(role)}",
+      members: Accounts.get_organization_members(organization, role)
     }
   end
 
   defp group_id(:admin), do: @group_admins
   defp group_id(:user), do: @group_users
+  defp group_id(:viewer), do: @group_viewers
   defp group_label(:admin), do: "Admins"
   defp group_label(:user), do: "Users"
+  defp group_label(:viewer), do: "Viewers"
 
-  def patch_group(%Organization{} = organization, group_id, ops) when group_id in [@group_admins, @group_users] do
-    role = if group_id == @group_admins, do: :admin, else: :user
+  def patch_group(%Organization{} = organization, group_id, ops) when is_map_key(@groups, group_id) do
+    role = Map.fetch!(@groups, group_id)
 
     Enum.each(ops, fn op -> apply_group_op(organization, role, op) end)
     get_group(organization, group_id)
@@ -558,42 +597,58 @@ defmodule Tuist.SCIM do
         ids = Filter.member_ids_from_path(path) ++ extract_member_ids(value)
 
         Enum.each(ids, fn user_id ->
-          remove_member(organization, user_id)
+          demote_member(organization, user_id, role)
         end)
 
-      op_name == "replace" and path in ["members", nil] ->
-        target_users =
-          value
-          |> extract_member_ids()
-          |> Enum.flat_map(fn user_id ->
-            case get_user(organization, user_id) do
-              {:ok, user} -> [user]
-              {:error, :not_found} -> []
-            end
-          end)
-
-        Enum.each(Accounts.get_organization_members(organization, role), fn u ->
-          remove_member(organization, u.id)
-        end)
-
-        Enum.each(target_users, fn user ->
-          add_member_user(organization, user, role)
-        end)
+      op_name == "replace" ->
+        case replacement_member_ids(path, value) do
+          {:ok, user_ids} -> replace_members(organization, role, user_ids)
+          :error -> :ok
+        end
 
       true ->
         :ok
     end
   end
 
-  defp apply_group_op(organization, _role, %{"op" => op_name, "path" => path}) when is_binary(op_name) do
+  defp apply_group_op(organization, role, %{"op" => op_name, "path" => path}) when is_binary(op_name) do
     if String.downcase(op_name) == "remove" do
       Enum.each(Filter.member_ids_from_path(path), fn user_id ->
-        remove_member(organization, user_id)
+        demote_member(organization, user_id, role)
       end)
     end
   end
 
   defp apply_group_op(_organization, _role, _op), do: :ok
+
+  # A path-less replace only targets members when its value carries them. Okta
+  # renames a pushed group with `value: %{"displayName" => ...}` and no path,
+  # and the group names are synthetic, so anything else is ignored.
+  defp replacement_member_ids("members", value), do: {:ok, extract_member_ids(value)}
+  defp replacement_member_ids(nil, value) when is_list(value), do: {:ok, extract_member_ids(value)}
+  defp replacement_member_ids(nil, %{"members" => members}), do: {:ok, extract_member_ids(members)}
+  defp replacement_member_ids(_path, _value), do: :error
+
+  defp replace_members(organization, role, user_ids) do
+    target_users =
+      Enum.flat_map(user_ids, fn user_id ->
+        case get_user(organization, user_id) do
+          {:ok, user} -> [user]
+          {:error, :not_found} -> []
+        end
+      end)
+
+    target_user_ids = MapSet.new(target_users, & &1.id)
+
+    organization
+    |> Accounts.get_organization_members(role)
+    |> Enum.reject(&MapSet.member?(target_user_ids, &1.id))
+    |> Enum.each(&demote_member(organization, &1.id, role))
+
+    Enum.each(target_users, fn user ->
+      add_member_user(organization, user, role)
+    end)
+  end
 
   defp extract_member_ids(values) when is_list(values) do
     Enum.flat_map(values, fn
@@ -623,10 +678,18 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp remove_member(organization, user_id) do
-    case get_user(organization, user_id) do
-      {:ok, %User{} = user} -> remove_user_role_from_organization(user, organization)
-      {:error, :not_found} -> :ok
+  # Leaving a group revokes that group's role without ending the membership, so
+  # a member the identity provider moves between groups keeps their access
+  # whichever order the add and remove arrive in. Membership itself ends through
+  # the user resource.
+  defp demote_member(organization, user_id, role) do
+    role_name = Atom.to_string(role)
+
+    with {:ok, %User{} = user} <- get_user(organization, user_id),
+         %Role{name: ^role_name} <- Accounts.get_user_role_in_organization(user, organization) do
+      add_member_user(organization, user, enrollment_role(organization))
+    else
+      _ -> :ok
     end
   end
 

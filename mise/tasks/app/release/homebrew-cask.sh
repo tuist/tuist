@@ -32,6 +32,16 @@ OWNER="tuist"
 REPO="homebrew-tuist"
 WORKFLOW_ID="130356792"
 
+# The cask this dispatches points straight at the release asset, so bumping it
+# before the DMG is attached publishes a 404 to every `brew install --cask tuist`.
+# That is how app@0.25.5 broke installs: the release completed, but the DMG never
+# made it onto it.
+DMG_URL="https://github.com/tuist/tuist/releases/download/app@$VERSION/Tuist.dmg"
+if ! curl --fail --silent --show-error --location --head --output /dev/null "$DMG_URL"; then
+    echo "Error: $DMG_URL is not downloadable. Refusing to point the cask at a missing asset." >&2
+    exit 1
+fi
+
 # Trigger the workflow
 curl --fail-with-body -v -X POST \
   -H "Authorization: token $GITHUB_TOKEN" \

@@ -22,6 +22,7 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
@@ -36,7 +37,7 @@ defmodule Tuist.Kura.Mesh do
   # the mesh's entire safety margin: the moment a peer is withheld, every
   # node's next heartbeat drops it from the dynamic view and its queued
   # replication messages are dropped immediately, so the window stays many
-  # missed heartbeats wide to keep a blip from costing a full re-bootstrap
+  # missed heartbeats wide to keep a blip from costing a full backfill
   # on recovery.
   @stale_peer_after_minutes 30
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
@@ -195,6 +196,66 @@ defmodule Tuist.Kura.Mesh do
   end
 
   @doc """
+  The replication roles of the account's managed pods, published beside the
+  peer list in the mesh view (kura/docs/replication-design.md §2.2): one
+  `%{url, region, gateway}` per pod of every managed mesh region, `url` being
+  the pod's internal peer URL exactly as the kura-controller renders its
+  `KURA_NODE_URL`, `region` the region the instance runs in.
+
+  Read entirely from `kura_servers.peer_roles`, which `Tuist.Kura.Reconciler`
+  refreshes from each `KuraInstance` on the loop that already observes it.
+  This is deliberately not a live cluster read: `/_internal/kura/mesh/peers`
+  is polled by every managed pod at heartbeat cadence, and reading each
+  region's apiserver from it made one slow regional cluster able to push the
+  response past a node's own request deadline — in every account with a
+  server in that region. The roles only move when the controller moves one,
+  so a tick of staleness buys a Postgres-only request path. They are also an
+  optimisation over the local lowest-URL rule a node applies when no role
+  names a peer it can see, so lag costs a late role move and never a stalled
+  region.
+
+  Managed regions only: they are where the server knows something the nodes
+  do not (which pod is the primary, from the `KuraInstance` status the
+  controller publishes). An enrolled self-hosted node derives its own role
+  from the same lowest-URL rule it would be published, so publishing it adds
+  nothing.
+  """
+  def peer_roles(%Account{} = account) do
+    account.id
+    |> Kura.mesh_servers_for_account()
+    |> Enum.flat_map(&server_peer_roles/1)
+  end
+
+  # The mesh/retired filter is applied on read as well as on write: a region
+  # that leaves the mesh, or is retired, must stop being published without
+  # waiting for a reconciler tick to blank the rows it left behind.
+  defp server_peer_roles(%Server{region: region_id, peer_roles: roles}) when is_list(roles) do
+    with %Regions{} = region <- Regions.get(region_id),
+         true <- Regions.mesh?(region) and not Regions.retired?(region) do
+      Enum.flat_map(roles, &published_role(&1, region.id))
+    else
+      _ -> []
+    end
+  end
+
+  defp server_peer_roles(%Server{}), do: []
+
+  defp published_role(%{"url" => url} = role, region_id) when is_binary(url) and url != "" do
+    [%{url: url, region: region_id, gateway: role["gateway"] == true}]
+  end
+
+  defp published_role(_role, _region_id), do: []
+
+  @doc """
+  Every account's nodes replicate by pulling (kura/docs/replication-design.md
+  §5.2): the per-account flip is over and the push path is gone from the
+  runtime. Still published in the mesh view because a self-hosted node on a
+  pre-removal release reads it to decide whether to keep pushing, and the
+  answer for one that can pull is always yes.
+  """
+  def replication_pull?(%Account{}), do: true
+
+  @doc """
   Records a mesh heartbeat from an enrolled self-hosted node: refreshes the
   liveness marker (`updated_at`) of the node's peer row, but only while the
   row is active. Returns the node's mesh view — whether it is currently a
@@ -204,7 +265,7 @@ defmodule Tuist.Kura.Mesh do
   A deactivated, purged, or never-enrolled node is told `mesh_member: false`
   and recovers by re-enrolling — enrollment is the only path that creates or
   restores membership, and a recovery re-enrollment is the node's signal to
-  re-bootstrap the data it missed while out of the mesh.
+  backfill the data it missed while out of the mesh.
 
   The membership check and the marker bump are a single statement so a
   concurrent sweep or purge cannot be overwritten (or answered for) between a

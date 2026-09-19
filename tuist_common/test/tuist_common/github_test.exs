@@ -160,7 +160,48 @@ defmodule TuistCommon.GitHubTest do
          }}
       end)
 
-      assert {:error, {:rate_limited, 403}} =
+      assert {:error, {:rate_limited, 403, nil}} =
+               GitHub.get_file_content("tuist/tuist", "test-token", "Package.swift", "main")
+    end
+
+    test "reports the delay a throttling response asks for" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{},
+           headers: %{"x-ratelimit-remaining" => ["0"], "retry-after" => ["120"]}
+         }}
+      end)
+
+      assert {:error, {:rate_limited, 403, 120}} =
+               GitHub.get_file_content("tuist/tuist", "test-token", "Package.swift", "main")
+    end
+
+    test "derives the delay from the quota reset timestamp when no retry-after is sent" do
+      reset = DateTime.to_unix(DateTime.utc_now()) + 900
+
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{},
+           headers: %{"x-ratelimit-remaining" => ["0"], "x-ratelimit-reset" => [to_string(reset)]}
+         }}
+      end)
+
+      assert {:error, {:rate_limited, 403, seconds}} =
+               GitHub.get_file_content("tuist/tuist", "test-token", "Package.swift", "main")
+
+      assert_in_delta seconds, 900, 5
+    end
+
+    test "does not read a forbidden response without throttling headers as a rate limit" do
+      stub(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 403, body: %{}, headers: %{}}}
+      end)
+
+      assert {:error, {:http_error, 403}} =
                GitHub.get_file_content("tuist/tuist", "test-token", "Package.swift", "main")
     end
 
@@ -214,7 +255,7 @@ defmodule TuistCommon.GitHubTest do
         {:ok, %Req.Response{status: 429, body: %{}}}
       end)
 
-      assert {:error, {:rate_limited, 429}} =
+      assert {:error, {:rate_limited, 429, nil}} =
                GitHub.list_repository_contents("tuist/tuist", "test-token", "main")
     end
   end
@@ -342,7 +383,7 @@ defmodule TuistCommon.GitHubTest do
          }}
       end)
 
-      assert {:error, {:rate_limited, 403}} = GitHub.list_tags("tuist/tuist", "test-token")
+      assert {:error, {:rate_limited, 403, nil}} = GitHub.list_tags("tuist/tuist", "test-token")
 
       assert_receive {:rate_limit, %{limit: 5000, used: 5000}, %{resource: "core"}}
     end

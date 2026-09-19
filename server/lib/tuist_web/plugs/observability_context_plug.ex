@@ -10,10 +10,27 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    set_client_address(conn)
+
     auth_data = get_auth_data(conn)
     set_context(auth_data)
 
     conn
+  end
+
+  # The request record is the only place a failed authentication is visible,
+  # and a failure carries no account, so without the source address there is
+  # nothing to attribute it to and no way to tell one persistent attempt
+  # against a single account from an attempt spread across many.
+  defp set_client_address(conn) do
+    case TuistWeb.RemoteIp.get(conn) do
+      address when is_binary(address) ->
+        Logger.metadata(client_address: address)
+        OpenTelemetry.Tracer.set_attribute("client.address", address)
+
+      _ ->
+        :ok
+    end
   end
 
   @doc """

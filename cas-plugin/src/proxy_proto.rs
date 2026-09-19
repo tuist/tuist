@@ -13,16 +13,39 @@
 //! the `cas_path -> instance` mapping a prior build primed.
 //!
 //! RESOLVE (op 1): payload = action key digest bytes. status 1 = hit (body =
-//! value llcas digest; the value graph materializes into the local CAS in the
-//! background — a consumer's demand load that outruns it self-heals through
-//! FETCH_OBJECT), status 0 = definitive miss, status 2 = proxy error (treat
-//! as miss).
+//! value llcas digest; this is a candidate while its graph materializes in the
+//! background. The plugin's global query prepares it through PREPARE_ACTION
+//! before advertising a compiler hit), status 0 = definitive miss, status 2 =
+//! proxy error (treat as miss).
 //! PUBLISH (op 2): payload = utf8 path of a write-ahead publication record.
 //! status 1 = accepted (publication proceeds asynchronously).
 //! FETCH_OBJECT (op 4): payload = llcas object digest bytes. Blocks until the
 //! object is on disk (fetching it from the remote if the background
 //! materializer has not stored it yet). status 1 = present, status 0 = the
 //! proxy has no way to produce it (treat as not found).
+//! DRAIN (op 5): payload = u32 big-endian milliseconds the caller will wait
+//! (absent/zero = the proxy's default). Blocks until every publication this
+//! machine recorded for `cas_path` has reached the remote. status 1 = drained,
+//! status 0 = records remain (body = how many), status 2 = the proxy could not
+//! run it. Asked by a runner's teardown before the CAS store it covers is
+//! promoted as an account's cache master; see `Proxy::drain_publications`.
+//! PRUNE (op 6): payload = u64 big-endian per-generation byte limit (zero =
+//! leave whatever limit the store already carries). Rotates the store's
+//! generation chain and DELETES the generations that fall off it. status 1 =
+//! pruned (body = bytes reclaimed), status 0 = the proxy holds no handle on
+//! this path (so the caller may prune it itself), status 2 = it could not run
+//! it. Asked by a runner's teardown before the image is measured, so the
+//! promoted master carries a bounded store; see `Proxy::prune_ondisk`.
+//! PREPARE_ACTION (op 7): payload = root digest from RESOLVE. Runs only for a
+//! global query, after the proxy has registered the closure guard. Returns the
+//! same statuses as FETCH_OBJECT. An older proxy rejects this new operation;
+//! clients must not retry it as an ordinary object fetch.
+//! PUBLISH_WAIT (op 8): payload = u32 big-endian milliseconds the caller will
+//! wait | utf8 path of a write-ahead publication record. PUBLISH, answered once
+//! the publication is done. status 1 = nothing is owed for this record any more,
+//! status 0 = it is still owed and the proxy finishes it in the background,
+//! status 2 = the proxy could not run it (an older proxy answers `bad op`, and
+//! the caller falls back to PUBLISH). See `Proxy::publish_and_wait`.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -48,6 +71,34 @@ pub const OP_INVALIDATE: u8 = 3;
 /// yet (or that a prune removed). Runs on compiler worker threads, never on the
 /// build engine's serial task-setup path, so it may block on the remote.
 pub const OP_FETCH_OBJECT: u8 = 4;
+/// Wait for this path's spooled publications to reach the remote. Added WITHOUT
+/// a `PROTOCOL_VERSION` bump, deliberately: the frame layout is untouched, and a
+/// proxy that predates the op answers `bad op` through the STATUS_ERROR its
+/// caller already has to handle — which the caller reads as "cannot ask" and
+/// falls back to watching the spool directory itself. Bumping the version
+/// instead would make a stale launchd proxy reject every request, from every
+/// build on the machine, until it restarts.
+pub const OP_DRAIN: u8 = 5;
+/// Bound this path's on-disk store: rotate its generation chain and delete what
+/// falls off. Added without a `PROTOCOL_VERSION` bump for the same reason as
+/// OP_DRAIN — the frame layout is untouched, and a proxy that predates the op
+/// answers `bad op`, which the caller reads as "cannot ask".
+///
+/// It lives here rather than in the caller because llcas only rotates a store
+/// when its LAST handle closes, and on a machine running the proxy that handle
+/// is the proxy's own: a caller pruning from a handle of its own would find the
+/// chain still live, collect nothing, and report success.
+pub const OP_PRUNE: u8 = 6;
+/// Prepare an action root before exposing a compiler hit. Unlike an ordinary
+/// object fetch, this requires a proxy that installs the closure guard during
+/// RESOLVE, before publishing any root fetch instruction. Older proxies reject
+/// this additive operation and the plugin safely reports a cache miss.
+pub const OP_PREPARE_ACTION: u8 = 7;
+/// Publish a record and answer when it is done, so the compile that produced it
+/// finishes only once its output is on the remote. Additive like OP_DRAIN: a
+/// proxy that predates it answers `bad op`, and the plugin then sends an
+/// ordinary PUBLISH.
+pub const OP_PUBLISH_WAIT: u8 = 8;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -128,10 +179,29 @@ pub struct ProxyClient {
     pub socket_path: String,
 }
 
+/// How much longer than the drain it asked for a client waits on the reply, so
+/// a proxy that spends its whole budget still gets to answer instead of the
+/// read timing out on a drain that IS running.
+const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
+
+/// How much longer than its wait budget a PUBLISH_WAIT client reads, so the
+/// proxy's answer at the end of the budget arrives before the read times out.
+const PUBLISH_WAIT_READ_GRACE: Duration = Duration::from_secs(5);
+
+/// How long a prune may take before the caller stops waiting. A prune that has
+/// something to collect costs a few hundred ms (measured 300-500 ms), but it
+/// unlinks a whole generation directory — tens of thousands of files on a full
+/// store — so the ceiling is sized for the pathological case, not the median.
+const PRUNE_READ_TIMEOUT: Duration = Duration::from_secs(300);
+
 impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
+        self.connect_with_read_timeout(Duration::from_secs(120))
+    }
+
+    fn connect_with_read_timeout(&self, read_timeout: Duration) -> std::io::Result<UnixStream> {
         let stream = UnixStream::connect(&self.socket_path)?;
-        stream.set_read_timeout(Some(Duration::from_secs(120)))?;
+        stream.set_read_timeout(Some(read_timeout))?;
         stream.set_write_timeout(Some(Duration::from_secs(10)))?;
         Ok(stream)
     }
@@ -166,12 +236,20 @@ impl ProxyClient {
         instance: &str,
         digest: &[u8],
     ) -> Result<bool, String> {
+        self.fetch_with_op(OP_FETCH_OBJECT, cas_path, instance, digest)
+    }
+
+    pub fn prepare_action(&self, cas_path: &str, instance: &str, root: &[u8]) -> Result<bool, String> {
+        self.fetch_with_op(OP_PREPARE_ACTION, cas_path, instance, root)
+    }
+
+    fn fetch_with_op(&self, op: u8, cas_path: &str, instance: &str, digest: &[u8]) -> Result<bool, String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
                 version: PROTOCOL_VERSION,
-                op: OP_FETCH_OBJECT,
+                op,
                 cas_path: cas_path.to_string(),
                 instance: instance.to_string(),
                 payload: digest.to_vec(),
@@ -210,6 +288,80 @@ impl ProxyClient {
         }
     }
 
+    /// Blocks until the proxy reports every publication it holds for `cas_path`
+    /// has reached the remote, or until it gives up at `timeout`.
+    ///
+    /// `Ok(0)` is drained; `Ok(n)` is n records the remote never received; an
+    /// `Err` is a proxy that could not answer at all (nothing listening, or one
+    /// old enough not to know the op). The caller must keep those three apart:
+    /// only the first says the local store's associations are backed.
+    pub fn drain(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        timeout: Duration,
+    ) -> Result<usize, String> {
+        let mut stream = self
+            .connect_with_read_timeout(timeout + DRAIN_READ_GRACE)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        let millis = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_DRAIN,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: millis.to_be_bytes().to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            STATUS_HIT => Ok(0),
+            // An unparseable count still means something is owed, so it must not
+            // round down to drained.
+            STATUS_MISS => Ok(String::from_utf8_lossy(&body).parse().unwrap_or(1)),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
+    /// Asks the proxy to bound the on-disk store at `cas_path` to `limit_bytes`
+    /// per generation: rotate the generation chain and delete what falls off it.
+    ///
+    /// `Ok(Some(bytes))` is a prune the proxy ran, reclaiming that many bytes;
+    /// `Ok(None)` means the proxy holds no handle on the path, so nothing is
+    /// keeping the store open and the CALLER may prune it itself; an `Err` is a
+    /// proxy that could not answer (nothing listening, or one too old to know
+    /// the op) — which says nothing about whether a handle is held, so a prune
+    /// the caller then runs itself may well collect nothing.
+    ///
+    /// `limit_bytes` of 0 leaves whatever limit the store already carries.
+    pub fn prune(&self, cas_path: &str, limit_bytes: u64) -> Result<Option<u64>, String> {
+        let mut stream = self
+            .connect_with_read_timeout(PRUNE_READ_TIMEOUT)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_PRUNE,
+                cas_path: cas_path.to_string(),
+                instance: String::new(),
+                payload: limit_bytes.to_be_bytes().to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            // An unparseable count is still a prune that ran; only the byte
+            // figure is lost, so it must not read as "no handle held".
+            STATUS_HIT => Ok(Some(String::from_utf8_lossy(&body).parse().unwrap_or(0))),
+            STATUS_MISS => Ok(None),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
     pub fn publish(&self, cas_path: &str, instance: &str, record_path: &str) -> Result<(), String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
@@ -230,6 +382,60 @@ impl ProxyClient {
             Err(format!("proxy publish: {}", String::from_utf8_lossy(&body)))
         }
     }
+
+    /// Hands the proxy a publication record and blocks until it is published,
+    /// for at most `budget`.
+    ///
+    /// `Ok(true)` is a record that no longer owes the remote anything;
+    /// `Ok(false)` is one the proxy still owes and finishes in the background;
+    /// an `Err` is a proxy that could not take it (nothing listening, or one too
+    /// old to know the op), which the caller answers with an ordinary `publish`.
+    pub fn publish_and_wait(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        record_path: &str,
+        budget: Duration,
+    ) -> Result<bool, String> {
+        let mut stream = self
+            .connect_with_read_timeout(budget + PUBLISH_WAIT_READ_GRACE)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_PUBLISH_WAIT,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: publish_wait_payload(record_path, budget),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            STATUS_HIT => Ok(true),
+            STATUS_MISS => Ok(false),
+            _ => Err(format!("proxy publish wait: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+}
+
+fn publish_wait_payload(record_path: &str, budget: Duration) -> Vec<u8> {
+    let millis = u32::try_from(budget.as_millis()).unwrap_or(u32::MAX);
+    let mut payload = Vec::with_capacity(4 + record_path.len());
+    payload.extend_from_slice(&millis.to_be_bytes());
+    payload.extend_from_slice(record_path.as_bytes());
+    payload
+}
+
+/// Splits a PUBLISH_WAIT payload into the caller's budget in milliseconds and
+/// the record path. `None` for a payload too short to carry the budget.
+pub fn parse_publish_wait_payload(payload: &[u8]) -> Option<(u32, String)> {
+    let (millis, record_path) = payload.split_first_chunk::<4>()?;
+    Some((
+        u32::from_be_bytes(*millis),
+        String::from_utf8_lossy(record_path).into_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -256,6 +462,69 @@ mod tests {
         assert_eq!(read.cas_path, "/dd/App-abc/CompilationCache.noindex/plugin");
         assert_eq!(read.instance, "acme/app");
         assert_eq!(read.payload, vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    /// The drain rides the SAME frame layout every other op uses, which is what
+    /// let it be added without a `PROTOCOL_VERSION` bump: a proxy that does not
+    /// know op 5 parses the request fine and answers `bad op`.
+    #[test]
+    fn a_drain_request_is_an_ordinary_frame_carrying_its_budget() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_DRAIN,
+            cas_path: "/Volumes/cache/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: 120_000u32.to_be_bytes().to_vec(),
+        });
+        assert_eq!(read.op, OP_DRAIN);
+        assert_eq!(
+            read.cas_path,
+            "/Volumes/cache/CompilationCache.noindex/plugin"
+        );
+        assert_eq!(read.payload, vec![0x00, 0x01, 0xD4, 0xC0]);
+    }
+
+    #[test]
+    fn a_publish_wait_request_carries_its_budget_and_record() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_PUBLISH_WAIT,
+            cas_path: "/dd/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: publish_wait_payload(
+                "/dd/CompilationCache.noindex/plugin/tuist-spool/123-4",
+                Duration::from_secs(30),
+            ),
+        });
+        assert_eq!(read.op, OP_PUBLISH_WAIT);
+        assert_eq!(
+            parse_publish_wait_payload(&read.payload),
+            Some((
+                30_000,
+                "/dd/CompilationCache.noindex/plugin/tuist-spool/123-4".to_string()
+            ))
+        );
+        assert_eq!(parse_publish_wait_payload(&[0x00, 0x01]), None);
+    }
+
+    /// The prune rides the same frame layout too, and carries no instance: a
+    /// store's SIZE is a property of the path, not of the account whose cache it
+    /// holds, and the teardown that asks for one has no instance to declare.
+    #[test]
+    fn a_prune_request_carries_its_per_generation_limit_and_no_instance() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_PRUNE,
+            cas_path: "/Volumes/cache/CompilationCache.noindex/plugin".to_string(),
+            instance: String::new(),
+            payload: 5_368_709_120u64.to_be_bytes().to_vec(),
+        });
+        assert_eq!(read.op, OP_PRUNE);
+        assert!(read.instance.is_empty());
+        assert_eq!(
+            u64::from_be_bytes(read.payload.try_into().unwrap()),
+            5_368_709_120
+        );
     }
 
     #[test]

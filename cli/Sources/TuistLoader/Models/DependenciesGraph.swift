@@ -170,7 +170,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "tuist",
                             baseSettings: .settings(
                                 base: [
                                     "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -254,7 +253,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "a-dependency",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -312,7 +310,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "another-dependency",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -378,7 +375,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "Alamofire",
                             baseSettings: .settings(base: ["SWIFT_VERSION": "5.0.0"])
                         ),
                         targets: targets,
@@ -512,7 +508,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "GoogleAppMeasurement",
                             baseSettings: .settings(
                                 base: [
                                     "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -634,7 +629,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "GoogleUtilities",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -692,7 +686,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "nanopb",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -716,7 +709,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
         }
 
         public static func swiftpmProjectSettings(
-            packageName: String,
             baseSettings: Settings = .settings(),
             with customSettings: SettingsDictionary = [:]
         ) -> Settings {
@@ -730,7 +722,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
                 "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
                 "GCC_NO_COMMON_BLOCKS": "NO",
                 "USE_HEADERMAP": "NO",
-                "OTHER_SWIFT_FLAGS": ["-package-name", packageName.quotedIfContainsSpaces],
             ]
             var settingsDictionary = defaultSpmSettings.combine(with: customSettings)
 

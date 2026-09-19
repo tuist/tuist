@@ -26,6 +26,25 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
+
+  # Same bounds as `Tuist.Registry.Swift.SyncWorker`: GitHub's primary quota
+  # window is an hour, and a reset that has already elapsed must not turn into
+  # an immediate re-run against a budget that has not recovered.
+  @min_snooze_seconds 60
+  @max_snooze_seconds 3_600
+  @default_snooze_seconds 600
+
+  # Statuses that GitHub's REST API returns for transient upstream failures
+  # (edge/proxy 5xx, secondary rate limits). Retrying immediately turns each
+  # blip into an Oban.PerformError report, so treat them the same way we treat
+  # a throttled submodule clone and defer the job instead.
+  @transient_upstream_statuses [429, 502, 503, 504]
+
+  @release_deferred_event [:tuist, :registry, :swift, :release, :deferred]
+
+  @doc false
+  def release_deferred_event_name, do: @release_deferred_event
+
   # Symlinks nested inside these code-signed bundles are part of the bundle's
   # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
   # the `Binary`/`Resources` links). Code signing records them as symlinks in
@@ -52,6 +71,27 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "reference is not a tree",
     "needed a single revision"
   ]
+
+  @transient_submodule_failure_markers [
+    "rate limit",
+    "too many requests",
+    "temporarily blocked",
+    "try again later"
+  ]
+
+  # Git renders an HTTP failure as the bare status line and only relays the
+  # host's explanation when the error body is `text/plain`, so a throttled host
+  # serving HTML or an empty body matches none of the prose markers above.
+  # Matching the status itself is what covers those.
+  @transient_http_statuses ~w(429 502 503 504)
+
+  # GitHub answers a throttled clone with the same 403 it uses for a repository
+  # the token cannot see, so a 403 from it says nothing durable. Elsewhere a 403
+  # is an access-control decision that will not change on retry, which is how
+  # Gerrit hosts such as review.mlplatform.org refuse anonymous clones. A
+  # private GitHub repository the token cannot see answers 404, which is already
+  # classified permanent, so scoping this away from GitHub loses no coverage.
+  @ambiguous_forbidden_hosts ["github.com"]
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -83,8 +123,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp do_sync_release(scope, name, full_handle, tag, opts) do
     case Registry.swift_registry_github_token() do
       nil ->
-        Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
-        :ok
+        # A configured mirror whose App momentarily cannot issue a token would
+        # otherwise report a clean run for a release it never attempted, which
+        # is exactly the silent loss of coverage this path is meant to avoid.
+        if Registry.swift_registry_github_credentials_configured?() do
+          Logger.error("Deferring registry release #{scope}/#{name}@#{tag}: no GitHub credential could be resolved")
+
+          :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :missing_credential})
+
+          {:snooze, @default_snooze_seconds}
+        else
+          Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
+          :ok
+        end
 
       token ->
         normalized_version = KeyNormalizer.normalize_version(tag)
@@ -116,8 +167,22 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
+  # Briefly deletes a dead process's files from inside its single
+  # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
+  # makes a 5s call to that same server. Removing a cloned or extracted package
+  # tree there stalls it long enough for concurrent release jobs to crash on the
+  # call timeout, so the tree is removed here, in the job's own process.
   defp sync_release(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
+
+    try do
+      sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts)
+    after
+      File.rm_rf(tmp_dir)
+    end
+  end
+
+  defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
@@ -142,8 +207,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           :ok ->
             :ok
 
+          # Every deferral path logs its own reason before returning, so this
+          # only forwards the delay.
           {:snooze, seconds} ->
-            Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
             {:snooze, seconds}
 
           {:discard, discard_reason} ->
@@ -309,29 +375,78 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @doc false
   def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag} = opts) do
-    git_credentials = Map.get(opts, :git_credentials)
+    context = %{
+      repository_full_handle: full_handle,
+      tag: tag,
+      git_credentials: Map.get(opts, :git_credentials)
+    }
 
-    with {:ok, submodule_paths} <- submodule_paths(destination) do
+    update_submodules_in(destination, nil, context)
+  end
+
+  # `git submodule update --recursive` reports a failure anywhere in the tree as
+  # a failure of the top-level submodule it was reached through, so an
+  # unreachable third-party dependency nested several levels down is
+  # indistinguishable from the package's own submodule being unreachable.
+  # Descending one level at a time attributes every failure to the exact path
+  # that produced it, so a skippable failure drops only that path instead of the
+  # required subtree that happened to lead to it.
+  defp update_submodules_in(repository_directory, path_prefix, context) do
+    with {:ok, submodule_paths} <- submodule_paths(repository_directory, path_prefix) do
       Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
-        case update_submodule(destination, submodule_path, git_credentials) do
-          :ok ->
-            {:cont, :ok}
-
-          {:skip, output} ->
-            handle_skipped_submodule(destination, submodule_path, full_handle, tag, output)
-
-          {:error, reason} ->
-            {:halt, {:error, reason}}
-        end
+        update_submodule_tree(repository_directory, submodule_path, path_prefix, context)
       end)
     end
   end
 
-  defp handle_skipped_submodule(destination, submodule_path, full_handle, tag, output) do
-    case remove_failed_submodule_contents(destination, submodule_path) do
+  defp update_submodule_tree(repository_directory, submodule_path, path_prefix, context) do
+    full_path = join_submodule_path(path_prefix, submodule_path)
+    submodule_directory = Path.join(repository_directory, submodule_path)
+
+    case update_submodule(repository_directory, submodule_path, context.git_credentials) do
+      :ok ->
+        descend_into_submodule(submodule_directory, full_path, context)
+
+      {:skip, output} ->
+        handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output)
+
+      {:throttled, status, output} ->
+        {:halt, {:error, {:git_submodule_update_throttled, full_path, status, output}}}
+
+      {:failed, status, output} ->
+        {:halt, {:error, {:git_submodule_update_failed, full_path, status, output}}}
+    end
+  end
+
+  defp descend_into_submodule(submodule_directory, full_path, context) do
+    if submodule_checkout?(submodule_directory) do
+      case update_submodules_in(submodule_directory, full_path, context) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    else
+      {:cont, :ok}
+    end
+  end
+
+  # A zero exit status does not by itself mean the submodule was populated: a
+  # `.gitmodules` declaring `update = none` makes git report success while
+  # leaving the empty directory the superproject checkout created. Listing that
+  # directory finds the *superproject*, whose repository discovery walks up from
+  # the gitlink and renders the gitlink itself as the relative path `./`, so
+  # descending would re-enter the same directory without ever reaching a fixed
+  # point. Requiring a checkout of its own restores what `--recursive` did here,
+  # which was to skip the submodule and move on.
+  defp submodule_checkout?(directory), do: File.exists?(Path.join(directory, ".git"))
+
+  defp join_submodule_path(nil, submodule_path), do: submodule_path
+  defp join_submodule_path(path_prefix, submodule_path), do: "#{path_prefix}/#{submodule_path}"
+
+  defp handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output) do
+    case remove_failed_submodule_contents(repository_directory, submodule_path) do
       :ok ->
         Logger.warning(
-          "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
+          "Skipping submodule #{full_path} for #{context.repository_full_handle}@#{context.tag} after permanent git submodule update failure: #{output}"
         )
 
         {:cont, :ok}
@@ -341,19 +456,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp update_submodule(destination, submodule_path, git_credentials) do
+  defp update_submodule(repository_directory, submodule_path, git_credentials) do
     case System.cmd(
            "git",
            GitAuthentication.config_args(git_credentials) ++
              [
                "-C",
-               destination,
+               repository_directory,
                "submodule",
                "update",
                "--init",
-               "--recursive",
                "--depth",
                "1",
+               "--",
                submodule_path
              ],
            stderr_to_stdout: true,
@@ -371,70 +486,104 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             trimmed -> trimmed
           end
 
-        nested_submodule_path = nested_submodule_path(output)
-
-        cond do
-          nested_submodule_failure?(output, submodule_path, nested_submodule_path) ->
-            {:error, {:nested_git_submodule_update_failed, submodule_path, nested_submodule_path, status, output}}
-
-          skippable_submodule_failure?(output) ->
-            {:skip, output}
-
-          true ->
-            {:error, {:git_submodule_update_failed, submodule_path, status, output}}
+        case classify_submodule_failure(output) do
+          :permanent -> {:skip, output}
+          :transient -> {:throttled, status, output}
+          :unknown -> {:failed, status, output}
         end
     end
   end
 
-  defp nested_submodule_path(output) do
-    case Regex.run(~r/registered for path '([^']+)'/, output, capture: :all_but_first) ||
-           Regex.run(~r/submodule path '([^']+)'/, output, capture: :all_but_first) do
-      [nested_submodule_path] -> nested_submodule_path
+  @doc false
+  def skippable_submodule_failure?(output), do: classify_submodule_failure(output) == :permanent
+
+  # Skipping is permanent: the release ships an archive that no longer contains
+  # the submodule, so a host that is merely throttling us must not be read as one
+  # that will never serve the repository. GitHub answers a throttled clone with
+  # the same 403 it uses for a repository the token cannot see, and only the
+  # accompanying message tells the two apart. Throttling is kept distinct from an
+  # unclassified failure rather than folded into it, so the release can be
+  # deferred instead of retried against a host that has just asked us to slow
+  # down.
+  defp classify_submodule_failure(output) do
+    downcased_output = String.downcase(output)
+
+    cond do
+      Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :transient
+
+      http_status(downcased_output) in @transient_http_statuses ->
+        :transient
+
+      Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :permanent
+
+      forbidden_by_policy?(downcased_output) ->
+        :permanent
+
+      true ->
+        :unknown
+    end
+  end
+
+  defp http_status(downcased_output) do
+    case Regex.run(~r/returned error: (\d{3})/, downcased_output, capture: :all_but_first) do
+      [status] -> status
       _ -> nil
     end
   end
 
-  defp nested_submodule_failure?(output, submodule_path, nested_submodule_path) do
-    output =~ "Failed to recurse into submodule path '#{submodule_path}'" and
-      is_binary(nested_submodule_path) and
-      nested_submodule_path != submodule_path and
-      String.starts_with?(nested_submodule_path, submodule_path <> "/")
+  # Git reports the refused URL and its status on one line, so the host that
+  # denied us is read from that line rather than from anywhere else in the
+  # output, which may mention several remotes.
+  defp forbidden_by_policy?(downcased_output) do
+    case Regex.run(~r/unable to access '([^']+)'[^\n]*returned error: 403/, downcased_output, capture: :all_but_first) do
+      [url] -> not ambiguous_forbidden_host?(url)
+      _ -> false
+    end
   end
 
-  @doc false
-  def skippable_submodule_failure?(output) do
-    Enum.any?(
-      @skippable_submodule_failure_markers,
-      &(output |> String.downcase() |> String.contains?(&1))
-    )
+  defp ambiguous_forbidden_host?(url) do
+    host = URI.parse(url).host || ""
+
+    Enum.any?(@ambiguous_forbidden_hosts, &(host == &1 or String.ends_with?(host, "." <> &1)))
   end
 
-  defp remove_failed_submodule_contents(destination, submodule_path) do
-    case File.rm_rf(Path.join(destination, submodule_path)) do
+  defp remove_failed_submodule_contents(repository_directory, submodule_path) do
+    case File.rm_rf(Path.join(repository_directory, submodule_path)) do
       {:ok, _removed_paths} -> :ok
       {:error, reason, path} -> {:error, {:remove_failed_submodule_contents_failed, path, reason}}
     end
   end
 
-  defp submodule_paths(destination) do
-    case System.cmd("git", ["-C", destination, "ls-files", "--stage"], stderr_to_stdout: true) do
+  # `-z` is what keeps the path usable rather than merely readable: without it
+  # git C-quotes any path containing non-ASCII bytes, quotes, backslashes or
+  # control characters, and the quoted rendering (`"caf\303\251"`) is handed
+  # straight back to git as a pathspec that matches nothing and to
+  # `File.rm_rf/1`, where a skip would delete nothing. NUL termination also
+  # means a path may be taken verbatim, since trimming would corrupt the paths
+  # git emits with leading or trailing whitespace.
+  defp submodule_paths(repository_directory, path_prefix) do
+    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage", "-z"], stderr_to_stdout: true) do
       {output, 0} ->
         paths =
           output
-          |> String.split("\n", trim: true)
+          |> String.split(<<0>>, trim: true)
           |> Enum.filter(&String.starts_with?(&1, "160000"))
-          |> Enum.map(fn line ->
-            case String.split(line, "\t", parts: 2) do
-              [_, path] -> String.trim(path)
+          |> Enum.map(fn record ->
+            case String.split(record, "\t", parts: 2) do
+              [_, path] -> path
               _ -> nil
             end
           end)
-          |> Enum.reject(&is_nil/1)
+          # A submodule git left unpopulated lists the superproject's own gitlink
+          # back as `./`, which would walk the tree into itself.
+          |> Enum.reject(&(&1 in [nil, "", ".", "./"]))
 
         {:ok, paths}
 
       {output, status} ->
-        {:error, {:git_list_submodules_failed, status, String.trim(output)}}
+        {:error, {:git_list_submodules_failed, path_prefix || ".", status, String.trim(output)}}
     end
   end
 
@@ -952,6 +1101,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
   end
 
+  # Retrying immediately re-clones the repository and every submodule already
+  # walked, aimed at a host that has just asked us to slow down, and reports each
+  # attempt separately. A third-party host sends no quota headers, so this backs
+  # off by the default window rather than to a reported reset.
+  defp maybe_skip_release(
+         scope,
+         name,
+         _full_handle,
+         version,
+         {:git_submodule_update_throttled, submodule_path, _status, _output}
+       ) do
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version} for #{@default_snooze_seconds}s: the host serving submodule #{submodule_path} is throttling requests"
+    )
+
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :submodule_host_throttled})
+
+    {:snooze, @default_snooze_seconds}
+  end
+
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do
     Logger.warning(
       "Skipping registry release #{scope}/#{name}@#{tag} for #{failed_full_handle}: no root Package.swift manifest was found"
@@ -968,28 +1137,84 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_default_manifest")
   end
 
-  defp maybe_skip_release(_scope, _name, _full_handle, _version, reason) do
-    case rate_limit_status(reason) do
-      nil ->
-        :not_skipped
+  # Discarding here dropped the job's arguments, so the release was only
+  # revisited if a later catalog rotation happened to notice it missing again.
+  # Snoozing to the quota reset keeps the same job, with the same scope, name
+  # and tag, and lets it run once the budget is back.
+  defp maybe_skip_release(scope, name, _full_handle, version, reason) do
+    case rate_limit_deferral(reason) do
+      {status, retry_after} ->
+        snooze_after_rate_limit(scope, name, version, status, retry_after)
 
-      status ->
-        Logger.warning("Deferring registry release after GitHub rate limit (HTTP #{status})")
-        {:discard, reason}
+      nil ->
+        case transient_upstream_deferral(reason) do
+          nil -> :not_skipped
+          status -> snooze_after_transient_upstream(scope, name, version, status)
+        end
     end
   end
 
-  defp rate_limit_status({:rate_limited, status}), do: status
+  defp snooze_after_rate_limit(scope, name, version, status, retry_after) do
+    seconds = snooze_seconds(retry_after)
 
-  defp rate_limit_status(tuple) when is_tuple(tuple) do
-    tuple
-    |> Tuple.to_list()
-    |> Enum.find_value(&rate_limit_status/1)
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after GitHub rate limit (HTTP #{status})"
+    )
+
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :rate_limited})
+
+    {:snooze, seconds}
   end
 
-  defp rate_limit_status(list) when is_list(list), do: Enum.find_value(list, &rate_limit_status/1)
-  defp rate_limit_status(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_status/1)
-  defp rate_limit_status(_reason), do: nil
+  defp snooze_after_transient_upstream(scope, name, version, status) do
+    seconds = snooze_seconds(nil)
+
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after transient upstream HTTP #{status}"
+    )
+
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :transient_upstream})
+
+    {:snooze, seconds}
+  end
+
+  defp rate_limit_deferral({:rate_limited, status, retry_after}), do: {status, retry_after}
+
+  defp rate_limit_deferral(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&rate_limit_deferral/1)
+  end
+
+  defp rate_limit_deferral(list) when is_list(list), do: Enum.find_value(list, &rate_limit_deferral/1)
+
+  defp rate_limit_deferral(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_deferral/1)
+
+  defp rate_limit_deferral(_reason), do: nil
+
+  # Walks the same shapes as rate_limit_deferral/1 so a bare `{:http_error,
+  # 502}` from a REST helper and a wrapped `{:manifest_fetch_failed, [%{reason:
+  # {:http_error, 502}}, ...]}` are both recognised.
+  defp transient_upstream_deferral({:http_error, status}) when status in @transient_upstream_statuses, do: status
+
+  defp transient_upstream_deferral(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&transient_upstream_deferral/1)
+  end
+
+  defp transient_upstream_deferral(list) when is_list(list), do: Enum.find_value(list, &transient_upstream_deferral/1)
+
+  defp transient_upstream_deferral(map) when is_map(map),
+    do: map |> Map.values() |> Enum.find_value(&transient_upstream_deferral/1)
+
+  defp transient_upstream_deferral(_reason), do: nil
+
+  defp snooze_seconds(nil), do: @default_snooze_seconds
+
+  defp snooze_seconds(retry_after) when is_integer(retry_after) do
+    retry_after |> max(@min_snooze_seconds) |> min(@max_snooze_seconds)
+  end
 
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}

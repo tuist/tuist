@@ -73,11 +73,11 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         let generatedModuleMapPath: AbsolutePath
 
         let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
-            containingCheckout: publicHeadersPath,
+            containingPackageSource: publicHeadersPath,
             knownScratchDirectory: swiftPackageManagerScratchDirectory
         )
         if let resolvedSwiftPackageManagerScratchDirectory,
-           SwiftPackageManagerPaths.isPath(publicHeadersPath, inCheckoutsOf: resolvedSwiftPackageManagerScratchDirectory)
+           SwiftPackageManagerPaths.isPath(publicHeadersPath, inPackageSourcesOf: resolvedSwiftPackageManagerScratchDirectory)
         {
             generatedModuleMapPath = resolvedSwiftPackageManagerScratchDirectory
                 .appending(

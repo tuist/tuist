@@ -144,7 +144,7 @@ defmodule Noora.Sidebar do
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:external, :boolean, default: false, doc: "Whether the item points to an external resource.")
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(target rel))
 
   def sidebar_item(assigns) do
     ~H"""

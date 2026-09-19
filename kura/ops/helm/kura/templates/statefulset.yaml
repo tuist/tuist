@@ -52,6 +52,11 @@ spec:
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
               protocol: TCP
+            {{- if gt (int .Values.service.gatewayGrpcPort) 0 }}
+            - name: grpc
+              containerPort: {{ .Values.service.gatewayGrpcPort }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
@@ -63,6 +68,10 @@ spec:
                   fieldPath: metadata.namespace
             - name: KURA_PORT
               value: {{ printf "%d" (int .Values.service.httpPort) | quote }}
+            {{- if gt (int .Values.service.gatewayGrpcPort) 0 }}
+            - name: KURA_GATEWAY_GRPC_PORT
+              value: {{ printf "%d" (int .Values.service.gatewayGrpcPort) | quote }}
+            {{- end }}
             - name: KURA_TENANT_ID
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION
@@ -117,6 +126,57 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.acceleratedFileServing.chunkBytes) | quote }}
             - name: KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED
               value: {{ ternary "true" "false" (dig "actionCache" "evictionCascadeEnabled" true .Values.config) | quote }}
+            - name: KURA_REAPI_BLOB_CHUNKING_ENABLED
+              value: {{ ternary "true" "false" (dig "reapi" "blobChunkingEnabled" true .Values.config) | quote }}
+            {{- /*
+            Ignored by this chart's app version, which has no walker to select,
+            but rendered unconditionally so a node-by-node upgrade works: a
+            pod still on the previous app version reads it and runs backfill,
+            which is the only catch-up path its already-upgraded peers answer.
+            Remove it once no supported upgrade path starts below that version.
+            */}}
+            - name: KURA_BACKFILL_ENABLED
+              value: "true"
+            - name: KURA_BACKFILL_MARGIN_PERCENT
+              value: {{ printf "%d" (int (dig "backfill" "marginPercent" 40 .Values.config)) | quote }}
+            {{- with (dig "backfill" "readyRingPercent" "" .Values.config) }}
+            - name: KURA_BACKFILL_READY_RING_PERCENT
+              value: {{ printf "%d" (int .) | quote }}
+            {{- end }}
+            - name: KURA_BACKFILL_BATCH_BYTES
+              value: {{ printf "%d" (int64 (dig "backfill" "batchBytes" 33554432 .Values.config)) | quote }}
+            {{- with (dig "sync" "feedMaxRows" "" .Values.config) }}
+            - name: KURA_SYNC_FEED_MAX_ROWS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "longPollSecs" "" .Values.config) }}
+            - name: KURA_SYNC_LONG_POLL_SECS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "passStartBufferMs" "" .Values.config) }}
+            - name: KURA_SYNC_PASS_START_BUFFER_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "regionSettleMs" "" .Values.config) }}
+            - name: KURA_SYNC_REGION_SETTLE_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "feedStalePeerSecs" "" .Values.config) }}
+            - name: KURA_SYNC_FEED_STALE_PEER_SECS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "drainMarginMs" "" .Values.config) }}
+            - name: KURA_SYNC_DRAIN_MARGIN_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "peerBodiesSlotsPerPeer" "" .Values.config) }}
+            - name: KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "peerServingMaxInflight" "" .Values.config) }}
+            - name: KURA_SYNC_PEER_SERVING_MAX_INFLIGHT
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
             {{- with .Values.config.memory.softLimitBytes }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
               value: {{ printf "%d" (int64 .) | quote }}
@@ -147,17 +207,21 @@ spec:
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
             {{- end }}
-            - name: KURA_GEOIP_REFRESH_INTERVAL_SECS
-              value: {{ printf "%d" (int64 .Values.config.geoip.refreshIntervalSecs) | quote }}
             - name: KURA_OTEL_SERVICE_NAME
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
               value: {{ .Values.config.telemetry.deploymentEnvironment | quote }}
-            {{- if .Values.extension.enabled }}
-            - name: KURA_EXTENSION_ENABLED
+            - name: KURA_REQUEST_LOG_SAMPLE_RATE
+              value: {{ .Values.config.telemetry.requestLogSampleRate | quote }}
+            - name: KURA_SLOW_REQUEST_THRESHOLD_MS
+              value: {{ printf "%d" (int64 .Values.config.telemetry.slowRequestThresholdMs) | quote }}
+            - name: KURA_WARNING_LOG_INTERVAL_MS
+              value: {{ printf "%d" (int64 .Values.config.telemetry.warningLogIntervalMs) | quote }}
+            {{- if .Values.auth.enabled }}
+            - name: KURA_AUTH_ENABLED
               value: "true"
-            - name: KURA_EXTENSION_SCRIPT_PATH
-              value: {{ printf "%s/%s" .Values.extension.mountDir .Values.extension.scriptFileName | quote }}
+            - name: KURA_AUTH_TUIST_URL
+              value: {{ .Values.auth.tuistUrl | quote }}
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -174,21 +238,21 @@ spec:
               mountPath: /etc/kura/peer-tls
               readOnly: true
             {{- end }}
-            {{- if .Values.extension.enabled }}
-            - name: extension-script
-              mountPath: {{ .Values.extension.mountDir }}
-              readOnly: true
-            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          # Checked every second so a started pod joins its Service as soon as
+          # it serves; 30 failures keep the 30s a serving pod tolerates a slow
+          # /ready before it leaves the Service. The timeout matches the period:
+          # the kubelet runs a pod's probes one at a time, so a longer timeout
+          # would stretch that budget for a /ready that hangs.
           readinessProbe:
             httpGet:
               path: /ready
               port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
+            periodSeconds: 1
+            timeoutSeconds: 1
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /up
@@ -196,13 +260,15 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
+          # Bootstrap /up is available during exclusive store recovery; its
+          # progress watchdog bounds stalls while /ready remains unavailable.
           startupProbe:
             httpGet:
               path: /up
               port: http
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 30
+            periodSeconds: 1
+            timeoutSeconds: 1
+            failureThreshold: 300
           lifecycle:
             preStop:
               exec:
@@ -218,16 +284,11 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.extension.enabled .Values.peerTls.enabled .Values.extraVolumes }}
+      {{- if or (not .Values.persistence.enabled) .Values.peerTls.enabled .Values.extraVolumes }}
       volumes:
         {{- if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
-        {{- end }}
-        {{- if .Values.extension.enabled }}
-        - name: extension-script
-          configMap:
-            name: {{ include "kura.extensionConfigMapName" . }}
         {{- end }}
         {{- if .Values.peerTls.enabled }}
         - name: peer-tls

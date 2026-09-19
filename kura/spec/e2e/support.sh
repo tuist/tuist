@@ -189,6 +189,18 @@ wait_for_http() {
   return 1
 }
 
+# `/up` alone only proves the process is alive: the bootstrap listener answers it
+# with 200 throughout store recovery while every cache route is short-circuited
+# with a plain-text 503 that never reaches the serving router or its metrics
+# middleware, so traffic driven at that point is neither served nor counted.
+# Gate on `/ready` before seeding or measuring a node. Joining nodes observed
+# mid-backfill are deliberately excluded: their readiness latches on ring
+# fullness, so those waits stay on `/up`.
+wait_for_node_ready() {
+  wait_for_http "$1/up" 60 1 || return 1
+  wait_for_status "$1/ready" 200 90 1 >/dev/null || return 1
+}
+
 wait_for_status() {
   local url="$1"
   local expected_status="$2"
@@ -303,6 +315,67 @@ wait_for_all_contains() {
   return 1
 }
 
+# Sum the samples of one Prometheus family scraped from NODE_URL/metrics.
+# METRIC is the full family name (e.g. kura_backfill_applied_bytes_total);
+# FILTER, when given, is a substring the sample's label set must contain
+# (e.g. 'decision="present"'). Prints an integer; an unscrapable node or an
+# untouched family sums to 0. A rendered sample may carry one extra `_total`
+# beyond the registered name (the prometheus_client crate appends the counter
+# suffix even when the registration already ends in `_total`), so both
+# spellings are accepted — callers always pass the registered name.
+metric_sum() {
+  local url="$1" metric="$2" filter="${3:-}"
+  curl -fsS "${url}/metrics" 2>/dev/null | awk -v metric="$metric" -v filter="$filter" '
+    index($0, metric) == 1 {
+      rest = substr($0, length(metric) + 1)
+      sub(/^_total/, "", rest)
+      tail = substr(rest, 1, 1)
+      if (tail != "{" && tail != " ") { next }
+      if (filter != "" && index($0, filter) == 0) { next }
+      sum += $NF
+    }
+    END { printf "%.0f", sum + 0 }'
+}
+
+# Poll metric_sum until it reaches THRESHOLD; print the value that satisfied
+# the wait. Pass an empty FILTER to sum the whole family.
+wait_for_metric_ge() {
+  local url="$1" metric="$2" filter="$3" threshold="$4" attempts="${5:-45}" sleep_seconds="${6:-2}"
+  local value
+
+  for _ in $(seq 1 "$attempts"); do
+    value="$(metric_sum "$url" "$metric" "$filter")"
+    if [ "${value:-0}" -ge "$threshold" ]; then
+      printf '%s' "$value"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for %s%s on %s to reach %s (last value %s)\n' \
+    "$metric" "${filter:+\{$filter\}}" "$url" "$threshold" "${value:-0}" >&2
+  return 1
+}
+
+# Sample URL SAMPLES times, SLEEP_SECONDS apart, and print how many samples
+# returned a status other than EXPECTED. 0 means the status held for the whole
+# window — the readiness-latch specs use this to assert /ready never regresses
+# across a peer flap.
+count_status_regressions() {
+  local url="$1" expected="$2" samples="$3" sleep_seconds="$4"
+  local regressions=0 status
+
+  for _ in $(seq 1 "$samples"); do
+    status="$(status_only "$url" 2>/dev/null || true)"
+    if [ "$status" != "$expected" ]; then
+      regressions=$((regressions + 1))
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf '%s' "$regressions"
+}
+
 new_marker() {
   python3 - <<'PY'
 import secrets
@@ -316,7 +389,7 @@ extract_upload_id() {
 
 jwt_for_namespace() {
   local namespace_id="$1"
-  python3 - "$namespace_id" <<'PY'
+  python3 - "$namespace_id" <<'PYEOF'
 import base64
 import hashlib
 import hmac
@@ -328,28 +401,27 @@ def b64url(data: bytes) -> str:
 
 namespace_id = sys.argv[1]
 header = {"alg": "HS256", "typ": "JWT"}
-payload = {"sub": "user-1", "namespace_id": namespace_id, "exp": 4000000000}
+# `scopes` marks a token whose bare project handles are not themselves
+# authorization; the grants below are what the node reads.
+payload = {
+    "sub": "user-1",
+    "type": "user",
+    "scopes": ["project_cache_write"],
+    "cache_grants": {
+        "project": {
+            "read": ["default/" + namespace_id],
+            "write": ["default/" + namespace_id],
+        }
+    },
+    "exp": 4000000000,
+}
 
 header_b64 = b64url(json.dumps(header, separators=(",", ":")).encode())
 payload_b64 = b64url(json.dumps(payload, separators=(",", ":")).encode())
-signing_input = f"{header_b64}.{payload_b64}".encode()
-signature = hmac.new(b"extension-jwt-secret", signing_input, hashlib.sha256).digest()
-print(f"{header_b64}.{payload_b64}.{b64url(signature)}")
-PY
-}
-
-expected_signature() {
-  local payload="$1"
-  python3 - "$payload" <<'PY'
-import base64
-import hashlib
-import hmac
-import sys
-
-payload = sys.argv[1].encode()
-signature = hmac.new(b"extension-signing-secret", payload, hashlib.sha256).digest()
-print(base64.b64encode(signature).decode())
-PY
+signing_input = (header_b64 + "." + payload_b64).encode()
+signature = hmac.new(b"kura-auth-jwt-secret", signing_input, hashlib.sha256).digest()
+print(header_b64 + "." + payload_b64 + "." + b64url(signature))
+PYEOF
 }
 
 create_bazel_workspace() {
@@ -383,6 +455,43 @@ bazel_build() {
       --remote_cache="grpc://127.0.0.1:${grpc_port}" \
       --remote_instance_name="${instance_name}" \
       --remote_upload_local_results=true \
+      --remote_download_outputs=all \
+      --show_result=0 \
+      --noshow_loading_progress \
+      --noshow_progress
+  )
+}
+
+create_chunked_bazel_workspace() {
+  local dir="$1"
+  local marker="$2"
+
+  mkdir -p "$dir"
+  printf '%s\n' 'module(name = "kura_bazel_chunking_demo")' >"$dir/MODULE.bazel"
+  printf '%s\n' \
+    'genrule(' \
+    '    name = "large_output",' \
+    '    outs = ["large-output.bin"],' \
+    "    cmd = \"printf '${marker}' > \$@ && dd if=/dev/zero bs=1048576 count=8 >> \$@ 2>/dev/null\"," \
+    ')' >"$dir/BUILD.bazel"
+}
+
+bazel_build_chunked() {
+  local dir="$1"
+  local grpc_port="$2"
+  local instance_name="$3"
+  local upload_local_results="${4:-true}"
+  local bazel_path
+  bazel_path="$(mise exec -- which bazel)"
+
+  (
+    cd "$dir"
+    "$bazel_path" \
+      build //:large_output \
+      --remote_cache="grpc://127.0.0.1:${grpc_port}" \
+      --remote_instance_name="${instance_name}" \
+      --experimental_remote_cache_chunking \
+      --remote_upload_local_results="${upload_local_results}" \
       --remote_download_outputs=all \
       --show_result=0 \
       --noshow_loading_progress \

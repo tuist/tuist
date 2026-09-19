@@ -557,9 +557,65 @@ struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
     }
 }
 
+struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
+    @Test(.withFixture("generated_command_line_tool_with_package_access_and_module_map"), .inTemporaryDirectory)
+    func command_line_tool_with_package_access_and_module_map() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "Package", "repro.xcodeproj").pathString
+        )
+        let reproCoreTarget = try TuistAcceptanceTest.requireTarget("ReproCore", in: xcodeproj)
+        let buildConfigurations = try #require(reproCoreTarget.buildConfigurationList?.buildConfigurations)
+
+        for buildConfiguration in buildConfigurations {
+            let buildSettings = buildConfiguration.buildSettings
+            #expect(buildSettings["SWIFT_PACKAGE_NAME"]?.stringValue == "repro")
+
+            let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+            #expect(otherSwiftFlags.contains("-module-abi-name"))
+            #expect(otherSwiftFlags.contains("-Xcc"))
+            #expect(otherSwiftFlags.contains(where: { $0.contains("ReproCore-deps.modulemap") }))
+            #expect(!otherSwiftFlags.contains("-package-name"))
+        }
+
+        try await run(BuildCommand.self)
+    }
+}
+
+struct GenerateAcceptanceTestCommandLineToolWithLocalMacroPackage {
+    @Test(.withFixture("generated_command_line_tool_with_local_macro_package"), .inTemporaryDirectory)
+    func command_line_tool_with_local_macro_package() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "Package", "MacroPackage.xcodeproj").pathString
+        )
+        let macroTarget = try TuistAcceptanceTest.requireTarget("ReproMacro", in: xcodeproj)
+        let buildConfigurations = try #require(macroTarget.buildConfigurationList?.buildConfigurations)
+
+        for buildConfiguration in buildConfigurations {
+            let buildSettings = buildConfiguration.buildSettings
+            #expect(buildSettings["SWIFT_PACKAGE_NAME"]?.stringValue == "MacroPackage")
+
+            let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.stringValue)
+            #expect(otherSwiftFlags.contains("-Xfrontend -disable-sil-ownership-verifier"))
+            #expect(!otherSwiftFlags.contains("-package-name"))
+        }
+
+        try await run(BuildCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
-    func ios_app_with_objc_static_framework_package() async throws {
+    func ios_app_with_objc_and_c_static_framework_package() async throws {
         let fixturePath = try fixtureDirectory()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -735,6 +791,60 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
             "-derivedDataPath",
             derivedDataPath.pathString,
         ])
+    }
+}
+
+struct GenerateAcceptanceTestAppWithSPMFrameworkBundleIdentifiers {
+    @Test(.withFixture("generated_app_with_spm_framework_bundle_identifiers"), .inTemporaryDirectory)
+    func app_with_spm_framework_bundle_identifiers() async throws {
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
+        let commandRunner = CommandRunner()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await commandRunner.runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", derivedData.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let appPath = derivedData.appending(components: "Build", "Products", "Debug-iphonesimulator", "App.app")
+        let bundleIdentifiers = try ["IssueReporting", "_IssueReporting"].map { framework in
+            let plistPath = appPath.appending(components: "Frameworks", "\(framework).framework", "Info.plist")
+            let plist = try #require(
+                try PropertyListSerialization.propertyList(from: Data(contentsOf: plistPath.url), format: nil)
+                    as? [String: Any]
+            )
+            return try #require(plist["CFBundleIdentifier"] as? String)
+        }
+        #expect(Set(bundleIdentifiers).count == 2)
+
+        try await TestingSimulators.acquiringPoolLock {
+            let simulatorID = try await commandRunner.run(arguments: [
+                "/usr/bin/xcrun", "simctl", "create", "BundleIdentifiers-\(UUID().uuidString)", "iPhone 16 Pro",
+            ]).concatenatedString(including: [.standardOutput]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            do {
+                try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorID])
+                try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "bootstatus", simulatorID, "-b"])
+                try await commandRunner.runAndWait(arguments: [
+                    "/usr/bin/xcrun", "simctl", "install", simulatorID, appPath.pathString,
+                ])
+                try await commandRunner.runAndWait(arguments: [
+                    "/usr/bin/xcrun", "simctl", "launch", simulatorID, "dev.tuist.BundleIdentifiers",
+                ])
+            } catch {
+                try? await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorID])
+                throw error
+            }
+            try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorID])
+        }
     }
 }
 

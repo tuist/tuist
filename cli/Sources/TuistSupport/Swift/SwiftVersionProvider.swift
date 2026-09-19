@@ -129,36 +129,3 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
         }
     }
 }
-
-private actor AsyncThrowableCaching<T: Sendable> {
-    private var cachedValue: T?
-    private var inFlightTask: Task<T, Error>?
-    private let builder: @Sendable () async throws -> T
-
-    init(_ builder: @Sendable @escaping () async throws -> T) {
-        self.builder = builder
-    }
-
-    func value() async throws -> T {
-        if let cachedValue {
-            return cachedValue
-        }
-        // Coalesce concurrent first-callers onto a single task. Storing the task synchronously
-        // (before any suspension point) ensures callers that arrive while the builder is running
-        // await the same result instead of each kicking off a duplicate `builder()`.
-        if let inFlightTask {
-            return try await inFlightTask.value
-        }
-        let task = Task { try await builder() }
-        inFlightTask = task
-        do {
-            let realizedValue = try await task.value
-            cachedValue = realizedValue
-            inFlightTask = nil
-            return realizedValue
-        } catch {
-            inFlightTask = nil
-            throw error
-        }
-    }
-}

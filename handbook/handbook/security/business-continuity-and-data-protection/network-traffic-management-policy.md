@@ -8,7 +8,7 @@
 # Network traffic management policy
 
 - **Policy owner:** Pedro Piñera Buendía
-- **Policy owner:** Effective Date: December 12, 2024
+- **Effective date:** December 12, 2024
 
 ## Purpose
 
@@ -16,20 +16,22 @@ To establish comprehensive rules and procedures for monitoring, controlling, man
 
 ## Scope
 
-This policy applies to all network traffic related to Tuist GmbH applications and services, while recognizing the shared responsibility model with our infrastructure provider Render as documented in our [Shared Responsibility Model](/security/shared-responsibility-model).
+This policy applies to all network traffic related to Tuist GmbH applications and services, while recognizing the shared responsibility model with our infrastructure and edge providers as documented in our [Shared Responsibility Model](/security/shared-responsibility-model).
 
 ## Shared Responsibility Model for Network Traffic Management
 
-Tuist GmbH operates its infrastructure on Render, which creates a shared responsibility model for network traffic management:
+Tuist GmbH operates its services on managed cloud infrastructure and behind a managed edge network, which creates a shared responsibility model for network traffic management:
 
-### Render Responsibilities:
+### Infrastructure and edge provider responsibilities:
 - Physical network infrastructure security
-- Network perimeter security including DDoS protection
+- Network perimeter security including DDoS protection at the edge
 - Core network monitoring and management
 - Underlying network capacity planning
 - Network-level intrusion detection and prevention
 
-### Tuist GmbH Responsibilities:
+### Tuist GmbH responsibilities:
+- Cluster-level network policy, segmentation, and egress control
+- Configuration of edge controls, including web application firewall rules, bot mitigation, and TLS termination settings
 - Application-level traffic monitoring and analysis
 - API request monitoring and rate limiting
 - Application-generated network traffic patterns
@@ -83,7 +85,17 @@ Tuist GmbH operates its infrastructure on Render, which creates a shared respons
 - **Secure API Design**: APIs shall be designed with security best practices to prevent common vulnerabilities.
 - **Regular Security Updates**: Security patches for application components shall be applied according to the vulnerability management requirements in the [Secure Development Policy](/security/secure-development-and-operations/secure-development-policy).
 
-### 6. Monitoring Tools and Technologies
+### 6. Threat Detection and Mitigation Tooling
+
+Tuist GmbH shall implement and maintain the following categories of control to detect and mitigate network-borne threats. Where a control is delivered by a provider under the shared responsibility model, Tuist GmbH remains responsible for its configuration and for reviewing its output.
+
+- **Firewalls.** Perimeter filtering is provided by the edge network and by cloud provider firewall rules. In-cluster segmentation is enforced through network policies so that workloads can only reach the services they require. Default-deny is the baseline; every allowed path is explicit.
+- **Web application firewall.** A managed WAF sits in front of all public endpoints, filtering known attack patterns including injection, traversal, and common bot traffic. Rule sets are kept current and exclusions are documented.
+- **Intrusion detection.** Provider-level network intrusion detection covers the underlying infrastructure. At the application layer, Tuist GmbH detects intrusion attempts through authentication anomaly alerting, rate limit breach alerting, and log-based detection rules maintained under the [Logging and Monitoring Policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
+- **Intrusion prevention.** Detected malicious traffic is blocked inline through edge rules, rate limiting, and IP or account-level blocking. Blocking actions taken automatically shall be reviewed so that legitimate traffic caught by a rule is identified and the rule adjusted.
+- **DDoS protection.** Volumetric and protocol-level attack mitigation is provided at the edge and is enabled for all public endpoints.
+
+### 7. Monitoring Tools and Technologies
 
 Tuist GmbH shall implement and maintain at least the following monitoring tools:
 - Application Performance Monitoring (APM) solutions
@@ -92,7 +104,7 @@ Tuist GmbH shall implement and maintain at least the following monitoring tools:
 - Real-time alerting systems
 - Traffic visualization dashboards
 
-### 7. Documentation and Reporting
+### 8. Documentation and Reporting
 
 - **Traffic Reports**: Monthly network traffic summary reports shall be generated and reviewed by IT management.
 - **Incident Documentation**: All traffic-related security incidents shall be documented according to the Incident Response Management policy.

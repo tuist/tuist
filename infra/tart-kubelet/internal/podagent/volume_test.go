@@ -6,14 +6,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,6 +47,20 @@ type fakeBackend struct {
 	notMounted bool
 	// mountErr, when set, is returned from isMounted to model a stat failure.
 	mountErr error
+	// digestErr, when set, is returned from imageInventoryDigest to model a
+	// LOCAL failure to measure an image (the read-only attach failed), which is
+	// not evidence about the image's contents.
+	digestErr error
+	// growErr, when set, fails every grow.
+	growErr error
+	// grown records every grow: the image's content at the time and the size
+	// it was grown to.
+	grown []grownImage
+}
+
+type grownImage struct {
+	content string
+	sizeGiB int
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -70,9 +89,24 @@ func (f *fakeBackend) createImage(path string, sizeGiB int) error {
 	return os.WriteFile(path, []byte("empty-image"), 0o644)
 }
 
+func (f *fakeBackend) growImage(path string, sizeGiB int) error {
+	if f.growErr != nil {
+		return f.growErr
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	f.grown = append(f.grown, grownImage{content: string(b), sizeGiB: sizeGiB})
+	return nil
+}
+
 // imageInventoryDigest stands in for a read-through attach: the digest is
 // sha1(content) of the opaque image bytes.
 func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
+	if f.digestErr != nil {
+		return "", f.digestErr
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -345,18 +379,23 @@ func TestNeverDispatchedDiscards(t *testing.T) {
 	}
 }
 
+// Admission runs when a branch is materialized, which is when it starts to write.
+// With no room even after eviction the branch gets no image, and the guest falls
+// back to its local cold cache.
 func TestAdmissionDeclinesToColdPath(t *testing.T) {
-	// Total capacity below one provisioned cap: no room even after eviction.
 	root := t.TempDir()
 	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
 	m := NewVolumeManager(root, 1, be)
 
-	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if err != nil {
-		t.Fatalf("AllocateBranch err: %v", err)
+	att := mustAllocate(t, m, "vm1")
+	if !att.Attached {
+		t.Fatal("a booting VM reserves nothing, so it always gets its share")
 	}
-	if att.Attached {
-		t.Fatal("admission should decline (cold path) when the root cannot fit a cap")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
+	}
+	if branchImageExists(m, att) {
+		t.Fatal("a declined branch must get no image, so the guest runs cold")
 	}
 }
 
@@ -370,12 +409,9 @@ func TestAdmissionDeclineIncrementsMetric(t *testing.T) {
 	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
 	m := NewVolumeManager(root, 1, be)
 
-	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if err != nil {
-		t.Fatalf("AllocateBranch err: %v", err)
-	}
-	if att.Attached {
-		t.Fatal("admission should decline to the cold path")
+	att := mustAllocate(t, m, "vm1")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
 	}
 	if got := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal); got != before+1 {
 		t.Fatalf("admission-declined counter = %v, want %v", got, before+1)
@@ -493,8 +529,8 @@ func TestAwaitMountedRootStopsOnContextCancel(t *testing.T) {
 }
 
 func TestAdmissionEvictsThenAdmits(t *testing.T) {
-	// 3 GiB total, 1 GiB cap. Seed 3 masters (free -> 0), then a new attach
-	// must evict an LRU master to make room and still admit.
+	// 3 GiB total, 1 GiB cap. Seed 3 masters (free -> 0), then materializing a
+	// branch must evict an LRU master to make room and still admit.
 	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
@@ -502,30 +538,56 @@ func TestAdmissionEvictsThenAdmits(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "vmX")
-	if !att.Attached {
-		t.Fatal("attach should admit after evicting an LRU master")
+	if _, _, err := m.Materialize(att, "d"); err != nil {
+		t.Fatalf("Materialize should admit after evicting an LRU master: %v", err)
 	}
 	if masterExists(m, "a") {
 		t.Fatal("oldest master 'a' should have been evicted for admission")
 	}
 }
 
-// Reservation (review finding 3): CoW branches start ~0 bytes, so instantaneous
-// free space would let N concurrent branches all pass a per-branch check and
-// later exhaust the quota. AllocateBranch reserves cap per live branch, so a
-// second concurrent branch is declined when only ~1 cap fits.
-func TestReservationPreventsOvercommit(t *testing.T) {
+// Admission now knows the account, so it must never evict the master it is about
+// to clone: that is the 2026-07-31 failure, where every job evicted the master it
+// was materializing and ran cold. The least recently used OTHER master goes
+// instead.
+func TestAdmissionKeepsTheMasterItMaterializes(t *testing.T) {
+	m, _ := newTestManager(t, 2)
+	seedMaster(t, m, "a")
+	setMtime(t, m.masterImage("a", ReservedTuistCacheVolume), time.Now().Add(-time.Hour))
+	seedMaster(t, m, "b")
+
+	att := mustAllocate(t, m, "vm-a")
+	warm, _, err := m.Materialize(att, "a")
+	if err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want a warm admission", warm, err)
+	}
+	if !masterExists(m, "a") {
+		t.Fatal("admission evicted the master it was materializing")
+	}
+	if masterExists(m, "b") {
+		t.Fatal("the other account's master should have been evicted instead")
+	}
+}
+
+// A warm standby booted with an empty share writes nothing until it has a job, so
+// it reserves nothing. Branches that have been materialized reserve a cap each,
+// which is what keeps concurrent jobs from collectively overrunning the quota.
+func TestWarmStandbysReserveNothing(t *testing.T) {
 	root := t.TempDir()
 	be := &fakeBackend{totalBytes: gib + gib/2, perMaster: gib, root: root} // 1.5 GiB
 	m := NewVolumeManager(root, 1, be)                                      // 1 GiB cap
 
-	a1, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
-	if !a1.Attached {
-		t.Fatal("first branch should attach (needs 1 cap, 1.5 free)")
+	a1 := mustAllocate(t, m, "vm1")
+	a2 := mustAllocate(t, m, "vm2")
+	a3 := mustAllocate(t, m, "vm3")
+	if !a1.Attached || !a2.Attached || !a3.Attached {
+		t.Fatal("booting VMs reserve nothing, so every one gets its share")
 	}
-	a2, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm2")
-	if a2.Attached {
-		t.Fatal("second concurrent branch should decline: 2 caps reserved > 1.5 free")
+	if _, _, err := m.Materialize(a1, "42"); err != nil {
+		t.Fatalf("first job should be admitted (needs 1 cap, 1.5 free): %v", err)
+	}
+	if _, _, err := m.Materialize(a2, "43"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("second concurrent job err = %v; want a decline (2 caps > 1.5 free)", err)
 	}
 }
 
@@ -537,18 +599,20 @@ func TestFinalizeReleasesReservation(t *testing.T) {
 	m := NewVolumeManager(root, 1, be)                                  // 1 GiB cap
 
 	a1 := mustAllocate(t, m, "vm1")
+	if _, _, err := m.Materialize(a1, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
 	a1.SourceAccount = "42"
 	a1.PromotedGeneration = 1
 	writeBranchCache(t, m, a1, "x")
 	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("promote = %s", out)
 	}
-	// Free is now 1 GiB (2 - one master). With the reservation released
-	// (liveBranches back to 0) a new branch needs only 1 cap and fits without
-	// evicting account 42's fresh master.
+	// Free is now 1 GiB (2 - one master). With the reservation released a new
+	// job needs only 1 cap and fits without evicting account 42's fresh master.
 	a2 := mustAllocate(t, m, "vm2")
-	if !a2.Attached {
-		t.Fatal("second branch should attach after the first's reservation is released")
+	if _, _, err := m.Materialize(a2, "43"); err != nil {
+		t.Fatalf("second job should be admitted after the first's reservation is released: %v", err)
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("account 42's master must not be evicted to admit vm2")
@@ -597,8 +661,8 @@ func TestSweepBranches(t *testing.T) {
 	if _, err := os.Stat(a2.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("branch vm2 should be swept")
 	}
-	if m.liveBranches != 0 {
-		t.Fatalf("liveBranches after sweep = %d; want 0", m.liveBranches)
+	if got := m.reservedBranches(); got != 0 {
+		t.Fatalf("reserved branches after sweep = %d; want 0", got)
 	}
 	// A master must survive the sweep (only branches are removed).
 	seedMaster(t, m, "42")
@@ -612,8 +676,8 @@ func TestSweepBranches(t *testing.T) {
 
 // A branch belonging to a VM that survived the restart (ReattachBranch) must be
 // kept by the sweep — removing a virtio-fs-mounted branch would corrupt the
-// running job — while a sibling orphan branch is still reaped, and liveBranches
-// reflects only the retained one.
+// running job — while a sibling orphan branch is still reaped. A materialized
+// branch that survived keeps its reservation, because its job is still writing.
 func TestSweepBranchesRetainsReattached(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	live := mustAllocate(t, m, "vm-live")
@@ -637,8 +701,8 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	if _, err := os.Stat(orphan.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("orphan branch should be swept")
 	}
-	if m.liveBranches != 1 {
-		t.Fatalf("liveBranches after sweep = %d; want 1 (only the retained branch)", m.liveBranches)
+	if got := m.reservedBranches(); got != 1 {
+		t.Fatalf("reserved branches after sweep = %d; want 1 (only the retained, materialized branch)", got)
 	}
 }
 
@@ -720,6 +784,54 @@ func TestMaterializeReportsFallbackFailure(t *testing.T) {
 	}
 	if !errors.Is(err, be.cloneErr) || !errors.Is(err, be.createErr) {
 		t.Fatalf("error should report both the clone and the fallback failure; got %v", err)
+	}
+}
+
+// A master from before the cap was raised, or converged from a host with a
+// smaller one, has less room than the cap. Growing takes an attach and about a
+// second, so the host grows a master when it installs it, after the job that
+// produced it or in the background download, and never while a job waits to
+// start.
+func TestInstallMasterGrowsTheImageToTheCeiling(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	m.CapGiB = 30
+	src := filepath.Join(t.TempDir(), "promoted.sparseimage")
+	if err := os.WriteFile(src, []byte(masterImageContent("42")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, src, 1); err != nil || !installed {
+		t.Fatalf("InstallMaster = %v, %v; want installed", installed, err)
+	}
+	want := []grownImage{{content: masterImageContent("42"), sizeGiB: 30}}
+	if !reflect.DeepEqual(be.grown, want) {
+		t.Fatalf("grown = %+v; want the installed master grown to the 30 GiB cap: %+v", be.grown, want)
+	}
+
+	att := mustAllocate(t, m, "vm-warm")
+	if warm, _, err := m.Materialize(att, "42"); err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	}
+	if len(be.grown) != 1 {
+		t.Fatalf("grown = %+v; materializing a branch must not grow it, a job would wait on it", be.grown)
+	}
+}
+
+// A master that cannot be grown still holds everything it did, so it is installed
+// at the size it has and the next job gets that much room.
+func TestInstallMasterKeepsAnImageItCannotGrow(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.growErr = errors.New("hdiutil resize boom")
+	src := filepath.Join(t.TempDir(), "promoted.sparseimage")
+	if err := os.WriteFile(src, []byte(masterImageContent("42")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, src, 1); err != nil || !installed {
+		t.Fatalf("InstallMaster = %v, %v; want the master installed at its current size", installed, err)
+	}
+	if !masterExists(m, "42") {
+		t.Fatal("a master that could not be grown was not installed")
 	}
 }
 
@@ -984,6 +1096,30 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
 	}
 
+	// A retention pass that reclaims a leaked result bundle changes the digest, so
+	// the job that cleaned the image reports dirty and the smaller master is the
+	// one that gets promoted. Runs is not a subtree any job WRITES on purpose,
+	// which is exactly why it has to be covered: if it were left out, a job whose
+	// only change is the reclaim would report clean and the host would discard the
+	// cleaned image, so the leak would outlive every job that fixed it.
+	runs := filepath.Join(root, cacheHomeSubdir, "Runs")
+	if err := os.MkdirAll(filepath.Join(runs, "leaked-run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withLeak, err := inventoryDigest(root)
+	if err != nil {
+		t.Fatalf("inventoryDigest: %v", err)
+	}
+	if withLeak == got {
+		t.Fatal("a leaked run bundle did not change the digest; retention that reclaims it would report clean")
+	}
+	if err := os.RemoveAll(filepath.Join(runs, "leaked-run")); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed, _ := inventoryDigest(root); reclaimed != got {
+		t.Fatalf("reclaiming the run did not restore the digest: %q != %q", reclaimed, got)
+	}
+
 	// The folded CAS store's per-file (relpath, size) inventory enters the digest:
 	// a compile-only job (binary subtree unchanged) that only grew the CAS still
 	// changes the digest → promotes. Lines match the guest's find/stat pipeline —
@@ -1127,6 +1263,179 @@ func TestReadPromoteResult(t *testing.T) {
 	}
 }
 
+func TestReadUploadMillis(t *testing.T) {
+	if got := readUploadMillis(""); got != -1 {
+		t.Fatalf("empty status dir = %d; want -1", got)
+	}
+	dir := t.TempDir()
+	// Absent marker: no promote, or a promote the server pre-empted before the
+	// transfer. Either way there is no duration to observe.
+	if got := readUploadMillis(dir); got != -1 {
+		t.Fatalf("missing file = %d; want -1 (nothing was uploaded)", got)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, uploadMillisFile), []byte("4200\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readUploadMillis(dir); got != 4200 {
+		t.Fatalf("upload millis = %d; want 4200", got)
+	}
+
+	// Unparseable reads as absent rather than as a zero-second upload, which
+	// would understate the tail this histogram exists to watch.
+	if err := os.WriteFile(filepath.Join(dir, uploadMillisFile), []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readUploadMillis(dir); got != -1 {
+		t.Fatalf("garbage = %d; want -1", got)
+	}
+}
+
+// uploadSampleCount is the number of observations in the upload histogram — what
+// tart_kubelet_cache_volume_upload_seconds_count exposes. Sample count, not
+// series count, so a test can assert that a given finalize did or did not
+// observe an upload.
+func uploadSampleCount(t *testing.T) uint64 {
+	t.Helper()
+	var m dto.Metric
+	if err := cacheVolumeUploadSeconds.Write(&m); err != nil {
+		t.Fatalf("collect upload histogram: %v", err)
+	}
+	return m.GetHistogram().GetSampleCount()
+}
+
+// finalizeVolume's promote accounting, driven through the real function rather
+// than by re-asserting the calls a test made itself.
+//
+// A promote the server pre-empts at mint time reports a conflict WITHOUT ever
+// uploading: it must still count as contention, and must contribute no sample to
+// the upload histogram — the whole point of the pre-flight is that a doomed
+// promote stops holding the slot open for a transfer. The same conflict WITH an
+// upload marker (it lost the race after paying for the transfer, which is what
+// happens whenever another host wins during the upload) must still be counted
+// and still observe its duration, so the gate is pinned in both directions.
+func TestFinalizeVolumePromoteAccounting(t *testing.T) {
+	// finalize takes a job that did cache-changing work for its own account —
+	// the only shape that is promote-eligible — and runs it to completion with
+	// the guest-relayed status the given promote produced.
+	finalize := func(t *testing.T, vm, promoteResult string, uploadMillis string) {
+		t.Helper()
+		m, _ := newTestManager(t, 100)
+		seedMasterGen(t, m, "42", "existing-master", 5)
+
+		att := mustAllocate(t, m, vm)
+		if _, _, err := m.Materialize(att, "42"); err != nil {
+			t.Fatalf("Materialize: %v", err)
+		}
+		att.SourceAccount = "42"
+		writeBranchCache(t, m, att, "branch")
+
+		statusDir := t.TempDir()
+		// "1": the runner exited 0 AND the cache changed, so the job is eligible.
+		if err := os.WriteFile(filepath.Join(statusDir, dirtyMarkerFile), []byte("1"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(statusDir, promoteResultFile), []byte(promoteResult), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if uploadMillis != "" {
+			if err := os.WriteFile(filepath.Join(statusDir, uploadMillisFile), []byte(uploadMillis), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		r := &Reconciler{Volumes: m}
+		r.finalizeVolume(&Entry{VMName: vm, Volume: att, VolumeStatusDir: statusDir}, "42", true)
+	}
+
+	t.Run("pre-empted at mint: rejected, no upload observed", func(t *testing.T) {
+		rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-preempted", "conflict", "")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+1 {
+			t.Fatalf("rejected promotes = %v; want %v (a conflict is contention, not an error)", got, rejectedBefore+1)
+		}
+		if got := uploadSampleCount(t); got != uploadsBefore {
+			t.Fatalf("upload samples = %d; want %d (a pre-empted promote uploads nothing)", got, uploadsBefore)
+		}
+	})
+
+	t.Run("lost the race after uploading: rejected, upload observed", func(t *testing.T) {
+		rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-uploaded", "conflict", "4200")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+1 {
+			t.Fatalf("rejected promotes = %v; want %v", got, rejectedBefore+1)
+		}
+		if got := uploadSampleCount(t); got != uploadsBefore+1 {
+			t.Fatalf("upload samples = %d; want %d (the transfer still happened)", got, uploadsBefore+1)
+		}
+	})
+
+	t.Run("accepted promotes also observe their upload", func(t *testing.T) {
+		acceptedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-accepted", "accepted 6", "5100")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted")); got != acceptedBefore+1 {
+			t.Fatalf("accepted promotes = %v; want %v", got, acceptedBefore+1)
+		}
+		// The upload sample is recorded outside the switch on the promote result,
+		// so accepts contribute to this histogram too — which is why the
+		// pre-flight's effect reads as upload_count MINUS accepted promotes, not
+		// against rejected ones.
+		if got := uploadSampleCount(t); got != uploadsBefore+1 {
+			t.Fatalf("upload samples = %d; want %d (an accept uploaded too)", got, uploadsBefore+1)
+		}
+	})
+}
+
+// The marker is the only channel the host has for telling the guest what the
+// compilation cache may occupy, and the guest feeds the same number to both the
+// compiler (COMPILATION_CACHE_LIMIT_SIZE) and the teardown prune. That limit
+// already covers both generations a store keeps: llcas, and the prune, rotate a
+// store once its primary passes HALF the limit. Staging half the allowance on top
+// of that held the store to a quarter of what the image sets aside for it, which
+// is what every production prune ran at (2.75 GiB of 11).
+func TestWriteCASEnabledStagesTheWholeAllowance(t *testing.T) {
+	statusDir := t.TempDir()
+	r := &Reconciler{Volumes: &VolumeManager{Root: t.TempDir(), CapGiB: 30, CASGiB: 14}}
+
+	r.writeCASEnabled(statusDir)
+
+	raw, err := os.ReadFile(filepath.Join(statusDir, casEnabledFile))
+	if err != nil {
+		t.Fatalf("reading the cas-enabled marker: %v", err)
+	}
+	staged, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+	if err != nil {
+		t.Fatalf("marker %q is not a byte count: %v", raw, err)
+	}
+	_, casBytes := cacheImageSplit(30, 14)
+	if staged != casBytes {
+		t.Fatalf("staged %d; want the whole %d-byte allowance", staged, casBytes)
+	}
+}
+
+// Every account gets the same limits inside the ceiling, and they exist so a job
+// has room to grow before anything prunes: a master pruned to both limits leaves
+// a 30 GiB image with 6 GiB free.
+func TestCacheImageSplitLeavesAJobRoomToGrow(t *testing.T) {
+	const gib = uint64(1024 * 1024 * 1024)
+	binaryBytes, casBytes := cacheImageSplit(30, 14)
+	if binaryBytes != 10*gib || casBytes != 14*gib {
+		t.Fatalf("cap30 cas14 = %d,%d; want 10 GiB for the binary cache and 14 GiB for the compilation cache", binaryBytes, casBytes)
+	}
+	if room := 30*gib - binaryBytes - casBytes; room != 6*gib {
+		t.Fatalf("room a job has before anything prunes = %d; want 6 GiB", room)
+	}
+}
+
 func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 
@@ -1135,22 +1444,22 @@ func TestCacheImageSplit(t *testing.T) {
 		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, cas, 20*gib*80/100)
 	}
 
-	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 5%=1 GiB) = 2 GiB (the FLOOR
-	// binds); binary 10 GiB, CAS the requested 8 GiB exactly, summing to cap.
-	if b, cas := cacheImageSplit(20, 8); b != 10*gib || cas != 8*gib || b+cas+2*gib != 20*gib {
-		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,8GiB summing to cap", b, cas)
+	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 20%=4 GiB) = 4 GiB; binary
+	// 8 GiB, CAS the requested 8 GiB exactly, summing to cap.
+	if b, cas := cacheImageSplit(20, 8); b != 8*gib || cas != 8*gib || b+cas+4*gib != 20*gib {
+		t.Fatalf("cap20 cas8 = %d,%d; want 8GiB,8GiB summing to cap", b, cas)
 	}
 
-	// Large cap: the PERCENT reserve binds, not the floor (5% of 100 = 5 GiB > 2).
-	// CAS 20 of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS the requested 20.
-	if b, cas := cacheImageSplit(100, 20); b != 75*gib || cas != 20*gib {
-		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20GiB", b, cas)
+	// Large cap: the PERCENT reserve binds (20% of 100 = 20 GiB).
+	// CAS 20 of 100 → binary = 100 - 20(reserve) - 20 = 60 GiB, CAS the requested 20.
+	if b, cas := cacheImageSplit(100, 20); b != 60*gib || cas != 20*gib {
+		t.Fatalf("cap100 cas20 = %d,%d; want 60GiB,20GiB", b, cas)
 	}
 
-	// Small cap: the floor binds — reserve stays 2 GiB on a 10 GiB cap (20%), where
-	// a flat 5% would have left far too little.
-	if b, _ := cacheImageSplit(10, 4); 10*gib-(b+4*gib) != 2*gib {
-		t.Fatalf("cap10 cas4 reserve = %d GiB; want 2 (floor)", (10*gib-(b+4*gib))/gib)
+	// Small cap: the floor binds — reserve stays 2 GiB on a 5 GiB cap, where 20%
+	// would leave 1 GiB.
+	if b, _ := cacheImageSplit(5, 1); 5*gib-(b+1*gib) != 2*gib {
+		t.Fatalf("cap5 cas1 reserve = %d GiB; want 2 (floor)", (5*gib-(b+1*gib))/gib)
 	}
 
 	// Oversized CASGiB: clamped so the binary cache keeps a slice and the
@@ -1170,8 +1479,70 @@ func TestCacheImageSplit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 10*gib {
-		t.Fatalf("staged budget = %d; want 10 GiB", got)
+	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 8*gib {
+		t.Fatalf("staged budget = %d; want 8 GiB", got)
+	}
+}
+
+// The guest divides one budget between the two caches by what each holds, so the
+// host stages that budget: the image less the room a job grows into. The fixed
+// split stays staged beside it for runner images older than the division, which
+// roll out separately from tart-kubelet.
+func TestWriteCacheBudgetStagesOneBudgetForBothCaches(t *testing.T) {
+	const gib = uint64(1024 * 1024 * 1024)
+	dir := t.TempDir()
+
+	writeCacheBudget(dir, 30, 14)
+
+	read := func(name string) uint64 {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		got, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+		if err != nil {
+			t.Fatalf("%s %q is not a byte count: %v", name, raw, err)
+		}
+		return got
+	}
+	if got := read(sharedCacheBudgetFile); got != 24*gib {
+		t.Fatalf("shared budget = %d; want 24 GiB, the 30 GiB image less its 6 GiB of room", got)
+	}
+	if got := read(cacheBudgetFile); got != 10*gib {
+		t.Fatalf("fixed binary budget = %d; want 10 GiB for runner images that read it", got)
+	}
+}
+
+// With the compilation cache off, the binary cache has the budget to itself, which
+// is what the fixed split gives it too.
+func TestCacheImageBudgetIsWhatTheFixedSplitHandsOut(t *testing.T) {
+	for _, tc := range []struct{ capGiB, casGiB int }{{30, 14}, {28, 16}, {20, 0}, {5, 1}, {100, 20}} {
+		binaryBytes, casBytes := cacheImageSplit(tc.capGiB, tc.casGiB)
+		if budget := cacheImageBudget(tc.capGiB); binaryBytes+casBytes != budget {
+			t.Fatalf("cap%d cas%d: budget %d; the fixed split hands out %d", tc.capGiB, tc.casGiB, budget, binaryBytes+casBytes)
+		}
+	}
+}
+
+func TestWriteNodeName(t *testing.T) {
+	dir := t.TempDir()
+
+	// No status share (cache volume feature off) and an unknown Node name are
+	// both no-ops rather than errors: the attribution field just stays empty.
+	writeNodeName("", "mini-1")
+	writeNodeName(dir, "")
+	if _, err := os.Stat(filepath.Join(dir, nodeNameFile)); !os.IsNotExist(err) {
+		t.Fatalf("empty node name should not stage a file")
+	}
+
+	writeNodeName(dir, "tuist-tuist-runners-fleet-mndbc-c22td")
+	raw, err := os.ReadFile(filepath.Join(dir, nodeNameFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "tuist-tuist-runners-fleet-mndbc-c22td" {
+		t.Fatalf("staged node name = %q; want the Node name verbatim", raw)
 	}
 }
 
@@ -1227,5 +1598,174 @@ func seedMasterGen(t *testing.T, m *VolumeManager, account, content string, gene
 	}
 	if err := os.WriteFile(m.masterGenerationPath(account, ReservedTuistCacheVolume), []byte(strconv.Itoa(generation)), 0o644); err != nil {
 		t.Fatalf("seed master generation: %v", err)
+	}
+}
+
+// The host advertises exactly the accounts whose masters are on disk, so the
+// server can prefer a queued job whose cache is already here instead of
+// modelling residency from its own dispatch history.
+func TestCacheMasterNodeLabels(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	seedMaster(t, m, "7")
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	want := map[string]string{
+		"tuist.dev/cache-master-42": "true",
+		"tuist.dev/cache-master-7":  "true",
+	}
+	if !reflect.DeepEqual(labels, want) {
+		t.Fatalf("labels = %v; want %v", labels, want)
+	}
+}
+
+// Eviction is what makes residency finite, so an evicted account must stop
+// being advertised. The maintainer prunes tuist.dev/* labels it no longer owns,
+// so dropping the key here is what retires it from the Node.
+func TestCacheMasterNodeLabelsDropsEvictedAccount(t *testing.T) {
+	// 3 GiB total, 1 GiB cap: the watermark leaves room for one master, so
+	// seeding three forces the evictor to drop the two oldest.
+	m, _ := newTestManager(t, 3)
+	for i, account := range []string{"42", "7", "9"} {
+		seedMaster(t, m, account)
+		setMtime(t, m.masterImage(account, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+	}
+	if _, err := m.EvictToWatermark(); err != nil {
+		t.Fatalf("EvictToWatermark: %v", err)
+	}
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	// Only the surviving master is advertised. This is the case the server's
+	// old dispatch-history model could not see at all: the accounts still ran
+	// here most recently, but their masters are gone.
+	want := map[string]string{"tuist.dev/cache-master-9": "true"}
+	if !reflect.DeepEqual(labels, want) {
+		t.Fatalf("labels after eviction = %v; want %v", labels, want)
+	}
+}
+
+// A disabled manager (no runner-cache root) holds no masters, so it advertises
+// nothing and the server has no residency preference for the host.
+func TestCacheMasterNodeLabelsDisabled(t *testing.T) {
+	m := NewVolumeManager("", 0, nil)
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil || len(labels) != 0 {
+		t.Fatalf("CacheMasterNodeLabels on a disabled manager = %v, %v; want empty, nil", labels, err)
+	}
+}
+
+// A directory that is not an account id cannot have come from Materialize.
+// Emitting it could produce an invalid label key, and one bad key fails the
+// whole Node update — taking every other account's advertisement down with it.
+func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	seedMaster(t, m, "not-an-account")
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	if _, ok := labels["tuist.dev/cache-master-42"]; !ok {
+		t.Fatalf("account 42 should be advertised: %v", labels)
+	}
+	if len(labels) != 1 {
+		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
+	}
+}
+
+// A declined branch still has to release the guest at once: without cache-ready
+// it would sit out the whole CACHE_READY_TIMEOUT before running cold. With
+// cache-ready and no image, its attach fails and it runs on its local cold cache.
+// It is not a cold materialize.
+func TestDeclinedMaterializeReleasesTheGuestCold(t *testing.T) {
+	root := t.TempDir()
+	statusDir := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	coldBefore := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold"))
+
+	store := NewStore()
+	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
+	}})
+
+	if _, err := os.Stat(filepath.Join(statusDir, cacheReadyFile)); err != nil {
+		t.Fatalf("cache-ready not written for a declined branch: %v", err)
+	}
+	if branchImageExists(m, att) {
+		t.Fatal("a declined branch must have no image")
+	}
+	if got := testutil.ToFloat64(cacheVolumeMaterializeTotal.WithLabelValues("cold")); got != coldBefore {
+		t.Fatalf("cold materialize counter moved %v -> %v for a decline", coldBefore, got)
+	}
+}
+
+// A declined job was refused space in the runner-cache volume, and converging
+// its account's master downloads into that same volume with nothing reserved, so
+// it could take the space the running jobs were admitted with.
+func TestDeclinedMaterializeDoesNotConverge(t *testing.T) {
+	downloads := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case downloads <- struct{}{}:
+		default:
+		}
+		_, _ = w.Write([]byte(masterImageContent("42")))
+	}))
+	defer srv.Close()
+
+	root := t.TempDir()
+	statusDir := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	stageHead(t, statusDir, volumeHead{Generation: 4, Digest: "0000000000000000000000000000000000000000", DownloadURL: srv.URL})
+
+	store := NewStore()
+	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
+	}})
+
+	select {
+	case <-downloads:
+		t.Fatal("a declined job downloaded its account's master into the volume it was refused space in")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+// A declined branch still gets the materialized marker, so a restart does not
+// materialize it again, but it has no image and nothing writes to it. It must not
+// come back from a kubelet restart holding a reservation.
+func TestReattachDoesNotReserveADeclinedBranch(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+	att := mustAllocate(t, m, "vm-declined")
+	if _, _, err := m.Materialize(att, "42"); !errors.Is(err, errAdmissionDeclined) {
+		t.Fatalf("Materialize err = %v; want an admission decline", err)
+	}
+	m.MarkMaterialized(att)
+
+	restarted := NewVolumeManager(root, 1, be)
+	if got, ok := restarted.ReattachBranch(ReservedTuistCacheVolume, "vm-declined"); !ok || !got.Materialized {
+		t.Fatalf("ReattachBranch = %+v, %v; want the materialized branch back", got, ok)
+	}
+	if err := restarted.SweepBranches(); err != nil {
+		t.Fatalf("SweepBranches: %v", err)
+	}
+	if got := restarted.reservedBranches(); got != 0 {
+		t.Fatalf("reserved branches after restart = %d; a declined branch holds no reservation", got)
 	}
 }

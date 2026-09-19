@@ -14,19 +14,34 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-24-align-runner-cas-capacity-v1"
+  # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
+  @peer_roles_timeout_ms 3_000
+  @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
+  # The public host, ingress class and region label are not in the suffixes
+  # below, so a change to any of them moves the base.
+  @manifest_revision "2026-09-09-eu-west-region-rename-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
-  # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
-  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
-  # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
-  # inside the data volume. Keep in sync if either constant moves.
-  @kura_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
+  # staging reaches inside the data volume when nothing narrows it. Keep in sync
+  # if either constant moves.
+  @kura_default_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's MAX_MODULE_TOTAL_BYTES: the largest single thing that stages here. A
+  # multipart module upload reserves its whole assembled size in one call, and
+  # `TmpBudget::try_reserve` rejects outright when one request exceeds the whole
+  # budget, so a staging budget under this cannot stage a max-size module upload
+  # at all — not slower, impossible. Peer catch-up is not in this number: it
+  # charges a separate `peer_staging_budget`, sized from memory, so the two
+  # cannot starve each other.
+  @kura_max_staged_request_bytes 2 * 1024 * 1024 * 1024
   # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
   # before evicting the oldest one.
   @kura_max_segment_bytes 512 * 1024 * 1024
@@ -50,21 +65,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp do_rollout(
-         name,
-         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
-       ) do
-    with {:ok, hook_script} <- hook_script(inputs) do
-      entitlements = manifest_entitlements(account, region)
-      external_peers = self_hosted_peers(account, region, entitlements)
+  defp do_rollout(name, %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region}) do
+    entitlements = manifest_entitlements(account, region)
+    external_peers = self_hosted_peers(account, region, entitlements)
 
-      case apply_manifests(
-             [render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)],
-             region
-           ) do
-        :ok -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+    case apply_manifests(
+           [render_manifest(name, image_tag, account, region, server, external_peers, entitlements)],
+           region
+         ) do
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -141,36 +151,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc """
-  The node-published URL a runner off the pod network dials:
-  `http://<node PN address>:<NodePort>`, from the KuraInstance status
-  the kura-controller maintains (node label + allocated Service port).
-  `{:error, :node_port_endpoint_not_ready}` until the whole chain —
-  Service allocated, primary pod placed, node labeled — is observed;
-  callers treat it like an unready public endpoint and retry on the
-  next reconcile tick.
+  The observed endpoint for a runner outside the pod network. Private gateways
+  return HTTPS only after the controller observes DNS, TLS, gateway and primary
+  readiness for the current spec. The observation timestamp is preserved so
+  dispatch uses the same freshness clock rather than starting a second window.
   """
   @impl true
-  def external_endpoint(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"nodeAddress" => address} = status}} when is_binary(address) and address != "" ->
-        # nodePortHTTP is the pre-rename name of nodePortCache, read as a
-        # fallback while controllers that publish it can still be running;
-        # drop it once the fleet publishes nodePortCache everywhere (tracked in #11654).
-        port = status["nodePortCache"] || status["nodePortHTTP"]
+  def external_endpoint(name, %Regions{provisioner_config: %{data_plane: :private_gateway}} = region) do
+    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region) do
+      status = instance["status"] || %{}
+      generation = get_in(instance, ["metadata", "generation"])
+      host = get_in(instance, ["spec", "privateHost"])
 
-        if is_integer(port) and port > 0 do
-          {:ok, "http://#{address}:#{port}"}
-        else
-          {:error, :node_port_endpoint_not_ready}
-        end
-
-      {:ok, _} ->
-        {:error, :node_port_endpoint_not_ready}
-
-      {:error, reason} ->
-        {:error, reason}
+      with true <- is_binary(host) and host != "",
+           true <- is_integer(generation) and status["endpointObservedGeneration"] == generation,
+           true <- status["privateURL"] == "https://#{host}",
+           timestamp when is_binary(timestamp) <- status["endpointLastCheckedAt"],
+           {:ok, observed_at, _} <- DateTime.from_iso8601(timestamp),
+           age = DateTime.diff(DateTime.utc_now(), observed_at),
+           true <- age >= 0 and age < Regions.private_endpoint_staleness_seconds() do
+        {:ok, %{url: status["privateURL"], observed_at: DateTime.truncate(observed_at, :second)}}
+      else
+        _ -> {:error, :private_endpoint_not_ready}
+      end
     end
   end
+
+  def external_endpoint(_name, %Regions{}), do: {:error, :private_endpoint_not_ready}
 
   @impl true
   def caught_up?(name, %Regions{} = region) do
@@ -182,6 +189,109 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def rollout_health(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
+        {:ok, parse_rollout_health(health)}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # The controller publishes the aggregate with explicit per-field
+  # semantics (conjunctions, sums with reset clamping, max pressure,
+  # oldest sample); this only normalizes the wire shape. Missing numeric
+  # fields default to 0 and missing booleans to false so an old
+  # controller that publishes a partial aggregate reads as unhealthy
+  # rather than crashing the gate.
+  defp parse_rollout_health(health) when is_map(health) do
+    %{
+      ready: health["ready"] == true,
+      serving: health["serving"] == true,
+      ring_consistent: health["ringConsistent"] == true,
+      backfilling_peers: integer_field(health, "backfillingPeers"),
+      backfill_degraded: health["backfillDegraded"] == true,
+      backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
+      fd_timeout_count: counter_field(health, "fdTimeoutCount"),
+      peer_connection_failures: counter_field(health, "peerConnectionFailures"),
+      memory_pressure_state: integer_field(health, "memoryPressureState"),
+      sampled_pods: integer_field(health, "sampledPods"),
+      expected_pods: integer_field(health, "expectedPods"),
+      sampled_at: datetime_field(health, "sampledAt")
+    }
+  end
+
+  # The cumulative failure counters are read as `nil` when the aggregate does
+  # not carry them, not as 0. They are the two fields the gate compares a
+  # server against its own pre-upgrade baseline, and a runtime too old to
+  # emit one reports the same absence as a runtime reporting none — recording
+  # that as a baseline of 0 would make the first error after the upgrade read
+  # as a regression from a baseline that was never measured. A `nil` baseline
+  # simply skips the comparison until there is one to make.
+  defp counter_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp integer_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> 0
+    end
+  end
+
+  defp datetime_field(health, key) do
+    with value when is_binary(value) <- Map.get(health, key),
+         {:ok, datetime, _offset} <- DateTime.from_iso8601(value) do
+      datetime
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The replication roles the kura-controller publishes for the instance's
+  pods (`status.peerRoles`): `[%{url, gateway, primary}]`, `url` being the
+  pod's internal peer URL exactly as the controller renders its
+  `KURA_NODE_URL`. `{:ok, []}` until the controller has published any (an
+  older controller, or no pod placed yet).
+
+  Bounded explicitly: this is a cross-cluster read the reconciler makes for
+  every mesh server in a tick, and Req's defaults (15 s receive timeout plus
+  transient-GET retries) would let one unreachable regional apiserver hold
+  the whole batch. Roles that arrive a tick late cost nothing — the nodes
+  fall back to their local rule — so failing fast and retrying next tick is
+  strictly better than waiting.
+  """
+  @impl true
+  def peer_roles(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region, timeout: @peer_roles_timeout_ms) do
+      {:ok, %{"status" => %{"peerRoles" => roles}}} when is_list(roles) ->
+        {:ok, Enum.flat_map(roles, &parse_peer_role/1)}
+
+      {:ok, _} ->
+        {:ok, []}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # An entry without a URL names nothing a node could match a role to, so it
+  # is dropped rather than published as a role for an empty address.
+  defp parse_peer_role(%{"nodeURL" => url} = role) when is_binary(url) and url != "" do
+    [%{url: url, gateway: role["gateway"] == true, primary: role["primary"] == true}]
+  end
+
+  defp parse_peer_role(_role), do: []
+
+  @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
@@ -191,9 +301,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def manifest_revision(account, %Regions{} = region) do
+  def manifest_revision(%Server{account: account} = server, %Regions{} = region) do
     entitlements = manifest_entitlements(account, region)
-    manifest_revision_string(region, self_hosted_peers(account, region, entitlements), entitlements)
+
+    manifest_revision_string(
+      region,
+      storage_claim(account, region, server),
+      self_hosted_peers(account, region, entitlements),
+      entitlements,
+      effective_egress(account, region, entitlements)
+    )
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -229,15 +346,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, external_peers \\ []) do
     entitlements = manifest_entitlements(account, region)
-    render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)
+    render_manifest(name, image_tag, account, region, server, external_peers, entitlements)
   end
 
-  defp render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements) do
+  defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = dns_handle(account.name)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
-    revision = manifest_revision_string(region, external_peers, entitlements)
+    claim = storage_claim(account, region, server)
+    egress = effective_egress(account, region, entitlements)
+    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -264,6 +383,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
@@ -275,17 +395,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPeerHostNetwork" => mesh_peer_host_network?(region),
           "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
-          "exposeNodePort" => Regions.node_port_data_plane?(region),
+          "exposeNodePort" => region.provisioner_config[:expose_node_port],
           "clientCIDRs" => client_cidrs(region),
-          "podAnnotations" => pod_annotations(region),
-          "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
+          # The account's effective pair, not the region's. The controller
+          # derives the shaper's tuist.dev/egress-class from these same two
+          # fields, so one number per knob keeps the reservation, the pacing and
+          # the shaped class from describing different limits.
+          "podAnnotations" => pod_annotations(region, egress.burst_mbps),
+          "egressGuaranteedMbps" => egress.floor_mbps,
+          "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
+          "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
+          "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
-          "storageSize" => storage_size(region),
+          "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extensionScript" => hook_script,
-          "extraEnv" => extension_env(region, entitlements)
+          "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -298,15 +425,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp public_host(_handle, _region), do: nil
 
-  # The customer gateway is host-network exactly when the regional gateway is:
-  # on bare metal there is no cloud LB, so the customer plane is served by the
-  # host-network gateway DaemonSet on the box NIC. Tells the controller to
-  # publish the account's public host via a per-account DNSEndpoint targeting the
-  # box its pods run on, so each account resolves to its own box across a
-  # multi-box region. Skipped on private (runner-cache) regions, which have no
-  # public host to advertise.
+  defp private_host(handle, %Regions{provisioner_config: %{private_host_template: template} = config})
+       when is_binary(template), do: interpolate_host(template, dns_handle(handle), config)
+
+  defp private_host(_handle, _region), do: nil
+
+  # Host-network gateways publish per-account DNS directly. Private gateways
+  # use the node's PN address; public gateways use its public InternalIP.
   defp public_host_network?(region) do
-    gateway_host_network?(region) and not Regions.private?(region)
+    (gateway_host_network?(region) and not Regions.private?(region)) or
+      region.provisioner_config[:data_plane] == :private_gateway
   end
 
   defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
@@ -325,19 +453,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp peer_tls_secret_name(_region), do: nil
 
-  defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
-  defp mesh_enabled?(_region), do: false
+  defp mesh_enabled?(region), do: Regions.mesh?(region)
 
-  # The dynamic peer view (KURA_MESH_PEERS_SYNC, see mesh_peers_sync_env/2)
-  # only ever carries self-hosted peers, so it is meaningful exactly for the
-  # accounts that can enroll one. That capability is the `self_hosted_cache`
-  # entitlement — the same predicate `SelfHostedClients.verify/2` authorizes
-  # enrollment with — so gating the sync on it can never diverge from who may
-  # actually join a peer. An account that cannot self-host has a fully static
-  # roster (its managed peers, baked into the manifest), so it has nothing
-  # dynamic to under-replicate to and must not arm Kura's peer-view boot gate.
+  # The self-hosted peers injected into an account's managed pods are gated
+  # on the `self_hosted_cache` entitlement — the same predicate
+  # `SelfHostedClients.verify/2` authorizes enrollment with — so the roster can
+  # never diverge from who may actually join a peer. The dynamic peer view
+  # itself (KURA_MESH_PEERS_SYNC, see mesh_peers_sync_env/1) is no longer
+  # gated on it: beside the self-hosted peers it now carries the replication
+  # roles, which every managed pod of a mesh region needs.
+  #
+  # The account's replication-pull flag rides along in the same map: it is
+  # another per-account input both the manifest and its revision derive from,
+  # and resolving it here keeps the two from ever reading a different answer.
   defp manifest_entitlements(account, %Regions{} = region) do
     configured_egress_mbps = configured_egress_guaranteed_mbps(region)
+
+    # Only a region that sizes instances per tier needs a plan resolved;
+    # everywhere else the controller's default profile applies and the manifest
+    # renders without a subscription lookup.
+    memory_governed? = Regions.memory_governed?(region)
 
     features =
       []
@@ -346,24 +481,50 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
     allowed_features = Entitlements.allowed_features(account, features)
 
+    # Resolved through the context so the ops form validates an override against
+    # the same floor the instance is actually built with, entitlement included.
     egress_guaranteed_mbps =
-      case configured_egress_mbps do
-        nil -> nil
-        mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
+      if is_nil(configured_egress_mbps),
+        do: nil,
+        else: EgressLimits.region_floor_mbps(region, MapSet.member?(allowed_features, :guaranteed_egress_floor))
+
+    # Resolved together, and only when governed: both are per-tier sizing of the
+    # same box, a region that sizes every instance alike wants neither, and an
+    # ungoverned region must not reach for a plan at all.
+    {memory, cpu_ceiling_milli} =
+      if memory_governed? do
+        plan = AccountPolicies.sizing_plan(account)
+        {Regions.memory_profile(plan), Regions.cpu_ceiling_milli(plan)}
+      else
+        {nil, nil}
       end
 
-    %{allowed_features: allowed_features, egress_guaranteed_mbps: egress_guaranteed_mbps}
+    %{
+      allowed_features: allowed_features,
+      egress_guaranteed_mbps: egress_guaranteed_mbps,
+      memory: memory,
+      cpu_ceiling_milli: cpu_ceiling_milli,
+      replication_pull: mesh_enabled?(region)
+    }
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
   defp maybe_request_entitlement(features, false, _feature), do: features
 
-  defp mesh_peers_sync_enabled?(%Regions{} = region, entitlements) do
+  # Every mesh instance consumes the dynamic peer view: it carries the
+  # replication roles (`peer_roles`, kura/docs/replication-design.md §2.2)
+  # beside the self-hosted peers, and a managed pod needs the roles to know
+  # who it pulls from whether or not its account can ever enroll a self-hosted
+  # peer. Outside a mesh region there is no peer to have a role and the view
+  # would only arm Kura's peer-view boot gate for nothing.
+  defp mesh_peers_sync_enabled?(%Regions{} = region), do: mesh_enabled?(region)
+
+  defp self_hosted_peers_entitled?(%Regions{} = region, entitlements) do
     mesh_enabled?(region) and MapSet.member?(entitlements.allowed_features, :self_hosted_cache)
   end
 
   defp self_hosted_peers(account, %Regions{} = region, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements) do
+    if self_hosted_peers_entitled?(region, entitlements) do
       Mesh.self_hosted_peer_urls(account)
     else
       []
@@ -371,51 +532,139 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp entitled_self_hosted_peers(%Regions{} = region, peer_urls, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements), do: peer_urls, else: []
+    if self_hosted_peers_entitled?(region, entitlements), do: peer_urls, else: []
   end
 
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, peer_urls, entitlements) do
+  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
-      mesh_peers_sync_revision_suffix(region, entitlements)
+      replication_pull_revision_suffix(entitlements) <>
+      backfill_revision_suffix(entitlements) <>
+      cpu_revision_suffix(entitlements) <>
+      memory_revision_suffix(region, entitlements) <>
+      claim_revision_suffix(claim) <>
+      egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
   end
+
+  # Reapply existing private instances when replicas or their entrance changes.
+  defp private_endpoint_revision_suffix(region) do
+    if Regions.private?(region) do
+      config = region.provisioner_config
+
+      inputs =
+        [
+          "host=#{config[:private_host_template]}",
+          "class=#{config[:ingress_class_name]}",
+          "plane=#{config[:data_plane]}",
+          "node-port=#{config[:expose_node_port]}"
+        ] ++ Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
+
+      digest = revision_digest(inputs)
+      "+replicas#{replicas(region)}+endpoint#{digest}"
+    else
+      ""
+    end
+  end
+
+  # Keyed on the pair the manifest renders rather than on the override alone: the
+  # reconciler converges on the revision, so anything that moves these two fields
+  # — the override, the region's own numbers, the entitlement gating the floor —
+  # has to move it too or sit unapplied.
+  #
+  # Cheap where the pair has not moved: the spec is identical, so the CR takes a
+  # new annotation and no pod is touched.
+  defp egress_revision_suffix(%{floor_mbps: nil, burst_mbps: nil}), do: ""
+
+  defp egress_revision_suffix(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
+    "+egress#{floor_mbps || "-"}-#{burst_mbps || "-"}"
+  end
+
+  # Resolved from the entitlements this manifest already carries, so an override
+  # costs no extra subscription lookup.
+  defp effective_egress(account, %Regions{} = region, entitlements) do
+    if Regions.egress_governed?(region) do
+      EgressLimits.effective_limits(account, region, entitlements.egress_guaranteed_mbps)
+    else
+      %{floor_mbps: entitlements.egress_guaranteed_mbps, burst_mbps: nil}
+    end
+  end
+
+  # The instance's claim is desired state like any other field on the manifest,
+  # so moving it has to move the revision. The reconciler converges on the
+  # revision alone: without this, a claim that changed would alter what the
+  # manifest renders while leaving the desired revision where it was, and the
+  # change would sit unapplied until some unrelated input happened to move it.
+  #
+  # Rendered from what the manifest actually carries rather than from the pinned
+  # column, so an instance that pins nothing still moves when what it resolves
+  # to moves.
+  defp claim_revision_suffix(nil), do: ""
+  defp claim_revision_suffix(claim), do: "+disk#{claim}"
+
+  # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
+  # profile it was created with until some unrelated field happened to change.
+  #
+  # The bin-pack marker is separate from the profile because the flag is region
+  # config, not a property of the account: flipping it alone leaves the floor and
+  # ceiling identical, so without its own marker the rendered spec would gain or
+  # lose the tuist.dev/memory-ceiling-mib request under an unchanged revision and
+  # live instances would never re-apply. That matters most turning it off, which
+  # is the remedy when pods go Pending because a node stopped advertising the
+  # budget.
+  defp memory_revision_suffix(%Regions{} = region, entitlements) do
+    profile =
+      case entitlements do
+        %{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}} -> "+mem#{floor_mib}-#{ceiling_mib}"
+        _ -> ""
+      end
+
+    if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile
+  end
+
+  # Keyed on the granted ceiling, not on whether one was granted: the reconciler
+  # converges on the revision, so retuning a plan's number has to move it or the
+  # instances on that plan keep a manifest that no longer describes them. An
+  # ungoverned region renders no ceiling and takes no suffix, so its instances
+  # do not roll for a field they never gain.
+  defp cpu_revision_suffix(%{cpu_ceiling_milli: milli}) when is_integer(milli), do: "+cpu#{milli}"
+  defp cpu_revision_suffix(_), do: ""
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
   # peer changes the desired revision and the reconciler re-applies the manifest.
   defp peers_revision_suffix([]), do: ""
 
-  defp peers_revision_suffix(peer_urls) when is_list(peer_urls) do
-    digest =
-      peer_urls
-      |> Enum.sort()
-      |> Enum.join(",")
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, 12)
+  defp peers_revision_suffix(peer_urls) when is_list(peer_urls), do: "+peers-" <> revision_digest(peer_urls)
 
-    "+peers-" <> digest
+  defp revision_digest(values) do
+    values
+    |> Enum.sort()
+    |> Enum.join(",")
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 12)
   end
 
-  # Whether KURA_MESH_PEERS_SYNC is set has to be part of the revision, or a
-  # plan change that flips the preloaded entitlement would alter the desired
-  # env without altering the revision, and the reconciler (which converges on
-  # the revision alone) would never re-apply — an account upgraded to a
-  # self-hosting plan would keep serving without the peer-view gate armed, the
-  # exact silent under-replication the gate exists to prevent. The marker fires
-  # only for a mesh region whose account is not entitled: that keeps both the
-  # enabled state and every non-mesh region byte-identical to today's revision,
-  # so nothing that already runs with the right env is rolled — only the
-  # mesh-region instances that should shed the variable change revision.
-  defp mesh_peers_sync_revision_suffix(region, entitlements) do
-    if mesh_enabled?(region) and not mesh_peers_sync_enabled?(region, entitlements) do
-      "+nosync"
-    else
-      ""
-    end
-  end
+  # Unconditional for every mesh region since the push path was removed, and
+  # kept for the same reason as the backfill suffix below: dropping it would
+  # move every flipped account's revision and roll it for no behavioural
+  # change. Held constant, flipped accounts are byte-identical (nothing
+  # rolls) and an account the flip never reached crosses the boundary once,
+  # onto pull on its current image. Instances outside a mesh region never
+  # carried it and still do not. Must stay paired with replication_pull_env/1.
+  defp replication_pull_revision_suffix(%{replication_pull: true}), do: "+pull"
+  defp replication_pull_revision_suffix(_entitlements), do: ""
+
+  # Unconditional since Release C, and deliberately kept rather than deleted:
+  # dropping the suffix would move every already-gated account's revision and
+  # roll it for no behavioural change, while leaving the ungated ones on the
+  # legacy walker until something else happened to move their revision. Held
+  # constant instead, gated accounts are byte-identical (nothing rolls) and
+  # ungated accounts cross the boundary exactly once, onto backfill on their
+  # current image. Must stay paired with backfill_env/1 — see the note there.
+  defp backfill_revision_suffix(_entitlements), do: "+backfill"
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
@@ -470,8 +719,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Tuist-platform-wide secrets (JWT verifier, control-plane client
-  # secret) are
+  # Tuist-platform-wide authorization material (cache-token public key,
+  # control-plane client secret) is
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so
@@ -479,23 +728,45 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp extension_env(%Regions{} = region, entitlements) do
+  defp auth_env(%Regions{} = region, claim, entitlements) do
     [
-      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
-      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
-      env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      # Emitted alongside the URL so that authorizing is an instruction rather
+      # than an inference. A node reads a blank URL as no configuration at all
+      # and starts serving the cache with no authorization; with this set it
+      # refuses to start instead, which is the failure we want to see.
+      env_var("KURA_AUTH_ENABLED", "true"),
       env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
+      env_var("KURA_AUTH_TUIST_URL", tuist_base_url(region)),
+      env_var("KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS", "3000"),
+      env_var("KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ] ++
       maybe_env_var(
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      cas_capacity_env(region) ++
-      mesh_peers_sync_env(region, entitlements) ++
+      cas_capacity_env(region, claim) ++
+      staging_env(region, claim) ++
+      mesh_peers_sync_env(region) ++
+      replication_pull_env(entitlements) ++
+      backfill_env(entitlements) ++
+      node_location_env(region) ++
       telemetry_env(region)
+  end
+
+  # Where the node runs, straight from the region's datacenter. Kura stamps it
+  # on its OTel Resource as-is; it has no way to work the location out for
+  # itself, so a region without one exports spans with no geography rather than
+  # a guess. Adding either variable changes every managed instance's manifest,
+  # so @manifest_revision moves with it or the reconciler never re-applies.
+  defp node_location_env(%Regions{} = region) do
+    case Regions.node_location(region) do
+      nil ->
+        []
+
+      %{country: country, subdivision: subdivision} ->
+        maybe_env_var("KURA_NODE_COUNTRY", country) ++
+          maybe_env_var("KURA_NODE_SUBDIVISION", subdivision)
+    end
   end
 
   # With KURA_CAS_CAPACITY_BYTES unset, Kura sizes its CAS segment ring from
@@ -508,13 +779,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # reaches its own budget, so Kura's ring rotation never gets to evict and the
   # node evicts the whole region instead.
   #
-  # Budget from the size the region declares. That is normally storage_size, so
-  # the ring stays inside the claim on a class that enforces it; a region whose
-  # claim bounds nothing (local-path) can override with disk_envelope_size rather
-  # than inflate storage_size, which the controller would try to apply to the
-  # live PVCs.
-  defp cas_capacity_env(%Regions{} = region) do
-    case cas_capacity_source(region) do
+  # Budget from the size the instance's volume was created at, so the ring stays
+  # inside the claim on a class that enforces it and, on a class that enforces
+  # nothing, inside the ephemeral-storage the pod reserved. A region whose claim
+  # bounds nothing (local-path) can override with disk_envelope_size rather than
+  # inflate storage_size, which the controller would try to apply to the live
+  # PVCs.
+  defp cas_capacity_env(%Regions{} = region, claim) do
+    case cas_capacity_source(region, claim) do
       size when is_binary(size) and size != "" ->
         size
         |> parse_storage_quantity!(region)
@@ -533,10 +805,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp cas_capacity_env_var(nil), do: []
 
-  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}) when is_binary(size) and size != "",
-    do: size
+  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}, _claim)
+       when is_binary(size) and size != "", do: size
 
-  defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
+  defp cas_capacity_source(%Regions{}, claim), do: claim
 
   # KURA_CAS_CAPACITY_BYTES budgets the CAS segment ring only, but the ring is
   # not the only thing in the data dir: the controller points KURA_TMP_DIR at
@@ -545,12 +817,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # them rather than taking a flat percentage — the tmp budget is a fixed 8 GiB,
   # so a percentage that fits a 50Gi volume overruns a 20Gi one.
   #
-  # Reserves, in order: the tmp dir's own ceiling; one extra segment, which a
-  # rotation appends before it evicts the oldest one; and a few percent for the
-  # RocksDB index, which tracks entry count rather than bytes (measured ~1.2% of
+  # Reserves, in order: the staging budget; one extra segment, which a rotation
+  # appends before it evicts the oldest one; and a few percent for the RocksDB
+  # index, which tracks entry count rather than bytes (measured ~1.2% of
   # resident segment bytes on a production instance, so 3% is slack).
   defp cas_capacity_bytes(storage_bytes) do
-    usable = storage_bytes - @kura_tmp_dir_max_bytes - @kura_max_segment_bytes
+    usable = storage_bytes - staging_bytes(storage_bytes) - @kura_max_segment_bytes
 
     if usable > 0 do
       budget = div(usable * 97, 100)
@@ -568,9 +840,38 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Region specs are compile-time constants, so an unparseable size is a typo
-  # that would otherwise degrade to exactly the statvfs behaviour this
-  # derivation exists to prevent. Fail loudly instead of silently regressing.
+  # Upload staging is a ceiling on <data dir>/tmp, which shares the volume with
+  # the ring: an upload streams to disk there before it is committed into a
+  # segment, so every byte reserved for it is a byte the ring cannot hold. On a
+  # small claim Kura's flat 8 GiB default is most of the volume and would leave
+  # an 8Gi claim no ring at all, so the reserve scales with the claim and is
+  # capped at that default, which is what the large claims keep.
+  #
+  # An eighth rather than a half, because the half was a guess and the eighth
+  # is measured. Peak `kura_tmp_dir_bytes` across production over a week is
+  # about 840 MiB, on the busiest instance in the fleet holding the largest
+  # claim; the CAS lane's largest single upload in a day of 6.4 million of them
+  # is 21.6 MiB. A half-of-claim reserve therefore ran at roughly a tenth of
+  # its budget while taking half of every small volume, which is exactly where
+  # the ring can least afford it.
+  #
+  # The floor stays. A max-size module upload reserves its whole assembled size
+  # in one call and `TmpBudget::try_reserve` rejects it outright rather than
+  # queuing it when the budget is smaller, so a budget under
+  # `@kura_max_staged_request_bytes` does not make that upload slow, it makes it
+  # impossible. That leaves roughly 2.4x headroom over the observed peak at the
+  # floor, and the floor binds only for claims under 16Gi.
+  defp staging_bytes(storage_bytes) do
+    storage_bytes
+    |> div(8)
+    |> min(@kura_default_tmp_dir_max_bytes)
+    |> max(@kura_max_staged_request_bytes)
+  end
+
+  # Region specs are compile-time constants and an instance's pinned claim is
+  # validated where it is written, so an unparseable size is a typo that would
+  # otherwise degrade to exactly the statvfs behaviour this derivation exists to
+  # prevent. Fail loudly instead of silently regressing.
   defp parse_storage_quantity!(value, %Regions{} = region) do
     case parse_storage_quantity(value) do
       {:ok, bytes} ->
@@ -578,47 +879,55 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
       :error ->
         raise ArgumentError,
-              "region #{region.id} declares an unparseable storage quantity #{inspect(value)}; " <>
+              "an instance in region #{region.id} carries an unparseable storage quantity #{inspect(value)}; " <>
                 "expected an integer with an optional Ki/Mi/Gi/Ti suffix"
     end
   end
 
-  defp parse_storage_quantity(value) do
-    case Integer.parse(value) do
-      {quantity, suffix} when quantity > 0 ->
-        case storage_multiplier(String.trim(suffix)) do
-          nil -> :error
-          multiplier -> {:ok, quantity * multiplier}
-        end
+  defp parse_storage_quantity(value), do: Regions.parse_storage_quantity(value)
 
-      _ ->
-        :error
-    end
-  end
-
-  defp storage_multiplier(""), do: 1
-  defp storage_multiplier("Ki"), do: 1024
-  defp storage_multiplier("Mi"), do: 1024 * 1024
-  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
-  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
-  defp storage_multiplier(_), do: nil
-
-  # Managed pods of self-hosting-capable accounts fetch the account's
-  # self-hosted peer list from the control plane at boot and on cadence, so a
-  # self-hosted peer joining or leaving propagates without rolling the fleet.
-  # The variable also arms Kura's peer-view boot gate, so it is set only for
-  # accounts that can have such peers; folding
-  # the flag into the manifest revision (mesh_peers_sync_revision_suffix/2)
-  # keeps a plan change from silently leaving a running instance ungated. Once
-  # the whole fleet runs an image that fetches, the peers digest can be dropped
-  # from the manifest revision.
-  defp mesh_peers_sync_env(region, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements) do
+  # Managed pods of a mesh region fetch the account's peer view from the
+  # control plane at boot and on cadence: the self-hosted peer list, so a peer
+  # joining or leaving propagates without rolling the fleet, and the
+  # replication roles beside it. The variable also arms Kura's peer-view boot
+  # gate. It used to be set only for accounts entitled to self-host (the view
+  # carried nothing else then), with a `+nosync` revision marker for the
+  # mesh-region instances that shed it, so that a plan change could not leave
+  # a running instance ungated. Now that every mesh instance carries the
+  # variable it is a function of the region alone and needs no marker; the
+  # instances that used to carry `+nosync` cross a revision boundary exactly
+  # once, onto the view, and the rest stay byte-identical. Once the whole
+  # fleet runs an image that fetches, the peers digest can be dropped from the
+  # manifest revision.
+  defp mesh_peers_sync_env(region) do
+    if mesh_peers_sync_enabled?(region) do
       [env_var("KURA_MESH_PEERS_SYNC", "true")]
     else
       []
     end
   end
+
+  # A pull-only runtime ignores KURA_REPLICATION_PULL, but the variable is
+  # still rendered for every mesh instance so the server and the runtime can
+  # roll out in either order: a pod still on a pre-removal image boots
+  # straight into pull rather than waiting for its first peer-view fetch to
+  # tell it. Not a CRD field on purpose: a field the deployed CRD schema does
+  # not declare fails every rollout bump until the CRD is upgraded, whereas
+  # an env entry rides in `extraEnv` on any controller. Must stay paired with
+  # replication_pull_revision_suffix/1.
+  defp replication_pull_env(%{replication_pull: true}), do: [env_var("KURA_REPLICATION_PULL", "true")]
+  defp replication_pull_env(_entitlements), do: []
+
+  # Release C ignores KURA_BACKFILL_ENABLED — backfill is the only catch-up
+  # path there — but the variable is still rendered, and unconditionally, so
+  # the two images can roll out in either order. An AB pod that has not been
+  # replaced yet reads it and runs backfill; a C pod ignores it; and a C -> AB
+  # rollback lands on a backfill-enabled AB pod rather than on the legacy
+  # walker, which by then has no peer left that can serve it. Must stay paired
+  # with backfill_revision_suffix/1: the reconciler converges on the revision
+  # alone, so an env change that does not move the revision would never be
+  # applied (the KURA_MESH_PEERS_SYNC lesson above).
+  defp backfill_env(_entitlements), do: [env_var("KURA_BACKFILL_ENABLED", "true")]
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
        when is_binary(endpoint) and endpoint != "" do
@@ -653,8 +962,56 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(_), do: nil
 
-  defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
-  defp storage_size(_), do: nil
+  # The claim carried on the instance wins over anything else. A claim cannot be
+  # expanded on the local-path class these regions run, so an instance whose
+  # claim silently tracked its account would have that attempted under it every
+  # time the account moved; `Tuist.Kura.Server` writes it where the volumes are
+  # built instead.
+  #
+  # An instance carrying none has no volumes to contradict, so a region that
+  # sizes per plan resolves the claim provisioning would build it at, and every
+  # other region renders its own. Neither is a re-derivation of a carried value.
+  defp storage_claim(_account, %Regions{}, %Server{storage_claim_size: size}) when is_binary(size) and size != "",
+    do: size
+
+  defp storage_claim(account, %Regions{} = region, %Server{}) do
+    if Regions.storage_governed?(region) do
+      # The plan's claim, deliberately, and not the account's claim override
+      # (`Tuist.Kura.PlacerClaims`). Reading a sized claim means reading a table,
+      # and this renders on every reconcile tick from an account the caller
+      # already holds; the plan resolves from that account in memory. Nothing is
+      # lost by it: a governed region pins a claim on every path that creates
+      # volumes, and setting an override pins the rows that somehow carry none,
+      # so a row reaching here with an override to apply is not a state this
+      # reaches.
+      Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size
+    else
+      declared_storage_size(region)
+    end
+  end
+
+  defp declared_storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
+  defp declared_storage_size(_), do: nil
+
+  # Emitted only where the derivation lands somewhere other than Kura's own
+  # default, which is every claim small enough for half of it to be under 8 GiB.
+  # A claim big enough to keep the default renders exactly the manifest it
+  # renders today, so nothing already running gains an env var — and gaining one
+  # is not free, since it is part of the pod template and would roll the fleet
+  # for a value identical to the one it already uses.
+  #
+  # The ring budget is derived against this same number, and the claim it is
+  # derived from is part of the manifest revision, so the two can never be
+  # applied out of step.
+  defp staging_env(%Regions{} = region, claim) do
+    with size when is_binary(size) and size != "" <- cas_capacity_source(region, claim),
+         bytes when bytes != @kura_default_tmp_dir_max_bytes <-
+           size |> parse_storage_quantity!(region) |> staging_bytes() do
+      [env_var("KURA_TMP_DIR_MAX_BYTES", Integer.to_string(bytes))]
+    else
+      _ -> []
+    end
+  end
 
   defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
   defp replicas(_), do: nil
@@ -692,10 +1049,27 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
   defp client_cidrs(_), do: nil
 
-  defp pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}})
-       when is_map(annotations) and map_size(annotations) > 0, do: annotations
+  # The region's annotations with the burst ceiling replaced by the account's.
+  defp pod_annotations(region, burst_mbps) do
+    region
+    |> region_pod_annotations()
+    |> then(fn annotations ->
+      if is_integer(burst_mbps) do
+        Map.put(annotations, @egress_bandwidth_annotation, "#{burst_mbps}M")
+      else
+        annotations
+      end
+    end)
+    |> case do
+      annotations when map_size(annotations) > 0 -> annotations
+      _empty -> nil
+    end
+  end
 
-  defp pod_annotations(_), do: nil
+  defp region_pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}}) when is_map(annotations),
+    do: annotations
+
+  defp region_pod_annotations(_), do: %{}
 
   # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
   # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
@@ -733,50 +1107,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp dns_handle(handle), do: String.downcase(handle)
 
-  defp hook_script(inputs) do
-    case Map.get(inputs, :hook_script) do
-      script when is_binary(script) ->
-        {:ok, script}
-
-      nil ->
-        hook_script_from_runtime()
-    end
-  end
-
-  # Hook script is the same for every rollout in a given release, so we
-  # read it once and keep it in :persistent_term to avoid disk I/O on
-  # every reconciler tick. Cleared automatically when the BEAM is
-  # restarted (release upgrade, pod replacement) so a chart change to
-  # the bundled hooks.lua picks up on the next deploy.
-  @hook_script_cache_key {__MODULE__, :hook_script}
-
-  defp hook_script_from_runtime do
-    case Application.get_env(:tuist, :kura_hook_path) do
-      nil ->
-        {:error, "kura_hook_path is not configured"}
-
-      path when is_binary(path) ->
-        case :persistent_term.get({@hook_script_cache_key, path}, :__missing__) do
-          :__missing__ -> read_and_cache_hook_script(path)
-          script -> {:ok, script}
-        end
-    end
-  end
-
-  defp read_and_cache_hook_script(path) do
-    if File.regular?(path) do
-      script = File.read!(path)
-      :persistent_term.put({@hook_script_cache_key, path}, script)
-      {:ok, script}
-    else
-      {:error, "kura_hook_path #{path} is not a file"}
-    end
-  end
-
   defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 
-  defp client_get_kura_instance(namespace, name, region) do
-    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
+  defp client_get_kura_instance(namespace, name, region, opts \\ []) do
+    Client.get_kura_instance(namespace, name, Keyword.merge(kubernetes_client_opts(region), opts))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do

@@ -37,11 +37,14 @@ type GHActionsRunnerConfig struct {
 	// `[self-hosted, macos, bare-metal, vm-image-builder]`).
 	GHRunnerLabels string
 
-	// GHRunnerVersion pins the actions/runner release the
-	// reconciler downloads onto the host. Keep in sync with
-	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
-	// runner agent baked into the runner-image guest matches the
-	// agent running on the host that bakes that image.
+	// GHRunnerVersion is the actions/runner release installed on a
+	// host that doesn't have one yet. It is an install-time seed, not
+	// a pin: installActionsRunner skips a host whose runner is already
+	// healthy, and the agent runs without `--disableupdate`, so it
+	// self-updates past this version on its own. Keep in sync with
+	// `runner_version` in infra/runner-image/runner.pkr.hcl so a newly
+	// adopted host starts on the same agent that gets baked into the
+	// guest images it builds.
 	GHRunnerVersion string
 
 	// GHRunnerRegistrationToken is the short-lived (~1h TTL) token
@@ -54,10 +57,16 @@ type GHActionsRunnerConfig struct {
 }
 
 // builderMixBuildRoot is the host-side path the bare-metal builder
-// exports as TUIST_MIX_BUILD_ROOT in /etc/zshenv. The
-// xcresult-processor build workflow (and the matching leg in
-// release.yml) read this env var so consecutive `mix release` runs
-// share their BEAM build cache across jobs on the same host.
+// exports as TUIST_MIX_BUILD_ROOT in /etc/zshenv, so consecutive
+// `mix release` runs can share their BEAM build cache across jobs on
+// the same host.
+//
+// Nothing reads the variable today: both macOS server-release paths
+// (`xcresult-processor-image.yml` and the matching leg in
+// `server-production-deployment.yml`) set their own MIX_BUILD_ROOT
+// under ~/.cache/tuist-ci/server-macos-release/<runner-name>, keyed
+// by runner name so two jobs landing on one host cannot race on the
+// release directory.
 //
 // Hardcoded (rather than CR-configurable) because the value is an
 // implementation detail of one specific workflow's caching scheme.
@@ -69,9 +78,9 @@ const builderMixBuildRoot = "/opt/tuist-build-cache"
 // installBuilderTooling lays down the host-level dependencies the
 // image-bake workflows expect to find on PATH: Homebrew, Packer
 // from `hashicorp/tap`, `crane` (for GHCR auth via
-// `crane auth login` before `tart push`, and to resolve a pushed
-// tag to its immutable digest in `release.yml`'s runner-image leg),
-// and `oras` (for `macos-xcode-image.yml`'s pull of the pre-mirrored
+// `crane auth login`, which writes the credentials Tart reads to
+// clone a private base image and to `tart push` the result), and
+// `oras` (for `macos-xcode-image.yml`'s pull of the pre-mirrored
 // Xcode .xip from `ghcr.io/tuist/xcode-xips`).
 //
 // `hashicorp/tap` instead of Homebrew core because HashiCorp pulled

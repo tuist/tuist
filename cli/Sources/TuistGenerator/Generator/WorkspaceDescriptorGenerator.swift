@@ -206,11 +206,14 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                 lhs: lhsFile.location.path,
                 rhs: rhsFile.location.path
             )
-        case let (.group(lhsGroup), .group(rhsGroup)):
+        case let (.group(lhsGroup), .group(rhsGroup)),
+             let (.group(lhsGroup), .fileSystemSynchronizedGroup(rhsGroup)),
+             let (.fileSystemSynchronizedGroup(lhsGroup), .group(rhsGroup)),
+             let (.fileSystemSynchronizedGroup(lhsGroup), .fileSystemSynchronizedGroup(rhsGroup)):
             return lhsGroup.location.path < rhsGroup.location.path
-        case (.file, .group):
+        case (.file, .group), (.file, .fileSystemSynchronizedGroup):
             return true
-        case (.group, .file):
+        case (.group, .file), (.fileSystemSynchronizedGroup, .file):
             return false
         }
     }

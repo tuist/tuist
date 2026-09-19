@@ -7,7 +7,7 @@ defmodule Tuist.Registry.Swift.PurgeTest do
 
   setup :verify_on_exit!
 
-  describe "purge_package/2" do
+  describe "purge_package/3" do
     test "deletes artifact + metadata prefixes for the normalized scope/name" do
       expect(S3, :delete_all_with_prefix, fn "registry/swift/apple/swift_argument_parser/" -> {:ok, 42} end)
       expect(S3, :delete_all_with_prefix, fn "registry/metadata/apple/swift_argument_parser/" -> {:ok, 1} end)
@@ -18,13 +18,27 @@ defmodule Tuist.Registry.Swift.PurgeTest do
                 name: "swift_argument_parser",
                 artifacts_deleted: 42,
                 metadata_deleted: 1
-              }} = Purge.purge_package("Apple", "swift.argument.parser")
+              }} =
+               Purge.purge_package("Apple", "swift.argument.parser", confirm: "apple/swift_argument_parser")
     end
 
     test "surfaces S3 errors from the artifact delete" do
       expect(S3, :delete_all_with_prefix, fn "registry/swift/apple/parser/" -> {:error, :rate_limited} end)
 
-      assert {:error, :rate_limited} = Purge.purge_package("apple", "parser")
+      assert {:error, :rate_limited} = Purge.purge_package("apple", "parser", confirm: "apple/parser")
+    end
+
+    test "deletes nothing without a confirmation" do
+      reject(&S3.delete_all_with_prefix/1)
+
+      assert {:error, {:confirmation_required, "apple/parser"}} = Purge.purge_package("apple", "parser")
+    end
+
+    test "deletes nothing when the confirmation names a different package" do
+      reject(&S3.delete_all_with_prefix/1)
+
+      assert {:error, {:confirmation_required, "apple/parser"}} =
+               Purge.purge_package("apple", "parser", confirm: "apple/parsers")
     end
   end
 

@@ -35,6 +35,12 @@ defmodule Tuist.Guardian do
     {:error, :invalid_subject}
   end
 
+  # Cache tokens carry their bearer's cache grants so a cache node can authorize
+  # without asking us. They must never resolve to a subject here, or a token
+  # minted to reach the cache would also act as an API credential. The `sub` on
+  # one is a project id, which would otherwise be read as a user id.
+  def resource_from_claims(%{"typ" => "cache"}), do: {:error, :invalid_token_type}
+
   def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
     case Accounts.get_account_by_id(id) do
       {:ok, account} ->

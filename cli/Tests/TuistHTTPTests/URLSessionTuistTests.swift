@@ -155,5 +155,39 @@
 
             #expect(firstSession === secondSession)
         }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_uses_a_ten_minute_resource_timeout_by_default() async throws {
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            let configuration = URLSession.tuistLargeTransfer.configuration
+
+            #expect(configuration.timeoutIntervalForResource == 600)
+            #expect(configuration.timeoutIntervalForRequest == 120)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_raises_the_resource_timeout_from_the_environment() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "1800"
+
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            #expect(URLSession.tuistLargeTransfer.configuration.timeoutIntervalForResource == 1800)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_keeps_its_floor_when_the_environment_lowers_the_resource_timeout() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "30"
+
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            #expect(URLSession.tuistLargeTransfer.configuration.timeoutIntervalForResource == 600)
+            #expect(URLSession.tuistShared.configuration.timeoutIntervalForResource == 30)
+        }
     }
 #endif

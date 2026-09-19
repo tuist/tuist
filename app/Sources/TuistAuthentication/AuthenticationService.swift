@@ -57,7 +57,7 @@ public final class AuthenticationService: ObservableObject {
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
         Logger.current.notice(
-            "Initialized authentication service with state: \(authenticationState.logDescription)"
+            "Authentication state initialized state=\(authenticationState.logDescription)"
         )
 
         startCredentialsListener()
@@ -72,8 +72,9 @@ public final class AuthenticationService: ObservableObject {
             for await credentials in ServerCredentialsStore.current.credentialsChanged {
                 await MainActor.run {
                     do {
+                        let expirationDates = tokenExpirationDates(credentials)
                         Logger.current.notice(
-                            "Received credentials change: hasCredentials=\(credentials != nil)"
+                            "Credentials changed has_credentials=\(credentials != nil) \(expirationDescription(expirationDates))"
                         )
                         try updateAuthenticationState(with: credentials)
                     } catch {
@@ -386,7 +387,32 @@ public final class AuthenticationService: ObservableObject {
             ),
             serverURL: serverEnvironmentService.url()
         )
-        Logger.current.notice("Stored authentication credentials from token response")
+        let expirationDates = tokenExpirationDates(
+            ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
+        )
+        Logger.current.notice(
+            "Stored authentication credentials from token response \(expirationDescription(expirationDates))"
+        )
+    }
+
+    private func tokenExpirationDates(_ credentials: ServerCredentials?) -> (
+        accessToken: Date?,
+        refreshToken: Date?
+    ) {
+        guard let credentials else { return (nil, nil) }
+        return (
+            accessToken: try? JWT.parse(credentials.accessToken).expiryDate,
+            refreshToken: credentials.refreshToken.flatMap { try? JWT.parse($0).expiryDate }
+        )
+    }
+
+    private func expirationDescription(_ expirationDates: (accessToken: Date?, refreshToken: Date?)) -> String {
+        "access_token_expires_at=\(expirationDates.accessToken.map(format) ?? "unknown") "
+            + "refresh_token_expires_at=\(expirationDates.refreshToken.map(format) ?? "unknown")"
+    }
+
+    private func format(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 }
 

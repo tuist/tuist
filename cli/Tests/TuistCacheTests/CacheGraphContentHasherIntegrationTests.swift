@@ -284,7 +284,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func contentHashes_scopesOnlyWhenConfigurationIsSelected() async throws {
+    ) func contentHashes_scopeFollowsTheResolvedConfiguration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
@@ -374,6 +374,70 @@ struct ContentHashingIntegrationTests {
         #expect(
             implicitHashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
                 != implicitHashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
+        )
+    }
+
+    /// Cache hashes must be a function of the *resolved* configuration, never of how it was resolved.
+    /// `tuist cache --configuration Debug` and an unflagged `generate --binary-cache` on a project whose
+    /// first debug configuration is `Debug` both build `Debug`, so they must agree on hashes; the same
+    /// holds when the configuration comes from `generationOptions.defaultConfiguration`. Regression test
+    /// for #12012, which scoped settings only when the configuration was named explicitly, leaving the
+    /// unflagged side hashing every configuration and missing 100% of the cache the flagged side filled.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_areIndependentOfHowTheConfigurationIsResolved() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let debugConfiguration = BuildConfiguration.debug("Debug")
+        let releaseConfiguration = BuildConfiguration.release("Release")
+        let settings = Settings.test(
+            configurations: [
+                debugConfiguration: Configuration(settings: ["SWIFT_VERSION": "5.10"]),
+                releaseConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let framework = makeFramework(settings: settings, sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: settings,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let explicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: debugConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        let implicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        let defaultConfigurationHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: debugConfiguration.name,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == implicitHashes[graphTarget]?.hash
+        )
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == defaultConfigurationHashes[graphTarget]?.hash
         )
     }
 

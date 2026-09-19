@@ -6,6 +6,8 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
+  alias Tuist.Repo
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
@@ -14,6 +16,9 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -89,6 +94,8 @@ defmodule Tuist.Runners.DispatchTest do
           "head_branch" => "main",
           "head_sha" => "abc",
           "conclusion" => Keyword.get(opts, :conclusion, "success"),
+          "started_at" => Keyword.get(opts, :job_started_at),
+          "completed_at" => Keyword.get(opts, :job_completed_at),
           "steps" => Keyword.get(opts, :steps, [])
         },
         "runner_name",
@@ -113,6 +120,45 @@ defmodule Tuist.Runners.DispatchTest do
         ),
       "repository" => %{"full_name" => "tuist/repo"}
     }
+  end
+
+  # A real claim in `running`, lifecycle row and all, for the cases that
+  # exercise the claim path itself rather than stubbing it.
+  defp claim_running!(account, workflow_job_id, pod_name, runner_name) do
+    :ok =
+      WorkflowJobs.upsert_queued(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-pool",
+        platform: "macos",
+        vcpus: 6,
+        memory_gb: 14,
+        repository: "tuist/tuist"
+      })
+
+    {:ok, claim} =
+      Claims.attempt(workflow_job_id, account.id, "macos-pool", pod_name, %{
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14
+      })
+
+    :ok = Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
+
+    claim
+  end
+
+  defp queue_job!(account, workflow_job_id) do
+    :ok =
+      WorkflowJobs.upsert_queued(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-pool",
+        platform: "macos",
+        vcpus: 6,
+        memory_gb: 14,
+        repository: "tuist/tuist"
+      })
   end
 
   defp maybe_put(map, _key, nil), do: map
@@ -142,6 +188,7 @@ defmodule Tuist.Runners.DispatchTest do
       payload = queued_payload(owner: "DigitalSolutionsPest", labels: ["tuist-macos"])
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 123_975_483)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
@@ -166,8 +213,36 @@ defmodule Tuist.Runners.DispatchTest do
       payload = queued_payload(owner: "shared-login", labels: ["tuist-macos"])
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 555)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
+    end
+
+    test "returns {:ignored, :allowance_exhausted} when a free account has spent its runner allowance" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Allowance, :exhausted?, fn a -> a.id == account.id end)
+
+      # Nothing is enqueued and nothing tells GitHub, so the job stays
+      # queued there until it times out. The server-side log is the only
+      # signal that a limit rather than a capacity shortage stopped it.
+      reject(&Jobs.enqueue_if_missing/1)
+
+      assert {:ignored, :allowance_exhausted} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
+    test "keeps dispatching for an account whose allowance is intact" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Allowance, :exhausted?, fn _account -> false end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      assert {:ok, :queued} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name, labels: ["tuist-macos"]), 1)
     end
 
     test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do
@@ -208,6 +283,7 @@ defmodule Tuist.Runners.DispatchTest do
         |> Map.put("action", "waiting")
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 1)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
@@ -370,6 +446,44 @@ defmodule Tuist.Runners.DispatchTest do
       end
     end
 
+    test "propagates an unexpected error from the completion write so Oban retries" do
+      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :rollback} end)
+
+      payload =
+        completed_payload(
+          id: 4400,
+          conclusion: "success",
+          steps: [%{"name" => "Set up job", "status" => "completed", "number" => 1}]
+        )
+
+      assert {:error, :rollback} = Dispatch.handle_webhook(payload, 1)
+
+      refute_enqueued(worker: FetchLogsWorker, args: %{workflow_job_id: 4400})
+    end
+
+    test "propagates an unexpected error from the completed-before-queued write" do
+      account = enabled_account()
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :not_found} end)
+      stub(Jobs, :record_completed, fn _attrs, _conclusion -> {:error, :rollback} end)
+
+      payload =
+        completed_payload(
+          owner: account.name,
+          id: 4410,
+          conclusion: "cancelled",
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:error, :rollback} = Dispatch.handle_webhook(payload, 1)
+    end
+
     test "does not resurrect a canceled job when completed arrives before queued" do
       account = enabled_account()
       workflow_job_id = System.unique_integer([:positive])
@@ -399,6 +513,7 @@ defmodule Tuist.Runners.DispatchTest do
         )
 
       assert {:ok, :queued} = Dispatch.handle_webhook(queued, 1)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       assert {:ok, job} = Jobs.get_for_account(account.id, workflow_job_id)
       assert job.status == "completed"
@@ -436,11 +551,91 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "surfaces a claim↔execution mismatch when GitHub ran a different job" do
-      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
+      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> {:mismatch, nil} end)
       stub(RunnerSessions, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
 
       assert {:ok, :mismatch} =
                Dispatch.handle_webhook(in_progress_payload(id: 4400, runner_name: "runner-b"), 1)
+    end
+
+    # The payoff of keying claims by Pod, end to end against a real claim:
+    # GitHub gave this runner a sibling's job, so the job it was minted for
+    # is running nowhere and goes straight back to the queue instead of
+    # waiting for the Pod to stop. GitHub never re-announces it, so nothing
+    # else would. The Pod keeps its slot for the job it actually took.
+    test "re-queues the job displaced by the runner shuffle", %{account: account} do
+      workflow_job_id = 4410
+      claim = claim_running!(account, workflow_job_id, "pod-displaced", "runner-displaced")
+
+      stub(RunnerSessions, :record_execution, fn "runner-displaced", 4411, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4411, runner_name: "runner-displaced"), 1)
+
+      row = Repo.get!(WorkflowJob, workflow_job_id)
+      assert row.status == "queued"
+      assert row.pod_name == nil
+      assert row.runner_name == nil
+      assert row.claimed_at == nil
+
+      assert Claims.counts_per_account() == %{account.id => 1}
+      assert Claims.by_pod_name(claim.pod_name) == :error
+    end
+
+    # The other half of the shuffle. The job GitHub actually placed on the
+    # runner was never claimed by this Pod, so nothing in the claim path
+    # moves it: `transition_running/3` only CASes the Pod's own
+    # `claimed → running`. Left alone it reads `queued` for its entire
+    # runtime — the dashboard says Queued while the build burns CPU, and
+    # the queue gauges the autoscaler reads count it as work still to
+    # provision for.
+    test "moves the job GitHub actually ran to running", %{account: account} do
+      claimed_job_id = 4420
+      executed_job_id = 4421
+      claim_running!(account, claimed_job_id, "pod-shuffle", "runner-shuffle")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-shuffle", 4421, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-shuffle"), 1)
+
+      executed = Repo.get!(WorkflowJob, executed_job_id)
+      assert executed.status == "running"
+      assert executed.runner_name == "runner-shuffle"
+      assert executed.pod_name == "pod-shuffle"
+      assert executed.executed_workflow_job_id == executed_job_id
+      assert %DateTime{} = executed.started_at
+      assert %DateTime{} = executed.claimed_at
+
+      assert Repo.get!(WorkflowJob, claimed_job_id).status == "queued"
+    end
+
+    # A job the shuffle displaced onto this runner is no longer a dispatch
+    # candidate, so the only way back to `queued` is a stale claim naming
+    # it — the ClickHouse-lag double-claim shape. Releasing that claim must
+    # not re-queue a job that is executing on someone else's Pod.
+    test "keeps an executing job out of the queue when a stale claim is released", %{account: account} do
+      claimed_job_id = 4430
+      executed_job_id = 4431
+      claim_running!(account, claimed_job_id, "pod-stale", "runner-stale")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-stale", 4431, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-stale"), 1)
+
+      {:ok, stale_claim} =
+        Claims.attempt(executed_job_id, account.id, "macos-pool", "pod-late", %{
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14
+        })
+
+      assert :ok = Claims.release(executed_job_id, stale_claim.claimed_at)
+
+      assert Repo.get!(WorkflowJob, executed_job_id).status == "running"
     end
 
     test "a mismatch on either store wins over a matched on the other" do
@@ -483,16 +678,67 @@ defmodule Tuist.Runners.DispatchTest do
       %{account: account}
     end
 
+    # A dropped `in_progress` means nothing ever told us this runner took a
+    # different job, so the claim reaches its completion still naming the
+    # job it was minted for. The runner is finished, so that job ran
+    # nowhere: freeing the slot is not enough, the job has to go back to
+    # the queue too, or it waits on OrphanedRunnersWorker — the delay this
+    # whole path exists to remove.
+    test "re-queues a displaced job when in_progress never arrived", %{account: account} do
+      workflow_job_id = 4900
+      claim_running!(account, workflow_job_id, "pod-silent", "runner-silent")
+
+      stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4901, runner_name: "runner-silent", conclusion: "success"),
+                 1
+               )
+
+      assert Repo.get!(WorkflowJob, workflow_job_id).status == "queued"
+      assert Claims.counts_per_account() == %{}
+    end
+
+    # The normal ordering: `in_progress` already detached and re-queued the
+    # displaced job, so the completion has nothing left to hand back and
+    # must not disturb whatever has happened to that job since.
+    test "hands nothing back when in_progress already detached the job", %{account: account} do
+      workflow_job_id = 4910
+      claim_running!(account, workflow_job_id, "pod-loud", "runner-loud")
+
+      stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :mismatch end)
+      stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4911, runner_name: "runner-loud"), 1)
+
+      # Another Pod picks the displaced job up before the completion lands.
+      :ok = WorkflowJobs.transition_claimed(workflow_job_id, "pod-next", DateTime.utc_now())
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4911, runner_name: "runner-loud", conclusion: "success"),
+                 1
+               )
+
+      assert Repo.get!(WorkflowJob, workflow_job_id).status == "claimed"
+    end
+
     test "binds the runner→job on the durable session before completing", %{account: account} do
       test_pid = self()
       account_id = account.id
 
-      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id ->
-        send(test_pid, {:session_exec, "runner-late", 4800})
+      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id, job_window ->
+        send(test_pid, {:session_exec, "runner-late", 4800, job_window})
         :matched
       end)
 
-      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id -> 1 end)
+      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id, _job -> %{released: 1, requeued: []} end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
@@ -502,7 +748,60 @@ defmodule Tuist.Runners.DispatchTest do
                  1
                )
 
-      assert_receive {:session_exec, "runner-late", 4800}
+      assert_receive {:session_exec, "runner-late", 4800, _job_window}
+    end
+
+    test "leaves the delivery unacknowledged when the session write fails", %{account: account} do
+      account_id = account.id
+
+      # The billable job window is recorded nowhere else, and a session
+      # missing either bound bills nothing, so acknowledging here would
+      # turn a transient Postgres failure into permanently lost usage.
+      stub(RunnerSessions, :record_execution, fn "runner-broken", 4802, ^account_id, _window ->
+        {:error, %Ecto.Changeset{errors: [job_started_at: {"boom", []}]}}
+      end)
+
+      stub(Claims, :complete_by_runner_name, fn "runner-broken", ^account_id, _job -> %{released: 1, requeued: []} end)
+      reject(&Jobs.complete/2)
+
+      assert {:error, {:session_execution_write_failed, _}} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4802, runner_name: "runner-broken", steps: []),
+                 1
+               )
+    end
+
+    test "passes GitHub's job window through to the billing session", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn "runner-window", 4801, ^account_id, job_window ->
+        send(test_pid, {:job_window, job_window})
+        :matched
+      end)
+
+      stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id, _job -> %{released: 1, requeued: []} end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(
+                   id: 4801,
+                   runner_name: "runner-window",
+                   steps: [],
+                   job_started_at: "2026-08-18T13:50:02Z",
+                   job_completed_at: "2026-08-18T13:50:08Z"
+                 ),
+                 1
+               )
+
+      # This window, not the Pod's, is what the customer is billed for.
+      assert_receive {:job_window,
+                      %{
+                        started_at: ~U[2026-08-18 13:50:02.000000Z],
+                        ended_at: ~U[2026-08-18 13:50:08.000000Z]
+                      }}
     end
 
     test "releases the executor's claim, scoped to the webhook's account", %{account: account} do
@@ -511,9 +810,9 @@ defmodule Tuist.Runners.DispatchTest do
 
       stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :matched end)
 
-      stub(Claims, :complete_by_runner_name, fn runner, acct ->
+      stub(Claims, :complete_by_runner_name, fn runner, acct, _job ->
         send(test_pid, {:released, runner, acct})
-        1
+        %{released: 1, requeued: []}
       end)
 
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)

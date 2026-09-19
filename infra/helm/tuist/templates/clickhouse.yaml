@@ -1,4 +1,26 @@
 {{- if eq .Values.clickhouse.mode "embedded" }}
+{{- $systemLogLevel := .Values.clickhouse.embedded.systemLogs.level }}
+{{- $systemLogTTLDays := .Values.clickhouse.embedded.systemLogs.ttlDays }}
+{{- $supersededTables := .Values.clickhouse.embedded.systemLogs.supersededTables }}
+{{- if not (has $supersededTables (list "ignore" "delete")) }}
+{{- fail (printf "clickhouse.embedded.systemLogs.supersededTables must be \"ignore\" or \"delete\", got %v" $supersededTables) }}
+{{- end }}
+{{- /*
+  System log tables that ship with no TTL and exist in every ClickHouse version
+  the chart supports. Deliberately an intersection, not a superset: a table
+  present in only some versions (latency_log in 25.x, background_schedule_pool_log
+  in 26.x) is left to ClickHouse's own retention, so that operators who override
+  image.tag keep a config that preprocesses on every version.
+
+  opentelemetry_span_log is excluded because the shipped config declares it with
+  an explicit <engine> spec that a separate <ttl> cannot coexist with.
+
+  Tables that already ship with a TTL (processors_profile_log,
+  blob_storage_log, asynchronous_insert_log, and the 26.x zookeeper logs) are
+  deliberately absent: they are already bounded, and declaring a different
+  window would supersede them for no gain.
+*/}}
+{{- $systemLogTables := list "text_log" "query_log" "query_thread_log" "query_views_log" "trace_log" "metric_log" "asynchronous_metric_log" "part_log" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,6 +28,28 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
 data:
+  {{- with $systemLogLevel }}
+  log-level.xml: |
+    <clickhouse>
+      <logger>
+        <level>{{ . }}</level>
+      </logger>
+      <text_log>
+        <level>{{ . }}</level>
+      </text_log>
+    </clickhouse>
+  {{- end }}
+  {{- with $systemLogTTLDays }}
+  log-ttl.xml: |
+    <clickhouse>
+      {{- $ttlDays := . }}
+      {{- range $systemLogTables }}
+      <{{ . }}>
+        <ttl>event_date + INTERVAL {{ $ttlDays }} DAY DELETE</ttl>
+      </{{ . }}>
+      {{- end }}
+    </clickhouse>
+  {{- end }}
   users.xml: |
     <clickhouse>
       <users>
@@ -71,6 +115,16 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
+            {{- with $systemLogLevel }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-log-level.xml
+              subPath: log-level.xml
+            {{- end }}
+            {{- with $systemLogTTLDays }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-log-ttl.xml
+              subPath: log-ttl.xml
+            {{- end }}
             - name: config
               mountPath: /etc/clickhouse-server/users.d/users.xml
               subPath: users.xml
@@ -135,4 +189,70 @@ spec:
                 sleep 2
               done
               clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+{{- if eq $supersededTables "delete" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-superseded-log-tables") }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-superseded-log-tables
+  annotations:
+    helm.sh/hook: post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-superseded-log-tables") | nindent 8 }}
+        {{- with $.Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+{{ include "tuist.podScheduling" $ | nindent 6 }}
+      restartPolicy: OnFailure
+      containers:
+        - name: clickhouse-superseded-log-tables
+          image: "{{ $.Values.clickhouse.embedded.image.repository }}:{{ $.Values.clickhouse.embedded.image.tag }}"
+          imagePullPolicy: {{ $.Values.clickhouse.embedded.image.pullPolicy }}
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              value: {{ $.Values.clickhouse.embedded.password | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              ch() { clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" "$@"; }
+              # ClickHouse is legitimately absent when an operator switches
+              # clickhouse.mode from external to embedded, and there is nothing
+              # to reclaim on such an install, so skip rather than block the
+              # release.
+              deadline=$(( $(date +%s) + 120 ))
+              until err=$(ch --query "SELECT 1" 2>&1 >/dev/null); do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  # Without the last error an authentication failure is
+                  # indistinguishable from an absent ClickHouse, and both exit 0.
+                  echo "giving up after 120s, skipping: ${err:-no error reported}" >&2
+                  exit 0
+                fi
+                sleep 2
+              done
+              # ClickHouse supersedes a system log table when it first flushes to
+              # it, not when it starts serving, so a query issued right after
+              # startup sees none of the generations this upgrade will produce.
+              # Forcing the flush makes them all exist before we look.
+              ch --query "SYSTEM FLUSH LOGS"
+              # ClickHouse stops managing a table once it is superseded, so
+              # every generation is inert and safe to drop, including ones for
+              # tables log-ttl.xml cannot declare a TTL for.
+              TABLES=$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
+              for table in $TABLES; do
+                echo "dropping system.$table"
+                ch --query "DROP TABLE IF EXISTS system.\`$table\` SYNC"
+              done
+{{- end }}
 {{- end }}
