@@ -4,6 +4,7 @@ import Mockable
 import Path
 import Synchronization
 import System
+import TuistLogging
 
 public enum AppleArchiverError: LocalizedError, Equatable {
     case compressionFailed(String)
@@ -185,10 +186,22 @@ public struct AppleArchiver: AppleArchiving {
         to archivePath: AbsolutePath,
         filter: @escaping ArchiveHeader.EntryFilter
     ) throws {
-        let destination = FilePath(archivePath.pathString)
-
+        Logger.current.debug("Compressing archive at \(archivePath.pathString) using LZFSE")
+        let start = ContinuousClock.now
+        let inputSize = Mutex((bytes: UInt64(0), complete: true))
+        let measuringFilter: ArchiveHeader.EntryFilter = { message, path, data in
+            let status = filter(message, path, data)
+            guard status == .ok, message == .searchExclude else { return status }
+            // Measure only included entries during the existing walk, without following symlinks.
+            let bytes = Self.regularFileSize(at: "\(source.string)/\(path.string)")
+            inputSize.withLock { size in
+                size.bytes += bytes ?? 0
+                size.complete = size.complete && bytes != nil
+            }
+            return status
+        }
         guard let writeStream = ArchiveByteStream.fileStream(
-            path: destination,
+            path: FilePath(archivePath.pathString),
             mode: .writeOnly,
             options: [.create, .truncate],
             permissions: [.ownerReadWrite, .groupRead, .otherRead]
@@ -214,12 +227,27 @@ public struct AppleArchiver: AppleArchiving {
         try encodeStream.writeDirectoryContents(
             archiveFrom: source,
             keySet: keySet,
-            selectUsing: filter
+            selectUsing: measuringFilter
         )
 
         try encodeStream.close()
         try compressStream.close()
         try writeStream.close()
+
+        let elapsed = start.duration(to: .now).components
+        let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+        let input = inputSize.withLock { $0.complete ? "\($0.bytes) bytes" : "unavailable" }
+        let archiveSize = (try? FileManager.default.attributesOfItem(atPath: archivePath.pathString)[.size]) as? NSNumber
+        let output = archiveSize.map { "\($0.uint64Value) bytes" } ?? "unavailable"
+        Logger.current.debug(
+            "Compressed archive at \(archivePath.pathString) in \(String(format: "%.2fs", seconds)) wall time (input: \(input), archive: \(output), compression: LZFSE)"
+        )
+    }
+
+    private static func regularFileSize(at path: String) -> UInt64? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else { return nil }
+        guard attributes[.type] as? FileAttributeType == .typeRegular else { return 0 }
+        return (attributes[.size] as? NSNumber)?.uint64Value
     }
 
     public func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws {
