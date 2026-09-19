@@ -356,17 +356,7 @@
           <.coverage_change_cell coverage={row.coverage} delta={row.delta} />
         </:col>
         <:col :let={row} label={dgettext("dashboard_tests", "Run")}>
-          <.badge_cell
-            :if={row.coverage}
-            style="light-fill"
-            color={if row.partial, do: "warning", else: "success"}
-            label={
-              if row.partial,
-                do: dgettext("dashboard_tests", "Partial"),
-                else: dgettext("dashboard_tests", "Full")
-            }
-          />
-          <.text_cell :if={is_nil(row.coverage)} label="—" />
+          <.run_kind_cell partial={if row.coverage, do: row.partial} />
         </:col>
       </.table>
     </.card_section>
@@ -610,7 +600,10 @@
           <.text_cell label={run.scheme} />
         </:col>
         <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
-          <.totals_cell totals={run} />
+          <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
+        </:col>
+        <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
+          <.run_kind_cell partial={run.partial} />
         </:col>
         <:col :let={run} label={dgettext("dashboard_tests", "Commit")}>
           <.text_cell label={short_sha(run.git_commit_sha)} />

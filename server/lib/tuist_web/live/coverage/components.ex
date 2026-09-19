@@ -296,24 +296,22 @@ defmodule TuistWeb.Coverage.Components do
     """
   end
 
-  attr :totals, :map, default: nil
+  attr :partial, :boolean, default: nil
 
-  def totals_cell(assigns) do
+  @doc "Whether a run measured every test (Full) or selective testing left some out (Partial); nil for no run."
+  def run_kind_cell(assigns) do
     ~H"""
-    <div data-part="cell" data-type="text">
-      <span data-part="label">
-        {if @totals,
-          do: "#{Coverage.percentage(@totals.covered_lines, @totals.executable_lines)}%",
-          else: "—"}
-      </span>
-      <.badge
-        :for={{color, label} <- List.wrap(coverage_badge(@totals))}
-        style="light-fill"
-        size="large"
-        color={color}
-        label={label}
-      />
-    </div>
+    <.badge_cell
+      :if={not is_nil(@partial)}
+      style="light-fill"
+      color={if @partial, do: "warning", else: "success"}
+      label={
+        if @partial,
+          do: dgettext("dashboard_tests", "Partial"),
+          else: dgettext("dashboard_tests", "Full")
+      }
+    />
+    <.text_cell :if={is_nil(@partial)} label="—" />
     """
   end
 
@@ -520,9 +518,4 @@ defmodule TuistWeb.Coverage.Components do
       {first, last} -> "#{first}–#{last}"
     end)
   end
-
-  @doc false
-  def coverage_badge(nil), do: nil
-  def coverage_badge(%{partial: true}), do: {"warning", dgettext("dashboard_tests", "P")}
-  def coverage_badge(_totals), do: {"success", dgettext("dashboard_tests", "F")}
 end
