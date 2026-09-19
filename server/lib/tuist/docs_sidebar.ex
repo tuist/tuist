@@ -221,7 +221,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Build insights",
+            label: "Insights",
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "brand_apple"},
@@ -241,7 +241,7 @@ defmodule Tuist.Docs.Sidebar do
         weight: :medium,
         items: [
           %Item{
-            label: "Selective testing",
+            label: "Selection",
             slug: "/en/guides/features/selective-testing",
             items: [
               %Item{
@@ -252,7 +252,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Test insights",
+            label: "Insights",
             slug: "/en/guides/features/test-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
@@ -261,7 +261,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Flaky tests",
+            label: "Flakiness",
             slug: "/en/guides/features/test-insights/flaky-tests",
             items: [
               %Item{
@@ -287,7 +287,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Test sharding",
+            label: "Sharding",
             slug: "/en/guides/features/test-sharding",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "brand_apple"},
@@ -340,12 +340,12 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
-        label: "Artifacts",
+        label: "Bundles",
         weight: :medium,
         items: [
           %Item{label: "Previews", slug: "/en/guides/features/previews"},
           %Item{
-            label: "Bundle insights",
+            label: "Insights",
             slug: "/en/guides/features/bundle-insights",
             items: [
               %Item{
