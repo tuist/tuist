@@ -153,7 +153,7 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     assert :ok == perform(project, "signal")
   end
 
-  test "is neutral when there is no baseline and the patch is unavailable", %{project: project, account: account} do
+  test "is neutral when there is no baseline, the patch gate still holding on a partial run", %{project: project, account: account} do
     pr_run(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 1])], %{
       merge_base_sha: "unknown",
       partial: true
@@ -165,8 +165,8 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
       assert params.conclusion == "neutral"
       assert params.output.title == "Coverage gates could not be evaluated"
       assert params.output.summary =~ "100.0% (no baseline: commit `unknown` is not in the repository's Git history)"
-      assert params.output.summary =~ "unavailable: some tests were skipped"
-      assert params.output.summary =~ "⚪ some tests were skipped"
+      assert params.output.summary =~ "| Minimum patch coverage | 50.0% | 100.0% | ✅ |"
+      assert params.output.summary =~ "⚪ commit `unknown` is not in the repository's Git history"
       {:ok, %{"id" => 1}}
     end)
 

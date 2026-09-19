@@ -75,7 +75,6 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
     alter table(:projects) do
       add :git_history_window_days, :integer
       add :git_history_window_commits, :integer
-      add :git_history_provider_fallback, :boolean
     end
   end
 end

@@ -130,7 +130,7 @@ defmodule TuistWeb.API.CoverageController do
       kind: %Schema{
         type: :string,
         description:
-          "`no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage."
+          "`no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage."
       },
       message: %Schema{type: :string}
     },

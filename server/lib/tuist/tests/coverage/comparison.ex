@@ -25,10 +25,9 @@ defmodule Tuist.Tests.Coverage.Comparison do
     * **Patch coverage** is the share of the changed executable lines any of
       the head's runs covered, from the per-line counts and the hunks the
       client recorded against the merge base (`Tuist.Tests.TestRunChangedFile`).
-      It is exact when the head measured fully; on partial measurements it is
-      valid only when every changed file's tests ran, which the run cannot
-      prove, so it is off unless the project turned it on
-      (`coverage_patch_partial_runs`).
+      It is exact when the head measured fully; on partial measurements it
+      counts the changed lines the tests that ran covered, so it can read
+      lower than a full run would.
     * **Gaps** are the changed files with executable lines in their hunks
       that no test executed.
 
@@ -303,7 +302,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
         targets: target_deltas(head_files, baseline_files, baseline, partial),
         files: file_deltas(head_files, baseline_files, baseline, partial)
       },
-      patch(project, head, partial, head_files)
+      patch(project, head, head_files)
     )
   end
 
@@ -386,23 +385,17 @@ defmodule Tuist.Tests.Coverage.Comparison do
   @doc """
   Patch coverage and gaps alone, for a head whose baseline is not needed:
   `%{patch: ..., gaps: [...]}`. `patch.status` is `:available` with the
-  counts, or `:unavailable` with a `:reason` (`:partial_run`, `:no_history`,
-  `:truncated`). `partial` is whether the head measured any scheme partially.
+  counts, or `:unavailable` with a `:reason` (`:no_history`, `:truncated`).
   """
-  def patch(%Project{} = project, %{sha: sha} = head, partial, head_files \\ nil) do
+  def patch(%Project{} = project, %{sha: sha} = head, head_files \\ nil) do
     excluded = ExcludedPaths.pattern_for_project(project)
     head_files = head_files || Commits.merged_files(project.id, sha, excluded: excluded)
     changed = changed_files_for_commit(project.id, sha)
 
-    cond do
-      partial and not project.coverage_patch_partial_runs ->
-        %{patch: %{status: :unavailable, reason: :partial_run}, gaps: []}
-
-      changed == [] and head.merge_base_sha == "" ->
-        %{patch: %{status: :unavailable, reason: :no_history, detail: head.history_fallback_reason}, gaps: []}
-
-      true ->
-        patch_from_changes(project.id, sha, changed, head_files, excluded)
+    if changed == [] and head.merge_base_sha == "" do
+      %{patch: %{status: :unavailable, reason: :no_history, detail: head.history_fallback_reason}, gaps: []}
+    else
+      patch_from_changes(project.id, sha, changed, head_files, excluded)
     end
   end
 
@@ -508,7 +501,6 @@ defmodule Tuist.Tests.Coverage.Comparison do
     do:
       "commit `#{String.slice(sha, 0, 7)}` measured #{schemes_text(baseline)} where this commit measured #{schemes_text(schemes)}"
 
-  def reason_text(%{reason: :partial_run}), do: "some tests were skipped"
   def reason_text(%{kind: :partial_run}), do: "some tests were skipped"
 
   def reason_text(%{reason: :no_history} = reason),

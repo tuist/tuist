@@ -1,8 +1,7 @@
 defmodule TuistWeb.ProjectCoverageSettingsLive do
   @moduledoc """
-  The project's code coverage settings: gates, patch coverage on partial
-  runs, the Git history window with its provider fallback and tracked files,
-  and the paths left out of every figure.
+  The project's code coverage settings: the gates behind the coverage
+  check, the tracked files, and the paths left out of every figure.
   """
   use TuistWeb, :live_view
   use Noora
@@ -17,7 +16,7 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
   alias Tuist.Tests.Coverage.Workers.RecomputeTotalsWorker
   alias TuistWeb.Errors.NotFoundError
 
-  @toggles ~w(coverage_gates_enabled coverage_patch_partial_runs git_history_provider_fallback)
+  @toggles ~w(coverage_gates_enabled)
 
   @impl true
   def mount(
@@ -46,7 +45,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
   @modals %{
     "gates" => "coverage-gates-modal",
     "excluded_paths" => "coverage-excluded-paths-modal",
-    "git_history" => "coverage-git-history-modal",
     "tracked_files" => "coverage-tracked-files-modal"
   }
 
@@ -85,13 +83,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
 
   defp attrs("excluded_paths", form), do: %{coverage_excluded_path_globs: globs_or_nil(form["globs"])}
 
-  defp attrs("git_history", form) do
-    %{
-      git_history_window_days: integer_or_nil(form["window_days"]),
-      git_history_window_commits: integer_or_nil(form["window_commits"])
-    }
-  end
-
   defp attrs("tracked_files", form), do: %{tracked_file_globs: globs_or_nil(form["globs"])}
 
   defp update_project(%{assigns: %{selected_project: project}} = socket, attrs) do
@@ -124,7 +115,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
     |> assign(:gates, Gates.settings(project))
     |> assign(:excluded_path_globs, ExcludedPaths.globs(project))
     |> assign(:git_history, GitHistory.settings(project))
-    |> assign(:git_history_defaults, GitHistory.settings(nil))
     |> assign_forms()
   end
 
@@ -137,10 +127,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
         "max_total_drop" => to_field(project.coverage_gate_max_total_drop)
       },
       "excluded_paths" => %{"globs" => Enum.join(project.coverage_excluded_path_globs || [], "\n")},
-      "git_history" => %{
-        "window_days" => to_field(project.git_history_window_days),
-        "window_commits" => to_field(project.git_history_window_commits)
-      },
       "tracked_files" => %{"globs" => Enum.join(project.tracked_file_globs || [], "\n")}
     })
   end
@@ -156,15 +142,6 @@ defmodule TuistWeb.ProjectCoverageSettingsLive do
   end
 
   defp number_or_nil(_value), do: nil
-
-  defp integer_or_nil(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp integer_or_nil(_value), do: nil
 
   # One glob per line; an empty field clears the setting.
   defp globs_or_nil(value) when is_binary(value) do

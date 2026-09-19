@@ -28,8 +28,7 @@ defmodule Tuist.Tests.Coverage.Gates do
     %{
       enabled: project.coverage_gates_enabled,
       min_patch_coverage: project.coverage_gate_min_patch_coverage,
-      max_total_drop: project.coverage_gate_max_total_drop,
-      patch_partial_runs: project.coverage_patch_partial_runs
+      max_total_drop: project.coverage_gate_max_total_drop
     }
   end
 

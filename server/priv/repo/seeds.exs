@@ -5812,9 +5812,6 @@ coverage_repository_id = GitHistory.repository_id(organization.account.id, cover
     coverage_gates_enabled: true,
     coverage_gate_min_patch_coverage: 80.0,
     coverage_gate_max_total_drop: 1.0,
-    # The pull request's head was measured by a partial run (selective testing
-    # left tests out), and its patch is worth reading anyway.
-    coverage_patch_partial_runs: true,
     tracked_file_globs: ["Sources/**/*.swift", "Tests/**/*.swift"],
     coverage_excluded_path_globs: ["Sources/Generated/**"]
   })

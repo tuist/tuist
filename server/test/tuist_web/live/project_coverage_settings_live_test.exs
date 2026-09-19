@@ -32,12 +32,9 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
     assert has_element?(lv, "[data-part='gates-card-section'] .noora-tag", "No thresholds")
 
     lv |> element("#coverage-gates-enabled") |> render_click()
-    lv |> element("#coverage-patch-partial-runs") |> render_click()
-    lv |> element("#coverage-git-history-provider-fallback") |> render_click()
     refute_enqueued(worker: RecomputeTotalsWorker)
 
     save(lv, "gates", %{"min_patch_coverage" => "80", "max_total_drop" => "1.5"})
-    save(lv, "git_history", %{"window_days" => "120", "window_commits" => ""})
     save(lv, "tracked_files", %{"globs" => "Fixtures/**\n\n  Package.resolved  \n"})
     refute_enqueued(worker: RecomputeTotalsWorker)
     save(lv, "excluded_paths", %{"globs" => "Sources/API/**\n\n  **/*.pb.swift  \n"})
@@ -47,10 +44,7 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
     assert {project.coverage_gates_enabled, project.coverage_gate_min_patch_coverage,
             project.coverage_gate_max_total_drop} == {true, 80.0, 1.5}
 
-    assert project.coverage_patch_partial_runs == true
     assert project.coverage_excluded_path_globs == ["Sources/API/**", "**/*.pb.swift"]
-    assert {project.git_history_window_days, project.git_history_window_commits} == {120, nil}
-    assert project.git_history_provider_fallback == true
     assert project.tracked_file_globs == ["Fixtures/**", "Package.resolved"]
 
     # The past runs' totals follow the new exclusions.
@@ -58,7 +52,13 @@ defmodule TuistWeb.ProjectCoverageSettingsLiveTest do
 
     assert has_element?(lv, "[data-part='gates-card-section'] .noora-tag", "Patch coverage at least 80.0%")
     assert has_element?(lv, "[data-part='excluded-paths-card-section'] .noora-tag", "Sources/API/**")
-    assert has_element?(lv, "[data-part='git-history-card-section'] .noora-tag", "120 days")
+    assert has_element?(lv, "[data-part='tracked-files-card-section'] .noora-tag", "Package.resolved")
+
+    # Settled by the server, not per project: patch coverage on partial runs,
+    # completing history from GitHub, and the history window.
+    refute has_element?(lv, "#coverage-patch-partial-runs")
+    refute has_element?(lv, "#coverage-git-history-provider-fallback")
+    refute has_element?(lv, "#coverage-git-history-modal")
   end
 
   test "discards a modal's edits on cancel", %{conn: conn, organization: organization, project: project} do
