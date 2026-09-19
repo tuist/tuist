@@ -50,6 +50,11 @@ noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
+
+# Default to reading contract templates from the on-disk placeholder stubs
+# shipped in `priv/contracts/templates/`. Prod runtime.exs flips this to `:s3`
+# once the shared object storage bucket is configured.
+config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
 
 config :atlas, Atlas.Vault,
