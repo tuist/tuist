@@ -1046,7 +1046,7 @@ msgstr ""
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_branches_live.html.heex:75
+#: lib/tuist_web/live/coverage_branches_live.html.heex:72
 #: lib/tuist_web/live/coverage_detail_live.html.heex:549
 #: lib/tuist_web/live/coverage_live.html.heex:254
 #: lib/tuist_web/live/shards_live.ex:27
@@ -2430,12 +2430,7 @@ msgstr ""
 msgid "Difference of the total against the baseline commit."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_branches_live.html.heex:69
-#, elixir-autogen, elixir-format
-msgid "Latest commit"
-msgstr ""
-
-#: lib/tuist_web/live/coverage_branches_live.html.heex:82
+#: lib/tuist_web/live/coverage_branches_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Measured"
 msgstr ""
@@ -2668,12 +2663,12 @@ msgstr ""
 msgid "Files that rose most"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_branches_live.html.heex:101
+#: lib/tuist_web/live/coverage_branches_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "No branch gathered coverage yet"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_branches_live.html.heex:95
+#: lib/tuist_web/live/coverage_branches_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "No branch matches %{search}"
 msgstr ""
