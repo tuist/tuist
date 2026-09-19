@@ -66,9 +66,6 @@
           <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
             <.coverage_cell covered={branch.covered_lines} executable={branch.executable_lines} />
           </:col>
-          <:col :let={branch} label={dgettext("dashboard_tests", "Latest commit")}>
-            <.text_cell label={short_sha(branch.git_commit_sha)} />
-          </:col>
           <:col :let={branch} label={"#{scheme_label(@selected_project)}s"}>
             <.measured_by_cell commit={branch} />
           </:col>
