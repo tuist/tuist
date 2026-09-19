@@ -247,6 +247,7 @@
 /* A file's coverage as a bar and a percentage, and the schemes that measured
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,
+#coverage-branches,
 #coverage-detail {
   & [data-part="coverage-cell"] {
     display: flex;

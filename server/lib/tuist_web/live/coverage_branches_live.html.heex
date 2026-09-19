@@ -1,15 +1,13 @@
 <div id="coverage-branches">
-  <div data-part="header">
-    <.button
-      label={dgettext("dashboard_tests", "Code coverage")}
-      variant="secondary"
-      size="medium"
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
-    >
-      <:icon_left><.icon name="arrow_left" /></:icon_left>
-    </.button>
-    <h1 data-part="title">{dgettext("dashboard_tests", "Branches")}</h1>
-  </div>
+  <.button
+    label={dgettext("dashboard_tests", "Code coverage")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
 
   <.card
     title={dgettext("dashboard_tests", "Branches")}
@@ -67,16 +65,6 @@
           </:col>
           <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
             <.coverage_cell covered={branch.covered_lines} executable={branch.executable_lines} />
-          </:col>
-          <:col
-            :let={branch}
-            label={
-              dgettext("dashboard_tests", "Against %{branch}",
-                branch: @selected_project.default_branch
-              )
-            }
-          >
-            <.change_cell delta={branch.delta} />
           </:col>
           <:col :let={branch} label={dgettext("dashboard_tests", "Latest commit")}>
             <.text_cell label={short_sha(branch.git_commit_sha)} />
