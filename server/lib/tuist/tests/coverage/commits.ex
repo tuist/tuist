@@ -242,8 +242,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   The files the commit's listing holds that no run measured, in path order:
   the gap the page names, and the count published with the commit. `limit`
-  caps the list (50 by default). Empty for a commit without a listing, or
-  one the project has no coverage for.
+  caps the list (50 by default) and `offset` skips into it, for paging. Empty
+  for a commit without a listing, or one the project has no coverage for.
   """
   def unmeasured_files(%Project{} = project, sha, opts \\ []) do
     case summary(project.id, sha) do
@@ -259,6 +259,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           ExcludedPaths.pattern_for_project(project)
         )
         |> Enum.sort()
+        |> Enum.drop(Keyword.get(opts, :offset, 0))
         |> Enum.take(Keyword.get(opts, :limit, 50))
     end
   end

@@ -59,6 +59,13 @@
     gap: var(--noora-spacing-6);
   }
 
+  /* The Files tab stacks two cards, spaced as the page spaces its own. */
+  & > [data-part="files"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
   & [data-part="commits-section"],
   & [data-part="branches-section"],
   & [data-part="refs-section"],
