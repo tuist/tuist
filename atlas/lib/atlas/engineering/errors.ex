@@ -37,12 +37,16 @@ defmodule Atlas.Engineering.Errors do
 
   import Ecto.Query
 
+  alias Atlas.Accounts.Account
+  alias Atlas.Accounts.HandleRegistry
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Errors.Availability
   alias Atlas.Engineering.Errors.Envelope
   alias Atlas.Engineering.Errors.Event
   alias Atlas.Engineering.Errors.Fingerprint
   alias Atlas.Engineering.Errors.Issue
+  alias Atlas.Engineering.Errors.IssueAccount
+  alias Atlas.Engineering.Errors.IssueAccountCoalescer
   alias Atlas.Engineering.Errors.IssueCoalescer
   alias Atlas.Engineering.Errors.KeyTouches
   alias Atlas.Engineering.Errors.ProjectKey
@@ -145,12 +149,54 @@ defmodule Atlas.Engineering.Errors do
       :ok =
         IssueCoalescer.observe(IssueCoalescer, project, fingerprint, event, domain_id: domain_id)
 
+      :ok = observe_impacted_account(issue_id, event)
+
       :ok
     else
       {:error, :not_configured}
     end
   rescue
     error -> {:error, error}
+  end
+
+  # Non-blocking hot-path account attribution. Reads
+  # `selected_account_handle` (preferred — the account the user was
+  # acting on when the error fired) or `auth_account_handle` from
+  # Sentry's `extra` context; resolves through the in-process
+  # HandleRegistry (`:persistent_term`, no DB roundtrip); casts to
+  # `IssueAccountCoalescer` on hit. Unauthenticated / unknown-handle
+  # events silently no-op — that is the "unattributed" bucket, not
+  # a bug.
+  defp observe_impacted_account(issue_id, %SentryEvent{} = event) do
+    with handle when is_binary(handle) <- account_handle_from_event(event),
+         {:ok, %{account_id: account_id}} <- HandleRegistry.lookup(handle) do
+      IssueAccountCoalescer.observe(issue_id, account_id, event.timestamp)
+    else
+      _ -> :ok
+    end
+
+    :ok
+  end
+
+  defp account_handle_from_event(%SentryEvent{payload: payload}) when is_map(payload) do
+    extra = payload["extra"] || %{}
+    tags = payload["tags"] || %{}
+
+    first_present_string([
+      extra["selected_account_handle"],
+      extra["auth_account_handle"],
+      tags["selected_account_handle"],
+      tags["auth_account_handle"]
+    ])
+  end
+
+  defp account_handle_from_event(_event), do: nil
+
+  defp first_present_string(values) do
+    Enum.find(values, fn
+      value when is_binary(value) and byte_size(value) > 0 -> true
+      _ -> false
+    end)
   end
 
   # Builds the ClickHouse row as an `Event` struct. Kept separate from
@@ -1110,4 +1156,108 @@ defmodule Atlas.Engineering.Errors do
   end
 
   defp safe_decode(_), do: %{}
+
+  @doc """
+  Returns the accounts impacted by a given issue, sorted enterprise-first
+  and then by event_count. Each row is a map with `:account`, `:event_count`,
+  `:first_seen`, `:last_seen`.
+  """
+  def impacted_accounts_for_issue(issue_id, opts \\ []) when is_binary(issue_id) do
+    limit = Keyword.get(opts, :limit, 25)
+
+    from(ia in IssueAccount,
+      join: a in Account,
+      on: a.id == ia.account_id,
+      where: ia.issue_id == ^issue_id,
+      order_by: [
+        desc: fragment("CASE WHEN ? = 'enterprise' THEN 1 ELSE 0 END", a.plan_tier),
+        desc: ia.event_count,
+        desc: ia.last_seen
+      ],
+      limit: ^limit,
+      select: %{
+        account: a,
+        event_count: ia.event_count,
+        first_seen: ia.first_seen,
+        last_seen: ia.last_seen
+      }
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Batched top-N impacted accounts per issue for a set of issue ids.
+  Returns `%{issue_id => [rows]}` with the same row shape as
+  `impacted_accounts_for_issue/2`. Used by the Slack summary to enrich
+  multiple attention items with one query.
+  """
+  def impacted_accounts_by_issue_ids(issue_ids, opts \\ []) when is_list(issue_ids) do
+    limit_per_issue = Keyword.get(opts, :limit_per_issue, 3)
+
+    if issue_ids == [] do
+      %{}
+    else
+      from(ia in IssueAccount,
+        join: a in Account,
+        on: a.id == ia.account_id,
+        where: ia.issue_id in ^issue_ids,
+        select: %{
+          issue_id: ia.issue_id,
+          account: a,
+          event_count: ia.event_count,
+          first_seen: ia.first_seen,
+          last_seen: ia.last_seen
+        }
+      )
+      |> Repo.all()
+      |> Enum.group_by(& &1.issue_id)
+      |> Map.new(fn {issue_id, rows} ->
+        top =
+          rows
+          |> Enum.sort_by(
+            &{if(&1.account.plan_tier == "enterprise", do: 0, else: 1), -&1.event_count},
+            :asc
+          )
+          |> Enum.take(limit_per_issue)
+
+        {issue_id, top}
+      end)
+    end
+  end
+
+  @doc """
+  Whether an issue is impacting at least one account on the enterprise
+  plan tier. Powers the small badge on the issues list.
+  """
+  def issue_impacts_enterprise?(issue_id) when is_binary(issue_id) do
+    from(ia in IssueAccount,
+      join: a in Account,
+      on: a.id == ia.account_id,
+      where: ia.issue_id == ^issue_id and a.plan_tier == "enterprise",
+      limit: 1,
+      select: 1
+    )
+    |> Repo.one()
+    |> Kernel.!=(nil)
+  end
+
+  @doc """
+  Batched variant of `issue_impacts_enterprise?/1` returning a
+  `MapSet` of issue ids impacting at least one enterprise account.
+  """
+  def enterprise_impacted_issue_ids(issue_ids) when is_list(issue_ids) do
+    if issue_ids == [] do
+      MapSet.new()
+    else
+      from(ia in IssueAccount,
+        join: a in Account,
+        on: a.id == ia.account_id,
+        where: ia.issue_id in ^issue_ids and a.plan_tier == "enterprise",
+        distinct: true,
+        select: ia.issue_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+    end
+  end
 end

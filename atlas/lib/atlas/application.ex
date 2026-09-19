@@ -5,9 +5,11 @@ defmodule Atlas.Application do
 
   use Application
 
+  alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
+  alias Atlas.Engineering.Errors.IssueAccountCoalescer
   alias Atlas.Engineering.Errors.IssueCoalescer
   alias Atlas.Engineering.Errors.KeyTouches
   alias Atlas.Engineering.Errors.SelfMonitor
@@ -35,6 +37,7 @@ defmodule Atlas.Application do
         HTTP.finch_child_spec(),
         {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Atlas.PubSub},
+        HandleRegistry,
         RateLimiter,
         GitHubAppBootstrap,
         {Oban, Application.fetch_env!(:atlas, Oban)},
@@ -67,6 +70,7 @@ defmodule Atlas.Application do
         ),
         DropAlerter,
         IssueCoalescer,
+        IssueAccountCoalescer,
         KeyTouches
       ]
     else

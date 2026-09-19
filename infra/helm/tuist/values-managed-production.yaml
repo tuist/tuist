@@ -26,7 +26,7 @@ registry:
   publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
-  sentryEnv: prod
+  sentryEnv: production
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
