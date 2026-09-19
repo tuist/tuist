@@ -73,11 +73,11 @@ defmodule Tuist.Tests.Coverage.GatesTest do
           baseline: nil,
           baseline_reason: %{kind: :no_measured_commits, base_branch: "main", window_days: 90},
           total_delta: nil,
-          patch: %{status: :unavailable, reason: :partial_run}
+          patch: %{status: :unavailable, reason: :no_history}
         })
 
       assert %{conclusion: :neutral, checks: [patch, drop]} = Gates.evaluate(project, no_baseline)
-      assert {patch.status, patch.reason} == {:neutral, %{status: :unavailable, reason: :partial_run}}
+      assert {patch.status, patch.reason} == {:neutral, %{status: :unavailable, reason: :no_history}}
       assert {drop.status, drop.reason.kind} == {:neutral, :no_measured_commits}
 
       partial =

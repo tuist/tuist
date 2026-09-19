@@ -57,11 +57,9 @@ defmodule Tuist.Projects.Project do
     # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
     field :git_history_window_days, :integer
     field :git_history_window_commits, :integer
-    field :git_history_provider_fallback, :boolean
     field :coverage_gates_enabled, :boolean, default: false
     field :coverage_gate_min_patch_coverage, :float
     field :coverage_gate_max_total_drop, :float
-    field :coverage_patch_partial_runs, :boolean, default: false
     field :tracked_file_globs, {:array, :string}
     # Coverage leaves these paths out of every figure (see `Tuist.Tests.Coverage.ExcludedPaths`).
     field :coverage_excluded_path_globs, {:array, :string}
@@ -125,11 +123,9 @@ defmodule Tuist.Projects.Project do
       :bundle_size_approval_policy,
       :git_history_window_days,
       :git_history_window_commits,
-      :git_history_provider_fallback,
       :coverage_gates_enabled,
       :coverage_gate_min_patch_coverage,
       :coverage_gate_max_total_drop,
-      :coverage_patch_partial_runs,
       :tracked_file_globs,
       :coverage_excluded_path_globs
     ])

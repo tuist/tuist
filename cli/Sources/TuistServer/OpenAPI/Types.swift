@@ -5152,7 +5152,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason`.
             public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///
                 /// - Remark: Generated from `#/components/schemas/CoverageComparison/baseline_reason/kind`.
                 public var kind: Swift.String
@@ -5161,7 +5161,7 @@ public enum Components {
                 /// Creates a new `baseline_reasonPayload`.
                 ///
                 /// - Parameters:
-                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///   - message:
                 public init(
                     kind: Swift.String,
@@ -5417,7 +5417,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason`.
                 public struct reasonPayload: Codable, Hashable, Sendable {
-                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                     ///
                     /// - Remark: Generated from `#/components/schemas/CoverageComparison/patch/reason/kind`.
                     public var kind: Swift.String
@@ -5426,7 +5426,7 @@ public enum Components {
                     /// Creates a new `reasonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                     ///   - message:
                     public init(
                         kind: Swift.String,
@@ -7941,7 +7941,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason`.
             public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestRunCoverage/baseline_reason/kind`.
                 public var kind: Swift.String
@@ -7950,7 +7950,7 @@ public enum Components {
                 /// Creates a new `baseline_reasonPayload`.
                 ///
                 /// - Parameters:
-                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///   - message:
                 public init(
                     kind: Swift.String,
@@ -9545,7 +9545,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason`.
             public struct reasonPayload: Codable, Hashable, Sendable {
-                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///
                 /// - Remark: Generated from `#/components/schemas/PatchCoverage/reason/kind`.
                 public var kind: Swift.String
@@ -9554,7 +9554,7 @@ public enum Components {
                 /// Creates a new `reasonPayload`.
                 ///
                 /// - Parameters:
-                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///   - message:
                 public init(
                     kind: Swift.String,
@@ -13764,7 +13764,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason`.
                 public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                     ///
                     /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/baseline_reason/kind`.
                     public var kind: Swift.String
@@ -13773,7 +13773,7 @@ public enum Components {
                     /// Creates a new `baseline_reasonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                     ///   - message:
                     public init(
                         kind: Swift.String,
@@ -14029,7 +14029,7 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason`.
                     public struct reasonPayload: Codable, Hashable, Sendable {
-                        /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                        /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                         ///
                         /// - Remark: Generated from `#/components/schemas/PullRequestCoverage/comparison/patch/reason/kind`.
                         public var kind: Swift.String
@@ -14038,7 +14038,7 @@ public enum Components {
                         /// Creates a new `reasonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                        ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                         ///   - message:
                         public init(
                             kind: Swift.String,
@@ -15426,7 +15426,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/baseline_reason`.
             public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///
                 /// - Remark: Generated from `#/components/schemas/CommitCoverage/baseline_reason/kind`.
                 public var kind: Swift.String
@@ -15435,7 +15435,7 @@ public enum Components {
                 /// Creates a new `baseline_reasonPayload`.
                 ///
                 /// - Parameters:
-                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                 ///   - message:
                 public init(
                     kind: Swift.String,
@@ -17176,7 +17176,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CoverageReason`.
         public struct CoverageReason: Codable, Hashable, Sendable {
-            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageReason/kind`.
             public var kind: Swift.String
@@ -17185,7 +17185,7 @@ public enum Components {
             /// Creates a new `CoverageReason`.
             ///
             /// - Parameters:
-            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
             ///   - message:
             public init(
                 kind: Swift.String,
@@ -35030,7 +35030,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason`.
                         public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/GET/responses/200/content/json/baseline_reason/kind`.
                             public var kind: Swift.String
@@ -35039,7 +35039,7 @@ public enum Operations {
                             /// Creates a new `baseline_reasonPayload`.
                             ///
                             /// - Parameters:
-                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///   - message:
                             public init(
                                 kind: Swift.String,
@@ -53065,7 +53065,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/comparison/GET/responses/200/content/json/baseline_reason`.
                         public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/comparison/GET/responses/200/content/json/baseline_reason/kind`.
                             public var kind: Swift.String
@@ -53074,7 +53074,7 @@ public enum Operations {
                             /// Creates a new `baseline_reasonPayload`.
                             ///
                             /// - Parameters:
-                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///   - message:
                             public init(
                                 kind: Swift.String,
@@ -53330,7 +53330,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/comparison/GET/responses/200/content/json/patch/reason`.
                             public struct reasonPayload: Codable, Hashable, Sendable {
-                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/comparison/GET/responses/200/content/json/patch/reason/kind`.
                                 public var kind: Swift.String
@@ -53339,7 +53339,7 @@ public enum Operations {
                                 /// Creates a new `reasonPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///   - message:
                                 public init(
                                     kind: Swift.String,
@@ -64570,7 +64570,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/baseline_reason`.
                         public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/baseline_reason/kind`.
                             public var kind: Swift.String
@@ -64579,7 +64579,7 @@ public enum Operations {
                             /// Creates a new `baseline_reasonPayload`.
                             ///
                             /// - Parameters:
-                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///   - message:
                             public init(
                                 kind: Swift.String,
@@ -80950,7 +80950,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason`.
                         public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/baseline_reason/kind`.
                             public var kind: Swift.String
@@ -80959,7 +80959,7 @@ public enum Operations {
                             /// Creates a new `baseline_reasonPayload`.
                             ///
                             /// - Parameters:
-                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///   - message:
                             public init(
                                 kind: Swift.String,
@@ -81215,7 +81215,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason`.
                             public struct reasonPayload: Codable, Hashable, Sendable {
-                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/runs/{test_run_id}/comparison/GET/responses/200/content/json/patch/reason/kind`.
                                 public var kind: Swift.String
@@ -81224,7 +81224,7 @@ public enum Operations {
                                 /// Creates a new `reasonPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///   - message:
                                 public init(
                                     kind: Swift.String,
@@ -87426,7 +87426,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason`.
                             public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/baseline_reason/kind`.
                                 public var kind: Swift.String
@@ -87435,7 +87435,7 @@ public enum Operations {
                                 /// Creates a new `baseline_reasonPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                 ///   - message:
                                 public init(
                                     kind: Swift.String,
@@ -87691,7 +87691,7 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason`.
                                 public struct reasonPayload: Codable, Hashable, Sendable {
-                                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                    /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/pull-requests/{pull_request_number}/GET/responses/200/content/json/comparison/patch/reason/kind`.
                                     public var kind: Swift.String
@@ -87700,7 +87700,7 @@ public enum Operations {
                                     /// Creates a new `reasonPayload`.
                                     ///
                                     /// - Parameters:
-                                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                                    ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                                     ///   - message:
                                     public init(
                                         kind: Swift.String,
@@ -91982,7 +91982,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/GET/responses/200/content/json/baseline_reason`.
                         public struct baseline_reasonPayload: Codable, Hashable, Sendable {
-                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            /// `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/GET/responses/200/content/json/baseline_reason/kind`.
                             public var kind: Swift.String
@@ -91991,7 +91991,7 @@ public enum Operations {
                             /// Creates a new `baseline_reasonPayload`.
                             ///
                             /// - Parameters:
-                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `partial_run` or `no_history` for an unavailable patch coverage.
+                            ///   - kind: `no_history`, `no_merge_base`, `no_measured_commits`, `no_ancestor_commit` or `measured_set_mismatch` for a missing baseline; `no_history` for an unavailable patch coverage.
                             ///   - message:
                             public init(
                                 kind: Swift.String,

@@ -429,13 +429,9 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
              ] = comparison.targets
 
       assert [%{path: "Sources/Add.swift", delta: -75.0}] = comparison.files
-      assert comparison.patch == %{status: :unavailable, reason: :partial_run}
-      assert comparison.gaps == []
     end
 
-    test "computes the patch when the project allows it on partial runs", %{project: project, pr: pr} do
-      {:ok, project} = Projects.update_project(project, %{coverage_patch_partial_runs: true})
-
+    test "still computes the patch, over the lines the tests that ran covered", %{project: project, pr: pr} do
       %{patch: patch} = Comparison.compare(project, pr)
       assert {patch.status, patch.covered_lines, patch.executable_lines} == {:available, 1, 2}
     end

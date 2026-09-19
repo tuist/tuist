@@ -89,7 +89,6 @@ defmodule Tuist.GitHistory do
       %{
         window_days: project.git_history_window_days,
         window_commits: project.git_history_window_commits,
-        provider_fallback: project.git_history_provider_fallback,
         tracked_file_globs: project.tracked_file_globs
       }
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)

@@ -409,7 +409,6 @@ defmodule TuistWeb.Coverage.Components do
         schemes: schemes_label(schemes)
       )
 
-  def reason_label(%{reason: :partial_run}), do: dgettext("dashboard_tests", "some tests were skipped")
   def reason_label(%{kind: :partial_run}), do: dgettext("dashboard_tests", "some tests were skipped")
 
   def reason_label(%{reason: :no_history} = reason),

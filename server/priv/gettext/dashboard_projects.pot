@@ -167,9 +167,8 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:363
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:507
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:155
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:310
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:414
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:507
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:247
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:340
 #: lib/tuist_web/live/project_notifications_live.html.heex:181
 #: lib/tuist_web/live/project_notifications_live.html.heex:508
 #: lib/tuist_web/live/project_notifications_live.html.heex:853
@@ -504,7 +503,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automation_live.ex:24
 #: lib/tuist_web/live/project_automations_live.ex:24
 #: lib/tuist_web/live/project_bundle_settings_live.ex:17
-#: lib/tuist_web/live/project_coverage_settings_live.ex:30
+#: lib/tuist_web/live/project_coverage_settings_live.ex:29
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:17
 #: lib/tuist_web/live/projects_live.ex:498
@@ -598,9 +597,8 @@ msgid "Channel"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:113
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:261
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:377
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:470
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:210
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:303
 #: lib/tuist_web/live/project_notifications_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Configure"
@@ -627,9 +625,8 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:1108
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:372
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:164
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:319
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:423
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:516
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:256
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:349
 #: lib/tuist_web/live/project_notifications_live.html.heex:189
 #: lib/tuist_web/live/project_settings_live.html.heex:162
 #, elixir-autogen, elixir-format
@@ -2773,21 +2770,9 @@ msgstr ""
 msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:233
-#, elixir-autogen, elixir-format
-msgid "%{count} day"
-msgid_plural "%{count} days"
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:205
-#, elixir-autogen, elixir-format
-msgid "A run that skipped tests cannot prove every changed file's tests ran, so its patch coverage may read lower than it is."
-msgstr ""
-
 #: lib/tuist_web/live/project_automations_live.html.heex:32
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:32
-#: lib/tuist_web/live/project_coverage_settings_live.ex:39
+#: lib/tuist_web/live/project_coverage_settings_live.ex:38
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:28
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:41
 #: lib/tuist_web/live/project_notifications_live.html.heex:32
@@ -2796,22 +2781,22 @@ msgstr ""
 msgid "Code coverage"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.ex:34
+#: lib/tuist_web/live/project_coverage_settings_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this project."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.ex:117
+#: lib/tuist_web/live/project_coverage_settings_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Could not save the coverage settings: %{errors}"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.ex:110
+#: lib/tuist_web/live/project_coverage_settings_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Coverage settings saved."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:440
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Excluded paths"
 msgstr ""
@@ -2819,11 +2804,6 @@ msgstr ""
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Gates"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:218
-#, elixir-autogen, elixir-format
-msgid "Git history"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:124
@@ -2837,56 +2817,24 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:393
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "One Git pathspec glob per line"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:486
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "One glob per line"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:181
 #, elixir-autogen, elixir-format
-msgid "Patch coverage"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:183
-#, elixir-autogen, elixir-format
-msgid "The share of a pull request's changed executable lines its tests ran."
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:353
-#, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:242
-#, elixir-autogen, elixir-format
-msgid "%{count} commit"
-msgid_plural "%{count} commits"
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:289
-#, elixir-autogen, elixir-format
-msgid "Commits"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:340
-#, elixir-autogen, elixir-format
-msgid "Complete from GitHub"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:464
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Configure excluded paths"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:255
-#, elixir-autogen, elixir-format
-msgid "Configure history window"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:107
@@ -2894,7 +2842,7 @@ msgstr ""
 msgid "Configure thresholds"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:371
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Configure tracked files"
 msgstr ""
@@ -2904,22 +2852,12 @@ msgstr ""
 msgid "Coverage check"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:276
-#, elixir-autogen, elixir-format
-msgid "Days"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:301
-#, elixir-autogen, elixir-format
-msgid "Empty fields use the server defaults."
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:355
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Files a run's evidence depends on beyond its sources, recorded with their blobs: dependency manifests, generator configuration, fixtures, snapshots."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:442
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "Files left out of every coverage figure, such as generated code. Changes apply to past runs whose per-file coverage is still retained."
 msgstr ""
@@ -2929,19 +2867,14 @@ msgstr ""
 msgid "Gates are never required on their own; make the check required in the repository to block merges."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:452
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Globs"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:488
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one."
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:230
-#, elixir-autogen, elixir-format
-msgid "History window"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:137
@@ -2954,14 +2887,9 @@ msgstr ""
 msgid "No thresholds"
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:457
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Nothing excluded"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:201
-#, elixir-autogen, elixir-format
-msgid "Partial runs"
 msgstr ""
 
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:85
@@ -2974,27 +2902,17 @@ msgstr ""
 msgid "Report a tuist/coverage check on pull requests. A gate that cannot be evaluated, because there is no baseline or the run skipped tests, is neutral."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:220
-#, elixir-autogen, elixir-format
-msgid "The repository history collected with each run to resolve a pull request's baseline."
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:93
-#, elixir-autogen, elixir-format
-msgid "Total drop at most %{value} pp"
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:344
-#, elixir-autogen, elixir-format
-msgid "When a run arrives without its merge base, changed files or commit graph, fetch them from the connected repository."
-msgstr ""
-
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:395
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Globs match the whole repository-relative path, as in excluded paths. Nothing is tracked when empty."
 msgstr ""
 
-#: lib/tuist_web/live/project_coverage_settings_live.html.heex:364
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Nothing tracked"
+msgstr ""
+
+#: lib/tuist_web/live/project_coverage_settings_live.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Total drop at most %{value}%"
 msgstr ""

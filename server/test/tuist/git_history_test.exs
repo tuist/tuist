@@ -210,11 +210,10 @@ defmodule Tuist.GitHistoryTest do
       {:ok, project} =
         Projects.update_project(project, %{
           git_history_window_days: 30,
-          git_history_provider_fallback: false,
           tracked_file_globs: ["Package.resolved"]
         })
 
-      assert %{window_days: 30, provider_fallback: false, window_commits: 5_000, tracked_file_globs: ["Package.resolved"]} =
+      assert %{window_days: 30, provider_fallback: true, window_commits: 5_000, tracked_file_globs: ["Package.resolved"]} =
                GitHistory.settings(project)
     end
 

@@ -110,15 +110,10 @@ defmodule Tuist.GitHistory.CompletionTest do
     assert Tuist.ClickHouseRepo.aggregate(from(f in TestRunChangedFile, where: f.test_run_id == ^run.id), :count) == 1
   end
 
-  test "the worker skips projects with the fallback off or no connection", %{project: project} do
-    {:ok, run} = RunsFixtures.test_fixture(project_id: project.id, git_commit_sha: "head")
-    {:ok, project} = Tuist.Projects.update_project(project, %{git_history_provider_fallback: false})
-
-    assert :ok = perform_job(CompleteHistoryWorker, %{"project_id" => project.id, "test_run_id" => run.id})
-
+  test "the worker skips projects without a connection" do
     unconnected = ProjectsFixtures.project_fixture()
-    {:ok, other} = RunsFixtures.test_fixture(project_id: unconnected.id, git_commit_sha: "head")
-    assert :ok = perform_job(CompleteHistoryWorker, %{"project_id" => unconnected.id, "test_run_id" => other.id})
+    {:ok, run} = RunsFixtures.test_fixture(project_id: unconnected.id, git_commit_sha: "head")
+    assert :ok = perform_job(CompleteHistoryWorker, %{"project_id" => unconnected.id, "test_run_id" => run.id})
 
     {:ok, stored} = Tests.get_test(run.id)
     assert stored.history_source == ""
