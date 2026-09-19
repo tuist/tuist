@@ -51,6 +51,11 @@ defmodule Tuist.Kura.Lifecycle do
   the cold-provision path, on the same row, with no expectation of prior
   content.
 
+  An instance, a first one or a return, starts from the request that asks for
+  it (`provision_account/2`) rather than from the reconciler tick, and its
+  activation is checked twice a second (`Tuist.Kura.Workers.AwaitActivationWorker`)
+  rather than every minute.
+
   ## Why archival cannot run on empty demand data
 
   An archival sweep against an unseeded `last_cache_demand_at` reads every
@@ -85,11 +90,13 @@ defmodule Tuist.Kura.Lifecycle do
   ## Air pressure
 
   Air may enter drain-pending at 60 complete inactive days instead of 90, but
-  only while the region's forecast enforced warm quota does not fit what is
-  installed (`Tuist.Kura.Capacity`). With room, the 90-day target holds for
-  every plan. Under pressure, the least-recently-demanded Air instances go
-  first, and only as many as it takes to fit. No account on any plan is ever
-  archived before 60 complete inactive days.
+  only while the region's admission headroom can no longer take a new
+  enterprise instance (`Tuist.Kura.Capacity.under_pressure?/1`). With room, the
+  90-day target holds for every plan. Under pressure, the least-recently-demanded
+  Air instances go first, and only as many as it takes to fit. Once archived,
+  the account-region is provisioned again only by demand recorded after the
+  archival. No account on any plan is ever archived before 60 complete inactive
+  days.
   """
 
   import Ecto.Query
@@ -138,6 +145,46 @@ defmodule Tuist.Kura.Lifecycle do
   def reconcile do
     each_region(&reconcile_region/1)
     reconcile_placement_retirements()
+  end
+
+  @doc """
+  Provisions what one account's cache demand asks for, now, instead of on the
+  next reconciler tick: demand is written through at `requested_at` rather than
+  left in this node's buffer, and every region that needs an instance for the
+  account gets one, a return from archive included. The same eligibility rules
+  as the tick apply, so the two can never disagree about whether an instance is
+  due.
+
+  Returns the account's instances that are coming up, whether this call started
+  them or not, so the caller can apply and await each one.
+  """
+  def provision_account(account_id, %DateTime{} = requested_at) do
+    {:ok, _count} = Demand.persist_now(account_id, requested_at)
+
+    case image_tag() do
+      nil ->
+        {:ok, []}
+
+      image_tag ->
+        lifecycle_region_ids = Enum.map(lifecycle_regions(), & &1.id)
+
+        account_id
+        |> account_lifecycles_needing_instance(lifecycle_region_ids)
+        |> Enum.filter(&demand_inside_window?(&1, Capacity.under_pressure?(&1.service_region)))
+        |> Enum.each(&provision(&1, &1.service_region, image_tag))
+
+        {:ok, coming_up(account_id, lifecycle_region_ids)}
+    end
+  end
+
+  defp coming_up(account_id, region_ids) do
+    Repo.all(
+      from(s in Server,
+        where: s.account_id == ^account_id and s.region in ^region_ids,
+        where: s.status == :provisioning and s.move_phase == :none,
+        order_by: [asc: s.region]
+      )
+    )
   end
 
   @doc """
@@ -372,10 +419,32 @@ defmodule Tuist.Kura.Lifecycle do
   # `id` breaks ties so paging is a total order: without it, rows sharing a
   # demand second could repeat or be skipped across pages.
   defp account_regions_needing_instance(region_id, limit, offset) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.service_region == ^region_id,
+        order_by: [desc: l.last_cache_demand_at, asc: l.id],
+        limit: ^limit,
+        offset: ^offset,
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp account_lifecycles_needing_instance(account_id, region_ids) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.account_id == ^account_id and l.service_region in ^region_ids,
+        order_by: [asc: l.service_region],
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp needing_instance_query do
     live_server_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status not in [:destroyed, :archived],
         select: 1
       )
@@ -388,7 +457,7 @@ defmodule Tuist.Kura.Lifecycle do
     destroyed_since_demand_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status == :destroyed,
         where: s.updated_at >= parent_as(:lifecycle).last_cache_demand_at,
         select: 1
@@ -396,23 +465,17 @@ defmodule Tuist.Kura.Lifecycle do
 
     default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
 
-    Repo.all(
-      from(l in AccountRegionLifecycle,
-        as: :lifecycle,
-        where: l.service_region == ^region_id,
-        where: l.last_cache_demand_at >= ^default_cutoff,
-        where: not exists(live_server_exists),
-        where: not exists(destroyed_since_demand_exists),
-        # An instance reclaimed for never storing anything comes back only for
-        # demand recorded after its archival, not for the demand it already had.
-        where:
-          is_nil(l.drain_reason) or l.drain_reason != :unused or is_nil(l.archived_at) or
-            l.last_cache_demand_at > l.archived_at,
-        order_by: [desc: l.last_cache_demand_at, asc: l.id],
-        limit: ^limit,
-        offset: ^offset,
-        preload: [account: :subscriptions]
-      )
+    from(l in AccountRegionLifecycle,
+      as: :lifecycle,
+      where: l.last_cache_demand_at >= ^default_cutoff,
+      where: not exists(live_server_exists),
+      where: not exists(destroyed_since_demand_exists),
+      # An instance reclaimed for never storing anything or under pressure
+      # comes back only for demand recorded after its archival, not for the
+      # demand it already had.
+      where:
+        is_nil(l.drain_reason) or l.drain_reason not in [:unused, :capacity_pressure] or is_nil(l.archived_at) or
+          l.last_cache_demand_at > l.archived_at
     )
   end
 
@@ -429,14 +492,15 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Nothing here decides whether the region has room. Every cache pod requests
-  # its claim's worth of ephemeral storage, so the scheduler declines to place
-  # an instance that does not fit and the KuraInstance stays Pending, which is
-  # exact per node in a way a forecast computed here never was. Room is read
-  # one step earlier, where the region is chosen: `AccountPolicies` steers a
-  # first placement away from a region the cluster says is full when the
-  # account's residency admits another. What reaches here is an account whose
-  # region is decided, and a full region is then something to buy a box for.
+  # Nothing here decides whether the region has room. `Tuist.Kura.Admission`
+  # refuses inside `Kura.create_server/1` and `Kura.return_from_archive/3`
+  # once the region's reservations reach its pressure line, and the scheduler
+  # declines to place a pod that does not fit its node. Room is also read one
+  # step earlier, where the region is chosen: `AccountPolicies` steers a first
+  # placement away from a region the cluster says is full when the account's
+  # residency admits another. What reaches here is an account whose region is
+  # decided, so a refusal is counted and retried on the next pass, and a full
+  # region is then something to buy a box for.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
     # The lifecycle row records where demand *was* served; placement decides
     # where the account belongs *now*. They diverge when an account changes
@@ -474,6 +538,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, region_id, reason, false)
+
         Logger.warning(
           "[Kura.Lifecycle] could not provision instance for account #{account.id} in #{region_id}: #{inspect(reason)}"
         )
@@ -491,6 +557,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, server.region, reason, true)
+
         Logger.warning(
           "[Kura.Lifecycle] could not return account #{account.id} from archive in #{server.region}: #{inspect(reason)}"
         )
@@ -498,6 +566,13 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
     end
   end
+
+  defp report_capacity_refusal(plan, region_id, reason, cold_return?)
+       when reason in [:capacity_exhausted, :capacity_unknown] do
+    Telemetry.provision_refused(plan, region_id, reason, cold_return?)
+  end
+
+  defp report_capacity_refusal(_plan, _region_id, _reason, _cold_return?), do: :ok
 
   defp mark_returned(%AccountRegionLifecycle{} = lifecycle) do
     lifecycle
@@ -667,7 +742,7 @@ defmodule Tuist.Kura.Lifecycle do
         [{server, lifecycle, plan, :inactive}]
 
       # Between 60 and 90 complete inactive days. Only Air is eligible, and
-      # only while the region is over its installed capacity.
+      # only while the region is under pressure.
       plan == :air and pressure? ->
         [{server, lifecycle, plan, :capacity_pressure}]
 
@@ -679,7 +754,7 @@ defmodule Tuist.Kura.Lifecycle do
   # Pressure archival reclaims only as much as it takes to fit. Instances past
   # the full 90-day window are unconditional and are not counted against that
   # budget; the 60-day ones are taken in least-recent-demand order until the
-  # region is back under its pressure line.
+  # region is out of pressure.
   #
   # Each candidate frees its own reservation, not an average: instances in a
   # region are sized from their accounts' plans, so archiving the same number of
@@ -687,18 +762,17 @@ defmodule Tuist.Kura.Lifecycle do
   defp take_pressure_candidates(candidates, region_id) do
     {pressured, unconditional} = Enum.split_with(candidates, fn {_s, _l, _p, reason} -> reason == :capacity_pressure end)
 
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         reserved when is_integer(reserved) <- Capacity.reserved_gib(region_id) do
-      {:ok, region} = Regions.fetch(region_id)
+    with deficit when is_integer(deficit) <- Capacity.pressure_deficit_gib(region_id),
+         {:ok, region} <- Regions.fetch(region_id) do
       freed = fn {server, _lifecycle, _plan, _reason} -> Capacity.resident_gib(region, server) end
 
       # The unconditional archivals happen regardless, so the room they free
       # counts before deciding how many more the pressure rule has to take.
-      after_unconditional = reserved - Enum.sum(Enum.map(unconditional, freed))
+      after_unconditional = deficit - Enum.sum(Enum.map(unconditional, freed))
 
       {_final, needed} =
         Enum.reduce(pressured, {after_unconditional, []}, fn candidate, {gib, taken} ->
-          if gib > target do
+          if gib > 0 do
             {gib - freed.(candidate), [candidate | taken]}
           else
             {gib, taken}

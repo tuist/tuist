@@ -1,0 +1,105 @@
+{{- if .Values.clickhouse.enabled }}
+{{- $appSecret := include "atlas.appSecretName" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "atlas.clickhouseName" . }}
+  labels:
+    {{- include "atlas.clickhouseLabels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "atlas.clickhouseSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.service.httpPort }}
+      targetPort: http
+    - name: native
+      port: {{ .Values.clickhouse.service.nativePort }}
+      targetPort: native
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "atlas.clickhouseName" . }}
+  labels:
+    {{- include "atlas.clickhouseLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "atlas.clickhouseName" . }}
+  replicas: {{ .Values.clickhouse.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "atlas.clickhouseSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "atlas.clickhouseSelectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.clickhouse.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clickhouse.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clickhouse
+          image: "{{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}"
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          env:
+            - name: CLICKHOUSE_DB
+              value: {{ .Values.clickhouse.database | quote }}
+            - name: CLICKHOUSE_USER
+              value: {{ .Values.clickhouse.username | quote }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $appSecret }}
+                  key: SECRET_KEY_BASE
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"
+            initialDelaySeconds: {{ .Values.clickhouse.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.clickhouse.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.clickhouse.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.clickhouse.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.clickhouse.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.clickhouse.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.clickhouse.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.clickhouse.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.persistence.size }}
+        {{- if .Values.clickhouse.persistence.storageClass }}
+        storageClassName: {{ .Values.clickhouse.persistence.storageClass }}
+        {{- end }}
+{{- end }}

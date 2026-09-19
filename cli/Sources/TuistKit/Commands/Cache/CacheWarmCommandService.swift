@@ -158,7 +158,7 @@ import XcodeGraph
             }
             let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
-            let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+            let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
@@ -205,7 +205,7 @@ import XcodeGraph
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
-            let cacheableTargets = try await cacheableTargets(
+            let hashedGraph = try await cacheableTargets(
                 for: graph,
                 configuration: requestedConfiguration,
                 config: config,
@@ -213,6 +213,7 @@ import XcodeGraph
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
+            let cacheableTargets = hashedGraph.targetsToBuild
 
             try foreignBuildOutputValidator.validate(
                 targets: cacheableTargets.map(\.0),
@@ -241,7 +242,8 @@ import XcodeGraph
                     config: config,
                     targetsToBinaryCache: targetsToBinaryCache,
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    targetHashes: hashedGraph.targetHashes
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 
@@ -1117,7 +1119,7 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
-        ) async throws -> [(GraphTarget, String)] {
+        ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
             // Apply the same profile-based filtering used by `tuist generate`.
@@ -1138,6 +1140,15 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
+
+            // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the
+            // cache, so it asks for hashes this map does not hold as soon as the profile excludes anything,
+            // and it has to hash the graph itself. Widening the hashing above to cover it is not an option:
+            // hashing a target runs its `additionalHashingInputs` scripts, and excluding a target also makes
+            // its dependents unhashable, which is what keeps a warm from storing artifacts the same profile
+            // could never read back.
+            let reusableHashes = excludedTargets.isEmpty ? hashesByCacheableTarget : [:]
+
             let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
             switch CacheWarmTargetGraphSelector.selection(
                 graphTraverser: graphTraverser,
@@ -1151,7 +1162,7 @@ import XcodeGraph
                 )
             case .noNonTestRoots:
                 Logger.current.info("No non-test targets were selected for binary cache warming")
-                return []
+                return CacheableTargets(targetsToBuild: [], hashes: reusableHashes)
             }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
@@ -1189,9 +1200,34 @@ import XcodeGraph
                 cacheItems.map(\.key.hash)
             )
 
-            return cacheableTargets.compactMap {
-                existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
-            }
+            return CacheableTargets(
+                targetsToBuild: cacheableTargets.compactMap {
+                    existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
+                },
+                hashes: reusableHashes
+            )
+        }
+    }
+
+    /// The outcome of hashing the graph before a warm: what has to be built, and the hashes every
+    /// cacheable target resolved to.
+    struct CacheableTargets {
+        /// Targets whose artifact is missing from the cache, paired with the hash to store it under.
+        let targetsToBuild: [(GraphTarget, String)]
+
+        /// Content hash of every cacheable target in the graph, handed to the warm project's binary
+        /// replacement so it does not hash the same graph a second time. Empty when a cache profile
+        /// narrowed the hashing, since replacement would then need hashes this does not hold. Keyed by
+        /// reference rather than by graph target, because the warm project is a different graph.
+        let targetHashes: [TargetReference: TargetContentHash]
+
+        init(targetsToBuild: [(GraphTarget, String)], hashes: [GraphTarget: TargetContentHash]) {
+            self.targetsToBuild = targetsToBuild
+            targetHashes = Dictionary(
+                uniqueKeysWithValues: hashes.map {
+                    (TargetReference(projectPath: $0.key.path, name: $0.key.target.name), $0.value)
+                }
+            )
         }
     }
 #endif

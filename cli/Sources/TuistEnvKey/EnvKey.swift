@@ -496,9 +496,6 @@ public enum EnvKey: String, CaseIterable {
     case hashTestPath = "TUIST_HASH_TEST_PATH"
     case hashTestConfiguration = "TUIST_HASH_TEST_CONFIGURATION"
 
-    /// CACHE START
-    case cacheStartPath = "TUIST_CACHE_START_PATH"
-
     // CACHE CONFIG
 
     case cacheConfigJson = "TUIST_CACHE_CONFIG_JSON"

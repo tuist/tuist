@@ -23,8 +23,9 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise

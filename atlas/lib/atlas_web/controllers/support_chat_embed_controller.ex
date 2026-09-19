@@ -250,11 +250,18 @@ defmodule AtlasWeb.SupportChatEmbedController do
 
                 /* Noora desktop/body-medium at medium weight; slides in on hover
                    with Noora's --ease-out-cubic. */
-                /* Expanded by default so touch devices, which have no hover, always
-                   see the label. Hover-capable pointers get the collapsed state below. */
                 [data-part="trigger-label-wrap"] {
                   display: grid;
                   grid-template-columns: 1fr;
+                }
+
+                /* Touch devices have no hover to reveal the label with, so the
+                   trigger is the bare icon circle there, same as the desktop
+                   resting state, and a tap opens the panel straight away. */
+                @media (hover: none), (pointer: coarse) {
+                  [data-part="trigger-label-wrap"] {
+                    display: none;
+                  }
                 }
 
                 [data-part="trigger-label-clip"] {

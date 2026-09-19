@@ -30,6 +30,15 @@ alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
 alias Atlas.Documents
 alias Atlas.Documents.Document
+alias Atlas.Engineering.Domains, as: EngineeringDomains
+alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
+alias Atlas.Engineering.Errors, as: EngineeringErrors
+alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
+alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
+alias Atlas.Engineering.Postmortems
+alias Atlas.Engineering.Projects, as: EngineeringProjects
+alias Atlas.Engineering.Projects.Project, as: EngineeringProject
+alias Atlas.Engineering.Specs
 alias Atlas.Evidence
 alias Atlas.FeatureUsage.Snapshot
 alias Atlas.Finance.Account, as: FinanceAccount
@@ -50,6 +59,9 @@ alias Atlas.GTM.Signal, as: GTMSignal
 alias Atlas.GTM.SocialChannelIdea
 alias Atlas.GTM.SocialPostRevision
 alias Atlas.GTM.Subscriber
+alias Atlas.Inference
+alias Atlas.Inference.ModelBinding
+alias Atlas.Inference.Provider
 alias Atlas.Insurance.Policy, as: InsurancePolicy
 alias Atlas.Insurance.PolicyMember, as: InsuranceMember
 alias Atlas.Integrations.GitHubApp
@@ -5394,4 +5406,575 @@ for attrs <- seed_notes do
     %Note{} ->
       :ok
   end
+end
+
+# ---------------------------------------------------------------------------
+# Inference relay: seed a couple of upstream providers and profiles so the
+# /admin/inference pages have something to show without needing a real API
+# key configured.
+# ---------------------------------------------------------------------------
+
+seed_providers = [
+  %{
+    key: "openai",
+    base_url: "https://api.openai.com/v1",
+    api_key: "sk-seed-openai-placeholder",
+    timeout: 300_000
+  },
+  %{
+    key: "fireworks",
+    base_url: "https://api.fireworks.ai/inference/v1",
+    api_key: "fw-seed-placeholder",
+    timeout: 300_000
+  }
+]
+
+for attrs <- seed_providers do
+  case Inference.get_provider_by_key(attrs.key) do
+    nil -> {:ok, _provider} = Inference.create_provider(attrs)
+    %Provider{} -> :ok
+  end
+end
+
+seed_profiles = [
+  %{
+    name: "atlas-inference",
+    description: "Default profile Atlas uses for its own inference calls.",
+    upstream_provider: "openai",
+    upstream_model: "gpt-4o-mini",
+    input_cost_per_million: Decimal.new("0.15"),
+    output_cost_per_million: Decimal.new("0.60"),
+    enabled: true,
+    atlas_inference: true
+  },
+  %{
+    name: "atlas-coding",
+    description: "Profile Atlas uses for coding assistants.",
+    upstream_provider: "fireworks",
+    upstream_model: "accounts/fireworks/models/kimi-k2p5",
+    input_cost_per_million: Decimal.new("0.60"),
+    output_cost_per_million: Decimal.new("2.50"),
+    enabled: true,
+    atlas_coding: true
+  },
+  %{
+    name: "atlas-embeddings",
+    description: "Profile Atlas uses for embeddings.",
+    upstream_provider: "openai",
+    upstream_model: "text-embedding-3-small",
+    input_cost_per_million: Decimal.new("0.02"),
+    output_cost_per_million: Decimal.new("0.00"),
+    enabled: true,
+    atlas_embedding: true
+  }
+]
+
+for attrs <- seed_profiles do
+  case Inference.get_model_binding_by_name(attrs.name) do
+    nil ->
+      {:ok, profile} = Inference.create_profile(attrs)
+      # Give each atlas role profile a persistent token so the token page
+      # renders end-to-end without an operator having to click through the UI
+      # right after seeding.
+      role =
+        cond do
+          profile.atlas_inference -> :inference
+          profile.atlas_coding -> :coding
+          profile.atlas_embedding -> :embedding
+          true -> nil
+        end
+
+      if role, do: {:ok, _} = Inference.ensure_atlas_token(profile, role)
+
+    %ModelBinding{} ->
+      :ok
+  end
+end
+
+# Engineering surface: projects, reusable domains, and a plausible error
+# stream. This makes /engineering/{projects,domains,errors} render with real
+# rows on a fresh local database. The projects also mint a default DSN via
+# `Atlas.Engineering.Errors.ensure_default_key/1` inside `create_project/1`.
+engineering_project_fixtures = [
+  %{
+    name: "Tuist CLI",
+    description: "Developer tooling for Xcode projects, caching, and CI.",
+    visibility: :public
+  },
+  %{
+    name: "Tuist Server",
+    description: "The Elixir/Phoenix server behind tuist.dev.",
+    visibility: :public
+  },
+  %{
+    name: "Atlas",
+    description: "Internal ops app: CRM, contracts, finance, and MCP tools.",
+    visibility: :private
+  },
+  %{
+    name: "Kura",
+    description: "Distributed cache mesh serving REAPI clients.",
+    visibility: :public
+  }
+]
+
+engineering_projects =
+  Enum.map(engineering_project_fixtures, fn attrs ->
+    case Repo.get_by(EngineeringProject, name: attrs.name) do
+      nil ->
+        {:ok, project} = EngineeringProjects.create_project(attrs)
+        project
+
+      %EngineeringProject{} = existing ->
+        {:ok, project} = EngineeringProjects.update_project(existing, attrs)
+        _ = EngineeringErrors.ensure_default_key(project)
+        project
+    end
+  end)
+
+engineering_domain_fixtures = [
+  %{
+    name: "Cache",
+    description: "Binary caching and remote execution.",
+    project_names: ["Tuist CLI", "Tuist Server", "Kura"]
+  },
+  %{name: "Generated projects", description: "Xcode project generation.", project_names: ["Tuist CLI"]},
+  %{name: "Registry", description: "Swift package registry.", project_names: ["Tuist Server"]}
+]
+
+Enum.each(engineering_domain_fixtures, fn %{project_names: project_names} = fixture ->
+  attrs = Map.take(fixture, [:name, :description])
+
+  domain =
+    case Repo.get_by(EngineeringDomain, name: fixture.name) do
+      nil ->
+        {:ok, domain} = EngineeringDomains.create_domain(attrs)
+        domain
+
+      %EngineeringDomain{} = existing ->
+        existing
+    end
+
+  for project_name <- project_names,
+      project = Enum.find(engineering_projects, &(&1.name == project_name)) do
+    EngineeringDomains.link_domain_to_project(domain, project.id)
+  end
+end)
+
+# Seed a plausible set of error issues so the errors dashboard has content.
+# `Atlas.Engineering.Errors.Issue.deterministic_id/3` makes inserts idempotent
+# from the (project_id, domain_id, fingerprint) triple.
+now = DateTime.utc_now()
+
+issue_fixtures = [
+  %{
+    project: "Tuist CLI",
+    title: "ArgumentError: invalid path",
+    culprit: "TuistKit.Command.run/1",
+    level: :error,
+    platform: "swift",
+    status: :unresolved,
+    event_count: 128,
+    hours_ago_first: 96,
+    hours_ago_last: 1
+  },
+  %{
+    project: "Tuist CLI",
+    title: "FileNotFound: Project.swift",
+    culprit: "ProjectDescription.load/1",
+    level: :error,
+    platform: "swift",
+    status: :unresolved,
+    event_count: 42,
+    hours_ago_first: 72,
+    hours_ago_last: 3
+  },
+  %{
+    project: "Tuist CLI",
+    title: "Xcode 16.4 workspace parser regression",
+    culprit: "XcodeProj.Workspace.parse/1",
+    level: :warning,
+    platform: "swift",
+    status: :ignored,
+    event_count: 9,
+    hours_ago_first: 480,
+    hours_ago_last: 24
+  },
+  %{
+    project: "Tuist Server",
+    title: "Ecto.ConstraintError on projects_name_index",
+    culprit: "TuistWeb.ProjectsController.create/2",
+    level: :error,
+    platform: "elixir",
+    status: :resolved,
+    event_count: 3,
+    hours_ago_first: 240,
+    hours_ago_last: 200
+  },
+  %{
+    project: "Tuist Server",
+    title: "Postgrex.Error: too_many_connections",
+    culprit: "Tuist.Repo.checkout/1",
+    level: :fatal,
+    platform: "elixir",
+    status: :unresolved,
+    event_count: 512,
+    hours_ago_first: 12,
+    hours_ago_last: 0
+  },
+  %{
+    project: "Tuist Server",
+    title: "Jason.DecodeError: unexpected end of input",
+    culprit: "TuistWeb.WebhooksController.handle/2",
+    level: :warning,
+    platform: "elixir",
+    status: :unresolved,
+    event_count: 76,
+    hours_ago_first: 48,
+    hours_ago_last: 2
+  },
+  %{
+    project: "Tuist Server",
+    title: "Oban.Worker timeout on BuildProcessor",
+    culprit: "Tuist.Processor.BuildProcessor.perform/1",
+    level: :error,
+    platform: "elixir",
+    status: :unresolved,
+    event_count: 21,
+    hours_ago_first: 30,
+    hours_ago_last: 4
+  },
+  %{
+    project: "Atlas",
+    title: "Broken CSV import for finance transactions",
+    culprit: "Atlas.Finance.import_csv/1",
+    level: :error,
+    platform: "elixir",
+    status: :resolved,
+    event_count: 4,
+    hours_ago_first: 360,
+    hours_ago_last: 300
+  },
+  %{
+    project: "Atlas",
+    title: "Slack signature verification failed",
+    culprit: "Atlas.Slack.verify_signature/2",
+    level: :warning,
+    platform: "elixir",
+    status: :unresolved,
+    event_count: 17,
+    hours_ago_first: 60,
+    hours_ago_last: 6
+  },
+  %{
+    project: "Atlas",
+    title: "MCP tool timed out: search_atlas",
+    culprit: "Atlas.MCP.Search.run/2",
+    level: :warning,
+    platform: "elixir",
+    status: :unresolved,
+    event_count: 33,
+    hours_ago_first: 24,
+    hours_ago_last: 1
+  },
+  %{
+    project: "Kura",
+    title: "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+    culprit: "Kura.Mesh.pull/2",
+    level: :error,
+    platform: "rust",
+    status: :unresolved,
+    event_count: 205,
+    hours_ago_first: 18,
+    hours_ago_last: 0
+  },
+  %{
+    project: "Kura",
+    title: "REAPI FindMissingBlobs shed under memory pressure",
+    culprit: "Kura.Capacity.admit/1",
+    level: :warning,
+    platform: "rust",
+    status: :unresolved,
+    event_count: 89,
+    hours_ago_first: 8,
+    hours_ago_last: 0
+  },
+  %{
+    project: "Kura",
+    title: "Snapshot gate denied",
+    culprit: "Kura.Snapshots.gate/1",
+    level: :info,
+    platform: "rust",
+    status: :ignored,
+    event_count: 12,
+    hours_ago_first: 200,
+    hours_ago_last: 48
+  },
+  %{
+    project: "Tuist CLI",
+    title: "Swift Package Manager resolution deadlock",
+    culprit: "SwifterPM.resolve/1",
+    level: :error,
+    platform: "swift",
+    status: :unresolved,
+    event_count: 6,
+    hours_ago_first: 36,
+    hours_ago_last: 8
+  },
+  %{
+    project: "Tuist Server",
+    title: "ClickHouse Ecto insert rejected on projection",
+    culprit: "Tuist.IngestRepo.insert_all/2",
+    level: :error,
+    platform: "elixir",
+    status: :resolved,
+    event_count: 2,
+    hours_ago_first: 500,
+    hours_ago_last: 450
+  }
+]
+
+Enum.each(issue_fixtures, fn fixture ->
+  project = Enum.find(engineering_projects, &(&1.name == fixture.project))
+
+  if project do
+    fingerprint =
+      :crypto.hash(:sha256, project.name <> ":" <> fixture.title)
+      |> Base.encode16(case: :lower)
+
+    first_seen = DateTime.add(now, -fixture.hours_ago_first * 3600, :second)
+    last_seen = DateTime.add(now, -fixture.hours_ago_last * 3600, :second)
+
+    attrs = %{
+      project_id: project.id,
+      fingerprint: fingerprint,
+      title: fixture.title,
+      culprit: fixture.culprit,
+      level: fixture.level,
+      platform: fixture.platform,
+      status: fixture.status,
+      first_seen: first_seen,
+      last_seen: last_seen,
+      event_count: fixture.event_count,
+      resolved_at: if(fixture.status == :resolved, do: last_seen)
+    }
+
+    id = ErrorsIssue.deterministic_id(project.id, fingerprint)
+
+    case Repo.get(ErrorsIssue, id) do
+      nil -> %ErrorsIssue{}
+      existing -> existing
+    end
+    |> ErrorsIssue.changeset(attrs)
+    |> Repo.insert_or_update!()
+  end
+end)
+
+# A couple of completed summary runs so the summaries panel isn't empty.
+summary_run_fixtures = [
+  %{
+    hours_ago: 24,
+    summary:
+      "Postgrex too_many_connections dominated the last 24h, followed by gRPC UNAVAILABLE errors from the kura-scw-fr-par peer. One CLI regression on Xcode 16.4 workspace parsing was silenced.",
+    issue_titles: [
+      "Postgrex.Error: too_many_connections",
+      "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+      "ArgumentError: invalid path"
+    ]
+  },
+  %{
+    hours_ago: 48,
+    summary:
+      "Two new spike patterns emerged: Slack signature verification failures on Atlas webhooks and REAPI FindMissingBlobs sheds under memory pressure in Kura. No new fatal issues.",
+    issue_titles: [
+      "Slack signature verification failed",
+      "REAPI FindMissingBlobs shed under memory pressure",
+      "Jason.DecodeError: unexpected end of input"
+    ]
+  }
+]
+
+issue_id_by_title =
+  from(i in ErrorsIssue, select: {i.title, i.id})
+  |> Repo.all()
+  |> Map.new()
+
+Enum.each(summary_run_fixtures, fn fixture ->
+  scheduled_for =
+    now
+    |> DateTime.add(-fixture.hours_ago * 3600, :second)
+    |> DateTime.truncate(:second)
+
+  issue_ids =
+    fixture.issue_titles
+    |> Enum.map(&Map.get(issue_id_by_title, &1))
+    |> Enum.reject(&is_nil/1)
+
+  fingerprint =
+    :crypto.hash(:sha256, "summary:" <> Integer.to_string(fixture.hours_ago))
+    |> Base.encode16(case: :lower)
+
+  attrs = %{
+    scheduled_for: scheduled_for,
+    window_start: DateTime.add(scheduled_for, -24 * 3600, :second),
+    window_end: scheduled_for,
+    input_fingerprint: fingerprint,
+    issue_ids: issue_ids,
+    issue_count: length(issue_ids),
+    status: :delivered,
+    summary: fixture.summary,
+    attention: [],
+    slack_channel_id: "C0ATLASENG",
+    slack_message_ts: "#{System.system_time(:second)}.000100",
+    generated_at: scheduled_for,
+    delivered_at: scheduled_for
+  }
+
+  case Repo.get_by(ErrorsSummaryRun, scheduled_for: scheduled_for) do
+    nil -> %ErrorsSummaryRun{}
+    existing -> existing
+  end
+  |> ErrorsSummaryRun.changeset(attrs)
+  |> Repo.insert_or_update!()
+end)
+
+# Engineering postmortems: seed a couple of published incidents so the
+# /engineering/postmortems index has real content on a fresh local DB.
+postmortem_author = Repo.get_by(User, email: "alex@atlas.dev")
+cache_domain = Repo.get_by(EngineeringDomain, name: "Cache")
+registry_domain = Repo.get_by(EngineeringDomain, name: "Registry")
+
+postmortem_fixtures = [
+  %{
+    body: """
+    # Cache mesh partial partition — 2026-08-22
+
+    ## Summary
+    A Kura peer in `fsn1` stopped serving `GetActionResult` for ~14 minutes
+    after a memory-pressure eviction cascade denied its snapshot gate.
+
+    ## Impact
+    CI runs on affected accounts saw REAPI `NOT_FOUND` on warm actions and
+    fell back to local execution. No data was lost.
+
+    ## Root cause
+    The snapshot gate refused to serve digests whose blobs had been evicted
+    by the LRU sweep in the same tick. The gate is a backstop, but the
+    eviction cascade was not atomic across gate + storage.
+
+    ## Resolution
+    Made the eviction cascade atomic. Kept the gates as a defense in depth.
+    """,
+    domain_ids: [cache_domain && cache_domain.id]
+  },
+  %{
+    body: """
+    # Swift registry publish failure — 2026-09-04
+
+    ## Summary
+    Package publishes silently corrupted xcframeworks by flattening
+    symlinks in the archive writer.
+
+    ## Impact
+    Consumers of a handful of packages hit `a sealed resource is missing
+    or invalid` at codesign verification, blocking release builds.
+
+    ## Root cause
+    `:zip.create` does not preserve symlinks. The writer path had no
+    coverage for signed bundles.
+
+    ## Resolution
+    Switched the writer to a symlink-preserving path and backfilled the
+    affected releases.
+    """,
+    domain_ids: [registry_domain && registry_domain.id]
+  },
+  %{
+    body: """
+    # Draft: preview migration credential leak
+
+    Draft postmortem being written up. Do not share externally.
+    """,
+    domain_ids: []
+  }
+]
+
+if postmortem_author do
+  Enum.each(postmortem_fixtures, fn attrs ->
+    domain_ids = attrs.domain_ids |> Enum.reject(&is_nil/1)
+
+    payload = %{
+      "body" => attrs.body,
+      "domain_ids" => Enum.map(domain_ids, &to_string/1)
+    }
+
+    first_line = payload["body"] |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ")
+
+    already_seeded? =
+      Postmortems.list_postmortems(postmortem_author)
+      |> Enum.any?(fn pm ->
+        pm.body |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ") == first_line
+      end)
+
+    if !already_seeded? do
+      {:ok, _postmortem} = Postmortems.publish_postmortem(payload, postmortem_author)
+    end
+  end)
+end
+
+# Engineering specs: seed a couple of proposals so the /engineering/specs
+# index has real content on a fresh local DB.
+spec_author = Repo.get_by(User, email: "alex@atlas.dev")
+seed_project = Repo.one(from(project in EngineeringProject, limit: 1))
+
+spec_fixtures = [
+  %{
+    title: "Cross-domain claims v2",
+    body: """
+    # Cross-domain claims v2
+
+    ## Motivation
+    Reviewers want a way to say "these two records refer to the same thing"
+    without merging domains.
+
+    ## Design
+    Introduce a lightweight claim linking two records across domains, with an
+    evidence class the brief renderer can filter on.
+    """,
+    summary: "Link two records across domains without a merge.",
+    visibility: :public,
+    status: "proposed"
+  },
+  %{
+    title: "Draft: kura pull replication rollout",
+    body: """
+    # Draft: kura pull replication rollout
+
+    Not ready for review. Placeholder while the outbox drain design settles.
+    """,
+    summary: nil,
+    visibility: :private,
+    status: "draft"
+  }
+]
+
+if spec_author && seed_project do
+  Enum.each(spec_fixtures, fn attrs ->
+    payload = %{
+      "title" => attrs.title,
+      "body" => attrs.body,
+      "summary" => attrs.summary,
+      "status" => attrs.status,
+      "visibility" => Atom.to_string(attrs.visibility),
+      "engineering_project_id" => seed_project.id
+    }
+
+    already_seeded? =
+      Specs.list_specs(user: spec_author)
+      |> Enum.any?(fn spec -> spec.title == attrs.title end)
+
+    if !already_seeded? do
+      {:ok, _spec} = Specs.create_spec(payload, spec_author)
+    end
+  end)
 end

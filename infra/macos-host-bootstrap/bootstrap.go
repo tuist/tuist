@@ -7,6 +7,8 @@
 // /etc/kcpassword, the TOFU host-key pin) is an input; everything
 // macOS-shaped is the same on every host:
 //   - Auto-login (Virtualization.framework requires a live console).
+//   - No self-initiated macOS updates and no Setup Assistant panes in
+//     the auto-login session.
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
 //   - Tart install (the caller-supplied tart.app tarball pinned in
@@ -426,6 +428,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := DisableIdleSleep(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
+	if err := installSoftwareUpdatePolicy(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install software update policy: %w", err)
+	}
+	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("suppress setup assistant: %w", err)
+	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
 	}
@@ -585,6 +593,12 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
 	}
+	if err := installSoftwareUpdatePolicy(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh software update policy: %w", err)
+	}
+	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh setup assistant suppression: %w", err)
+	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
 	}
@@ -727,6 +741,8 @@ func HostConfigHash(cfg Config) string {
 		{"node-exporter", renderNodeExporterScript()},
 		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
+		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
+		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -1397,6 +1413,109 @@ sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -i
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
 	return RunCommand(ctx, client, script)
+}
+
+func installSoftwareUpdatePolicy(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderSoftwareUpdatePolicyScript())
+}
+
+// renderSoftwareUpdatePolicyScript stops macOS from downloading or installing
+// OS updates, Background Security Improvements (SplatEnabled) and critical
+// updates on its own. Update checks and system data files (XProtect,
+// Gatekeeper) stay on. OS changes happen in operator-run waves.
+func renderSoftwareUpdatePolicyScript() string {
+	return `set -euo pipefail
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate SplatEnabled -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
+`
+}
+
+// setupAssistantSkipItems are the Setup Assistant panes the auto-login user
+// never sees. macOS ignores keys it does not know.
+var setupAssistantSkipItems = []string{
+	"Accessibility", "AppleID", "Appearance", "AppStore", "Biometric",
+	"Diagnostics", "FileVault", "iCloudDiagnostics", "iCloudStorage",
+	"Intelligence", "Location", "OSShowcase", "Privacy", "ScreenTime", "Siri",
+	"SoftwareUpdate", "TermsOfAddress", "TOS", "UnlockWithWatch",
+	"UpdateCompleted", "Welcome",
+}
+
+var setupAssistantSeenFlags = []string{
+	"DidSeeAccessibility", "DidSeeActivationLock", "DidSeeAppStore",
+	"DidSeeAppearanceSetup", "DidSeeApplePaySetup", "DidSeeCloudSetup",
+	"DidSeeLockdownMode", "DidSeePrivacy", "DidSeeScreenTime",
+	"DidSeeSiriSetup", "DidSeeSyncSetup", "DidSeeSyncSetup2",
+	"DidSeeTermsOfAddress", "DidSeeTouchIDSetup",
+	"DidSeeiCloudLoginForStorageServices",
+}
+
+var setupAssistantSeenProductVersions = []string{
+	"DidSeeNewFeaturesProductVersion", "LastSeenCloudProductVersion",
+	"LastSeenDiagnosticsProductVersion", "LastSeenIntelligenceProductVersion",
+	"LastSeenSiriProductVersion", "LastSeenSyncProductVersion",
+	"LastSeeniCloudStorageServicesProductVersion",
+}
+
+func installSetupAssistantSuppression(ctx context.Context, client *ssh.Client, cfg Config) error {
+	return RunCommand(ctx, client, renderSetupAssistantScript(cfg))
+}
+
+// renderSetupAssistantScript keeps Setup Assistant out of the auto-login
+// session (cfg.SSHUser, see EnableAutoLogin). The seen flags carry the running
+// OS version and lapse at the next OS update; SkipSetupItems does not. The
+// managed copies are plain files because ManagedClient, not cfprefsd, writes
+// /Library/Managed Preferences.
+func renderSetupAssistantScript(cfg Config) string {
+	var plist strings.Builder
+	plist.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>SkipSetupItems</key>
+  <array>
+`)
+	for _, item := range setupAssistantSkipItems {
+		fmt.Fprintf(&plist, "    <string>%s</string>\n", xmlEscape(item))
+	}
+	plist.WriteString("  </array>\n</dict>\n</plist>\n")
+
+	return fmt.Sprintf(`set -euo pipefail
+AUTOLOGIN_USER=%[1]s
+sudo mkdir -p "/Library/Managed Preferences/$AUTOLOGIN_USER"
+sudo chmod 755 "/Library/Managed Preferences" "/Library/Managed Preferences/$AUTOLOGIN_USER"
+for plist in "/Library/Managed Preferences/com.apple.SetupAssistant.managed.plist" "/Library/Managed Preferences/$AUTOLOGIN_USER/com.apple.SetupAssistant.managed.plist"; do
+  sudo tee "$plist" >/dev/null <<'SKIPITEMS'
+%[2]sSKIPITEMS
+  sudo chown root:wheel "$plist"
+  sudo chmod 644 "$plist"
+done
+sudo defaults write /Library/Preferences/com.apple.SetupAssistant.managed SkipSetupItems -array %[3]s
+sudo -u "$AUTOLOGIN_USER" defaults write com.apple.SetupAssistant.managed SkipSetupItems -array %[3]s
+
+PRODUCT_VERSION="$(sw_vers -productVersion)"
+BUILD_VERSION="$(sw_vers -buildVersion)"
+mark_seen() {
+  for key in %[4]s; do
+    "$@" "$key" -bool true
+  done
+  for key in %[5]s; do
+    "$@" "$key" -string "$PRODUCT_VERSION"
+  done
+  "$@" LastSeenBuddyBuildVersion -string "$BUILD_VERSION"
+}
+mark_seen sudo defaults write /Library/Preferences/com.apple.SetupAssistant
+mark_seen sudo -u "$AUTOLOGIN_USER" defaults write com.apple.SetupAssistant
+`,
+		shellQuote(cfg.SSHUser),
+		plist.String(),
+		strings.Join(setupAssistantSkipItems, " "),
+		strings.Join(setupAssistantSeenFlags, " "),
+		strings.Join(setupAssistantSeenProductVersions, " "),
+	)
 }
 
 // kcpasswordKey is Apple's well-known XOR cipher used to obfuscate

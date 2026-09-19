@@ -1,6 +1,7 @@
 defmodule Atlas.LLMs.RunnerTest do
   use ExUnit.Case, async: true
 
+  alias Atlas.LLMs.LocalTransport
   alias Atlas.LLMs.Runner
 
   describe "client_opts/1" do
@@ -48,6 +49,22 @@ defmodule Atlas.LLMs.RunnerTest do
         })
 
       refute Keyword.has_key?(opts, :timeout)
+    end
+
+    test "local mode injects the LocalTransport plug and needs no model or api_key" do
+      opts = Runner.client_opts(%{mode: :local})
+
+      # The model id is a sentinel — LocalTransport rewrites it to the
+      # default profile's name before the request reaches the controller.
+      # Provider is fixed to :openai because Atlas.Inference speaks the
+      # OpenAI-compatible surface.
+      assert %{id: "atlas-default", provider: :openai} = opts[:model]
+      assert opts[:api_key] == "local"
+      assert opts[:retry] == false
+      assert opts[:req_http_options] == [plug: {LocalTransport, []}]
+      # Base URL is a sentinel that Req uses to construct a valid URL before
+      # the plug intercepts. It should never leave the process.
+      assert opts[:base_url] == "http://atlas-local"
     end
   end
 end

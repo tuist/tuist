@@ -29,6 +29,10 @@ defmodule AtlasWeb.Widget do
 
   attr :empty_label, :string, default: nil, doc: "Custom empty-state label."
 
+  attr :loading, :boolean,
+    default: false,
+    doc: "Renders a shimmering skeleton for the value and trend while the underlying data is being fetched."
+
   attr :trend_value, :float,
     default: nil,
     doc: "Percentage change rendered as a colored trend badge under the value. Hidden when nil."
@@ -78,10 +82,12 @@ defmodule AtlasWeb.Widget do
 
   defp static_widget(assigns) do
     ~H"""
-    <.card_section id={@id} data-empty={@empty} data-part="widget" {@rest}>
+    <.card_section id={@id} data-empty={@empty} data-loading={@loading} data-part="widget" {@rest}>
       <div data-part="header">
         <div :if={@legend_color} data-color={@legend_color} data-part="legend"></div>
-        <span data-part="title">{@title}</span>
+        <div data-part="title">
+          <span data-part="label">{@title}</span>
+        </div>
         <div :if={@tooltip_description} data-part="tooltip">
           <.tooltip
             id={@id <> "-tooltip"}
@@ -99,17 +105,23 @@ defmodule AtlasWeb.Widget do
           </.tooltip>
         </div>
       </div>
-      <%= if @empty do %>
-        <span data-part="empty-label">
-          {@empty_label || "No data"}
-        </span>
-      <% else %>
-        <span data-part="value">{@value}</span>
-        <div :if={not is_nil(@trend_value)} data-part="trend">
-          <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
-          <span :if={@trend_label} data-part="trend-label">{@trend_label}</span>
-        </div>
-        <span :if={@description} data-part="description">{@description}</span>
+      <%= cond do %>
+        <% @loading -> %>
+          <span data-part="value" class="atlas-loading-skeleton">&nbsp;</span>
+          <div data-part="trend">
+            <span class="atlas-loading-skeleton atlas-loading-skeleton--small">&nbsp;</span>
+          </div>
+        <% @empty -> %>
+          <span data-part="empty-label">
+            {@empty_label || "No data"}
+          </span>
+        <% true -> %>
+          <span data-part="value">{@value}</span>
+          <div :if={not is_nil(@trend_value)} data-part="trend">
+            <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
+            <span :if={@trend_label} data-part="label">{@trend_label}</span>
+          </div>
+          <span :if={@description} data-part="description">{@description}</span>
       <% end %>
     </.card_section>
     """

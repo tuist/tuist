@@ -58,6 +58,7 @@ config :tuist, Tuist.IngestRepo,
 # Same for the Kura cache-demand buffer, which is otherwise process-wide and
 # would let one async test's demand be flushed inside another's transaction.
 config :tuist, Tuist.Kura.Demand, write_through_repo: true
+config :tuist, Tuist.Kura.Workers.AwaitActivationWorker, check_interval_ms: 0
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter

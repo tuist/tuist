@@ -23,8 +23,10 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.DNS
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Admission
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
@@ -304,8 +306,9 @@ defmodule Tuist.Kura do
   The claim pinned on the row when it carries one, which is what its volumes
   were created at rather than what its account would be sized at today. The two
   diverge for as long as an instance holds volumes built under different sizing,
-  and nothing converges them on its own, so an operator looking at a region's
-  occupancy can see which instances account for it.
+  until claim sizing next applies a proposal and moves every instance to one
+  claim, so an operator looking at a region's occupancy can see which instances
+  account for it.
 
   A row that pins none holds what it resolves to instead: its account's
   effective claim where the region sizes per account, the region's own declared
@@ -331,9 +334,9 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The claim the account's instances are built at: its operator override when
-  it carries one, then the claim automatic sizing chose, then the claim its
-  plan gives it.
+  The claim the account's instances are built at: the largest claim its governed
+  instances are pinned at, then the claim automatic sizing chose, then the claim
+  its plan gives it.
   """
   defdelegate effective_storage_claim(account), to: PlacerClaims, as: :effective_claim_size
 
@@ -513,10 +516,21 @@ defmodule Tuist.Kura do
   operator override write. `resolved_by` lands on the proposal's audit trail —
   an operator's handle from the ops page, or `"automatic"` from the sweep.
 
+  Every instance that holds volumes moves to the recommendation, whatever it
+  held, so an account whose instances were pinned apart comes out on one
+  claim: some raised, which admission has to take, others lowered, which keep
+  their caches and evict down. One transaction does all of it, so a region
+  refusing a raise leaves every pin, the sized claim and the proposal as they
+  were. The sized claim is written even when it does not change, which is what
+  restarts the evidence window on the rings the instances now run.
+
   A proposal whose premises no longer hold — resolved meanwhile, or the claim
   it measured moved since it was written — is marked superseded instead of
   applied and `{:error, :stale_proposal}` comes back. The sweep writes a fresh
-  proposal on its next pass if the recommendation still stands.
+  proposal on its next pass if the recommendation still stands. The claim
+  measured is the account's, its largest pin; a smaller pin moving meanwhile
+  does not change what applying does, since every instance lands on the
+  recommendation either way.
   """
   def apply_claim_proposal(%ClaimProposal{} = proposal, resolved_by) when is_binary(resolved_by) do
     account = Repo.get!(Account, proposal.account_id)
@@ -536,12 +550,12 @@ defmodule Tuist.Kura do
               proposal.status != :open ->
                 {:stale, proposal}
 
-              ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
+              PlacerClaims.effective_claim_size(account) != proposal.current_claim_size ->
                 {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
 
               true ->
-                :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
-                claim_size = PlacerClaims.effective_claim_size(account)
+                claim_size = proposal.recommended_claim_size
+                :ok = PlacerClaims.put(account, claim_size)
 
                 proposal
                 |> ClaimProposal.resolve_changeset(:applied, resolved_by)
@@ -904,9 +918,10 @@ defmodule Tuist.Kura do
   # The claim the instance's volumes are about to be created at. Resolved here,
   # at the one moment it can change, and carried on the row from then on: the
   # bare-metal regions cannot expand a claim, so an instance keeps what it was
-  # built with until the volumes are built again. A region that sizes every
-  # instance alike pins nothing and keeps rendering its own claim. See
-  # `Tuist.Kura.Server`.
+  # built with until the volumes are built again. It is the claim sizing
+  # measures the account at, so an instance added beside running ones matches
+  # them rather than the plan. A region that sizes every instance alike pins
+  # nothing and keeps rendering its own claim. See `Tuist.Kura.Server`.
   defp storage_claim(account, %Regions{} = region) do
     if Regions.storage_governed?(region) do
       %{storage_claim_size: PlacerClaims.effective_claim_size(account)}
@@ -1439,9 +1454,12 @@ defmodule Tuist.Kura do
     end
   end
 
+  # Asked of the zone's authoritative nameservers: activation asks from before
+  # the record exists, and a caching resolver would hold that answer for the
+  # zone's negative TTL. See `Tuist.DNS`.
   defp ensure_public_host_resolves(host) do
-    case :inet.gethostbyname(String.to_charlist(host)) do
-      {:ok, _} -> :ok
+    case DNS.record_published(host) do
+      :ok -> :ok
       {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
     end
   end
@@ -1823,8 +1841,9 @@ defmodule Tuist.Kura do
 
   Teardown took the whole StatefulSet and its volumes with it, so this is also
   the one point in a served instance's life where its disk footprint can change:
-  the account's plan is read again and the returning instance is built at
-  whatever that plan is worth now.
+  the account's claim is resolved again, so the returning instance matches the
+  account's other instances, or takes its sized or plan claim when none of them
+  holds volumes.
   """
   def return_from_archive(server, image_tag, account \\ nil)
 
@@ -2021,10 +2040,10 @@ defmodule Tuist.Kura do
     end
   end
 
-  # The target carves its own volumes on the destination box, so it is built at
-  # the account's current claim rather than inheriting the source's. This is the
-  # path an instance whose plan changed while it was serving takes to the claim
-  # that plan is worth.
+  # The target carves its own volumes on the destination box, so its claim is
+  # resolved like any new instance's rather than copied from the source. The
+  # source still holds volumes and counts among the account's pins, so a move
+  # between boxes never builds the target below what the account runs at.
   defp insert_move_target(%Server{} = source, region, account, target_node) do
     attrs = %{
       account_id: source.account_id,
@@ -2200,6 +2219,54 @@ defmodule Tuist.Kura do
     |> select([s], {s.region, count(s.id, :distinct)})
     |> Repo.all()
     |> Map.new()
+  end
+
+  @doc """
+  The 90th percentile, in seconds, of how long the new instances that started
+  serving in the last `window_seconds` took, and how many there were. `nil`
+  percentile with a zero count when there were none.
+
+  A new instance is one whose deployment is the first its server has had since
+  the account-region last returned from archive, which is a first provision or
+  a cold return. Every later deployment is a rollout of an instance that was
+  already serving, and a fleet rollout outnumbers new instances by an order of
+  magnitude, so counting those would measure the rollout gate instead.
+
+  Read from `kura_deployments` rather than from the `time_to_ready`
+  distribution, which is per pod and only holds what the pod that activated the
+  instance scraped.
+  """
+  def new_instance_readiness(window_seconds) do
+    since = DateTime.add(DateTime.utc_now(), -window_seconds, :second)
+
+    earlier_deployment =
+      from(e in Deployment,
+        where: e.kura_server_id == parent_as(:deployment).kura_server_id,
+        where: e.inserted_at < parent_as(:deployment).inserted_at,
+        where:
+          is_nil(parent_as(:lifecycle).last_returned_at) or
+            e.inserted_at >= parent_as(:lifecycle).last_returned_at,
+        select: 1
+      )
+
+    from(d in Deployment, as: :deployment)
+    |> join(:inner, [d], s in Server, on: s.id == d.kura_server_id)
+    |> join(:inner, [_d, s], l in AccountRegionLifecycle,
+      as: :lifecycle,
+      on: l.account_id == s.account_id and l.service_region == s.region
+    )
+    |> where([d], d.status == :succeeded and not is_nil(d.finished_at) and d.finished_at >= ^since)
+    |> where(not exists(earlier_deployment))
+    |> select([d], %{
+      count: count(d.id),
+      p90_seconds:
+        fragment(
+          "percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (? - ?)))",
+          d.finished_at,
+          d.inserted_at
+        )
+    })
+    |> Repo.one()
   end
 
   defp lock_server(id, account_id) do
