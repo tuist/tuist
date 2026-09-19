@@ -305,6 +305,43 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Compares two commits: the merge base, the commits between them (one page
+  of up to 250) and the changed files (up to 300, with their patches).
+
+  See: https://docs.github.com/en/rest/commits/commits#compare-two-commits
+  """
+  def compare_commits(
+        %{repository_full_handle: repository_full_handle, installation: installation, base: base, head: head} = attrs
+      ) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/compare/#{base}...#{head}"
+
+    github_request(&Req.get/1,
+      url: url,
+      params: [per_page: 250, page: Map.get(attrs, :page, 1)],
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
+  @doc """
+  Lists commits reachable from `sha`, newest first, a page of up to 100.
+
+  See: https://docs.github.com/en/rest/commits/commits#list-commits
+  """
+  def list_commits(%{repository_full_handle: repository_full_handle, installation: installation, sha: sha} = attrs) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/commits"
+
+    github_request(&Req.get/1,
+      url: url,
+      params: [sha: sha, per_page: 100, page: Map.get(attrs, :page, 1)],
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
+  @doc """
   Fetches a workflow run. The response carries `head_repository` (where the run's
   head commit lives) and `repository` (the base) — comparing them tells whether
   the run originates from a fork, which the runner dispatch uses to decide

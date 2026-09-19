@@ -851,6 +851,30 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert fetched.is_flaky == false
     end
 
+    test "mark and unmark as unskippable buttons flip the flag", %{conn: conn, account: account, project: project} do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      assert html =~ "Mark as unskippable"
+
+      html = lv |> element(~s|button[phx-click="mark-as-unskippable"]|) |> render_click()
+      assert html =~ "Unmark as unskippable"
+      assert html =~ "Marked as unskippable"
+
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.is_unskippable == true
+
+      html = lv |> element(~s|button[phx-click="unmark-as-unskippable"]|) |> render_click()
+      assert html =~ "Mark as unskippable"
+
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.is_unskippable == false
+    end
+
     test "unmuting a test case via set-state", %{
       conn: conn,
       account: account,

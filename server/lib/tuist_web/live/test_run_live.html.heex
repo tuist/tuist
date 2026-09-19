@@ -2231,7 +2231,37 @@
       icon="chart_arcs"
       data-part="coverage-summary-card"
     >
+      <:actions>
+        <.button
+          :if={@run.git_commit_sha not in [nil, ""] and not @run.git_dirty}
+          label={
+            dgettext("dashboard_tests", "Coverage of %{sha}",
+              sha: String.slice(@run.git_commit_sha, 0, 7)
+            )
+          }
+          variant="secondary"
+          size="medium"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{@run.git_commit_sha}"
+          }
+        >
+          <:icon_right><.icon name="arrow_right" /></:icon_right>
+        </.button>
+      </:actions>
       <.card_section data-part="coverage-summary-section">
+        <.alert
+          :if={@run.git_dirty}
+          id="coverage-dirty-checkout"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "This run measured a checkout with uncommitted changes, so its coverage is the run's own and is left out of its commit's."
+            )
+          }
+        />
         <.alert
           :if={@coverage_summary.partial}
           id="coverage-partial-run"
@@ -2254,7 +2284,7 @@
                 "Share of executable lines the tests ran at least once, counting each source file once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
+            value={"#{Coverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
             id="widget-coverage-percentage"
           />
           <.widget
@@ -2318,7 +2348,7 @@
                 "Share of the file's executable lines the tests ran at least once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
+            value={"#{Coverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
             id="widget-coverage-file-percentage"
           />
           <.widget

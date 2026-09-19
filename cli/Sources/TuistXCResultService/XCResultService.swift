@@ -13,6 +13,13 @@ public protocol XCResultServicing {
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
     func coveredFilePaths(path: AbsolutePath) async throws -> [String]?
     func parseCoverage(path: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport?
+    /// The same, streamed to `output` as one JSON object per source file, for bundles too large
+    /// to hold in memory.
+    func parseCoverage(
+        path: AbsolutePath,
+        manifest: XcodeCoverageManifest,
+        into output: AbsolutePath
+    ) async throws -> XcodeCoverageSummary?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
@@ -77,6 +84,21 @@ public struct XCResultService: XCResultServicing {
             return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
         } catch {
             // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
+            AlertController.current.warning(
+                .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
+            )
+            return nil
+        }
+    }
+
+    public func parseCoverage(
+        path: AbsolutePath,
+        manifest: XcodeCoverageManifest,
+        into output: AbsolutePath
+    ) async throws -> XcodeCoverageSummary? {
+        do {
+            return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
+        } catch {
             AlertController.current.warning(
                 .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
             )

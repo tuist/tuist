@@ -133,6 +133,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         git_branch: Keyword.get(attrs, :git_branch, "main"),
         git_ref: Keyword.get(attrs, :git_ref),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+        git_remote_url_origin: Keyword.get(attrs, :git_remote_url_origin),
+        git_dirty: Keyword.get(attrs, :git_dirty),
         ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
         inserted_at: Keyword.get(attrs, :inserted_at),
         is_ci: Keyword.get(attrs, :is_ci, false),
@@ -148,6 +150,14 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         only_test_identifiers: Keyword.get(attrs, :only_test_identifiers, []),
         skip_test_identifiers: Keyword.get(attrs, :skip_test_identifiers, []),
         shard_index: Keyword.get(attrs, :shard_index),
+        base_branch: Keyword.get(attrs, :base_branch),
+        merge_base_sha: Keyword.get(attrs, :merge_base_sha),
+        is_pull_request: Keyword.get(attrs, :is_pull_request),
+        pull_request_number: Keyword.get(attrs, :pull_request_number),
+        git_object_format: Keyword.get(attrs, :git_object_format),
+        history_source: Keyword.get(attrs, :history_source),
+        history_fallback_reason: Keyword.get(attrs, :history_fallback_reason),
+        changed_files: Keyword.get(attrs, :changed_files, []),
         test_modules: test_modules,
         run_destinations: Keyword.get(attrs, :run_destinations, [])
       })

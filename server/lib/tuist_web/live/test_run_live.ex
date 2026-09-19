@@ -25,9 +25,9 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
-  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
@@ -171,7 +171,7 @@ defmodule TuistWeb.TestRunLive do
     <div data-part="cell" data-type="text">
       <div data-part="coverage-cell">
         <.progress_bar value={@covered} max={max(@executable, 1)} />
-        <span data-part="percentage">{XcodeCoverage.percentage(@covered, @executable)}%</span>
+        <span data-part="percentage">{Coverage.percentage(@covered, @executable)}%</span>
       </div>
     </div>
     """
@@ -473,7 +473,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_coverage_summary(%{assigns: %{coverage_enabled: true}} = socket, run) do
-    assign(socket, :coverage_summary, XcodeCoverage.run_summary(run.project_id, run.id))
+    assign(socket, :coverage_summary, Coverage.run_summary(run.project_id, run.id))
   end
 
   defp assign_coverage_summary(socket, _run), do: assign(socket, :coverage_summary, nil)
@@ -667,9 +667,9 @@ defmodule TuistWeb.TestRunLive do
 
     [targets, {files, files_count}, file] =
       Tuist.Tasks.parallel_tasks([
-        fn -> XcodeCoverage.targets_for_run(run.project_id, run.id) end,
-        fn -> XcodeCoverage.list_files(run.project_id, run.id, page, @table_page_size) end,
-        fn -> selected_path && XcodeCoverage.file_detail(run.project_id, run.id, selected_path) end
+        fn -> Coverage.targets_for_run(run.project_id, run.id) end,
+        fn -> Coverage.list_files(run.project_id, run.id, page, @table_page_size) end,
+        fn -> selected_path && Coverage.file_detail(run.project_id, run.id, selected_path) end
       ])
 
     socket

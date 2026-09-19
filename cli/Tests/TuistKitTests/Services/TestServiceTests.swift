@@ -4631,9 +4631,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                     ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                     shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
-                    stressNewTests: .any
+                    stressNewTests: .any,
+                    gitHistory: .any,
+                    coverageUpload: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
@@ -5360,7 +5362,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5408,7 +5412,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .called(1)
     }

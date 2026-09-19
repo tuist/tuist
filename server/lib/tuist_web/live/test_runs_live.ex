@@ -15,7 +15,7 @@ defmodule TuistWeb.TestRunsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.Coverage
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -174,8 +174,7 @@ defmodule TuistWeb.TestRunsLive do
           socket.assigns.selected_duration_type,
           socket.assigns.test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -206,8 +205,7 @@ defmodule TuistWeb.TestRunsLive do
           type,
           socket.assigns.test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -288,8 +286,7 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    coverage_enabled = socket.assigns.coverage_enabled
-    analytics_selected_widget = selected_analytics_widget(params["analytics-selected-widget"], coverage_enabled)
+    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
 
     socket
     |> assign(:analytics_preset, preset)
@@ -305,7 +302,6 @@ defmodule TuistWeb.TestRunsLive do
         :test_runs_analytics,
         :failed_test_runs_analytics,
         :test_runs_duration_analytics,
-        :test_runs_coverage_analytics,
         :analytics_chart_data
       ],
       fn ->
@@ -316,54 +312,32 @@ defmodule TuistWeb.TestRunsLive do
 
         test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
 
-        test_runs_coverage_analytics =
-          if coverage_enabled,
-            do: Analytics.test_run_coverage_analytics(project.id, opts),
-            else: %{coverage: 0.0, runs_count: 0, trend: nil, dates: [], values: []}
-
         {:ok,
          %{
            test_runs_analytics: test_runs_analytics,
            failed_test_runs_analytics: failed_test_runs_analytics,
            test_runs_duration_analytics: test_runs_duration_analytics,
-           test_runs_coverage_analytics: test_runs_coverage_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
                selected_duration_type,
                test_runs_analytics,
                failed_test_runs_analytics,
-               test_runs_duration_analytics,
-               test_runs_coverage_analytics
+               test_runs_duration_analytics
              )
          }}
       end
     )
   end
 
-  # The coverage widget is hidden from accounts without coverage, so a link that
-  # selects it must not leave the page with an empty chart.
-  defp selected_analytics_widget("coverage", false), do: "test_run_count"
-  defp selected_analytics_widget(nil, _coverage_enabled), do: "test_run_count"
-  defp selected_analytics_widget(widget, _coverage_enabled), do: widget
-
   defp analytics_chart_data(
          analytics_selected_widget,
          selected_duration_type,
          test_runs_analytics,
          failed_test_runs_analytics,
-         test_runs_duration_analytics,
-         test_runs_coverage_analytics
+         test_runs_duration_analytics
        ) do
     case analytics_selected_widget do
-      "coverage" ->
-        %{
-          dates: test_runs_coverage_analytics.dates,
-          values: test_runs_coverage_analytics.values,
-          name: dgettext("dashboard_tests", "Line coverage"),
-          value_formatter: "{value}%"
-        }
-
       "test_run_count" ->
         %{
           dates: test_runs_analytics.dates,
@@ -460,7 +434,7 @@ defmodule TuistWeb.TestRunsLive do
 
     coverage_by_run =
       if socket.assigns.coverage_enabled,
-        do: XcodeCoverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id)),
+        do: Coverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id)),
         else: %{}
 
     socket
@@ -475,7 +449,7 @@ defmodule TuistWeb.TestRunsLive do
   def coverage_label(nil), do: dgettext("dashboard_tests", "No coverage")
 
   def coverage_label(%{covered_lines: covered, executable_lines: executable}),
-    do: "#{XcodeCoverage.percentage(covered, executable)}%"
+    do: "#{Coverage.percentage(covered, executable)}%"
 
   @doc false
   def coverage_badge_label(%{partial: true}), do: dgettext("dashboard_tests", "P")

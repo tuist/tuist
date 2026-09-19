@@ -120,7 +120,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let rootDirectoryLocator: RootDirectoryLocating
     private let uploadResultBundleService: UploadResultBundleServicing
     private let derivedDataLocator: DerivedDataLocating
+    private let testExecutionModeResolver: TestExecutionModeResolving
     private let createTestService: CreateTestServicing
+    private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let ciController: CIControlling
@@ -164,7 +166,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
+        testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         createTestService: CreateTestServicing = CreateTestService(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
@@ -195,7 +199,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.rootDirectoryLocator = rootDirectoryLocator
         self.uploadResultBundleService = uploadResultBundleService
         self.derivedDataLocator = derivedDataLocator
+        self.testExecutionModeResolver = testExecutionModeResolver
         self.createTestService = createTestService
+        self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
         self.serverEnvironmentService = serverEnvironmentService
         self.ciController = ciController
@@ -823,7 +829,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodeBuildArguments
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -989,7 +996,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodeBuildArguments
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -2179,7 +2187,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mode: mode,
                 onlyTestIdentifiers: testTargets.map(\.description),
                 skipTestIdentifiers: skipTestTargets.map(\.description),
-                stressNewTests: stressResult
+                stressNewTests: stressResult,
+                xcodebuildArguments: passthroughXcodeBuildArguments,
+                schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
             )
             if let stressResult, stressResult.blocks {
                 throw StressNewTestsError.blocked(stressResult.blockingCandidates)
@@ -2217,7 +2227,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodeBuildArguments,
+            schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
         )
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
@@ -2353,12 +2365,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
-        stressNewTests: StressNewTestsResult? = nil
+        stressNewTests: StressNewTestsResult? = nil,
+        xcodebuildArguments: [String] = [],
+        schemeTargets: [String: String] = [:]
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
 
         await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
+        _ = await testExecutionModeResolver.record(
+            resultBundlePath: resultBundlePath,
+            xcodebuildArguments: xcodebuildArguments,
+            derivedDataPath: projectDerivedDataDirectory,
+            schemeTargets: schemeTargets
+        )
 
         do {
             switch mode {
@@ -2472,6 +2492,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
         let buildRunId = await RunMetadataStorage.current.buildRunId
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
@@ -2497,10 +2523,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
             // the suite inventory either way.
             onlyTestIdentifiers: [],
             skipTestIdentifiers: [],
-            stressNewTests: nil
+            stressNewTests: nil,
+            gitHistory: gitHistory?.payload,
+            coverageUpload: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
     }
 
     private func passedValue(for option: String, arguments: [String]) -> String? {

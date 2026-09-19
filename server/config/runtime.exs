@@ -708,6 +708,7 @@ base_queues = [
   vcs_comments: 20,
   webhooks: 20,
   storage_retention: 1,
+  git_history: 5,
   kura_provisioning: 10
 ]
 

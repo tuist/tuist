@@ -146,6 +146,7 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
+            is_unskippable: test_case.is_unskippable,
             is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
@@ -211,6 +212,11 @@ defmodule TuistWeb.API.TestCasesController do
                }
              },
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
+             is_unskippable: %Schema{
+               type: :boolean,
+               description:
+                 "Whether the test case is unskippable: test selection always runs it, whatever evidence it has."
+             },
              is_quarantined: %Schema{
                type: :boolean,
                deprecated: true,
@@ -277,6 +283,7 @@ defmodule TuistWeb.API.TestCasesController do
             },
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
+            is_unskippable: test_case.is_unskippable,
             is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
@@ -307,8 +314,9 @@ defmodule TuistWeb.API.TestCasesController do
     description:
       "Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, " <>
         "or `skipped`; the field is left as an open string so adding new states in the future doesn't break " <>
-        "clients pinned to the older spec) and toggling `is_flaky`. Corresponding events " <>
-        "(`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded " <>
+        "clients pinned to the older spec) and toggling `is_flaky` and `is_unskippable`. Corresponding events " <>
+        "(`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`, " <>
+        "`marked_unskippable`/`unmarked_unskippable`) are recorded " <>
         "automatically when values transition.",
     operation_id: "updateTestCase",
     parameters: [
@@ -344,6 +352,11 @@ defmodule TuistWeb.API.TestCasesController do
            is_flaky: %Schema{
              type: :boolean,
              description: "Whether to mark the test case as flaky."
+           },
+           is_unskippable: %Schema{
+             type: :boolean,
+             description:
+               "Whether to mark the test case as unskippable, so test selection always runs it regardless of the evidence it has."
            }
          }
        }},
@@ -373,6 +386,11 @@ defmodule TuistWeb.API.TestCasesController do
                }
              },
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
+             is_unskippable: %Schema{
+               type: :boolean,
+               description:
+                 "Whether the test case is unskippable: test selection always runs it, whatever evidence it has."
+             },
              is_quarantined: %Schema{
                type: :boolean,
                deprecated: true,
@@ -400,13 +418,15 @@ defmodule TuistWeb.API.TestCasesController do
           conn,
         _params
       ) do
-    attrs = Map.take(body_params, [:state, :is_flaky])
+    attrs = Map.take(body_params, [:state, :is_flaky, :is_unskippable])
 
     cond do
       map_size(attrs) == 0 ->
         conn
         |> put_status(:bad_request)
-        |> json(%{message: "Provide at least one of `state` or `is_flaky`."})
+        |> json(%{
+          message: "Provide at least one of `state`, `is_flaky` or `is_unskippable`."
+        })
 
       Map.has_key?(attrs, :state) and attrs.state not in @valid_states ->
         conn
@@ -435,6 +455,7 @@ defmodule TuistWeb.API.TestCasesController do
                 },
                 suite: build_suite(updated_test_case.suite_name),
                 is_flaky: updated_test_case.is_flaky,
+                is_unskippable: updated_test_case.is_unskippable,
                 is_quarantined: quarantined?(updated_test_case.state),
                 state: updated_test_case.state || "enabled",
                 url:

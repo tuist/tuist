@@ -32,7 +32,9 @@ import TuistHTTP
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
-            stressNewTests: Components.Schemas.StressNewTestsResult?
+            stressNewTests: Components.Schemas.StressNewTestsResult?,
+            gitHistory: TestRunGitHistory?,
+            coverageUpload: XcodeCoverageUpload?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -88,22 +90,14 @@ import TuistHTTP
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
-            stressNewTests: Components.Schemas.StressNewTestsResult? = nil
+            stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
+            gitHistory: TestRunGitHistory? = nil,
+            coverageUpload: XcodeCoverageUpload? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                switch testSummary.status {
-                case .passed:
-                    .success
-                case .failed:
-                    .failure
-                case .skipped:
-                    .skipped
-                case .processing:
-                    .processing
-                }
+            let status = statusPayload(for: testSummary.status)
 
             // The gate's reruns are executions of the test case like any other, so they ride
             // along with the test case they belong to rather than as a payload of their own.
@@ -239,6 +233,7 @@ import TuistHTTP
                 return Operations.createTest.Input.Body.jsonPayload
                     .test_modulesPayloadPayload(
                         duration: module.duration,
+                        execution_mode: module.executionMode.flatMap { .init(rawValue: $0) },
                         name: module.name,
                         status: mapModuleStatus(module.status),
                         test_cases: moduleTestCases,
@@ -265,6 +260,8 @@ import TuistHTTP
                         nil
                     }
 
+            let history = GitHistoryPayloads(gitHistory)
+
             let response = try await client.createTest(
                 .init(
                     path: .init(
@@ -273,30 +270,42 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
-                            build_run_id: buildRunId,
-                            ci_host: ciHost,
-                            ci_project_handle: ciProjectHandle,
-                            ci_provider: ciProviderPayload,
-                            ci_run_id: ciRunId,
-                            duration: testSummary.duration ?? 0,
                             git_branch: gitBranch,
-                            git_commit_sha: gitCommitSHA,
-                            git_ref: gitRef,
-                            git_remote_url_origin: gitRemoteURLOrigin,
-                            id: id,
-                            is_ci: isCI,
-                            macos_version: macOSVersion,
-                            model_identifier: modelIdentifier,
-                            only_test_identifiers: onlyTestIdentifiers,
+                            xcode_coverage_storage_key: coverageUpload?.storageKey,
+                            execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
+                            git_object_format: history.objectFormat,
                             scheme: testSummary.testPlanName,
-                            shard_index: shardIndex,
-                            shard_plan_id: shardPlanId,
-                            skip_test_identifiers: skipTestIdentifiers,
+                            merge_base_sha: gitHistory?.mergeBaseSHA,
+                            ci_host: ciHost,
+                            git_remote_url_origin: gitRemoteURLOrigin,
+                            history_fallback_reason: gitHistory?.fallbackReason,
+                            is_pull_request: gitHistory?.isPullRequest,
                             status: status,
+                            shard_index: shardIndex,
+                            only_test_identifiers: onlyTestIdentifiers,
+                            git_dirty: gitHistory?.dirty,
+                            history_source: history.source,
+                            build_run_id: buildRunId,
+                            skip_test_identifiers: skipTestIdentifiers,
+                            git_ref: gitRef,
+                            base_branch: gitHistory?.baseBranch,
+                            model_identifier: modelIdentifier,
+                            ci_run_id: ciRunId,
+                            ci_provider: ciProviderPayload,
+                            ci_project_handle: ciProjectHandle,
+                            pull_request_number: gitHistory?.pullRequestNumber,
                             stress_new_tests: stressNewTests,
-                            test_modules: testModules,
+                            xcode_coverage_partial: coverageUpload?.partial,
+                            macos_version: macOSVersion,
+                            id: id,
+                            changed_files: history.changedFiles,
                             xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
-                            xcode_version: xcodeVersion
+                            shard_plan_id: shardPlanId,
+                            duration: testSummary.duration ?? 0,
+                            xcode_version: xcodeVersion,
+                            git_commit_sha: gitCommitSHA,
+                            test_modules: testModules,
+                            is_ci: isCI
                         )
                     )
                 )
@@ -504,6 +513,41 @@ import TuistHTTP
                     )
                 },
                 partial: report.partial
+            )
+        }
+    }
+
+    private func statusPayload(for status: TestStatus) -> Operations.createTest.Input.Body.jsonPayload.statusPayload {
+        switch status {
+        case .passed: .success
+        case .failed: .failure
+        case .skipped: .skipped
+        case .processing: .processing
+        }
+    }
+
+    /// The run's Git history in the shapes of the create-test body.
+    private struct GitHistoryPayloads {
+        typealias Body = Operations.createTest.Input.Body.jsonPayload
+
+        let changedFiles: [Body.changed_filesPayloadPayload]?
+        let objectFormat: Body.git_object_formatPayload?
+        let source: Body.history_sourcePayload?
+
+        init(_ gitHistory: TestRunGitHistory?) {
+            changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
+            objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
+            source = gitHistory.map { $0.source == "client" ? .client : .none }
+        }
+
+        private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {
+            .init(
+                git_blob_id: file.blobId,
+                hunks: file.hunks.map { Body.changed_filesPayloadPayload.hunksPayloadPayload(end: $0.end, start: $0.start) },
+                path: file.path,
+                previous_path: file.previousPath,
+                status: .init(rawValue: file.status) ?? .modified,
+                truncated: file.truncated
             )
         }
     }

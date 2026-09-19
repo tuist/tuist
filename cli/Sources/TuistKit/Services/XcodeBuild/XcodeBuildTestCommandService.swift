@@ -29,6 +29,7 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadResultBundleService: UploadResultBundleServicing
+    private let testExecutionModeResolver: TestExecutionModeResolving
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
@@ -48,6 +49,7 @@ struct XcodeBuildTestCommandService {
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+        testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
@@ -66,6 +68,7 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.uploadResultBundleService = uploadResultBundleService
+        self.testExecutionModeResolver = testExecutionModeResolver
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
@@ -244,7 +247,8 @@ struct XcodeBuildTestCommandService {
                 mode: mode,
                 onlyTestIdentifiers: callerOnlyTestIdentifiers,
                 skipTestIdentifiers: callerSkipTestIdentifiers,
-                stressNewTests: stressResult
+                stressNewTests: stressResult,
+                xcodebuildArguments: passthroughXcodebuildArguments
             )
 
             if quarantinePass {
@@ -300,7 +304,8 @@ struct XcodeBuildTestCommandService {
             mode: mode,
             onlyTestIdentifiers: callerOnlyTestIdentifiers,
             skipTestIdentifiers: callerSkipTestIdentifiers,
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodebuildArguments
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -544,11 +549,19 @@ extension XcodeBuildTestCommandService {
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
-        stressNewTests: StressNewTestsResult? = nil
+        stressNewTests: StressNewTestsResult? = nil,
+        xcodebuildArguments: [String] = [],
+        schemeTargets: [String: String] = [:]
     ) async {
         guard config.fullHandle != nil else { return }
 
         await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
+        _ = await testExecutionModeResolver.record(
+            resultBundlePath: resultBundlePath,
+            xcodebuildArguments: xcodebuildArguments,
+            derivedDataPath: projectDerivedDataDirectory,
+            schemeTargets: schemeTargets
+        )
 
         do {
             switch mode {

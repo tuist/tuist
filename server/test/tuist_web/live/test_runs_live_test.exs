@@ -227,7 +227,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       test_run
     end
 
-    test "shows the line coverage widget and a run's coverage in the table", %{
+    test "shows a run's coverage in the table", %{
       conn: conn,
       organization: organization,
       project: project
@@ -240,8 +240,7 @@ defmodule TuistWeb.TestRunsLiveTest do
 
       render_async(lv, @render_async_timeout)
 
-      # The widget leaves the partial run out, as the tests overview does.
-      assert has_element?(lv, "#widget-coverage", "75.0%")
+      refute has_element?(lv, "#widget-coverage")
 
       table = lv |> element("#test-runs-table") |> render()
       assert table =~ "75.0%"

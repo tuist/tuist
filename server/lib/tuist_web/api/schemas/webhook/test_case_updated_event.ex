@@ -42,7 +42,9 @@ defmodule TuistWeb.API.Schemas.Webhook.TestCaseUpdatedEvent do
             "muted",
             "unmuted",
             "skipped",
-            "unskipped"
+            "unskipped",
+            "marked_unskippable",
+            "unmarked_unskippable"
           ]
         },
         description:
