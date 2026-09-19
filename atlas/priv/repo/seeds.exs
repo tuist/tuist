@@ -34,6 +34,7 @@ alias Atlas.Engineering.Domains, as: EngineeringDomains
 alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
 alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
+alias Atlas.Engineering.Errors.IssueAccount, as: ErrorsIssueAccount
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
 alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
@@ -2054,6 +2055,31 @@ for demo <- demo_accounts do
     %Term{account_id: account.id}
     |> Term.changeset(term_attrs)
     |> Repo.insert!()
+  end
+end
+
+# Assign a plan tier to a handful of demo accounts so the impacted-accounts
+# panel and Slack summary can sort enterprise-first. Backfill in production
+# will come from the Stripe subscription sync; here we just want visible
+# variety.
+plan_tier_by_account_key = %{
+  "demo:acme" => "enterprise",
+  "demo:acme-plus" => "enterprise",
+  "demo:stripe" => "enterprise",
+  "demo:linear" => "pro",
+  "demo:unity" => "pro",
+  "demo:wise" => "free"
+}
+
+for {account_key, tier} <- plan_tier_by_account_key do
+  case Repo.get_by(Account, account_key: account_key) do
+    nil ->
+      :ok
+
+    %Account{} = account ->
+      account
+      |> Ecto.Changeset.change(plan_tier: tier)
+      |> Repo.update!()
   end
 end
 
@@ -5766,6 +5792,88 @@ Enum.each(issue_fixtures, fn fixture ->
       existing -> existing
     end
     |> ErrorsIssue.changeset(attrs)
+    |> Repo.insert_or_update!()
+  end
+end)
+
+# Seed the per-(issue, account) counter rows that power the
+# impacted-accounts panel, the enterprise-first ordering, and the
+# Slack summary account context. Each entry names an issue by title,
+# the account by demo account_key, an event count, and how many hours
+# ago the last impact was.
+issue_id_by_title_for_impact =
+  from(i in ErrorsIssue, select: {i.title, i.id})
+  |> Repo.all()
+  |> Map.new()
+
+account_id_by_key_for_impact =
+  from(a in Account, select: {a.account_key, a.id})
+  |> Repo.all()
+  |> Map.new()
+
+impacted_account_fixtures = [
+  # Postgrex.Error: too_many_connections — hits multiple enterprise + pro
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:acme", event_count: 312, hours_ago: 0},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:stripe", event_count: 148, hours_ago: 0},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:linear", event_count: 26, hours_ago: 1},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:wise", event_count: 8, hours_ago: 2},
+
+  # gRPC UNAVAILABLE — hits the two enterprises hard
+  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:acme-plus", event_count: 118, hours_ago: 0},
+  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:acme", event_count: 61, hours_ago: 1},
+  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:unity", event_count: 22, hours_ago: 3},
+
+  # REAPI FindMissingBlobs shed — pro accounts affected
+  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:linear", event_count: 44, hours_ago: 0},
+  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:unity", event_count: 33, hours_ago: 1},
+  %{issue_title: "REAPI FindMissingBlobs shed under memory pressure", account_key: "demo:wise", event_count: 12, hours_ago: 4},
+
+  # Slack signature verification — one enterprise
+  %{issue_title: "Slack signature verification failed", account_key: "demo:stripe", event_count: 17, hours_ago: 6},
+
+  # Jason.DecodeError — pro accounts
+  %{issue_title: "Jason.DecodeError: unexpected end of input", account_key: "demo:linear", event_count: 48, hours_ago: 2},
+  %{issue_title: "Jason.DecodeError: unexpected end of input", account_key: "demo:unity", event_count: 21, hours_ago: 3},
+
+  # FileNotFound: Project.swift — mixed tiers
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:acme", event_count: 24, hours_ago: 3},
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:linear", event_count: 12, hours_ago: 5},
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:wise", event_count: 6, hours_ago: 8},
+
+  # ArgumentError: invalid path — one enterprise + one free
+  %{issue_title: "ArgumentError: invalid path", account_key: "demo:acme", event_count: 72, hours_ago: 1},
+  %{issue_title: "ArgumentError: invalid path", account_key: "demo:wise", event_count: 41, hours_ago: 2},
+
+  # MCP tool timed out — free tier only
+  %{issue_title: "MCP tool timed out: search_atlas", account_key: "demo:wise", event_count: 15, hours_ago: 1},
+
+  # Oban.Worker timeout on BuildProcessor — Pro accounts
+  %{issue_title: "Oban.Worker timeout on BuildProcessor", account_key: "demo:linear", event_count: 11, hours_ago: 4},
+  %{issue_title: "Oban.Worker timeout on BuildProcessor", account_key: "demo:unity", event_count: 8, hours_ago: 6}
+]
+
+Enum.each(impacted_account_fixtures, fn fixture ->
+  with issue_id when is_binary(issue_id) <- Map.get(issue_id_by_title_for_impact, fixture.issue_title),
+       account_id when is_binary(account_id) <- Map.get(account_id_by_key_for_impact, fixture.account_key) do
+    last_seen =
+      now
+      |> DateTime.add(-fixture.hours_ago * 3600, :second)
+      |> then(fn dt -> %{dt | microsecond: {0, 6}} end)
+
+    first_seen =
+      last_seen
+      |> DateTime.add(-max(fixture.event_count, 1) * 60, :second)
+
+    existing = Repo.get_by(ErrorsIssueAccount, issue_id: issue_id, account_id: account_id)
+
+    (existing || %ErrorsIssueAccount{})
+    |> ErrorsIssueAccount.changeset(%{
+      issue_id: issue_id,
+      account_id: account_id,
+      event_count: fixture.event_count,
+      first_seen: first_seen,
+      last_seen: last_seen
+    })
     |> Repo.insert_or_update!()
   end
 end)

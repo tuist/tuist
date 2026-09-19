@@ -14,6 +14,7 @@ defmodule Atlas.Engineering.Errors.Summaries do
 
   import Ecto.Query
 
+  alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Agents.SummaryAgent
   alias Atlas.Engineering.Errors.Issue
   alias Atlas.Engineering.Errors.SummaryRun
@@ -398,7 +399,12 @@ defmodule Atlas.Engineering.Errors.Summaries do
 
   defp slack_payload(run, issues) do
     issue_by_id = Map.new(issues, &{&1.id, &1})
-    attention_blocks = attention_blocks(run.attention, issue_by_id)
+    attention_issue_ids = attention_issue_ids(run.attention)
+
+    impacted_by_issue =
+      Errors.impacted_accounts_by_issue_ids(attention_issue_ids, limit_per_issue: 3)
+
+    attention_blocks = attention_blocks(run.attention, issue_by_id, impacted_by_issue)
 
     blocks = [
       %{
@@ -443,13 +449,23 @@ defmodule Atlas.Engineering.Errors.Summaries do
     }
   end
 
-  defp attention_blocks(items, issue_by_id) do
+  defp attention_issue_ids(items) do
+    items
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"issue_id" => id} when is_binary(id) -> [id]
+      _ -> []
+    end)
+  end
+
+  defp attention_blocks(items, issue_by_id, impacted_by_issue) do
     items
     |> List.wrap()
     |> Enum.flat_map(fn item ->
       case issue_by_id[item["issue_id"]] do
         %Issue{} = issue ->
           url = Endpoint.url() <> "/engineering/errors/" <> issue.id
+          impacted = Map.get(impacted_by_issue, issue.id, [])
 
           [
             %{
@@ -469,12 +485,73 @@ defmodule Atlas.Engineering.Errors.Summaries do
                 context_element("Events", issue.event_count)
               ]
             }
-          ]
+          ] ++ impacted_accounts_block(impacted)
 
         nil ->
           []
       end
     end)
+  end
+
+  # A Slack "context" block accepts up to 10 elements and each image
+  # element renders inline next to text — perfect for a compact row
+  # like `[icon] Acme (enterprise, 42 events)`.
+  defp impacted_accounts_block([]), do: []
+
+  defp impacted_accounts_block(rows) do
+    elements =
+      rows
+      |> Enum.flat_map(fn row ->
+        image = account_image_element(row.account)
+        text = account_text_element(row)
+
+        Enum.reject([image, text], &is_nil/1)
+      end)
+
+    if elements == [] do
+      []
+    else
+      [
+        %{
+          "type" => "context",
+          "elements" => [%{"type" => "mrkdwn", "text" => "*Impacted accounts:*"} | elements]
+        }
+      ]
+    end
+  end
+
+  defp account_image_element(%{primary_domain: domain} = _account)
+       when is_binary(domain) and byte_size(domain) > 0 do
+    normalised =
+      domain
+      |> String.replace(~r|^https?://|i, "")
+      |> String.trim_trailing("/")
+
+    %{
+      "type" => "image",
+      "image_url" => "https://www.google.com/s2/favicons?domain=" <> URI.encode(normalised) <> "&sz=64",
+      "alt_text" => "favicon"
+    }
+  end
+
+  defp account_image_element(_), do: nil
+
+  defp account_text_element(row) do
+    name = row.account.name |> slack_safe() |> truncate(60)
+    tier = row.account.plan_tier
+    prefix = if tier == "enterprise", do: ":star: ", else: ""
+
+    tier_part =
+      case tier do
+        nil -> ""
+        "" -> ""
+        other -> " (#{other})"
+      end
+
+    %{
+      "type" => "mrkdwn",
+      "text" => "#{prefix}*#{name}*#{tier_part} · #{row.event_count} events"
+    }
   end
 
   defp context_element(label, value) do

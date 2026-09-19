@@ -52,6 +52,7 @@ defmodule AtlasWeb.ErrorsLive.Index do
     issue_ids = Enum.map(issues, & &1.id)
     trend_series = Errors.event_trends(issue_ids, from, to)
     window_counts = Errors.event_counts_in_window(issue_ids, from, to)
+    enterprise_impacted_ids = Errors.enterprise_impacted_issue_ids(issue_ids)
 
     socket =
       socket
@@ -66,6 +67,7 @@ defmodule AtlasWeb.ErrorsLive.Index do
       |> assign(:errors_period, {from, to})
       |> assign(:trend_series, trend_series)
       |> assign(:window_counts, window_counts)
+      |> assign(:enterprise_impacted_ids, enterprise_impacted_ids)
 
     {:noreply, socket}
   end
@@ -226,6 +228,13 @@ defmodule AtlasWeb.ErrorsLive.Index do
                     <span data-part="issue-title" title={issue.title}>
                       {truncate_title(issue.title)}
                     </span>
+                    <.badge
+                      :if={MapSet.member?(@enterprise_impacted_ids, issue.id)}
+                      label={gettext("Enterprise impact")}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
                   </div>
                   <span data-part="issue-meta">
                     <.badge
