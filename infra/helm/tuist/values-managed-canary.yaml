@@ -21,7 +21,7 @@ registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
   deployEnv: canary
-  sentryEnv: can
+  sentryEnv: canary
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
