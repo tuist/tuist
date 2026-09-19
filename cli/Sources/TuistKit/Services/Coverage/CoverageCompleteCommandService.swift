@@ -74,12 +74,12 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
         if json {
             try Noora.current.json(
                 CoverageCompleteOutput(
-                    git_commit_sha: coverage.gitCommitSHA,
+                    gitCommitSHA: coverage.gitCommitSHA,
                     coverage: coverage.coverage,
-                    covered_lines: coverage.coveredLines,
-                    executable_lines: coverage.executableLines,
+                    coveredLines: coverage.coveredLines,
+                    executableLines: coverage.executableLines,
                     schemes: coverage.schemes,
-                    partial_schemes: coverage.partialSchemes,
+                    partialSchemes: coverage.partialSchemes,
                     complete: coverage.complete
                 )
             )
@@ -98,11 +98,21 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
 }
 
 private struct CoverageCompleteOutput: Codable {
-    let git_commit_sha: String
+    let gitCommitSHA: String
     let coverage: Double
-    let covered_lines: Int
-    let executable_lines: Int
+    let coveredLines: Int
+    let executableLines: Int
     let schemes: [String]
-    let partial_schemes: [String]
+    let partialSchemes: [String]
     let complete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case gitCommitSHA = "git_commit_sha"
+        case coverage
+        case coveredLines = "covered_lines"
+        case executableLines = "executable_lines"
+        case schemes
+        case partialSchemes = "partial_schemes"
+        case complete
+    }
 }
