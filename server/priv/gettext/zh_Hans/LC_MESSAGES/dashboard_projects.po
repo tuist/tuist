@@ -6,7 +6,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:950
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1004
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
 msgstr "%{average_build_time}秒"
@@ -32,44 +32,54 @@ msgstr "%{selective_test_effectiveness}%"
 msgid "%{selective_tests_effectiveness}%"
 msgstr "%{selective_tests_effectiveness}%"
 
-#: lib/tuist_web/live/projects_live.ex:242
+#: lib/tuist_web/live/projects_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr "所有项目"
 
+#: lib/tuist_web/live/bazel_cache_live.ex:121
+#: lib/tuist_web/live/bazel_invocations_live.ex:253
+#: lib/tuist_web/live/bazel_overview_live.ex:106
 #: lib/tuist_web/live/xcode_overview_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr "分析"
 
-#: lib/tuist_web/live/project_notifications_live.ex:699
-#: lib/tuist_web/live/project_notifications_live.ex:702
-#: lib/tuist_web/live/xcode_overview_live.ex:222
+#: lib/tuist_web/live/bazel_invocations_live.ex:905
+#: lib/tuist_web/live/bazel_invocations_live.ex:909
+#: lib/tuist_web/live/bazel_overview_live.ex:678
+#: lib/tuist_web/live/bazel_overview_live.ex:682
+#: lib/tuist_web/live/project_notifications_live.ex:754
+#: lib/tuist_web/live/project_notifications_live.ex:757
+#: lib/tuist_web/live/xcode_overview_live.ex:249
 #: lib/tuist_web/live/xcode_overview_live.html.heex:15
-#: lib/tuist_web/live/xcode_overview_live.html.heex:755
+#: lib/tuist_web/live/xcode_overview_live.html.heex:799
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr "任意"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:55
-#: lib/tuist_web/live/project_settings_live.html.heex:79
+#: lib/tuist_web/live/project_settings_live.html.heex:59
+#: lib/tuist_web/live/project_settings_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Anyone with the link"
 msgstr "持有链接的任何人"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:599
+#: lib/tuist_web/live/xcode_overview_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "App:"
 msgstr "应用："
 
-#: lib/tuist_web/live/project_settings_live.html.heex:176
+#: lib/tuist_web/live/project_settings_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr "您确定要删除此项吗？"
 
+#: lib/tuist_web/live/bazel_overview_live.ex:181
+#: lib/tuist_web/live/bazel_overview_live.ex:432
+#: lib/tuist_web/live/bazel_overview_live.ex:467
 #: lib/tuist_web/live/xcode_overview_live.html.heex:154
-#: lib/tuist_web/live/xcode_overview_live.html.heex:948
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1017
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1002
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1072
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr "平均构建时间"
@@ -79,53 +89,60 @@ msgstr "平均构建时间"
 msgid "Average time it takes to build a project as reported from Xcode post actions."
 msgstr "Xcode后操作报告的构建项目平均时间。"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:439
+#: lib/tuist_web/live/xcode_overview_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Binary cache and selective testing: no data yet"
 msgstr "二进制缓存和选择性测试：暂无数据"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:383
+#: lib/tuist_web/live/xcode_overview_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Build time"
 msgstr "构建时间"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:346
+#: lib/tuist_web/live/xcode_overview_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Build time saved"
 msgstr "节省的构建时间"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:743
+#: lib/tuist_web/live/bazel_builds_live.ex:10
+#: lib/tuist_web/live/bazel_overview_live.ex:301
+#: lib/tuist_web/live/xcode_overview_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "构建"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:720
+#: lib/tuist_web/live/xcode_overview_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Bundle install size"
 msgstr "包安装大小"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:25
-#: lib/tuist_web/live/project_bundle_settings_live.ex:23
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:25
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:32
-#: lib/tuist_web/live/project_notifications_live.html.heex:25
-#: lib/tuist_web/live/project_settings_live.html.heex:25
-#: lib/tuist_web/live/xcode_overview_live.html.heex:591
+#: lib/tuist_web/live/project_automations_live.html.heex:29
+#: lib/tuist_web/live/project_bundle_settings_live.ex:25
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:29
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:36
+#: lib/tuist_web/live/project_notifications_live.html.heex:29
+#: lib/tuist_web/live/project_settings_live.html.heex:29
+#: lib/tuist_web/live/xcode_overview_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "包"
 
-#: lib/tuist_web/live/project_notifications_live.ex:701
-#: lib/tuist_web/live/xcode_overview_live.ex:224
+#: lib/tuist_web/live/bazel_invocations_live.ex:903
+#: lib/tuist_web/live/bazel_invocations_live.ex:910
+#: lib/tuist_web/live/bazel_invocations_live.ex:978
+#: lib/tuist_web/live/bazel_overview_live.ex:676
+#: lib/tuist_web/live/bazel_overview_live.ex:683
+#: lib/tuist_web/live/project_notifications_live.ex:756
+#: lib/tuist_web/live/xcode_overview_live.ex:251
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
-#: lib/tuist_web/live/xcode_overview_live.html.heex:763
+#: lib/tuist_web/live/xcode_overview_live.html.heex:807
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:92
 #: lib/tuist_web/live/xcode_overview_live.html.heex:227
-#: lib/tuist_web/live/xcode_overview_live.html.heex:309
+#: lib/tuist_web/live/xcode_overview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Cache effectiveness"
 msgstr "缓存效率"
@@ -135,81 +152,94 @@ msgstr "缓存效率"
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
 msgstr "缓存效率表示模块缓存和Xcode缓存的综合命中率，显示了从缓存中解析而非重新构建的缓存项百分比。"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:839
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
-#: lib/tuist_web/live/project_notifications_live.html.heex:168
-#: lib/tuist_web/live/project_notifications_live.html.heex:491
-#: lib/tuist_web/live/project_notifications_live.html.heex:835
-#: lib/tuist_web/live/project_settings_live.html.heex:140
-#: lib/tuist_web/live/project_settings_live.html.heex:212
+#: lib/tuist_web/live/bazel_cache_live.ex:137
+#: lib/tuist_web/live/bazel_invocations_live.ex:232
+#: lib/tuist_web/live/bazel_overview_live.ex:137
+#: lib/tuist_web/live/bazel_overview_live.ex:332
+#: lib/tuist_web/live/project_automations_live.html.heex:1082
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:194
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:354
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:498
+#: lib/tuist_web/live/project_notifications_live.html.heex:172
+#: lib/tuist_web/live/project_notifications_live.html.heex:499
+#: lib/tuist_web/live/project_notifications_live.html.heex:844
+#: lib/tuist_web/live/project_settings_live.html.heex:145
+#: lib/tuist_web/live/project_settings_live.html.heex:296
+#: lib/tuist_web/live/project_settings_live.html.heex:368
 #: lib/tuist_web/live/xcode_overview_live.html.heex:71
-#: lib/tuist_web/live/xcode_overview_live.html.heex:639
-#: lib/tuist_web/live/xcode_overview_live.html.heex:811
+#: lib/tuist_web/live/xcode_overview_live.html.heex:672
+#: lib/tuist_web/live/xcode_overview_live.html.heex:855
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
-#: lib/tuist_web/live/create_project_live.ex:108
+#: lib/tuist_web/live/create_project_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "继续"
 
-#: lib/tuist_web/live/projects_live.ex:351
+#: lib/tuist_web/live/projects_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr "创建新项目"
 
-#: lib/tuist_web/live/create_project_live.ex:57
+#: lib/tuist_web/live/create_project_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Create a project"
 msgstr "创建项目"
 
-#: lib/tuist_web/live/projects_live.ex:337
+#: lib/tuist_web/live/projects_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr "创建项目"
 
-#: lib/tuist_web/live/projects_live.ex:183
-#: lib/tuist_web/live/projects_live.ex:232
-#: lib/tuist_web/live/projects_live.ex:306
+#: lib/tuist_web/live/projects_live.ex:213
+#: lib/tuist_web/live/projects_live.ex:262
+#: lib/tuist_web/live/projects_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr "创建于 %{time}"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:220
+#: lib/tuist_web/live/project_settings_live.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "删除"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:161
-#: lib/tuist_web/live/project_settings_live.html.heex:182
+#: lib/tuist_web/live/project_settings_live.html.heex:317
+#: lib/tuist_web/live/project_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Delete project"
 msgstr "删除项目"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:194
+#: lib/tuist_web/live/project_settings_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
 msgstr "删除项目将永久移除其所有数据"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:201
+#: lib/tuist_web/live/project_settings_live.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
 msgstr "输入此项目名称以确认"
 
+#: lib/tuist_web/live/bazel_invocations_live.ex:209
+#: lib/tuist_web/live/bazel_overview_live.ex:114
+#: lib/tuist_web/live/bazel_overview_live.ex:309
 #: lib/tuist_web/live/xcode_overview_live.html.heex:11
-#: lib/tuist_web/live/xcode_overview_live.html.heex:751
+#: lib/tuist_web/live/xcode_overview_live.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr "环境："
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:855
+#: lib/tuist_web/live/bazel_invocations_live.ex:669
+#: lib/tuist_web/live/bazel_invocations_live.ex:784
+#: lib/tuist_web/live/bazel_overview_live.ex:367
+#: lib/tuist_web/live/xcode_overview_live.html.heex:898
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr "失败的构建"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:477
+#: lib/tuist_web/live/bazel_overview_live.ex:505
+#: lib/tuist_web/live/xcode_overview_live.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
 msgstr "失败的运行"
@@ -218,188 +248,193 @@ msgstr "失败的运行"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:8
 #: lib/tuist_web/live/project_notifications_live.html.heex:8
 #: lib/tuist_web/live/project_settings_live.html.heex:8
-#: lib/tuist_web/live/project_settings_live.html.heex:31
+#: lib/tuist_web/live/project_settings_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "常规"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:47
+#: lib/tuist_web/live/project_settings_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "General access"
 msgstr "一般访问权限"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:213
-#: lib/tuist_web/live/project_notifications_live.ex:726
-#: lib/tuist_web/live/xcode_overview_live.html.heex:671
+#: lib/tuist_web/live/project_bundle_settings_live.ex:323
+#: lib/tuist_web/live/project_notifications_live.ex:781
+#: lib/tuist_web/live/xcode_overview_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Install size"
 msgstr "安装大小"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:907
+#: lib/tuist_web/live/bazel_overview_live.ex:383
+#: lib/tuist_web/live/xcode_overview_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
 msgstr "最近30次运行"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:530
+#: lib/tuist_web/live/bazel_overview_live.ex:521
+#: lib/tuist_web/live/xcode_overview_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Last 40 runs"
 msgstr "最近40次运行"
 
-#: lib/tuist_web/live/projects_live.ex:178
-#: lib/tuist_web/live/projects_live.ex:227
-#: lib/tuist_web/live/projects_live.ex:301
+#: lib/tuist_web/live/projects_live.ex:208
+#: lib/tuist_web/live/projects_live.ex:257
+#: lib/tuist_web/live/projects_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr "最后互动于 %{time}"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:571
+#: lib/tuist_web/live/xcode_overview_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
 msgstr "最新应用预览"
 
-#: lib/tuist_web/live/project_notifications_live.ex:700
-#: lib/tuist_web/live/xcode_overview_live.ex:223
+#: lib/tuist_web/live/bazel_invocations_live.ex:904
+#: lib/tuist_web/live/bazel_invocations_live.ex:911
+#: lib/tuist_web/live/bazel_invocations_live.ex:979
+#: lib/tuist_web/live/bazel_overview_live.ex:677
+#: lib/tuist_web/live/bazel_overview_live.ex:684
+#: lib/tuist_web/live/project_notifications_live.ex:755
+#: lib/tuist_web/live/xcode_overview_live.ex:250
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
-#: lib/tuist_web/live/xcode_overview_live.html.heex:771
+#: lib/tuist_web/live/xcode_overview_live.html.heex:815
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "本地"
 
-#: lib/tuist_web/live/create_project_live.ex:86
-#: lib/tuist_web/live/project_automations_live.html.heex:73
-#: lib/tuist_web/live/project_automations_live.html.heex:880
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:265
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:330
-#: lib/tuist_web/live/project_notifications_live.html.heex:278
-#: lib/tuist_web/live/project_notifications_live.html.heex:422
-#: lib/tuist_web/live/project_notifications_live.html.heex:516
-#: lib/tuist_web/live/project_notifications_live.html.heex:583
-#: lib/tuist_web/live/project_notifications_live.html.heex:755
-#: lib/tuist_web/live/projects_live.ex:360
+#: lib/tuist_web/live/create_project_live.ex:83
+#: lib/tuist_web/live/project_automations_live.html.heex:88
+#: lib/tuist_web/live/project_automations_live.html.heex:1140
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:111
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:220
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:269
+#: lib/tuist_web/live/project_notifications_live.html.heex:282
+#: lib/tuist_web/live/project_notifications_live.html.heex:430
+#: lib/tuist_web/live/project_notifications_live.html.heex:524
+#: lib/tuist_web/live/project_notifications_live.html.heex:591
+#: lib/tuist_web/live/project_notifications_live.html.heex:764
+#: lib/tuist_web/live/projects_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "名称"
 
-#: lib/tuist_web/live/projects_live.ex:344
-#, elixir-autogen, elixir-format
-msgid "New project"
-msgstr "新项目"
-
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1032
+#: lib/tuist_web/live/bazel_overview_live.ex:668
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1087
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
 msgstr "无构建记录"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:734
+#: lib/tuist_web/live/xcode_overview_live.html.heex:768
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
 msgstr "无包记录"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:581
+#: lib/tuist_web/live/xcode_overview_live.html.heex:604
 #, elixir-autogen, elixir-format
 msgid "No previews yet"
 msgstr "无预览"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:912
+#: lib/tuist_web/live/xcode_overview_live.html.heex:956
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
 msgstr "暂无最近构建"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:53
-#: lib/tuist_web/live/project_settings_live.html.heex:67
+#: lib/tuist_web/live/project_settings_live.html.heex:57
+#: lib/tuist_web/live/project_settings_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Only organization members"
 msgstr "仅组织成员"
 
+#: lib/tuist_web/live/bazel_invocation_live.ex:180
 #: lib/tuist_web/live/overview_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "总览"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:850
+#: lib/tuist_web/live/bazel_overview_live.ex:362
+#: lib/tuist_web/live/xcode_overview_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr "通过的构建"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:472
+#: lib/tuist_web/live/bazel_overview_live.ex:500
+#: lib/tuist_web/live/xcode_overview_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
 msgstr "通过的运行"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:39
+#: lib/tuist_web/live/project_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Preview access"
 msgstr "预览访问"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:544
+#: lib/tuist_web/live/xcode_overview_live.html.heex:567
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "预览"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:132
-#: lib/tuist_web/live/project_settings_live.html.heex:204
+#: lib/tuist_web/live/project_settings_live.html.heex:288
+#: lib/tuist_web/live/project_settings_live.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Project name"
 msgstr "项目名称"
 
-#: lib/tuist_web/live/projects_live.ex:34
-#: lib/tuist_web/live/projects_live.ex:125
+#: lib/tuist_web/live/projects_live.ex:42
+#: lib/tuist_web/live/projects_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "项目"
 
-#: lib/tuist_web/live/projects_live.ex:193
+#: lib/tuist_web/live/projects_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr "最近项目"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:148
+#: lib/tuist_web/live/project_settings_live.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "重命名"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:95
-#: lib/tuist_web/live/project_settings_live.html.heex:116
+#: lib/tuist_web/live/project_settings_live.html.heex:251
+#: lib/tuist_web/live/project_settings_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "Rename project"
 msgstr "重命名项目"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:110
+#: lib/tuist_web/live/project_settings_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "Rename your project?"
 msgstr "重命名您的项目？"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:127
+#: lib/tuist_web/live/project_settings_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr "重命名可能会有意想不到的后果"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:98
+#: lib/tuist_web/live/project_settings_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
 msgstr "重命名您的项目可能会产生意外的副作用。"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:535
+#: lib/tuist_web/live/bazel_overview_live.ex:526
+#: lib/tuist_web/live/xcode_overview_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
 msgstr "运行：暂无数据"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:409
+#: lib/tuist_web/live/xcode_overview_live.html.heex:411
 #, elixir-autogen, elixir-format
 msgid "Saved"
 msgstr "已保存"
 
-#: lib/tuist_web/live/projects_live.ex:254
+#: lib/tuist_web/live/projects_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr "搜索项目..."
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:123
 #: lib/tuist_web/live/xcode_overview_live.html.heex:239
-#: lib/tuist_web/live/xcode_overview_live.html.heex:324
+#: lib/tuist_web/live/xcode_overview_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
 msgstr "选择性测试效率"
@@ -409,22 +444,23 @@ msgstr "选择性测试效率"
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
 msgstr "选择性测试效率表示选择性测试命中与未命中之比。"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:42
+#: lib/tuist_web/live/project_settings_live.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
 msgstr "设置您的预览默认公开或私密。"
 
-#: lib/tuist_web/live/project_settings_live.ex:25
+#: lib/tuist_web/live/project_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "设置"
 
-#: lib/tuist_web/live/projects_live.ex:215
+#: lib/tuist_web/live/projects_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr "支持的平台"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:449
+#: lib/tuist_web/live/bazel_overview_live.ex:480
+#: lib/tuist_web/live/xcode_overview_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "测试"
@@ -434,232 +470,255 @@ msgstr "测试"
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "您查找的页面不存在或已被移动。"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:164
+#: lib/tuist_web/live/project_settings_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr "此操作无法撤销。"
 
-#: lib/tuist_web/live/create_project_live.ex:49
+#: lib/tuist_web/live/create_project_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr "Tuist 标志"
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:453
-#: lib/tuist_web/live/xcode_overview_live.html.heex:548
-#: lib/tuist_web/live/xcode_overview_live.html.heex:941
+#: lib/tuist_web/live/bazel_cache_live.ex:418
+#: lib/tuist_web/live/bazel_overview_live.ex:425
+#: lib/tuist_web/live/bazel_overview_live.ex:484
+#: lib/tuist_web/live/xcode_overview_live.html.heex:465
+#: lib/tuist_web/live/xcode_overview_live.html.heex:571
+#: lib/tuist_web/live/xcode_overview_live.html.heex:995
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "查看更多"
 
+#: lib/tuist_web/live/project_automation_live.ex:24
 #: lib/tuist_web/live/project_automations_live.ex:24
-#: lib/tuist_web/live/project_bundle_settings_live.ex:15
+#: lib/tuist_web/live/project_bundle_settings_live.ex:17
 #: lib/tuist_web/live/project_notifications_live.ex:26
-#: lib/tuist_web/live/project_settings_live.ex:15
+#: lib/tuist_web/live/project_settings_live.ex:17
+#: lib/tuist_web/live/projects_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "您无权执行此操作。"
 
-#: lib/tuist_web/live/xcode_overview_live.ex:220
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:30
+#: lib/tuist_web/live/xcode_overview_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr "自上个月以来"
 
-#: lib/tuist_web/live/xcode_overview_live.ex:217
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:27
+#: lib/tuist_web/live/xcode_overview_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "自上周以来"
 
-#: lib/tuist_web/live/xcode_overview_live.ex:218
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:28
+#: lib/tuist_web/live/xcode_overview_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "自去年以来"
 
+#: lib/tuist_web/live/bazel_cache_live.ex:146
+#: lib/tuist_web/live/bazel_invocations_live.ex:241
+#: lib/tuist_web/live/bazel_overview_live.ex:146
+#: lib/tuist_web/live/bazel_overview_live.ex:341
 #: lib/tuist_web/live/xcode_overview_live.html.heex:80
-#: lib/tuist_web/live/xcode_overview_live.html.heex:648
-#: lib/tuist_web/live/xcode_overview_live.html.heex:818
+#: lib/tuist_web/live/xcode_overview_live.html.heex:681
+#: lib/tuist_web/live/xcode_overview_live.html.heex:862
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "应用"
 
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:38
 #: lib/tuist_web/live/xcode_overview_live.html.heex:62
-#: lib/tuist_web/live/xcode_overview_live.html.heex:630
-#: lib/tuist_web/live/xcode_overview_live.html.heex:802
+#: lib/tuist_web/live/xcode_overview_live.html.heex:663
+#: lib/tuist_web/live/xcode_overview_live.html.heex:846
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "自定义"
 
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:37
 #: lib/tuist_web/live/xcode_overview_live.html.heex:59
-#: lib/tuist_web/live/xcode_overview_live.html.heex:627
-#: lib/tuist_web/live/xcode_overview_live.html.heex:799
+#: lib/tuist_web/live/xcode_overview_live.html.heex:660
+#: lib/tuist_web/live/xcode_overview_live.html.heex:843
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "过去12个月"
 
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:34
 #: lib/tuist_web/live/xcode_overview_live.html.heex:44
-#: lib/tuist_web/live/xcode_overview_live.html.heex:784
+#: lib/tuist_web/live/xcode_overview_live.html.heex:828
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "过去24小时"
 
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:36
 #: lib/tuist_web/live/xcode_overview_live.html.heex:54
-#: lib/tuist_web/live/xcode_overview_live.html.heex:622
-#: lib/tuist_web/live/xcode_overview_live.html.heex:794
+#: lib/tuist_web/live/xcode_overview_live.html.heex:655
+#: lib/tuist_web/live/xcode_overview_live.html.heex:838
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "过去30天"
 
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:35
 #: lib/tuist_web/live/xcode_overview_live.html.heex:49
-#: lib/tuist_web/live/xcode_overview_live.html.heex:617
-#: lib/tuist_web/live/xcode_overview_live.html.heex:789
+#: lib/tuist_web/live/xcode_overview_live.html.heex:650
+#: lib/tuist_web/live/xcode_overview_live.html.heex:833
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "过去7天"
 
-#: lib/tuist_web/live/xcode_overview_live.ex:219
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:29
+#: lib/tuist_web/live/xcode_overview_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr "自上个周期"
 
-#: lib/tuist_web/live/xcode_overview_live.ex:216
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:26
+#: lib/tuist_web/live/xcode_overview_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr "自昨天以来"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:539
+#: lib/tuist_web/live/project_notifications_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr "频道"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:75
+#: lib/tuist_web/live/project_notifications_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Configure"
 msgstr "配置"
 
-#: lib/tuist_web/live/project_notifications_live.ex:580
-#: lib/tuist_web/live/project_notifications_live.html.heex:92
-#: lib/tuist_web/live/project_notifications_live.html.heex:109
+#: lib/tuist_web/live/project_notifications_live.ex:599
+#: lib/tuist_web/live/project_notifications_live.html.heex:96
+#: lib/tuist_web/live/project_notifications_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Daily"
 msgstr "每日"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:85
+#: lib/tuist_web/live/project_notifications_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Frequency"
 msgstr "频率"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:91
-#: lib/tuist_web/live/project_notifications_live.html.heex:98
+#: lib/tuist_web/live/project_notifications_live.html.heex:95
+#: lib/tuist_web/live/project_notifications_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "从不"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:849
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:358
-#: lib/tuist_web/live/project_notifications_live.html.heex:176
+#: lib/tuist_web/live/project_automations_live.html.heex:1099
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:363
+#: lib/tuist_web/live/project_notifications_live.html.heex:180
+#: lib/tuist_web/live/project_settings_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "保存"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:46
+#: lib/tuist_web/live/project_notifications_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Send test report"
 msgstr "发送测试报告"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:141
+#: lib/tuist_web/live/project_notifications_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr "时间"
 
-#: lib/tuist_web/live/project_notifications_live.ex:566
+#: lib/tuist_web/live/project_notifications_live.ex:585
 #, elixir-autogen, elixir-format
 msgid "All days"
 msgstr "所有天数"
 
-#: lib/tuist_web/live/project_notifications_live.ex:564
+#: lib/tuist_web/live/project_notifications_live.ex:583
 #, elixir-autogen, elixir-format
 msgid "Select days"
 msgstr "选择日期"
 
-#: lib/tuist_web/live/project_notifications_live.ex:608
+#: lib/tuist_web/live/bazel_invocations_live.ex:795
+#: lib/tuist_web/live/project_notifications_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "平均"
 
-#: lib/tuist_web/live/project_notifications_live.ex:600
+#: lib/tuist_web/live/project_notifications_live.ex:630
 #, elixir-autogen, elixir-format
 msgid "Build duration"
 msgstr "构建时长"
 
-#: lib/tuist_web/live/project_notifications_live.ex:602
+#: lib/tuist_web/live/bazel_invocations_live.ex:580
+#: lib/tuist_web/live/bazel_overview_live.ex:161
+#: lib/tuist_web/live/project_notifications_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr "缓存命中率"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:292
-#: lib/tuist_web/live/project_notifications_live.html.heex:519
-#: lib/tuist_web/live/project_notifications_live.html.heex:598
+#: lib/tuist_web/live/project_notifications_live.html.heex:296
+#: lib/tuist_web/live/project_notifications_live.html.heex:527
+#: lib/tuist_web/live/project_notifications_live.html.heex:606
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "类别"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:237
+#: lib/tuist_web/live/project_notifications_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Get notified when metrics regress"
 msgstr "指标回退时收到通知"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:121
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:219
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:279
-#: lib/tuist_web/live/project_notifications_live.html.heex:321
-#: lib/tuist_web/live/project_notifications_live.html.heex:522
-#: lib/tuist_web/live/project_notifications_live.html.heex:631
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:125
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:223
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:283
+#: lib/tuist_web/live/project_notifications_live.html.heex:325
+#: lib/tuist_web/live/project_notifications_live.html.heex:530
+#: lib/tuist_web/live/project_notifications_live.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr "指标"
 
-#: lib/tuist_web/live/project_notifications_live.ex:601
+#: lib/tuist_web/live/project_notifications_live.ex:631
 #, elixir-autogen, elixir-format
 msgid "Test duration"
 msgstr "测试时长"
 
-#: lib/tuist_web/live/project_automations_live.ex:714
-#: lib/tuist_web/live/project_automations_live.html.heex:221
-#: lib/tuist_web/live/project_automations_live.html.heex:627
-#: lib/tuist_web/live/project_notifications_live.html.heex:392
-#: lib/tuist_web/live/project_notifications_live.html.heex:532
-#: lib/tuist_web/live/project_notifications_live.html.heex:715
+#: lib/tuist_web/live/project_automations_live.ex:1058
+#: lib/tuist_web/live/project_automations_live.html.heex:258
+#: lib/tuist_web/live/project_automations_live.html.heex:762
+#: lib/tuist_web/live/project_notifications_live.html.heex:400
+#: lib/tuist_web/live/project_notifications_live.html.heex:540
+#: lib/tuist_web/live/project_notifications_live.html.heex:724
 #, elixir-autogen, elixir-format
 msgid "Rolling window"
 msgstr "滚动窗口"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:255
+#: lib/tuist_web/live/project_notifications_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Add alert rule"
 msgstr "添加警报规则"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:285
-#: lib/tuist_web/live/project_notifications_live.html.heex:590
+#: lib/tuist_web/live/project_notifications_live.html.heex:289
+#: lib/tuist_web/live/project_notifications_live.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "Alert name"
 msgstr "警报名称"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:234
+#: lib/tuist_web/live/project_notifications_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Alert rules"
 msgstr "警报规则"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:69
+#: lib/tuist_web/live/project_notifications_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Configure schedule"
 msgstr "配置计划"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:42
+#: lib/tuist_web/live/project_notifications_live.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Configure your report notifications"
 msgstr "配置您的报告通知"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:379
-#: lib/tuist_web/live/project_notifications_live.html.heex:698
+#: lib/tuist_web/live/project_notifications_live.html.heex:387
+#: lib/tuist_web/live/project_notifications_live.html.heex:707
 #, elixir-autogen, elixir-format
 msgid "Deviation (%)"
 msgstr "偏差(%)"
@@ -668,762 +727,2024 @@ msgstr "偏差(%)"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:14
 #: lib/tuist_web/live/project_notifications_live.ex:32
 #: lib/tuist_web/live/project_notifications_live.html.heex:14
-#: lib/tuist_web/live/project_notifications_live.html.heex:32
+#: lib/tuist_web/live/project_notifications_live.html.heex:36
 #: lib/tuist_web/live/project_settings_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "通知"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:122
+#: lib/tuist_web/live/project_notifications_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Repeat"
 msgstr "重复"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:39
+#: lib/tuist_web/live/project_notifications_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Reports"
 msgstr "报告"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:57
+#: lib/tuist_web/live/project_notifications_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Schedule"
 msgstr "计划"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:195
+#: lib/tuist_web/live/project_notifications_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:438
-#: lib/tuist_web/live/project_automations_live.html.heex:744
-#: lib/tuist_web/live/project_notifications_live.html.heex:206
-#: lib/tuist_web/live/project_notifications_live.html.heex:216
-#: lib/tuist_web/live/project_notifications_live.html.heex:472
-#: lib/tuist_web/live/project_notifications_live.html.heex:809
-#: lib/tuist_web/live/project_notifications_live.html.heex:821
+#: lib/tuist_web/live/project_automations_live.html.heex:541
+#: lib/tuist_web/live/project_automations_live.html.heex:924
+#: lib/tuist_web/live/project_notifications_live.html.heex:210
+#: lib/tuist_web/live/project_notifications_live.html.heex:220
+#: lib/tuist_web/live/project_notifications_live.html.heex:480
+#: lib/tuist_web/live/project_notifications_live.html.heex:818
+#: lib/tuist_web/live/project_notifications_live.html.heex:830
 #, elixir-autogen, elixir-format
 msgid "Select channel"
 msgstr "选择频道"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:437
-#: lib/tuist_web/live/project_automations_live.html.heex:743
-#: lib/tuist_web/live/project_notifications_live.html.heex:215
-#: lib/tuist_web/live/project_notifications_live.html.heex:471
-#: lib/tuist_web/live/project_notifications_live.html.heex:808
+#: lib/tuist_web/live/project_automations_live.html.heex:540
+#: lib/tuist_web/live/project_automations_live.html.heex:923
+#: lib/tuist_web/live/project_notifications_live.html.heex:219
+#: lib/tuist_web/live/project_notifications_live.html.heex:479
+#: lib/tuist_web/live/project_notifications_live.html.heex:817
 #, elixir-autogen, elixir-format
 msgid "Update channel"
 msgstr "更新频道"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:461
-#: lib/tuist_web/live/project_notifications_live.html.heex:797
+#: lib/tuist_web/live/project_notifications_live.html.heex:469
+#: lib/tuist_web/live/project_notifications_live.html.heex:806
 #, elixir-autogen, elixir-format
 msgid "Slack channel"
 msgstr "Slack 频道"
 
-#: lib/tuist_web/live/project_notifications_live.ex:723
+#: lib/tuist_web/live/project_notifications_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "average"
 msgstr "平均"
 
-#: lib/tuist_web/live/project_notifications_live.ex:708
+#: lib/tuist_web/live/project_notifications_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "build time"
 msgstr "构建时间"
 
-#: lib/tuist_web/live/project_notifications_live.ex:716
-#: lib/tuist_web/live/project_notifications_live.ex:718
+#: lib/tuist_web/live/project_notifications_live.ex:771
+#: lib/tuist_web/live/project_notifications_live.ex:773
 #, elixir-autogen, elixir-format
 msgid "builds"
 msgstr "构建"
 
-#: lib/tuist_web/live/project_notifications_live.ex:714
+#: lib/tuist_web/live/project_notifications_live.ex:769
 #, elixir-autogen, elixir-format
 msgid "cache hit rate"
 msgstr "缓存命中率"
 
-#: lib/tuist_web/live/project_notifications_live.ex:711
+#: lib/tuist_web/live/project_notifications_live.ex:766
 #, elixir-autogen, elixir-format
 msgid "test time"
 msgstr "测试时间"
 
-#: lib/tuist_web/live/project_notifications_live.ex:717
+#: lib/tuist_web/live/project_notifications_live.ex:772
 #, elixir-autogen, elixir-format
 msgid "tests"
 msgstr "测试"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:850
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
-#: lib/tuist_web/live/project_notifications_live.html.heex:499
-#: lib/tuist_web/live/projects_live.ex:391
+#: lib/tuist_web/live/project_automations_live.html.heex:1102
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:202
+#: lib/tuist_web/live/project_notifications_live.html.heex:507
+#: lib/tuist_web/live/projects_live.ex:428
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "创建"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:249
+#: lib/tuist_web/live/project_notifications_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Create alert rule"
 msgstr "创建警报规则"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:222
-#: lib/tuist_web/live/project_notifications_live.html.heex:529
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:226
+#: lib/tuist_web/live/project_notifications_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Deviation"
 msgstr "偏差"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:542
+#: lib/tuist_web/live/project_automation_live.ex:295
+#: lib/tuist_web/live/project_automation_live.ex:301
+#: lib/tuist_web/live/project_notifications_live.html.heex:550
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "无"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:844
+#: lib/tuist_web/live/project_notifications_live.html.heex:853
 #, elixir-autogen, elixir-format
 msgid "Update"
 msgstr "更新"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:557
+#: lib/tuist_web/live/project_notifications_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "Update alert rule"
 msgstr "更新警报规则"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:245
+#: lib/tuist_web/live/project_notifications_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "指标"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:872
+#: lib/tuist_web/live/project_notifications_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr "创建警报规则以在指标回退时收到通知"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:870
+#: lib/tuist_web/live/project_notifications_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "No alert rules"
 msgstr "无警报规则"
 
-#: lib/tuist_web/live/project_automations_live.ex:30
-#: lib/tuist_web/live/project_automations_live.html.heex:20
-#: lib/tuist_web/live/project_automations_live.html.heex:32
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:20
-#: lib/tuist_web/live/project_notifications_live.html.heex:20
-#: lib/tuist_web/live/project_settings_live.html.heex:20
+#: lib/tuist_web/live/project_automation_live.ex:39
+#: lib/tuist_web/live/project_automation_live.html.heex:6
+#: lib/tuist_web/live/project_automations_live.ex:35
+#: lib/tuist_web/live/project_automations_live.html.heex:23
+#: lib/tuist_web/live/project_automations_live.html.heex:36
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:23
+#: lib/tuist_web/live/project_notifications_live.html.heex:23
+#: lib/tuist_web/live/project_settings_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Automations"
 msgstr "自动化"
 
-#: lib/tuist_web/live/create_project_live.ex:98
-#: lib/tuist_web/live/projects_live.ex:370
+#: lib/tuist_web/live/create_project_live.ex:95
+#: lib/tuist_web/live/projects_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr "构建系统"
 
-#: lib/tuist_web/live/create_project_live.ex:92
-#: lib/tuist_web/live/projects_live.ex:364
+#: lib/tuist_web/live/create_project_live.ex:89
+#: lib/tuist_web/live/projects_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr "选择构建系统"
 
-#: lib/tuist_web/live/project_notifications_live.ex:620
+#: lib/tuist_web/live/project_notifications_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
 msgstr "当分支 <strong>%{git_branch}</strong> 上最新包的 <strong>%{size_label}</strong> 相较前一个包增长超过 <strong>%{deviation}%</strong> 时发出警报。"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:365
-#: lib/tuist_web/live/project_notifications_live.html.heex:683
+#: lib/tuist_web/live/bazel_invocation_live.ex:281
+#: lib/tuist_web/live/project_notifications_live.html.heex:372
+#: lib/tuist_web/live/project_notifications_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr "分支"
 
-#: lib/tuist_web/live/project_notifications_live.ex:603
+#: lib/tuist_web/live/project_notifications_live.ex:633
 #, elixir-autogen, elixir-format
 msgid "Bundle size"
 msgstr "包大小"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:214
-#: lib/tuist_web/live/project_notifications_live.ex:727
+#: lib/tuist_web/live/project_bundle_settings_live.ex:324
+#: lib/tuist_web/live/project_notifications_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "Download size"
 msgstr "下载大小"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:343
-#: lib/tuist_web/live/project_notifications_live.html.heex:657
+#: lib/tuist_web/live/project_notifications_live.html.heex:347
+#: lib/tuist_web/live/project_notifications_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Size metric"
 msgstr "尺寸指标"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:372
-#: lib/tuist_web/live/project_notifications_live.html.heex:690
+#: lib/tuist_web/live/project_notifications_live.ex:626
 #, elixir-autogen, elixir-format
 msgid "e.g. main"
 msgstr "例如 main"
 
-#: lib/tuist_web/live/project_notifications_live.ex:686
+#: lib/tuist_web/live/project_notifications_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "%{scheme} %{unit}"
 msgstr "%{scheme} %{unit}"
 
-#: lib/tuist_web/live/project_notifications_live.ex:650
+#: lib/tuist_web/live/project_notifications_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
 msgstr "当最近 <strong>%{rolling_window_size} %{current_unit}</strong> 的 <strong>%{metric_category}</strong> 相较之前的 <strong>%{rolling_window_size} %{unit}</strong> 下降超过 <strong>%{deviation}%</strong> 时发出警报。"
 
-#: lib/tuist_web/live/project_notifications_live.ex:661
+#: lib/tuist_web/live/project_notifications_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
 msgstr "当最近 <strong>%{rolling_window_size} %{current_unit}</strong> 的 <strong>%{metric_category}</strong> 相较之前的 <strong>%{rolling_window_size} %{unit}</strong> 增长超过 <strong>%{deviation}%</strong> 时发出警报。"
 
-#: lib/tuist_web/live/project_notifications_live.ex:628
+#: lib/tuist_web/live/project_notifications_live.ex:668
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
 msgstr "当分支 <strong>%{git_branch}</strong> 上最新 <strong>%{bundle_name}</strong> 包的 <strong>%{size_label}</strong> 相较前一个包增长超过 <strong>%{deviation}%</strong> 时发出警报。"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:408
-#: lib/tuist_web/live/project_notifications_live.html.heex:737
+#: lib/tuist_web/live/project_notifications_live.html.heex:416
+#: lib/tuist_web/live/project_notifications_live.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr "方案"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:178
-#: lib/tuist_web/live/project_notifications_live.html.heex:415
-#: lib/tuist_web/live/project_notifications_live.html.heex:429
-#: lib/tuist_web/live/project_notifications_live.html.heex:744
-#: lib/tuist_web/live/project_notifications_live.html.heex:762
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:182
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:341
+#: lib/tuist_web/live/project_notifications_live.html.heex:423
+#: lib/tuist_web/live/project_notifications_live.html.heex:437
+#: lib/tuist_web/live/project_notifications_live.html.heex:753
+#: lib/tuist_web/live/project_notifications_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "e.g. MyApp (optional)"
 msgstr "例如 MyApp（可选）"
 
-#: lib/tuist_web/live/project_notifications_live.ex:689
+#: lib/tuist_web/live/project_notifications_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "%{environment} %{unit}"
 msgstr "%{environment} %{unit}"
 
-#: lib/tuist_web/live/project_notifications_live.ex:679
+#: lib/tuist_web/live/project_notifications_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "%{scheme} %{environment} %{unit}"
 msgstr "%{scheme} %{environment} %{unit}"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:439
-#: lib/tuist_web/live/project_notifications_live.html.heex:773
+#: lib/tuist_web/live/bazel_invocations_live.ex:974
+#: lib/tuist_web/live/project_notifications_live.html.heex:447
+#: lib/tuist_web/live/project_notifications_live.html.heex:782
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "环境"
 
-#: lib/tuist_web/live/project_notifications_live.ex:704
+#: lib/tuist_web/live/project_notifications_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "local"
 msgstr "本地"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:87
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Add threshold"
 msgstr "添加阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:235
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "全部"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:157
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:225
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:316
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:161
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:229
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
 msgstr "基线分支"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:42
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr "当包大小相较基线分支超过阈值时阻止 PR"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:221
+#: lib/tuist_web/live/project_bundle_settings_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "当 <strong>%{baseline_branch}</strong> 上最新包的 <strong>%{size_label}</strong> 增长超过 <strong>%{deviation}%</strong> 时阻止 PR。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:229
+#: lib/tuist_web/live/project_bundle_settings_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "当 <strong>%{baseline_branch}</strong> 上最新 <strong>%{bundle_name}</strong> 包的 <strong>%{size_label}</strong> 增长超过 <strong>%{deviation}%</strong> 时阻止 PR。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:175
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:232
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr "包名称"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:386
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr "创建阈值，当包大小超过限制时阻止 PR"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:81
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Create size threshold"
 msgstr "创建大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:143
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:302
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:147
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Deviation %"
 msgstr "偏差百分比"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr "无大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:39
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Size thresholds"
 msgstr "大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:114
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Threshold name"
 msgstr "阈值名称"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:77
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Thresholds"
 msgstr "阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:244
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "Update size threshold"
 msgstr "更新大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:67
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Connect GitHub"
 msgstr "连接 GitHub"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:57
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr "连接 Tuist GitHub 应用以在 PR 上启用包大小检测。"
 
-#: lib/tuist_web/live/create_project_live.ex:59
+#: lib/tuist_web/live/create_project_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Create a Tuist project"
 msgstr "创建 Tuist 项目"
 
-#: lib/tuist_web/live/create_project_live.ex:71
+#: lib/tuist_web/live/create_project_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "组织"
 
-#: lib/tuist_web/live/create_project_live.ex:65
+#: lib/tuist_web/live/create_project_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Select organization"
 msgstr "选择组织"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:311
+#: lib/tuist_web/live/bazel_invocation_live.ex:633
+#: lib/tuist_web/live/project_automations_live.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Action"
 msgstr "操作"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:322
+#: lib/tuist_web/live/project_automations_live.html.heex:411
 #, elixir-autogen, elixir-format
 msgid "Add action"
 msgstr "添加操作"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:60
+#: lib/tuist_web/live/project_automations_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Add automation"
 msgstr "添加自动化"
 
-#: lib/tuist_web/live/project_automations_live.ex:630
+#: lib/tuist_web/live/project_automations_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "Add label"
 msgstr "添加标签"
 
-#: lib/tuist_web/live/project_automations_live.ex:651
+#: lib/tuist_web/live/project_automations_live.ex:982
 #, elixir-autogen, elixir-format
 msgid "Add label: %{label}"
 msgstr "添加标签：%{label}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:551
+#: lib/tuist_web/live/project_automations_live.html.heex:681
 #, elixir-autogen, elixir-format
 msgid "Add recovery action"
 msgstr "添加恢复操作"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:492
-#: lib/tuist_web/live/project_automations_live.html.heex:798
+#: lib/tuist_web/live/project_automations_live.html.heex:595
+#: lib/tuist_web/live/project_automations_live.html.heex:978
 #, elixir-autogen, elixir-format
 msgid "Available variables:"
 msgstr "可用变量："
 
-#: lib/tuist_web/live/project_automations_live.ex:628
-#: lib/tuist_web/live/project_automations_live.html.heex:332
-#: lib/tuist_web/live/project_automations_live.html.heex:561
+#: lib/tuist_web/live/project_automations_live.ex:959
+#: lib/tuist_web/live/project_automations_live.html.heex:421
+#: lib/tuist_web/live/project_automations_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Change state"
 msgstr "更改状态"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:386
-#: lib/tuist_web/live/project_automations_live.html.heex:692
+#: lib/tuist_web/live/project_automations_live.html.heex:476
+#: lib/tuist_web/live/project_automations_live.html.heex:859
 #, elixir-autogen, elixir-format
 msgid "Change state to"
 msgstr "更改状态为"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:91
+#: lib/tuist_web/live/project_automation_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Condition"
 msgstr "条件"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:42
+#: lib/tuist_web/live/project_automations_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Continuously monitor tests and respond with automated actions."
 msgstr "持续监控测试并自动响应操作。"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:53
+#: lib/tuist_web/live/project_automations_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Create automation"
 msgstr "创建自动化"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:906
+#: lib/tuist_web/live/project_automations_live.html.heex:1179
 #, elixir-autogen, elixir-format
 msgid "Delete this automation?"
 msgstr "删除此自动化？"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:52
+#: lib/tuist_web/live/project_automations_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Edit automation"
 msgstr "编辑自动化"
 
-#: lib/tuist_web/live/project_automations_live.ex:620
+#: lib/tuist_web/live/project_automations_live.ex:951
 #, elixir-autogen, elixir-format
 msgid "Enable"
 msgstr "启用"
 
-#: lib/tuist_web/live/project_automations_live.ex:625
-#: lib/tuist_web/live/project_automations_live.html.heex:412
-#: lib/tuist_web/live/project_automations_live.html.heex:700
+#: lib/tuist_web/live/project_automation_live.ex:292
+#: lib/tuist_web/live/project_automation_live.html.heex:26
+#: lib/tuist_web/live/project_automations_live.ex:956
+#: lib/tuist_web/live/project_automations_live.html.heex:515
+#: lib/tuist_web/live/project_automations_live.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "已启用"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:484
-#: lib/tuist_web/live/project_automations_live.html.heex:790
+#: lib/tuist_web/live/project_automations_live.html.heex:587
+#: lib/tuist_web/live/project_automations_live.html.heex:970
 #, elixir-autogen, elixir-format
 msgid "Enter message template..."
 msgstr "输入消息模板..."
 
-#: lib/tuist_web/live/project_automations_live.ex:569
-#: lib/tuist_web/live/project_automations_live.html.heex:111
+#: lib/tuist_web/live/project_automations_live.ex:898
+#: lib/tuist_web/live/project_automations_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Flakiness rate"
 msgstr "不稳定率"
 
-#: lib/tuist_web/live/project_automations_live.ex:570
-#: lib/tuist_web/live/project_automations_live.html.heex:119
+#: lib/tuist_web/live/project_automations_live.ex:899
+#: lib/tuist_web/live/project_automations_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
 msgstr "不稳定运行"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:349
-#: lib/tuist_web/live/project_automations_live.html.heex:595
+#: lib/tuist_web/live/project_automations_live.html.heex:438
+#: lib/tuist_web/live/project_automations_live.html.heex:725
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
 msgstr "标记为不稳定"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:504
-#: lib/tuist_web/live/project_automations_live.html.heex:810
+#: lib/tuist_web/live/project_automations_live.ex:745
+#: lib/tuist_web/live/project_automations_live.html.heex:607
+#: lib/tuist_web/live/project_automations_live.html.heex:990
 #, elixir-autogen, elixir-format
 msgid "Mark test as flaky"
 msgstr "标记测试为不稳定"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:462
-#: lib/tuist_web/live/project_automations_live.html.heex:768
+#: lib/tuist_web/live/project_automations_live.html.heex:565
+#: lib/tuist_web/live/project_automations_live.html.heex:948
 #, elixir-autogen, elixir-format
 msgid "Message template"
 msgstr "消息模板"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:868
+#: lib/tuist_web/live/project_automations_live.html.heex:1123
 #, elixir-autogen, elixir-format
 msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
 msgstr "暂无自动化。添加一个以根据条件自动管理测试用例状态。"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:539
+#: lib/tuist_web/live/project_automation_live.html.heex:56
+#: lib/tuist_web/live/project_automations_live.html.heex:645
+#: lib/tuist_web/live/project_automations_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "Recovery"
 msgstr "恢复"
 
-#: lib/tuist_web/live/project_automations_live.ex:631
+#: lib/tuist_web/live/project_automations_live.ex:962
 #, elixir-autogen, elixir-format
 msgid "Remove label"
 msgstr "移除标签"
 
-#: lib/tuist_web/live/project_automations_live.ex:654
+#: lib/tuist_web/live/project_automations_live.ex:985
 #, elixir-autogen, elixir-format
 msgid "Remove label: %{label}"
 msgstr "移除标签：%{label}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:542
+#: lib/tuist_web/live/project_automations_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Run actions when the conditions no longer hold"
 msgstr "条件不再满足时执行操作"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:314
+#: lib/tuist_web/live/project_automations_live.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "Run these actions for each test case that meets the condition"
 msgstr "对满足条件的每个测试用例执行这些操作"
 
-#: lib/tuist_web/live/project_automations_live.ex:629
-#: lib/tuist_web/live/project_automations_live.html.heex:371
-#: lib/tuist_web/live/project_automations_live.html.heex:425
-#: lib/tuist_web/live/project_automations_live.html.heex:600
-#: lib/tuist_web/live/project_automations_live.html.heex:731
+#: lib/tuist_web/live/project_automations_live.ex:960
+#: lib/tuist_web/live/project_automations_live.html.heex:460
+#: lib/tuist_web/live/project_automations_live.html.heex:528
+#: lib/tuist_web/live/project_automations_live.html.heex:730
+#: lib/tuist_web/live/project_automations_live.html.heex:911
 #, elixir-autogen, elixir-format
 msgid "Send Slack notification"
 msgstr "发送 Slack 通知"
 
-#: lib/tuist_web/live/project_automations_live.ex:648
+#: lib/tuist_web/live/project_automations_live.ex:979
 #, elixir-autogen, elixir-format
 msgid "Slack: not configured"
 msgstr "Slack：未配置"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:465
-#: lib/tuist_web/live/project_automations_live.html.heex:771
+#: lib/tuist_web/live/project_automations_live.html.heex:568
+#: lib/tuist_web/live/project_automations_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Supports Slack"
 msgstr "支持 Slack"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:39
+#: lib/tuist_web/live/project_automations_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Test case automations"
 msgstr "测试用例自动化"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:883
+#: lib/tuist_web/live/project_automations_live.html.heex:1143
 #, elixir-autogen, elixir-format
 msgid "Trigger"
 msgstr "触发"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:94
-#, elixir-autogen, elixir-format
-msgid "Trigger the automation when this condition is met"
-msgstr "当满足此条件时触发自动化"
-
-#: lib/tuist_web/live/project_automations_live.ex:572
-#: lib/tuist_web/live/project_automations_live.ex:583
-#: lib/tuist_web/live/project_automations_live.ex:606
-#: lib/tuist_web/live/project_automations_live.ex:621
-#: lib/tuist_web/live/project_automations_live.ex:626
-#: lib/tuist_web/live/project_automations_live.ex:632
+#: lib/tuist_web/live/bazel_invocation_live.ex:811
+#: lib/tuist_web/live/project_automations_live.ex:902
+#: lib/tuist_web/live/project_automations_live.ex:913
+#: lib/tuist_web/live/project_automations_live.ex:936
+#: lib/tuist_web/live/project_automations_live.ex:952
+#: lib/tuist_web/live/project_automations_live.ex:957
+#: lib/tuist_web/live/project_automations_live.ex:963
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "未知"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:366
-#: lib/tuist_web/live/project_automations_live.html.heex:578
+#: lib/tuist_web/live/project_automations_live.html.heex:455
+#: lib/tuist_web/live/project_automations_live.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
 msgstr "取消不稳定标记"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:508
-#: lib/tuist_web/live/project_automations_live.html.heex:814
+#: lib/tuist_web/live/project_automations_live.ex:748
+#: lib/tuist_web/live/project_automations_live.html.heex:611
+#: lib/tuist_web/live/project_automations_live.html.heex:994
 #, elixir-autogen, elixir-format
 msgid "Unmark test as flaky"
 msgstr "取消测试不稳定标记"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:103
+#: lib/tuist_web/live/project_automations_live.html.heex:117
+#: lib/tuist_web/live/project_automations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "When"
 msgstr "当"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:609
+#: lib/tuist_web/live/project_automations_live.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "Without trigger for"
 msgstr "无触发器于"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:80
+#: lib/tuist_web/live/project_automations_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "e.g. Auto-quarantine flaky tests"
 msgstr "例如 自动隔离不稳定测试"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:473
-#: lib/tuist_web/live/project_automations_live.html.heex:779
+#: lib/tuist_web/live/project_automations_live.html.heex:576
+#: lib/tuist_web/live/project_automations_live.html.heex:959
 #, elixir-autogen, elixir-format
 msgid "formatting."
 msgstr "格式化。"
 
-#: lib/tuist_web/live/project_automations_live.ex:618
+#: lib/tuist_web/live/project_automations_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Mute"
 msgstr "静音"
 
-#: lib/tuist_web/live/project_automations_live.ex:623
-#: lib/tuist_web/live/project_automations_live.html.heex:394
-#: lib/tuist_web/live/project_automations_live.html.heex:709
+#: lib/tuist_web/live/project_automations_live.ex:954
+#: lib/tuist_web/live/project_automations_live.html.heex:484
+#: lib/tuist_web/live/project_automations_live.html.heex:876
 #, elixir-autogen, elixir-format
 msgid "Muted"
 msgstr "已静音"
 
-#: lib/tuist_web/live/project_automations_live.ex:619
+#: lib/tuist_web/live/project_automations_live.ex:950
 #, elixir-autogen, elixir-format
 msgid "Skip"
 msgstr "跳过"
 
-#: lib/tuist_web/live/project_automations_live.ex:624
-#: lib/tuist_web/live/project_automations_live.html.heex:403
-#: lib/tuist_web/live/project_automations_live.html.heex:718
+#: lib/tuist_web/live/project_automations_live.ex:955
+#: lib/tuist_web/live/project_automations_live.html.heex:493
+#: lib/tuist_web/live/project_automations_live.html.heex:885
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "已跳过"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:141
+#: lib/tuist_web/live/project_automations_live.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Comparison"
 msgstr "比较"
 
-#: lib/tuist_web/live/project_automations_live.ex:615
+#: lib/tuist_web/live/project_automations_live.ex:946
 #, elixir-autogen, elixir-format
 msgid "Count"
 msgstr "计数"
 
-#: lib/tuist_web/live/project_automations_live.ex:602
-#: lib/tuist_web/live/project_automations_live.html.heex:149
+#: lib/tuist_web/live/project_automations_live.ex:932
+#: lib/tuist_web/live/project_automations_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Greater or equal"
 msgstr "大于等于"
 
-#: lib/tuist_web/live/project_automations_live.ex:603
-#: lib/tuist_web/live/project_automations_live.html.heex:157
+#: lib/tuist_web/live/project_automations_live.ex:933
+#: lib/tuist_web/live/project_automations_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Greater than"
 msgstr "大于"
 
-#: lib/tuist_web/live/project_automations_live.ex:605
-#: lib/tuist_web/live/project_automations_live.html.heex:173
+#: lib/tuist_web/live/project_automations_live.ex:935
+#: lib/tuist_web/live/project_automations_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Less or equal"
 msgstr "小于等于"
 
-#: lib/tuist_web/live/project_automations_live.ex:604
-#: lib/tuist_web/live/project_automations_live.html.heex:165
+#: lib/tuist_web/live/project_automations_live.ex:934
+#: lib/tuist_web/live/project_automations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Less than"
 msgstr "小于"
 
-#: lib/tuist_web/live/project_automations_live.ex:614
+#: lib/tuist_web/live/project_automations_live.ex:944
+#: lib/tuist_web/live/project_automations_live.ex:945
 #, elixir-autogen, elixir-format
 msgid "Percent"
 msgstr "百分比"
 
-#: lib/tuist_web/live/project_automations_live.ex:616
+#: lib/tuist_web/live/project_automations_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Threshold"
 msgstr "阈值"
 
-#: lib/tuist_web/live/project_automations_live.ex:662
+#: lib/tuist_web/live/project_automations_live.ex:993
 #, elixir-autogen, elixir-format
 msgid "When flakiness rate %{symbol} %{threshold}% over %{window}"
 msgstr "当不稳定率 %{symbol} %{threshold}% 超过 %{window}"
 
-#: lib/tuist_web/live/project_automations_live.ex:675
+#: lib/tuist_web/live/project_automations_live.ex:1006
 #, elixir-autogen, elixir-format
 msgid "When flaky runs %{symbol} %{threshold} over %{window}"
 msgstr "当不稳定运行 %{symbol} %{threshold} 超过 %{window}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:259
-#: lib/tuist_web/live/project_automations_live.html.heex:661
+#: lib/tuist_web/live/project_automations_live.html.heex:302
+#: lib/tuist_web/live/project_automations_live.html.heex:802
 #, elixir-autogen, elixir-format
 msgid "Last N runs"
 msgstr "最近N次运行"
 
-#: lib/tuist_web/live/project_automations_live.ex:715
-#: lib/tuist_web/live/project_automations_live.html.heex:213
-#: lib/tuist_web/live/project_automations_live.html.heex:617
+#: lib/tuist_web/live/project_automations_live.ex:1059
+#: lib/tuist_web/live/project_automations_live.html.heex:250
+#: lib/tuist_web/live/project_automations_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Last days"
 msgstr "最近天数"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:205
+#: lib/tuist_web/live/project_automations_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Over"
 msgstr "超过"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:238
-#: lib/tuist_web/live/project_automations_live.html.heex:643
+#: lib/tuist_web/live/project_automations_live.html.heex:275
+#: lib/tuist_web/live/project_automations_live.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Window"
 msgstr "窗口"
 
-#: lib/tuist_web/live/project_automations_live.ex:702
+#: lib/tuist_web/live/project_automation_live.ex:304
+#: lib/tuist_web/live/project_automations_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "the last %{size} runs"
 msgstr "最近 %{size} 次运行"
 
-#: lib/tuist_web/live/project_automations_live.ex:748
+#: lib/tuist_web/live/project_automations_live.ex:1138
 #, elixir-autogen, elixir-format
 msgid "1–%{max}"
 msgstr "1–%{max}"
 
-#: lib/tuist_web/live/project_automations_live.ex:586
+#: lib/tuist_web/live/project_automations_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is manually flagged as flaky."
 msgstr "当测试被手动标记为不稳定时触发。"
 
-#: lib/tuist_web/live/project_automations_live.ex:595
+#: lib/tuist_web/live/project_automations_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is muted (still runs, failures ignored)."
 msgstr "当测试被静音（仍然运行，失败忽略）时触发。"
 
-#: lib/tuist_web/live/project_automations_live.ex:598
+#: lib/tuist_web/live/project_automations_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is skipped entirely."
 msgstr "当测试被完全跳过时触发。"
 
-#: lib/tuist_web/live/project_automations_live.ex:592
+#: lib/tuist_web/live/project_automations_live.ex:922
 #, elixir-autogen, elixir-format
 msgid "Fires when a test returns to the default enabled state."
 msgstr "当测试恢复为默认启用状态时触发。"
 
-#: lib/tuist_web/live/project_automations_live.ex:589
+#: lib/tuist_web/live/project_automations_live.ex:919
 #, elixir-autogen, elixir-format
 msgid "Fires when the flaky flag is manually removed."
 msgstr "当不稳定标记被手动移除时触发。"
 
-#: lib/tuist_web/live/project_automations_live.ex:574
+#: lib/tuist_web/live/project_automations_live.ex:904
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
 msgstr "标记为不稳定"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:283
+#: lib/tuist_web/live/project_automations_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "On these events"
 msgstr "在这些事件上"
 
-#: lib/tuist_web/live/project_automations_live.ex:577
+#: lib/tuist_web/live/project_automations_live.ex:907
 #, elixir-autogen, elixir-format
 msgid "State changed to Enabled"
 msgstr "状态变更为启用"
 
-#: lib/tuist_web/live/project_automations_live.ex:579
+#: lib/tuist_web/live/project_automations_live.ex:909
 #, elixir-autogen, elixir-format
 msgid "State changed to Muted"
 msgstr "状态变更为静音"
 
-#: lib/tuist_web/live/project_automations_live.ex:581
+#: lib/tuist_web/live/project_automations_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "State changed to Skipped"
 msgstr "状态变更为跳过"
 
-#: lib/tuist_web/live/project_automations_live.ex:571
-#: lib/tuist_web/live/project_automations_live.html.heex:127
+#: lib/tuist_web/live/project_automations_live.ex:901
+#: lib/tuist_web/live/project_automations_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Test updated"
 msgstr "测试已更新"
 
-#: lib/tuist_web/live/project_automations_live.ex:575
+#: lib/tuist_web/live/project_automations_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
 msgstr "取消不稳定标记"
 
-#: lib/tuist_web/live/project_automations_live.ex:689
+#: lib/tuist_web/live/project_automations_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "When a test is updated"
 msgstr "当测试被更新时"
 
-#: lib/tuist_web/live/project_automations_live.ex:693
+#: lib/tuist_web/live/project_automations_live.ex:1037
 #, elixir-autogen, elixir-format
 msgid "When a test is updated: %{events}"
 msgstr "当测试被更新：%{events}"
+
+#: lib/tuist_web/live/projects_live.ex:375
+#, elixir-autogen, elixir-format
+msgid "New Project"
+msgstr "新建项目"
+
+#: lib/tuist_web/live/project_automations_live.ex:900
+#: lib/tuist_web/live/project_automations_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Test reliability"
+msgstr "测试可靠性"
+
+#: lib/tuist_web/live/project_notifications_live.ex:621
+#, elixir-autogen, elixir-format
+msgid "Branch is required."
+msgstr "分支为必填项。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Branch name"
+msgstr "分支名称"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:99
+#, elixir-autogen, elixir-format
+msgid "Default branch"
+msgstr "默认分支"
+
+#: lib/tuist_web/live/project_settings_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "Default branch updated."
+msgstr "默认分支已更新。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:123
+#, elixir-autogen, elixir-format
+msgid "Edit default branch"
+msgstr "编辑默认分支"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
+msgstr "Tuist 将此分支视为分析、洞察和比较的基准。"
+
+#: lib/tuist_web/live/project_settings_live.ex:115
+#, elixir-autogen, elixir-format
+msgid "can't be blank"
+msgstr "不能为空"
+
+#: lib/tuist_web/live/project_automations_live.ex:614
+#, elixir-autogen, elixir-format
+msgid "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+msgstr "此自动化使用了不受支持的触发器配置。请在启用前进行编辑。"
+
+#: lib/tuist_web/live/project_automation_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "%{actor} changed this automation from %{source}"
+msgstr "%{actor} 从 %{source} 更改了此自动化"
+
+#: lib/tuist_web/live/project_automation_live.ex:79
+#, elixir-autogen, elixir-format
+msgid "%{actor} created this automation from %{source}"
+msgstr "%{actor} 从 %{source} 创建了此自动化"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "操作"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Automation"
+msgstr "自动化"
+
+#: lib/tuist_web/live/project_automation_live.ex:75
+#: lib/tuist_web/live/project_automation_live.ex:118
+#, elixir-autogen, elixir-format
+msgid "Automation created"
+msgstr "自动化已创建"
+
+#: lib/tuist_web/live/project_automation_live.ex:160
+#, elixir-autogen, elixir-format
+msgid "Automation disabled"
+msgstr "自动化已禁用"
+
+#: lib/tuist_web/live/project_automation_live.ex:159
+#, elixir-autogen, elixir-format
+msgid "Automation enabled"
+msgstr "自动化已启用"
+
+#: lib/tuist_web/live/project_automation_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "Automation not found."
+msgstr "未找到自动化。"
+
+#: lib/tuist_web/live/project_automation_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "Automation renamed"
+msgstr "自动化已重命名"
+
+#: lib/tuist_web/live/project_automation_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "Automation updated"
+msgstr "自动化已更新"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Cadence"
+msgstr "执行频率"
+
+#: lib/tuist_web/live/project_automation_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "Cadence changed"
+msgstr "执行频率已更改"
+
+#: lib/tuist_web/live/project_automation_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "Condition changed"
+msgstr "条件已更改"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Configuration changes to this automation, newest first."
+msgstr "此自动化的配置更改，按时间倒序排列。"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Current configuration"
+msgstr "当前配置"
+
+#: lib/tuist_web/live/project_automation_live.ex:61
+#: lib/tuist_web/live/project_automation_live.ex:293
+#: lib/tuist_web/live/project_automation_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Disabled"
+msgstr "已禁用"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Edit history"
+msgstr "编辑历史"
+
+#: lib/tuist_web/live/project_automation_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "Enabled after %{window}"
+msgstr "在 %{window} 后启用"
+
+#: lib/tuist_web/live/project_automation_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Every %{cadence}"
+msgstr "每 %{cadence}"
+
+#: lib/tuist_web/live/project_automation_live.ex:116
+#, elixir-autogen, elixir-format
+msgid "Initial configuration"
+msgstr "初始配置"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:125
+#, elixir-autogen, elixir-format
+msgid "No configuration changes recorded yet"
+msgstr "尚未记录任何配置更改"
+
+#: lib/tuist_web/live/project_automation_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "Recovery actions changed"
+msgstr "恢复操作已更改"
+
+#: lib/tuist_web/live/project_automation_live.ex:252
+#, elixir-autogen, elixir-format
+msgid "Recovery condition changed"
+msgstr "恢复条件已更改"
+
+#: lib/tuist_web/live/project_automation_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Recovery disabled"
+msgstr "恢复已禁用"
+
+#: lib/tuist_web/live/project_automation_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "Recovery enabled"
+msgstr "恢复已启用"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "Review changes to this automation and see who changed its configuration."
+msgstr "查看此自动化的更改，并了解谁修改了其配置。"
+
+#: lib/tuist_web/live/project_automation_live.ex:133
+#, elixir-autogen, elixir-format
+msgid "Trigger actions changed"
+msgstr "触发操作已更改"
+
+#: lib/tuist_web/live/project_automation_live.ex:98
+#: lib/tuist_web/live/project_automation_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Tuist"
+msgstr "Tuist"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1153
+#, elixir-autogen, elixir-format
+msgid "View automation details"
+msgstr "查看自动化详情"
+
+#: lib/tuist_web/live/project_automation_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "an integration"
+msgstr "一个集成"
+
+#: lib/tuist_web/live/project_automation_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "the dashboard"
+msgstr "仪表盘"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:349
+#: lib/tuist_web/live/project_automations_live.html.heex:827
+#, elixir-autogen, elixir-format
+msgid "Only apply to tests in these states"
+msgstr "仅应用于处于这些状态的测试"
+
+#: lib/tuist_web/live/project_notifications_live.ex:703
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "当分支 <strong>%{git_branch}</strong> 上过去 <strong>%{rolling_window_size} %{current_unit}</strong> 的 <strong>%{metric_category}</strong> 相比前 <strong>%{rolling_window_size} %{unit}</strong> 下降 <strong>%{deviation}%</strong> 时发出警报。"
+
+#: lib/tuist_web/live/project_notifications_live.ex:628
+#, elixir-autogen, elixir-format
+msgid "e.g. main (optional)"
+msgstr "例如 main（可选）"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Show more"
+msgstr "显示更多"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:506
+#, elixir-autogen, elixir-format
+msgid "Add"
+msgstr "添加"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:454
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:466
+#, elixir-autogen, elixir-format
+msgid "Add approver"
+msgstr "添加审批人"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:280
+#, elixir-autogen, elixir-format
+msgid "Anyone"
+msgstr "任何人"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:284
+#, elixir-autogen, elixir-format
+msgid "Anyone with write access to the repository."
+msgstr "对仓库具有写入权限的任何人。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:406
+#, elixir-autogen, elixir-format
+msgid "Approvals"
+msgstr "审批"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:451
+#, elixir-autogen, elixir-format
+msgid "Approvers"
+msgstr "审批人"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:408
+#, elixir-autogen, elixir-format
+msgid "Choose who can accept a bundle size increase that exceeded a threshold."
+msgstr "选择谁可以接受超出阈值的 Bundle 大小增加。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
+msgstr "请先将 Tuist GitHub App 连接到此项目，以便根据 GitHub 检查用户名。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:270
+#, elixir-autogen, elixir-format
+msgid "Enter a valid GitHub username that isn't already on the list."
+msgstr "输入一个有效的 GitHub 用户名，且该用户名不在列表中。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:478
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:521
+#, elixir-autogen, elixir-format
+msgid "GitHub username"
+msgstr "GitHub 用户名"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "No GitHub user with that username."
+msgstr "没有该用户名的 GitHub 用户。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "No approvers"
+msgstr "无审批人"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:544
+#, elixir-autogen, elixir-format
+msgid "Nobody can accept a size increase until a GitHub username is added"
+msgstr "在添加 GitHub 用户名之前，任何人都无法接受大小增加"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:288
+#, elixir-autogen, elixir-format
+msgid "Only the GitHub usernames you add below."
+msgstr "仅限您在下方添加的 GitHub 用户名。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:281
+#, elixir-autogen, elixir-format
+msgid "Selected GitHub users"
+msgstr "选定的 GitHub 用户"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:272
+#: lib/tuist_web/live/project_bundle_settings_live.ex:277
+#, elixir-autogen, elixir-format
+msgid "The approver could not be added."
+msgstr "无法添加审批人。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:456
+#, elixir-autogen, elixir-format
+msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+msgstr "此人可以从拉取请求上运行的检查中接受超出阈值的 Bundle 大小增加。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:419
+#, elixir-autogen, elixir-format
+msgid "Who can accept"
+msgstr "谁可以接受"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "Couldn't reach GitHub to check that username. Try again in a moment."
+msgstr "无法访问 GitHub 以检查该用户名。请稍后再试。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "That is not a valid GitHub username."
+msgstr "这不是一个有效的 GitHub 用户名。"
+
+#: lib/tuist_web/live/project_automations_live.ex:1019
+#, elixir-autogen, elixir-format
+msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
+msgstr "当默认分支上的测试可靠性在 %{window} 内 %{symbol} %{threshold}% 时"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:431
+#: lib/tuist_web/live/bazel_cache_live.ex:460
+#: lib/tuist_web/live/bazel_cache_live.ex:617
+#: lib/tuist_web/live/bazel_overview_live.ex:238
+#: lib/tuist_web/live/bazel_overview_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Action cache hit rate"
+msgstr "操作缓存命中率"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:504
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups"
+msgstr "操作缓存查找"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:486
+#: lib/tuist_web/live/bazel_invocations_live.ex:548
+#: lib/tuist_web/live/bazel_invocations_live.ex:964
+#, elixir-autogen, elixir-format
+msgid "Command"
+msgstr "命令"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "Completed Bazel commands in the retained data window."
+msgstr "在保留的数据窗口内已完成的 Bazel 命令。"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:501
+#: lib/tuist_web/live/bazel_invocations_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr "持续时间"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:564
+#: lib/tuist_web/live/bazel_invocations_live.ex:954
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "失败"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:671
+#, elixir-autogen, elixir-format
+msgid "Invocation success rate"
+msgstr "调用成功率"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:54
+#: lib/tuist_web/live/bazel_invocations_live.ex:22
+#, elixir-autogen, elixir-format
+msgid "Invocations"
+msgstr "调用"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:859
+#, elixir-autogen, elixir-format
+msgid "No cache lookups"
+msgstr "无缓存查找"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:823
+#: lib/tuist_web/live/bazel_invocations_live.ex:556
+#: lib/tuist_web/live/bazel_invocations_live.ex:949
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "状态"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:563
+#: lib/tuist_web/live/bazel_invocations_live.ex:953
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr "成功"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:280
+#, elixir-autogen, elixir-format
+msgid "The share of completed commands with a zero exit code."
+msgstr "退出码为零的已完成命令的比例。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
+msgstr "代表项目的正方形图片。PNG、JPEG 或 WebP 格式，最大 2 MB。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:211
+#, elixir-autogen, elixir-format
+msgid "Cancel selected file"
+msgstr "取消所选文件"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Choose file"
+msgstr "选择文件"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:182
+#, elixir-autogen, elixir-format
+msgid "Current project logo"
+msgstr "当前项目徽标"
+
+#: lib/tuist_web/live/project_settings_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Logo must be 2 MB or smaller."
+msgstr "徽标大小必须为 2 MB 或更小。"
+
+#: lib/tuist_web/live/project_settings_live.ex:196
+#: lib/tuist_web/live/project_settings_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Logo must be a PNG, JPEG, or WebP image."
+msgstr "徽标必须是 PNG、JPEG 或 WebP 图像。"
+
+#: lib/tuist_web/live/project_settings_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Logo removed."
+msgstr "徽标已移除。"
+
+#: lib/tuist_web/live/project_settings_live.ex:187
+#, elixir-autogen, elixir-format
+msgid "Logo updated."
+msgstr "徽标已更新。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "No file chosen"
+msgstr "未选择文件"
+
+#: lib/tuist_web/live/project_settings_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "Only one logo can be uploaded at a time."
+msgstr "一次只能上传一个徽标。"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "Project logo"
+msgstr "项目徽标"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr "移除"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Remove the current project logo?"
+msgstr "移除当前项目徽标？"
+
+#: lib/tuist_web/live/project_settings_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Select a logo before uploading."
+msgstr "上传前请选择徽标。"
+
+#: lib/tuist_web/live/project_settings_live.ex:249
+#, elixir-autogen, elixir-format
+msgid "The selected file couldn't be uploaded."
+msgstr "无法上传所选文件。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:818
+#: lib/tuist_web/live/bazel_invocation_live.ex:837
+#: lib/tuist_web/live/bazel_invocation_live.ex:883
+#: lib/tuist_web/live/project_settings_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Upload"
+msgstr "上传"
+
+#: lib/tuist_web/live/project_settings_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "We couldn't remove the logo. Please try again."
+msgstr "我们无法移除徽标。请重试。"
+
+#: lib/tuist_web/live/project_settings_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "We couldn't save the logo. Please try again."
+msgstr "我们无法保存徽标。请重试。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:809
+#, elixir-autogen, elixir-format
+msgid "Action cache lookup"
+msgstr "操作缓存查找"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:403
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups that did not find a result in the remote cache."
+msgstr "在远程缓存中未找到结果的操作缓存查找。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:391
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups that found a result in the remote cache."
+msgstr "在远程缓存中找到结果的操作缓存查找。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:496
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups:"
+msgstr "操作缓存查找："
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:389
+#, elixir-autogen, elixir-format
+msgid "Action hits"
+msgstr "操作命中"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:401
+#, elixir-autogen, elixir-format
+msgid "Action misses"
+msgstr "操作未命中"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:681
+#, elixir-autogen, elixir-format
+msgid "Average invocation duration"
+msgstr "平均调用时长"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:577
+#, elixir-autogen, elixir-format
+msgid "Average throughput for downloaded content objects."
+msgstr "下载内容对象的平均吞吐量。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:591
+#, elixir-autogen, elixir-format
+msgid "Average throughput for uploaded content objects."
+msgstr "上传内容对象的平均吞吐量。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:677
+#, elixir-autogen, elixir-format
+msgid "Avg. build duration"
+msgstr "平均构建时长"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:709
+#, elixir-autogen, elixir-format
+msgid "Avg. cache hit rate"
+msgstr "平均缓存命中率"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:542
+#, elixir-autogen, elixir-format
+msgid "Avg. latency reading cache keys"
+msgstr "读取缓存键的平均延迟"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:559
+#, elixir-autogen, elixir-format
+msgid "Avg. latency writing cache keys"
+msgstr "写入缓存键的平均延迟"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:191
+#: lib/tuist_web/live/bazel_invocation_live.ex:462
+#, elixir-autogen, elixir-format
+msgid "Bazel Cache"
+msgstr "Bazel 缓存"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1027
+#, elixir-autogen, elixir-format
+msgid "Bazel invocation"
+msgstr "Bazel 调用"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Bazel invocation not found."
+msgstr "未找到 Bazel 调用。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:271
+#: lib/tuist_web/live/bazel_invocations_live.ex:404
+#: lib/tuist_web/live/bazel_invocations_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "Bazel version"
+msgstr "Bazel 版本"
+
+#: lib/tuist_web/live/bazel_build_invocation_live.ex:10
+#: lib/tuist_web/live/bazel_build_runs_live.ex:10
+#, elixir-autogen, elixir-format
+msgid "Build Runs"
+msgstr "构建运行"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:983
+#: lib/tuist_web/live/bazel_invocation_live.ex:986
+#, elixir-autogen, elixir-format
+msgid "Build failed (exit code 1)"
+msgstr "构建失败（退出代码 1）"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:668
+#: lib/tuist_web/live/bazel_invocations_live.ex:773
+#, elixir-autogen, elixir-format
+msgid "Build success rate"
+msgstr "构建成功率"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:382
+#, elixir-autogen, elixir-format
+msgid "Cache Summary"
+msgstr "缓存摘要"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:731
+#, elixir-autogen, elixir-format
+msgid "Cache downloads"
+msgstr "缓存下载"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:671
+#, elixir-autogen, elixir-format
+msgid "Cache key"
+msgstr "缓存键"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:276
+#: lib/tuist_web/live/bazel_cache_live.ex:645
+#: lib/tuist_web/live/bazel_cache_live.ex:736
+#, elixir-autogen, elixir-format
+msgid "Cache latency"
+msgstr "缓存延迟"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:330
+#: lib/tuist_web/live/bazel_cache_live.ex:668
+#: lib/tuist_web/live/bazel_cache_live.ex:739
+#, elixir-autogen, elixir-format
+msgid "Cache throughput"
+msgstr "缓存吞吐量"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:732
+#, elixir-autogen, elixir-format
+msgid "Cache uploads"
+msgstr "缓存上传"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:451
+#, elixir-autogen, elixir-format
+msgid "Cacheable Actions"
+msgstr "可缓存操作"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:994
+#, elixir-autogen, elixir-format
+msgid "Command-line problem (exit code 2)"
+msgstr "命令行问题（退出代码 2）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:289
+#, elixir-autogen, elixir-format
+msgid "Commit"
+msgstr "提交"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:762
+#, elixir-autogen, elixir-format
+msgid "Completed commands"
+msgstr "已完成的命令"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:301
+#, elixir-autogen, elixir-format
+msgid "Completed commands with a nonzero exit code."
+msgstr "已完成但退出代码非零的命令。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:456
+#, elixir-autogen, elixir-format
+msgid "Content Objects"
+msgstr "内容对象"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:530
+#, elixir-autogen, elixir-format
+msgid "Content objects"
+msgstr "内容对象"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:519
+#, elixir-autogen, elixir-format
+msgid "Content objects:"
+msgstr "内容对象："
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:817
+#: lib/tuist_web/live/bazel_invocation_live.ex:835
+#: lib/tuist_web/live/bazel_invocation_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "Download"
+msgstr "下载"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:340
+#: lib/tuist_web/live/bazel_cache_live.ex:674
+#: lib/tuist_web/live/bazel_invocation_live.ex:575
+#, elixir-autogen, elixir-format
+msgid "Download throughput"
+msgstr "下载吞吐量"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:495
+#: lib/tuist_web/live/bazel_cache_live.ex:628
+#: lib/tuist_web/live/bazel_invocations_live.ex:583
+#, elixir-autogen, elixir-format
+msgid "Downloaded"
+msgstr "已下载"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:227
+#, elixir-autogen, elixir-format
+msgid "Downloads"
+msgstr "下载"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:999
+#, elixir-autogen, elixir-format
+msgid "External environment failure (exit code 32)"
+msgstr "外部环境失败（退出代码 32）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1019
+#, elixir-autogen, elixir-format
+msgid "Failed (exit code %{code})"
+msgstr "失败（退出代码 %{code}）"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:672
+#, elixir-autogen, elixir-format
+msgid "Failed invocations"
+msgstr "失败的调用"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:621
+#: lib/tuist_web/live/bazel_invocations_live.ex:513
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr "筛选"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:822
+#, elixir-autogen, elixir-format
+msgid "Hit"
+msgstr "命中"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:492
+#: lib/tuist_web/live/bazel_invocation_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "Hit rate"
+msgstr "命中率"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1007
+#, elixir-autogen, elixir-format
+msgid "Internal Bazel error (exit code 37)"
+msgstr "Bazel 内部错误（退出代码 37）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:996
+#, elixir-autogen, elixir-format
+msgid "Interrupted (exit code 8)"
+msgstr "已中断（退出代码 8）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:297
+#, elixir-autogen, elixir-format
+msgid "Invocation ID"
+msgstr "调用 ID"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:642
+#, elixir-autogen, elixir-format
+msgid "Key"
+msgstr "键"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:690
+#, elixir-autogen, elixir-format
+msgid "Latency"
+msgstr "延迟"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1004
+#, elixir-autogen, elixir-format
+msgid "Local environment failure (exit code 36)"
+msgstr "本地环境失败（退出代码 36）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:820
+#: lib/tuist_web/live/bazel_invocation_live.ex:828
+#: lib/tuist_web/live/bazel_invocation_live.ex:836
+#: lib/tuist_web/live/bazel_invocation_live.ex:857
+#, elixir-autogen, elixir-format
+msgid "Missed"
+msgstr "未命中"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:683
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds have been received yet."
+msgstr "尚未收到任何 Bazel 构建。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:693
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds in the selected period."
+msgstr "所选时间段内没有 Bazel 构建。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:687
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds match the current filters."
+msgstr "没有 Bazel 构建匹配当前筛选条件。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:684
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations have been received yet."
+msgstr "尚未收到任何 Bazel 调用。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:696
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations in the selected period."
+msgstr "所选时间段内没有 Bazel 调用。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:375
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations in this period"
+msgstr "此时间段内没有 Bazel 调用"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:690
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations match the current filters."
+msgstr "没有 Bazel 调用匹配当前筛选条件。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:795
+#, elixir-autogen, elixir-format
+msgid "No action cache requests were observed for this invocation."
+msgstr "未观察到此调用的任何操作缓存请求。"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:750
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with an invocation in the selected period"
+msgstr "所选时间段内没有与调用关联的缓存活动"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:753
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with an invocation yet"
+msgstr "尚未有与调用关联的缓存活动"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:745
+#: lib/tuist_web/live/bazel_overview_live.ex:659
+#, elixir-autogen, elixir-format
+msgid "No cache observations in the selected period"
+msgstr "所选时间段内没有缓存观测数据"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:747
+#: lib/tuist_web/live/bazel_overview_live.ex:661
+#, elixir-autogen, elixir-format
+msgid "No cache observations yet"
+msgstr "尚未有缓存观测数据"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:792
+#, elixir-autogen, elixir-format
+msgid "No content object transfers were observed for this invocation."
+msgstr "未观察到此调用的任何内容对象传输。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:555
+#: lib/tuist_web/live/bazel_invocation_live.ex:569
+#: lib/tuist_web/live/bazel_invocation_live.ex:585
+#: lib/tuist_web/live/bazel_invocation_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "No data"
+msgstr "无数据"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:813
+#, elixir-autogen, elixir-format
+msgid "No digest"
+msgstr "无摘要"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:710
+#, elixir-autogen, elixir-format
+msgid "No matching cache requests"
+msgstr "无匹配的缓存请求"
+
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:70
+#, elixir-autogen, elixir-format
+msgid "No targets reported"
+msgstr "未报告目标"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:992
+#, elixir-autogen, elixir-format
+msgid "No tests found (exit code 4)"
+msgstr "未找到测试（退出代码 4）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:701
+#, elixir-autogen, elixir-format
+msgid "Observed"
+msgstr "已观测"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1001
+#, elixir-autogen, elixir-format
+msgid "Out of memory (exit code 33)"
+msgstr "内存不足（退出代码 33）"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:283
+#: lib/tuist_web/live/bazel_cache_live.ex:651
+#: lib/tuist_web/live/bazel_cache_live.ex:734
+#, elixir-autogen, elixir-format
+msgid "Read latency"
+msgstr "读取延迟"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:819
+#: lib/tuist_web/live/bazel_invocation_live.ex:827
+#: lib/tuist_web/live/bazel_invocation_live.ex:848
+#, elixir-autogen, elixir-format
+msgid "Remote"
+msgstr "远程"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1013
+#, elixir-autogen, elixir-format
+msgid "Remote cache entry evicted (exit code 39)"
+msgstr "远程缓存条目已逐出（退出代码 39）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#, elixir-autogen, elixir-format
+msgid "Repository"
+msgstr "仓库"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1010
+#, elixir-autogen, elixir-format
+msgid "Result publishing failed (exit code 38)"
+msgstr "结果发布失败（退出代码 38）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1016
+#, elixir-autogen, elixir-format
+msgid "Result publishing failed (exit code 45)"
+msgstr "结果发布失败（退出代码 45）"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:684
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr "大小"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:256
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr "已开始"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:821
+#: lib/tuist_web/live/bazel_invocation_live.ex:829
+#, elixir-autogen, elixir-format
+msgid "Stored"
+msgstr "已存储"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:662
+#, elixir-autogen, elixir-format
+msgid "Target"
+msgstr "目标"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:483
+#: lib/tuist_web/live/bazel_invocation_live.ex:263
+#: lib/tuist_web/live/bazel_invocations_live.ex:541
+#, elixir-autogen, elixir-format
+msgid "Targets"
+msgstr "目标"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:989
+#, elixir-autogen, elixir-format
+msgid "Tests failed or timed out (exit code 3)"
+msgstr "测试失败或超时（退出代码 3）"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "The average time Tuist's remote cache spent serving reads and writes during the selected period."
+msgstr "在所选时间段内，Tuist 远程缓存用于处理读取和写入的平均时间。"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "The bytes returned from and accepted by Tuist's remote cache during the selected period."
+msgstr "在所选时间段内，Tuist 远程缓存返回和接收的字节数。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:317
+#, elixir-autogen, elixir-format
+msgid "The duration of completed Bazel commands, with average and percentile views."
+msgstr "已完成的 Bazel 命令的持续时间，提供平均值和百分位数视图。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:415
+#, elixir-autogen, elixir-format
+msgid "The percentage of action cache lookups that found a result in the remote cache."
+msgstr "在远程缓存中找到结果的操作缓存查询百分比。"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "The percentage of action-cache lookups served from Tuist's remote cache, measured per invocation."
+msgstr "按每次调用测量，由 Tuist 远程缓存提供的操作缓存查询百分比。"
+
+#: lib/tuist_web/live/bazel_overview_live.ex:163
+#, elixir-autogen, elixir-format
+msgid "The share of action-cache lookups served from Tuist's remote cache."
+msgstr "由 Tuist 远程缓存提供的操作缓存查询所占的份额。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:789
+#, elixir-autogen, elixir-format
+msgid "This invocation did not use a remote cache."
+msgstr "此次调用未使用远程缓存。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:544
+#, elixir-autogen, elixir-format
+msgid "Time to read action cache keys, including both remote hits and misses."
+msgstr "读取操作缓存键的时间，包括远程命中和未命中。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Time to write action results to the remote cache."
+msgstr "将操作结果写入远程缓存的时间。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:667
+#, elixir-autogen, elixir-format
+msgid "Total builds"
+msgstr "总构建数"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:670
+#, elixir-autogen, elixir-format
+msgid "Total invocations"
+msgstr "总调用数"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:305
+#, elixir-autogen, elixir-format
+msgid "Transferred remote-cache bytes divided by measured request time. Requests without a measured duration are excluded."
+msgstr "传输的远程缓存字节数除以测量的请求时间。不包括未测量持续时间的请求。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "Try changing or clearing your filters."
+msgstr "尝试更改或清除筛选条件。"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:350
+#: lib/tuist_web/live/bazel_cache_live.ex:680
+#: lib/tuist_web/live/bazel_invocation_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "Upload throughput"
+msgstr "上传吞吐量"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:498
+#: lib/tuist_web/live/bazel_cache_live.ex:634
+#: lib/tuist_web/live/bazel_invocations_live.ex:586
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "已上传"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "Uploads"
+msgstr "上传"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:292
+#: lib/tuist_web/live/bazel_cache_live.ex:657
+#: lib/tuist_web/live/bazel_cache_live.ex:735
+#, elixir-autogen, elixir-format
+msgid "Write latency"
+msgstr "写入延迟"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:708
+#, elixir-autogen, elixir-format
+msgid "p50 action cache hit rate"
+msgstr "p50 操作缓存命中率"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:676
+#, elixir-autogen, elixir-format
+msgid "p50 build duration"
+msgstr "p50 构建持续时间"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:680
+#, elixir-autogen, elixir-format
+msgid "p50 invocation duration"
+msgstr "p50 调用持续时间"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:707
+#, elixir-autogen, elixir-format
+msgid "p90 action cache hit rate"
+msgstr "p90 操作缓存命中率"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:675
+#, elixir-autogen, elixir-format
+msgid "p90 build duration"
+msgstr "p90 构建时长"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:679
+#, elixir-autogen, elixir-format
+msgid "p90 invocation duration"
+msgstr "p90 调用时长"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:706
+#, elixir-autogen, elixir-format
+msgid "p99 action cache hit rate"
+msgstr "p99 操作缓存命中率"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:674
+#, elixir-autogen, elixir-format
+msgid "p99 build duration"
+msgstr "p99 构建时长"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:678
+#, elixir-autogen, elixir-format
+msgid "p99 invocation duration"
+msgstr "p99 调用时长"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:737
+#, elixir-autogen, elixir-format
+msgid "Cache download throughput"
+msgstr "缓存下载吞吐量"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:217
+#: lib/tuist_web/live/bazel_cache_live.ex:733
+#, elixir-autogen, elixir-format
+msgid "Cache transfer"
+msgstr "缓存传输"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:738
+#, elixir-autogen, elixir-format
+msgid "Cache upload throughput"
+msgstr "缓存上传吞吐量"
+
+#: lib/tuist_web/live/bazel_overview_live.ex:666
+#, elixir-autogen, elixir-format
+msgid "No builds in the selected period"
+msgstr "所选时间段内无构建"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:507
+#: lib/tuist_web/live/bazel_invocations_live.ex:591
+#, elixir-autogen, elixir-format
+msgid "Ran at"
+msgstr "运行时间"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:489
+#, elixir-autogen, elixir-format
+msgid "Ran by"
+msgstr "运行者"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Recent Invocations"
+msgstr "最近调用"
+
+#: lib/tuist_web/live/bazel_overview_live.ex:183
+#, elixir-autogen, elixir-format
+msgid "The average duration of Bazel build invocations."
+msgstr "Bazel 构建调用的平均时长。"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:534
+#, elixir-autogen, elixir-format
+msgid "Invocation"
+msgstr "调用"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:502
+#: lib/tuist_web/live/project_automations_live.html.heex:894
+#, elixir-autogen, elixir-format
+msgid "Skips the entire target, including healthy tests."
+msgstr "跳过整个目标，包括正常的测试。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "Content downloaded"
+msgstr "已下载内容"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:437
+#, elixir-autogen, elixir-format
+msgid "Content uploaded"
+msgstr "已上传内容"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:427
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
+msgstr "从远程缓存下载的构建输出总大小。不包括操作缓存查询，因为查询返回的是元数据而非输出。"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
+msgstr "上传到远程缓存的构建输出总大小。不包括操作缓存写入，因为写入存储的是元数据而非输出。"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1070
+#, elixir-autogen, elixir-format
+msgid "Actions for existing matches are pending. Save with this option unchecked to cancel any remaining actions."
+msgstr "现有匹配项的操作正在等待中。取消选中此选项并保存，以取消任何剩余操作。"
+
+#: lib/tuist_web/live/project_automations_live.ex:735
+#, elixir-autogen, elixir-format
+msgid "After %{window} without a trigger: %{actions}."
+msgstr "若 %{window} 内未触发：%{actions}。"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1031
+#, elixir-autogen, elixir-format
+msgid "Apply to existing matches"
+msgstr "应用于现有匹配项"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1058
+#, elixir-autogen, elixir-format
+msgid "Complete a valid condition to see matching tests."
+msgstr "完成有效条件以查看匹配的测试。"
+
+#: lib/tuist_web/live/project_automations_live.ex:704
+#, elixir-autogen, elixir-format
+msgid "Complete a valid condition."
+msgstr "完成有效条件。"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1051
+#, elixir-autogen, elixir-format
+msgid "Counting matching tests…"
+msgstr "正在计算匹配的测试…"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1096
+#, elixir-autogen, elixir-format
+msgid "Create and apply actions"
+msgstr "创建并应用操作"
+
+#: lib/tuist_web/live/project_automations_live.ex:727
+#, elixir-autogen, elixir-format
+msgid "For each matching test: %{actions}."
+msgstr "对于每个匹配的测试：%{actions}。"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1053
+#, elixir-autogen, elixir-format
+msgid "Match count unavailable. You can still save."
+msgstr "匹配计数不可用。您仍可保存。"
+
+#: lib/tuist_web/live/project_automations_live.ex:724
+#, elixir-autogen, elixir-format
+msgid "No actions selected."
+msgstr "未选择操作。"
+
+#: lib/tuist_web/live/project_automations_live.ex:740
+#, elixir-autogen, elixir-format
+msgid "Recovery is disabled."
+msgstr "恢复已禁用。"
+
+#: lib/tuist_web/live/project_automation_live.ex:286
+#, elixir-autogen, elixir-format
+msgid "Requested actions for existing matches"
+msgstr "现有匹配项的已请求操作"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1095
+#, elixir-autogen, elixir-format
+msgid "Save and apply actions"
+msgstr "保存并应用操作"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1044
+#, elixir-autogen, elixir-format
+msgid "Select to also run them once after saving for %{count} test that currently matches."
+msgid_plural "Select to also run them once after saving for %{count} tests that currently match."
+msgstr[0] "选中此项可在保存后为当前匹配的 %{count} 个测试额外运行一次。"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:384
+#, elixir-autogen, elixir-format
+msgid "What"
+msgstr "内容"
+
+#: lib/tuist_web/live/project_automations_live.ex:1124
+#, elixir-autogen, elixir-format
+msgid "e.g. 30d"
+msgstr "例如 30d"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1037
+#, elixir-autogen, elixir-format
+msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
+msgstr "默认情况下，操作仅在测试开始匹配条件时执行。当前已匹配的测试不会触发这些操作，除非其状态恢复并再次匹配。"
