@@ -159,6 +159,35 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/once" do
+    test "advertises the request origin as the default events endpoint", %{conn: conn} do
+      System.delete_env("TUIST_EVENTS_ENDPOINTS")
+
+      conn = get(conn, "/.well-known/once")
+
+      response = json_response(conn, 200)
+      assert %{"events" => %{"endpoints" => [%{"url" => url}]}} = response
+      assert String.starts_with?(url, "http")
+    end
+
+    test "returns the endpoints named by TUIST_EVENTS_ENDPOINTS when configured", %{conn: conn} do
+      System.put_env("TUIST_EVENTS_ENDPOINTS", "https://ingest-eu.tuist.dev, https://ingest-us.tuist.dev")
+
+      on_exit(fn -> System.delete_env("TUIST_EVENTS_ENDPOINTS") end)
+
+      conn = get(conn, "/.well-known/once")
+
+      assert %{
+               "events" => %{
+                 "endpoints" => [
+                   %{"url" => "https://ingest-eu.tuist.dev"},
+                   %{"url" => "https://ingest-us.tuist.dev"}
+                 ]
+               }
+             } = json_response(conn, 200)
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")

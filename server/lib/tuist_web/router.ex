@@ -620,6 +620,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -853,6 +854,12 @@ defmodule TuistWeb.Router do
           get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
+        end
+
+        scope "/once" do
+          post "/invocations", OnceInvocationsController, :create
+          get "/invocations", OnceInvocationsController, :index
+          get "/invocations/:invocation_id", OnceInvocationsController, :show
         end
 
         scope "/previews" do
@@ -1407,6 +1414,8 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
+      live "/once", OnceInvocationsLive
+      live "/once/invocations", OnceInvocationsLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive
