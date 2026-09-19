@@ -281,12 +281,24 @@ defmodule TuistWeb.CoverageDetailLive do
       comparison.files |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, &1.path))
     )
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
-    |> assign(:unmeasured_files, unmeasured_files(project, subject.sha, @page_size))
+    |> assign_unmeasured_page(project, subject.sha, query)
   end
 
-  defp unmeasured_files(project, sha, limit) do
+  # The two lists page apart, each under its own parameter, so turning one
+  # leaves the other where it was.
+  defp assign_unmeasured_page(%{assigns: %{summary: summary}} = socket, project, sha, query) do
+    count = (summary && summary.unmeasured_files_count) || 0
+    total_pages = max(1, ceil(count / @page_size))
+    page = min(Query.bounded_page(query["unmeasured-page"]), total_pages)
+
+    socket
+    |> assign(:unmeasured_files, unmeasured_files(project, sha, @page_size, (page - 1) * @page_size))
+    |> assign(:unmeasured_meta, %{current_page: page, total_pages: total_pages})
+  end
+
+  defp unmeasured_files(project, sha, limit, offset \\ 0) do
     project
-    |> Commits.unmeasured_files(sha, limit: limit)
+    |> Commits.unmeasured_files(sha, limit: limit, offset: offset)
     |> Enum.map(&%{id: "unmeasured-" <> &1, path: &1})
   end
 

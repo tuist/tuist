@@ -695,14 +695,22 @@
       data-part="unmeasured-card"
     >
       <.card_section :if={@unmeasured_files != []} data-part="files-section">
-        <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <.text_and_description_cell
-              label={Path.basename(file.path)}
-              description={parent_dir(file.path)}
-            />
-          </:col>
-        </.table>
+        <div data-part="files-table">
+          <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
+            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+              <.text_and_description_cell
+                label={Path.basename(file.path)}
+                description={parent_dir(file.path)}
+              />
+            </:col>
+          </.table>
+          <.pagination_group
+            :if={@unmeasured_meta.total_pages > 1}
+            current_page={@unmeasured_meta.current_page}
+            number_of_pages={@unmeasured_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "unmeasured-page", page)}" end}
+          />
+        </div>
       </.card_section>
       <.coverage_empty
         :if={@unmeasured_files == []}
