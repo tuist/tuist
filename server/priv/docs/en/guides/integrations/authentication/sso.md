@@ -47,7 +47,7 @@ Tuist supports two enrollment policies:
 - **Invitation only:** A user needs an organization invitation. For Okta and custom providers, the login email domain must still be verified before the provider can create a brand-new Tuist account. An existing Tuist user who is already an organization member may link the provider identity based on that membership.
 - **Automatic:** A user whose authenticated email matches the trusted domain can create or link an account and join the organization without an invitation. Google configurations use the Workspace domain. Okta and custom providers require a verified login email domain.
 
-Google configurations default to automatic enrollment. New Okta and custom-provider configurations default to invitation-only enrollment. Existing Okta and custom-provider configurations retain their previous automatic enrollment behavior until an administrator verifies a login domain, disables automatic enrollment, or changes the provider configuration.
+Google configurations default to automatic enrollment. New Okta and custom-provider configurations default to invitation-only enrollment. Okta and custom-provider configurations in compatibility mode enroll from their login email domain as soon as one is set, and from any address the provider reports while none is set.
 
 The **Enforce single sign-on** setting is independent of enrollment. Enforcement prevents existing organization members from using email and password; it does not grant organization membership.
 
@@ -64,9 +64,14 @@ Organizations configured before login email domains were introduced retain their
 - Existing linked identities continue signing in.
 - Existing organization members may link their Okta or custom-provider identity because membership already establishes trust.
 - Existing Google configurations retain automatic enrollment.
-- Existing Okta and custom-provider configurations retain their current login discovery, enforcement, and automatic enrollment behavior while their provider configuration remains unchanged.
+- Existing Okta and custom-provider configurations retain their current login discovery and enforcement behavior while their provider configuration remains unchanged.
+- Automatic enrollment for those configurations is bounded by the login email domain once one is set. Members who already hold a role keep it either way; the bound applies to users joining from then on.
 
-This compatibility mode avoids interrupting existing users and onboarding flows, but it continues trusting any email address reported by the configured provider. Administrators should add and verify a login email domain to restrict enrollment and identity linking to addresses controlled by their organization.
+This compatibility mode avoids interrupting existing users and onboarding flows. Once a login email domain is set, automatic enrollment is limited to addresses on that domain even before the domain is verified, and an organization with no login email domain set continues to trust any address reported by the configured provider. Verification is what additionally makes the domain usable for provider discovery and for linking a pre-existing Tuist account.
+
+Compatibility mode discovers an organization by deriving candidate provider identifiers from the email domain, so the general login page finds it only when the provider identifier is named after that domain. An Okta domain of `example.okta.com` is discovered for `example.com`; `acme.okta.com`, `example.okta-emea.com`, and email domains outside `.com` are not. Members of an organization that is not discovered cannot reach their provider from the general login page, and single sign-on enforcement is not applied to sign-ups from the domain. Verifying the login email domain makes discovery and enforcement independent of the provider identifier.
+
+Where Tuist can infer the domain from the organization's members, **Login email domain** is already filled in and needs only the text record and **Verify domain**. Confirm the value before verifying and change it if the organization uses a different employee email domain.
 
 Verifying a login domain or changing the provider or provider organization identifier permanently disables compatibility mode. Verify the login email domain before changing the provider configuration, particularly when single sign-on enforcement is enabled.
 
@@ -206,6 +211,8 @@ For new Okta and custom-provider configurations, confirm that the login email do
 ### Tuist cannot find an organization for an email address {#tuist-cannot-find-an-organization-for-an-email-address}
 
 Confirm that the user entered the expected employee email address and that its domain exactly matches the verified login email domain. Existing members may also be discovered through their current organization membership.
+
+An organization still in compatibility mode is discovered only when its provider identifier is derived from the employee email domain, so a user who is not yet a member reaches this state whenever the two differ. Verify the login email domain to resolve it.
 
 ### Domain verification remains pending {#domain-verification-remains-pending}
 

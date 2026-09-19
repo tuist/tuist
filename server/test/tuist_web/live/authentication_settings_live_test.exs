@@ -208,6 +208,35 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       refute html =~ "Failed to configure"
       assert html =~ "Enable Single Sign-On"
     end
+
+    test "offers the verification record for a login domain it did not enter itself", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Ecto.Changeset.change(%{
+        sso_legacy_email_domain_fallback: true,
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "backfilled-token",
+        sso_login_domain_verified_at: nil
+      })
+      |> Tuist.Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "customer.example"
+      assert html =~ "Pending verification"
+      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "tuist-domain-verification=backfilled-token"
+    end
   end
 
   describe "Microsoft Entra ID SSO" do
@@ -482,7 +511,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "Pending verification"
-      assert html =~ "This existing configuration allows any email address reported by the provider"
+      assert html =~ "users from the login email domain can join this organization automatically"
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
@@ -490,6 +519,9 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert updated_organization.sso_legacy_email_domain_fallback
       assert updated_organization.sso_login_domain == "customer.example"
       refute updated_organization.sso_login_domain_verified_at
+
+      assert Accounts.sso_automatic_enrollment_allowed?(updated_organization, "person@customer.example")
+      refute Accounts.sso_automatic_enrollment_allowed?(updated_organization, "person@unrelated.example")
     end
 
     test "verifies a saved login domain", %{
