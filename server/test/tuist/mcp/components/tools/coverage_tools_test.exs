@@ -178,7 +178,8 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
              {66.7, ["App"], [], false}
 
     assert result["test_run_ids"] == [pr.id]
-    assert result["unmeasured_files_count"] == 0
+    assert {result["measured_files_count"], result["unmeasured_files_count"]} == {2, 0}
+    refute Map.has_key?(result, "files_count")
     assert [%{"name" => "App"}] = result["targets"]
     assert result["baseline"]["commit"] == "b"
 

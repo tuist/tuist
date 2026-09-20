@@ -479,11 +479,11 @@ defmodule TuistWeb.API.CoverageController do
         covered_lines: %Schema{type: :integer},
         executable_lines: %Schema{type: :integer},
         coverage: %Schema{type: :number, description: "Line coverage over the measured product files, in percent."},
-        files_count: %Schema{type: :integer, description: "Product files some run measured."},
+        measured_files_count: %Schema{type: :integer, description: "Product files some run measured."},
         unmeasured_files_count: %Schema{
           type: :integer,
           description:
-            "Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the listing is not stored."
+            "Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as \"Files without coverage data\"; 0 when the listing is not stored."
         },
         partial: %Schema{type: :boolean},
         completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."},
@@ -497,7 +497,7 @@ defmodule TuistWeb.API.CoverageController do
       :covered_lines,
       :executable_lines,
       :coverage,
-      :files_count,
+      :measured_files_count,
       :unmeasured_files_count,
       :schemes,
       :partial_schemes,
