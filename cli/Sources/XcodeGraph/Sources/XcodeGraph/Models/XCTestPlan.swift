@@ -38,6 +38,16 @@ public struct XCTestPlan: Codable, Equatable, Sendable {
         }
     }
 
+    /// A Swift Testing tag filter, matching the shape Xcode writes:
+    /// `"selectedTags" : { "tags" : [ ".contract" ] }`. Tag names carry the leading dot.
+    public struct TagList: Codable, Equatable, Sendable {
+        public let tags: [String]
+
+        public init(tags: [String]) {
+            self.tags = tags
+        }
+    }
+
     public struct TestTarget: Codable, Equatable, Sendable {
         /// Whether the target runs. Omitted in the JSON when `true`; Xcode defaults to enabled.
         public let enabled: Bool?
@@ -47,14 +57,26 @@ public struct XCTestPlan: Codable, Equatable, Sendable {
 
         public let target: TestTargetReference
 
+        /// Tags whose tests are the only ones the target runs, written as
+        /// `"selectedTags" : { "tags" : [ ".contract" ] }`. Omitted from the JSON when `nil`.
+        public let selectedTags: TagList?
+
+        /// Tags whose tests the target skips, written as
+        /// `"skippedTags" : { "tags" : [ ".contract" ] }`. Omitted from the JSON when `nil`.
+        public let skippedTags: TagList?
+
         public init(
             target: TestTargetReference,
             enabled: Bool? = nil,
-            parallelizable: Bool? = nil
+            parallelizable: Bool? = nil,
+            selectedTags: TagList? = nil,
+            skippedTags: TagList? = nil
         ) {
             self.enabled = enabled
             self.parallelizable = parallelizable
             self.target = target
+            self.selectedTags = selectedTags
+            self.skippedTags = skippedTags
         }
     }
 
