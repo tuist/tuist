@@ -32,7 +32,7 @@ env:
 
 jobs:
   test:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
         run: go vet ./...
 
   test-macos-host-bootstrap:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
         run: go vet ./...
 
   test-tart-kubelet:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -104,7 +104,7 @@ jobs:
         run: go vet ./...
 
   test-macos-log-shipper:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -145,7 +145,7 @@ jobs:
     # directory rather than beside the types. Nothing else ties a `*_types.go`
     # edit to its regenerated manifest, and nothing else catches a manifest
     # edited by hand.
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -175,7 +175,7 @@ jobs:
 
   build:
     needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-tart-kubelet, generated]
-    if: github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4

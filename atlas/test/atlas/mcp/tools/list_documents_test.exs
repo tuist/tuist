@@ -28,7 +28,8 @@ defmodule Atlas.MCP.Tools.ListDocumentsTest do
   test "rejects non-executive users" do
     conn = %{role: :employee} |> insert_user!() |> mcp_conn()
 
-    assert {:error, "Document tools are only available to executives."} = execute_tool(ListDocuments, conn, %{})
+    assert {:error, "Document tools require the documents:read scope."} =
+             execute_tool(ListDocuments, conn, %{})
   end
 
   defp insert_document!(attrs) do

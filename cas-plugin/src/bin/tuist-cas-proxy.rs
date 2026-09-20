@@ -7,7 +7,9 @@
 //! Environment:
 //! - TUIST_CAS_PROXY_SOCKET: unix socket path to listen on
 //!   (default ~/.local/state/tuist/cas-proxy.sock; see `default_proxy_socket`)
-//! - TUIST_CAS_REMOTE_GRPC_URL: REAPI endpoint (required)
+//! - TUIST_CAS_REMOTE_GRPC_URL: REAPI endpoint. Empty or unset while the
+//!   account has none serving yet: the proxy then serves from the local cache
+//!   and adopts the endpoint once resolution finds one.
 //! - TUIST_CAS_TOKEN: initial bearer (set directly on CI). Absent on a dev
 //!   machine: the proxy fetches one via the CLI (see TUIST_CAS_TUIST_BIN).
 //! - TUIST_CAS_TUIST_BIN, TUIST_CAS_SERVER_URL: how to fetch/refresh the bearer
@@ -99,9 +101,7 @@ const DEFAULT_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 ///
 /// It asks the RUNNING proxy first and only prunes in-process if the proxy says
 /// it holds no handle on the path. That order is load-bearing rather than an
-/// optimisation: llcas rotates a store as its LAST handle closes, so on a
-/// machine where the proxy holds one, a prune driven from here would find the
-/// chain still live and collect nothing while reporting success.
+/// optimisation: only the proxy can rotate a store it holds open.
 ///
 /// Exit 0 pruned (or found nothing to collect), 1 could not. There is no third
 /// answer to keep apart the way `--drain` has one: a prune that did not run
@@ -142,13 +142,13 @@ fn prune(arguments: &[String]) -> i32 {
             "the proxy could not be asked"
         }
     };
-    match tuist_cas_plugin::proxy::prune_store(
-        &tuist_cas_plugin::upstream_path(),
-        &cas_path,
-        limit_bytes,
-    ) {
-        Ok(reclaimed) => {
-            eprintln!("pruned {cas_path} directly ({why_local}), reclaiming {reclaimed} bytes");
+    match tuist_cas_plugin::proxy::prune_store(&cas_path, limit_bytes) {
+        Ok(pruned) => {
+            let held = if pruned.held_open { ", held open elsewhere so not rotated" } else { "" };
+            eprintln!(
+                "pruned {cas_path} directly ({why_local}{held}), reclaiming {} bytes",
+                pruned.reclaimed
+            );
             0
         }
         Err(reason) => {
@@ -171,10 +171,7 @@ fn main() {
         .ok()
         .filter(|socket| !socket.is_empty())
         .unwrap_or_else(tuist_cas_plugin::default_proxy_socket);
-    let Ok(grpc_url) = std::env::var("TUIST_CAS_REMOTE_GRPC_URL") else {
-        eprintln!("TUIST_CAS_REMOTE_GRPC_URL is required");
-        std::process::exit(2);
-    };
+    let grpc_url = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").unwrap_or_default();
     let tokens = TokenProvider::from_env();
     // Resolve the upstream via the shared `upstream_path()` so the proxy gets the
     // same `xcode-select` fallback as the plugin. The proxy is launched by
@@ -235,13 +232,20 @@ fn main() {
         proxy.forget_unused_paths();
         proxy.bound_stores();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
-        proxy.refresh_endpoint();
         proxy.refresh_snapshots();
         proxy.refresh_view_keys();
         let stats = proxy.stats_line();
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
         }
+    });
+
+    // Endpoint resolution on a tick of its own, shorter than the sweep's: a
+    // cache being prepared is asked about every second. `refresh_endpoint`
+    // resolves only once its interval has passed.
+    std::thread::spawn(move || loop {
+        std::thread::sleep(tuist_cas_plugin::proxy::ENDPOINT_RESOLUTION_TICK);
+        proxy.refresh_endpoint();
     });
 
     eprintln!("tuist-cas-proxy listening on {socket_path}");

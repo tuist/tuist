@@ -50,7 +50,7 @@ defmodule Atlas.MCP.Tools.CreateAsset do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools") do
       case Assets.create_asset(args) do
         {:ok, asset} -> {:ok, AssetsSerializer.asset(asset)}
         {:error, changeset} -> {:error, "Could not create asset: #{Tool.format_changeset_errors(changeset)}"}

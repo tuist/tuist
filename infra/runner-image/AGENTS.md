@@ -19,7 +19,7 @@ runtime — no service, sudo entry, or auto-login targets it.
 
 Because the base images provision as `admin` and jobs run as
 `runner`, anything the base installs under `admin` has to be
-handed over explicitly. Two things are:
+handed over explicitly. Three things are:
 
 - `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
   install` from a workflow step failed its writability audit
@@ -33,6 +33,12 @@ handed over explicitly. Two things are:
   copied over. Without it the login shell the LaunchAgent (and
   every step shell under it) runs resolves no brew shellenv, no
   rbenv, no node.
+- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
+  `admin` is not usable by `runner`, so the image downloads it again
+  as `runner`, with the same explicit `-buildVersion` the base uses
+  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
+  the toolchain was added to them have none, and this download is
+  what installs it.
 
 When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
@@ -121,9 +127,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
   contents to the guest user and so retires any host/guest uid reconciliation),
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
-  (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
-  budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`/Users/runner/.tuist-cache-volume`), divides the budget the host stages for
+  both caches between them by use (`set_cache_limits`, described with the
+  compilation cache below) and exports the binary cache's limit as
+  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU prune and download admission, reads
+  the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
   The host also stages its Kubernetes `node-name` there at VM create, which the
@@ -164,9 +172,17 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `unverifiable_digest` with BOTH promote requests, which is what lets the server
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
   or the pre-flight would 409 the only promote that can unwedge the account.
-  Alongside the inventory digest, `capture_settled_inventory` hashes the settled
-  image FILE (SHA-256, after the read-only measuring attach detaches) into
-  `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  Between the inventory and the content hash, a successful job whose image changed
+  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
+  and none in the image file, so without `hdiutil compact` a master costs the host
+  the most it ever held. It leaves the capacity alone. Shrinking the capacity
+  instead was measured and dropped: it moves every live block past the new end
+  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
+  rewrites the file, which is why it sits before the content hash and after the
+  inventory, which it does not change.
+  Alongside the inventory digest, `capture_content_digest` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches and after the
+  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
   bit flipped INSIDE a cached file sails through it, and the content digest is the
   end-to-end byte claim. It rides both promote requests; the mint response echoes
   the base64 the server signed into the presigned PUT as `checksum_sha256`, the
@@ -215,7 +231,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   gate. (It works because the store is on the block-device image, not the
   virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
   the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable), creates
   the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
@@ -228,6 +244,32 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  **The two caches share one budget.** The host stages `cache-budget-bytes`:
+  the image less a reserve of max(2 GiB, 20% of the cap), 24 GiB at a 30 GiB
+  cap, and the reserve is the room a job grows into before anything prunes.
+  `set_cache_limits` divides it between `tuist/` and `CompilationCache.noindex/`
+  by their allocated `du` sizes, with the rule the stores are divided by
+  (`split_by_use`, below) and a 2 GiB floor per cache
+  (`CACHE_SPLIT_FLOOR_BYTES`). The floor matters for the binary cache, which the
+  CLI holds to its limit for the whole job (a download that does not fit is
+  rebuilt from source), so a cache that holds nothing yet next to a busy one
+  still gets 2 GiB and doubles from there; two caches that each hold under a
+  quarter of the budget split it evenly. It runs twice: at attach, before the
+  attach prune, and at teardown, before the teardown prune, because the binary
+  cache may have grown to its attach-time share during the job and nothing
+  prunes it at teardown. Neither cache is handed room the other still holds
+  (`within_room`): the compilation cache's limit is capped at the budget less
+  what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
+  after the attach prune, capped at the budget less what the store holds once
+  pruned, since a prune keeps a store's newest generations even past a limit
+  that just shrank. The two
+  limits therefore never add up to more than the budget. A cache that stops
+  being used gives its space back only as fast as its own pruner collects it:
+  the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
+  host whose tart-kubelet predates `cache-budget-bytes` stages only the fixed
+  split (`cache-max-bytes`, and the `cas-enabled` figure), and
+  `set_cache_limits` applies that as is, so the two components roll out in
+  either order.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit
@@ -236,13 +278,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
   CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
   days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and a
-  prune alongside it collects nothing while reporting success. Both lanes are
-  swept (`plugin` and the builtin `generic`), discovered by their `v1.N`
-  generation dirs, and the staged allowance is SPLIT between them: the marker
-  budgets the CAS as a whole while llcas only takes a per-generation bound per
-  store, so handing each the full figure would let a two-lane job occupy twice
-  the CAS the image was sized for. Teardown is the only place that can count the
+  because the per-machine proxy holds a handle per path for its lifetime and
+  only the holder can rotate a store. A store no proxy holds is pruned on its
+  generation dirs under the store's `lock` without opening it, so it works on a
+  full volume and on stores the compilers or another Xcode wrote. Every lane is
+  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
+  discovered by their `v1.N` generation dirs, and the compilation cache's limit
+  is SPLIT between them: it budgets the CAS as a whole while llcas only takes a
+  per-generation bound per store, so handing each the full figure would let a
+  multi-lane job occupy a multiple of the CAS the image was sized for. The split
+  is by use (`cas_store_budgets` over `split_by_use`): a store whose need, twice
+  its allocated size and at least 256 MiB, is under an even share gets that
+  need, and the stores that need more split the rest. An even split gave the few-KB `generic` store,
+  present on every volume, half the budget and capped `plugin` at half of what
+  the host staged. Teardown is the only place that can count the
   lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
   The teardown pass (second, after the drain) bounds what the FLEET inherits: the
   image is measured and promoted right after it. The attach pass bounds what THIS
@@ -256,10 +305,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
   (verified both ways — same digest when reversed). Taking the baseline first
   makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. A pruned store settles at ~2x its per-generation limit
-  (primary + the demoted upstream, which is the warm cache), which is why
-  `casGib` is a FOOTPRINT allowance and the guest is staged HALF of it — see
-  `casGenerationLimit` in tart-kubelet. `setup_cas_store` also exports
+  reasoning that puts `reclaim_cas_if_disabled` at teardown. The compiler is
+  given the compilation cache's whole limit, not half: llcas and the prune
+  rotate a store once its primary passes half the limit, so the limit already
+  covers the primary and the demoted upstream, which is the warm cache.
+  `setup_cas_store` also exports
   `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
   `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
   build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
@@ -329,7 +379,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   that `tuist setup cache` installed (it matches the proxy actually running,
   which is what a drain must talk to) and falls back to this one. It exists
   because a plain `xcodebuild` workflow never runs Tuist, so it installs no
-  cas-proxy at all — and those jobs still write Xcode's builtin `generic` CAS
+  cas-proxy at all — and those jobs still write the compilers' `builtin` CAS
   lane into the volume, so without a binary here nothing on the machine could
   ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
   no CAS daemon of its own.
@@ -458,8 +508,14 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
+
+Beta entries follow the `<major>.<minor>-beta` shape (matching the
+mirror + base image tags `xcode-xips:27.2-beta`,
+`macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
+resolves to a runner pool sized by
+`runnersFleet.xcodeOverrides["27.2-beta"]`.
 
 `check-releases` reads this into the `runner-image-matrix` output and
 `runner-image-build`'s `matrix` expands it via `fromJSON`. Because the

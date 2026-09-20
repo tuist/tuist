@@ -60,7 +60,7 @@ defmodule Atlas.MCP.Tools.RequestTaxCertificateLetter do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools"),
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools"),
          {:ok, account} <- AccountLookup.resolve(args) do
       attrs =
         Map.take(args, [

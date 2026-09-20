@@ -9,6 +9,7 @@ defmodule AtlasWeb.Router do
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
   alias AtlasWeb.Plugs.FetchCurrentUser
+  alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
   alias AtlasWeb.Plugs.RequireAuth
   alias Plug.Swoosh.MailboxPreview
@@ -47,6 +48,11 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :inference do
+    plug :accepts, ["json", "event-stream"]
+    plug InferenceAuthentication
+  end
+
   scope "/", AtlasWeb do
     get "/ready", HealthController, :ready
   end
@@ -78,6 +84,14 @@ defmodule AtlasWeb.Router do
     forward "/mcp", StreamableHTTP, server: Server
   end
 
+  scope "/inference/v1", AtlasWeb do
+    pipe_through :inference
+
+    get "/models", InferenceController, :models
+    post "/chat/completions", InferenceController, :chat_completions
+    post "/embeddings", InferenceController, :embeddings
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api]
 
@@ -101,6 +115,12 @@ defmodule AtlasWeb.Router do
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put
+  end
+
+  scope "/api", AtlasWeb.ErrorsAPI do
+    pipe_through [:api]
+
+    post "/:project_id/envelope/", EnvelopeController, :create
   end
 
   scope "/api", AtlasWeb do
@@ -138,6 +158,10 @@ defmodule AtlasWeb.Router do
     get "/email/subscriptions/confirm/:token", GTMSubscriptionController, :confirm
     get "/email/subscriptions/unsubscribe/:token", GTMSubscriptionController, :unsubscribe
     get "/support/chat/verify/:token", SupportChatVerificationController, :confirm
+
+    live_session :public_postmortem, layout: false do
+      live "/p/postmortems/:share_token", PostmortemLive.Public
+    end
   end
 
   scope "/", AtlasWeb do
@@ -175,6 +199,7 @@ defmodule AtlasWeb.Router do
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/", OverviewLive, :index
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show
@@ -193,43 +218,90 @@ defmodule AtlasWeb.Router do
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
+      live "/engineering/projects", ProjectLive.Index, :index
+      live "/engineering/projects/:id", ProjectLive.Show, :show
+      live "/engineering/domains", DomainLive.Index, :index
+      live "/engineering/domains/:id", DomainLive.Show, :show
+      live "/engineering/errors", ErrorsLive.Index, :index
+      live "/engineering/errors/:id", ErrorsLive.Show, :show
+      live "/engineering/errors/:id/events/:event_id", ErrorsLive.Event, :event
+      live "/engineering/postmortems", PostmortemLive.Index
+      live "/engineering/postmortems/new", PostmortemLive.Form, :new
+      live "/engineering/postmortems/:number", PostmortemLive.Show
+      live "/engineering/postmortems/:number/edit", PostmortemLive.Form, :edit
+      live "/engineering/specs", SpecLive.Index
+      live "/engineering/specs/new", SpecLive.Form, :new
+      live "/engineering/specs/:number", SpecLive.Show
+      live "/engineering/specs/:number/edit", SpecLive.Form, :edit
     end
 
-    live_session :executive_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :executive}],
+    live_session :scoped_finance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "finance:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/commercial/finance", FinanceLive, :index
       live "/commercial/finance/vendors", FinanceVendorLive, :index
+    end
+
+    live_session :scoped_documents,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "documents:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/library/documents", DocumentsLive, :index
       live "/library/documents/:id", DocumentLive, :show
+    end
+
+    live_session :scoped_letters,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "letters:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/outbound/postal", PostalLive, :index
+    end
+
+    live_session :scoped_licenses,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "licenses:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/commercial/sales/licenses", LicensesLive, :index
+    end
+
+    live_session :scoped_assets,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/operations/hardware", HardwareLive, :index
       live "/operations/hardware/financings", FinancingsLive, :index
       live "/operations/hardware/financings/:id", FinancingShowLive, :show
       live "/operations/hardware/data-centers", DataCentersLive, :index
       live "/operations/hardware/data-centers/:id", DataCenterShowLive, :show
+      live "/operations/hardware/:id", HardwareShowLive, :show
+    end
+
+    live_session :scoped_insurance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "insurance:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/operations/hardware/insurance", InsuranceLive, :index
       live "/operations/hardware/insurance/:id", InsuranceShowLive, :show
-      live "/operations/hardware/:id", HardwareShowLive, :show
+    end
+
+    live_session :scoped_admin,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "admin:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/admin/mcps", MCPLive, :index
       live "/admin/memory", Admin.MemoryLive, :index
       live "/admin/memory/:id", Admin.MemoryLive, :show
       live "/admin/sessions", SessionsLive, :index
       live "/admin/sessions/:id", SessionLive, :show
-    end
 
-    live_session :admin_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :admin}],
-      layout: {AtlasWeb.Layouts, :dashboard} do
       scope "/admin", Admin do
         live "/audit", AuditLive, :index
         live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
+        live "/roles", RolesLive, :index
+        live "/roles/new", RolesLive, :new
+        live "/roles/:id", RolesLive, :edit
+        live "/inference", InferenceLive, :index
+        live "/inference/profiles", InferenceLive, :index
+        live "/inference/profiles/:id", InferenceProfileLive, :show
+        live "/inference/providers", InferenceProvidersLive, :index
+        live "/inference/tokens/:id", InferenceTokenLive, :show
       end
     end
-
-    get "/", PageController, :root
 
     # Document download URLs are stable public paths (email attachments, share
     # links). Keep them at /documents/... even though the dashboard view lives

@@ -55,6 +55,22 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Long-form name of the current deployment environment, matching what
+  # cache/registry/kura already ship and what the Sentry ecosystem
+  # expects. Alert rules and dashboards filter on string equality, so
+  # every service that reports errors has to agree on the same spelling.
+  def deploy_env_name do
+    case env() do
+      :prod -> "production"
+      :can -> "canary"
+      :stag -> "staging"
+      :preview -> "preview"
+      :dev -> "development"
+      :test -> "test"
+      other -> Atom.to_string(other)
+    end
+  end
+
   def server_version_identifier do
     System.get_env("TUIST_SERVER_VERSION_IDENTIFIER") ||
       if dev?() do

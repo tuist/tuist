@@ -65,6 +65,11 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     )
   end
 
+  # Only an apply that lands spends the budget, and the pass goes on past one
+  # that does not. A proposal the cluster refuses stays open and is tried again
+  # every pass; counted against the budget, or cut off by it, a few of them at
+  # the head of the queue would keep every proposal behind them from ever being
+  # tried, including the shrinks that could free the room they wait for.
   defp apply_within_budget do
     spent =
       DateTime.utc_now()
@@ -72,13 +77,18 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
       |> ClaimProposals.automatic_applies_since()
 
     case @max_automatic_applies_per_hour - spent do
-      budget when budget > 0 ->
-        budget
-        |> ClaimProposals.open_proposals()
-        |> Enum.each(&apply_proposal/1)
+      budget when budget > 0 -> apply_in_order(ClaimProposals.open_proposals(), budget)
+      _exhausted -> :ok
+    end
+  end
 
-      _exhausted ->
-        :ok
+  defp apply_in_order([], _budget), do: :ok
+  defp apply_in_order(_proposals, 0), do: :ok
+
+  defp apply_in_order([proposal | proposals], budget) do
+    case apply_proposal(proposal) do
+      :applied -> apply_in_order(proposals, budget - 1)
+      :not_applied -> apply_in_order(proposals, budget)
     end
   end
 
@@ -89,7 +99,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   defp apply_proposal(%ClaimProposal{} = proposal) do
     case Kura.apply_claim_proposal(proposal, "automatic") do
       {:ok, _outcome} ->
-        :ok
+        :applied
 
       {:error, {region, reason}} ->
         Telemetry.claim_apply_refused(region, reason)
@@ -99,7 +109,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
             "#{proposal.recommended_claim_size}: #{inspect(reason)}"
         )
 
-        :ok
+        :not_applied
 
       {:error, reason} ->
         Logger.warning(
@@ -107,7 +117,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
             "#{proposal.recommended_claim_size}: #{inspect(reason)}"
         )
 
-        :ok
+        :not_applied
     end
   end
 end

@@ -524,6 +524,50 @@ kubectl rollout restart deploy/capi-controller-manager -n capi-system
 Nothing else reconciles the old kind, so this is log volume rather than a fleet
 fault, and no fleet changes across the restart.
 
+## Host macOS updates
+
+Host macOS updates are operator-run waves, one drained host at a time. They are
+never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
+`bootstrap.Run` and the drift loop (`installSoftwareUpdatePolicy`, part of
+`HostConfigHash`) write this into `/Library/Preferences/com.apple.SoftwareUpdate`
+on every rented and rack host:
+
+| Key | Value | Effect |
+|---|---|---|
+| `AutomaticCheckEnabled` | `true` | Catalog checks only. `softwareupdate --list` shows what the next wave installs |
+| `AutomaticDownload` | `false` | No OS update is staged in the background |
+| `AutomaticallyInstallMacOSUpdates` | `false` | No unattended OS install |
+| `SplatEnabled` | `false` | Background Security Improvements wait for a wave. Each one restarts the host |
+| `CriticalUpdateInstall` | `false` | Critical updates wait for a wave |
+| `ConfigDataInstall` | `true` | XProtect, Gatekeeper and other data files keep installing: no restart, no OS version change |
+
+`installSetupAssistantSuppression` writes `SkipSetupItems` (managed and local,
+system-wide and for the auto-login user) plus the `DidSee*`/`LastSeen*` flags, so
+the console session never opens on a Setup Assistant pane. Two panes change the
+host when clicked through: "Update Mac Automatically" turns automatic installs
+back on, and FileVault disables auto-login, which leaves Tart without a console.
+
+- These are local preferences, honoured on macOS 26. `SplatEnabled` is
+  undocumented (Apple's internal name for Background Security Improvements) and
+  can change without notice. Re-check the table on the first macOS 27 host
+  before its wave: Apple removes the `com.apple.SoftwareUpdate` MDM payload in
+  27, and managed update policy moves to the
+  `com.apple.configuration.softwareupdate.settings` declaration, which needs a
+  DDM server beside NanoMDM.
+- On an MDM-enrolled rack host ManagedClient owns `/Library/Managed Preferences`
+  and can rewrite it. The durable form there is a `com.apple.SetupAssistant.managed`
+  configuration profile, which NanoMDM can install.
+- The `LastSeen*` flags lapse after a wave; `SkipSetupItems` does not. A pane that
+  appears after a wave is missing from `setupAssistantSkipItems`: do not click
+  Continue, add its key.
+
+Check a host:
+
+```bash
+defaults read /Library/Preferences/com.apple.SoftwareUpdate
+softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
+```
+
 ## Module layout
 
 ```

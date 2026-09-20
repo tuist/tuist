@@ -29,13 +29,13 @@ defmodule Atlas.MCP.Tools.ListAssets do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools") do
       filters =
         args
         |> Map.take(["state", "category", "location", "holder_id"])
         |> Enum.map(fn
-          {"holder_id", v} -> %{field: :assigned_to_id, op: :==, value: v}
-          {k, v} -> %{field: String.to_existing_atom(k), op: :==, value: v}
+          {"holder_id", v} -> %Flop.Filter{field: :assigned_to_id, op: :==, value: v}
+          {k, v} -> %Flop.Filter{field: String.to_existing_atom(k), op: :==, value: v}
         end)
 
       params = %{

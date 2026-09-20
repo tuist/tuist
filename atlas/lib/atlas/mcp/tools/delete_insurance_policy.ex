@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.DeleteInsurancePolicy do
   end
 
   def execute(conn, %{"policy_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = policy <- Policies.get(id) do
       case Policies.delete(policy) do
         {:ok, deleted} -> {:ok, %{deleted: true, id: deleted.id}}

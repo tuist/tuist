@@ -68,7 +68,7 @@ if ! jq -e '.spec.template.spec.containers | length == 1' "$WORKDIR/migrate-job.
 fi
 
 if ! jq -e '.spec.template.spec.containers[0].env // [] | any(.name == "TUIST_CLICKHOUSE_BARE_METAL_URL")' "$WORKDIR/migrate-job.json" > /dev/null; then
-  err "$ENV has no in-cluster ClickHouse configured for the server, so $STEP has nothing to run against."
+  err "$ENV is not migrating onto an in-cluster ClickHouse: it has none, or the in-cluster server is already its system of record. $STEP has nothing to run against."
   exit 1
 fi
 

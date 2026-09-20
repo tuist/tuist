@@ -21,7 +21,7 @@ defmodule Atlas.MCP.Tools.CreateFeatureInterest do
   def description, do: "Create a capability in the feature-interest registry before accounts have requested it."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Feature interest tools") do
+    with :ok <- Tool.authorize_scope(conn, "accounts:write", "Feature interest tools") do
       case Accounts.create_feature_interest(args, Tool.current_user(conn)) do
         {:ok, interest} -> {:ok, FeatureInterests.feature_interest(interest)}
         {:error, changeset} -> {:error, "Could not create feature interest: #{Tool.format_changeset_errors(changeset)}"}

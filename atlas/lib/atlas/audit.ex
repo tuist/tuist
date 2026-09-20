@@ -406,7 +406,6 @@ defmodule Atlas.Audit do
     |> Map.put_new(:actor_id, user.id)
     |> Map.put_new(:actor_email, user.email)
     |> Map.put_new(:actor_name, user.name)
-    |> Map.put_new(:actor_role, role_value(user.role))
   end
 
   defp normalize_actor_attrs(attrs, _actor), do: attrs
@@ -420,10 +419,6 @@ defmodule Atlas.Audit do
   end
 
   defp normalize_interface(attrs), do: attrs
-
-  defp role_value(nil), do: nil
-  defp role_value(role) when is_atom(role), do: Atom.to_string(role)
-  defp role_value(role), do: to_string(role)
 
   defp put_present(map, _key, nil), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)

@@ -1250,6 +1250,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        provisioning:
+          description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+          type: boolean
+          x-struct:
+          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -8685,6 +8690,11 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  provisioning:
+                    description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                 required:
                   - endpoints
                 title: CacheEndpoints
@@ -8694,7 +8704,7 @@ paths:
           description: List of cache endpoints
           headers:
             cache-control:
-              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
               schema:
                 type: string
                 x-struct:

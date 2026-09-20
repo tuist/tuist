@@ -31,7 +31,7 @@ defmodule Atlas.MCP.Tools.ConfirmTaxCertificateDelivery do
   end
 
   def execute(conn, %{"letter_id" => letter_id, "confirmed" => true} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools") do
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools") do
       case Letters.confirm_delivery(letter_id, args, Tool.current_user(conn)) do
         {:ok, letter} -> {:ok, %{letter: LetterSerializer.letter(letter)}}
         {:error, reason} -> {:error, format_error(reason)}

@@ -1,7 +1,9 @@
 defmodule Atlas.ContractsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Atlas.Contracts
+  alias Atlas.Contracts.Storage
   alias Atlas.Contracts.Template
 
   describe "list_template_sets/0" do
@@ -103,6 +105,34 @@ defmodule Atlas.ContractsTest do
       url = Contracts.download_url(template)
 
       assert url =~ "/contracts/templates/2026-02/msa.docx?token="
+    end
+  end
+
+  describe "read_template/1" do
+    test "returns the bytes served by the configured storage" do
+      {:ok, template} = Contracts.fetch_template("2026-02", "msa.docx")
+
+      expect(Storage, :read, fn "2026-02", "msa.docx" -> {:ok, "hello world"} end)
+
+      assert {:ok, "hello world"} = Contracts.read_template(template)
+    end
+
+    test "propagates a storage error" do
+      {:ok, template} = Contracts.fetch_template("2026-02", "msa.docx")
+
+      expect(Storage, :read, fn "2026-02", "msa.docx" -> {:error, :not_found} end)
+
+      assert {:error, :not_found} = Contracts.read_template(template)
+    end
+  end
+
+  describe "list_templates/1 byte_size" do
+    test "falls back to zero when the storage cannot report a size" do
+      stub(Storage, :stat, fn _set, _filename -> {:error, :not_found} end)
+
+      for template <- Contracts.list_templates("2026-02") do
+        assert template.byte_size == 0
+      end
     end
   end
 end

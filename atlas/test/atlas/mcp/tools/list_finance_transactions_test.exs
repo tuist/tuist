@@ -138,7 +138,7 @@ defmodule Atlas.MCP.Tools.ListFinanceTransactionsTest do
       |> insert_user!()
       |> mcp_conn()
 
-    assert {:error, "Finance tools are only available to executives."} =
+    assert {:error, "Finance tools require the finance:read scope."} =
              execute_tool(ListFinanceTransactions, conn, %{})
   end
 end

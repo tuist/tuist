@@ -225,7 +225,7 @@ spec:
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
             {{- with .Values.clickhouse.managed.migration.cutoff }}
             - name: TUIST_CLICKHOUSE_BACKFILL_CUTOFF
               value: {{ . | quote }}

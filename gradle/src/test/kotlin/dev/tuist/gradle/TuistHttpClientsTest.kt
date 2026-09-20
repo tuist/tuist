@@ -11,6 +11,7 @@ import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class TuistHttpClientsTest {
 
@@ -83,11 +84,31 @@ class TuistHttpClientsTest {
         api.refreshToken(RefreshTokenBody("any")).execute()
 
         val request = server.takeRequest()
-        assertEquals("A,B,KURA", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+        assertEquals("A,B", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
     }
 
     @Test
-    fun `retrofit clients send the default feature flags when no flag variable is set`() {
+    fun `retrofit clients send the plugin version`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
+
+        val httpClients = TuistHttpClients(pluginVersion = "0.15.0")
+        val api = httpClients.unauthenticatedRetrofit(URI(server.url("/").toString().trimEnd('/')))
+            .create(AuthenticationApi::class.java)
+
+        api.refreshToken(RefreshTokenBody("any")).execute()
+
+        val request = server.takeRequest()
+        assertEquals("0.15.0", request.getHeader(PluginVersion.HEADER_NAME))
+    }
+
+    @Test
+    fun `the plugin version is the version the plugin was built with`() {
+        val version = assertNotNull(PluginVersion.current)
+        assertTrue(Regex("""\d+\.\d+\.\d+.*""").matches(version), "Unexpected plugin version: $version")
+    }
+
+    @Test
+    fun `retrofit clients skip client feature flags header when absent`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
 
         val httpClients = TuistHttpClients(
@@ -99,7 +120,7 @@ class TuistHttpClientsTest {
         api.refreshToken(RefreshTokenBody("any")).execute()
 
         val request = server.takeRequest()
-        assertEquals("KURA", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+        assertNull(request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
     }
 
     @Test
@@ -107,7 +128,7 @@ class TuistHttpClientsTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
 
         val httpClients = TuistHttpClients(
-            environmentVariables = mapOf("TUIST_FEATURE_FLAG_KURA" to "0")
+            environmentVariables = mapOf("TUIST_FEATURE_FLAG_A" to "0")
         )
         val api = httpClients.unauthenticatedRetrofit(URI(server.url("/").toString().trimEnd('/')))
             .create(AuthenticationApi::class.java)

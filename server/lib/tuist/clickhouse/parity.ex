@@ -82,6 +82,8 @@ defmodule Tuist.ClickHouse.Parity do
 
   Returns `{:ok, report}` where the report lists matching and differing
   tables, so a caller can gate on `differing == []` rather than reading logs.
+  Its `migrations` entry lists the `schema_migrations` versions each server
+  holds and the other does not.
   """
   def compare(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
@@ -94,6 +96,7 @@ defmodule Tuist.ClickHouse.Parity do
       Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
 
       drift = Tables.schema_drift(source, target)
+      migrations = migration_drift(source, target)
 
       {matching, differing, skipped} = split(source, target, copied, since, as_of)
       {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
@@ -102,6 +105,7 @@ defmodule Tuist.ClickHouse.Parity do
         compared: length(copied) - length(skipped),
         skipped: skipped,
         schema: drift,
+        migrations: migrations,
         matching: Enum.map(matching, & &1.table),
         differing: Enum.map(differing, &Map.delete(&1, :matches)),
         derived: %{
@@ -123,6 +127,10 @@ defmodule Tuist.ClickHouse.Parity do
         )
       end
 
+      if migrations.missing_on_destination != [] or migrations.only_on_destination != [] do
+        Logger.error("ClickHouse schema_migrations drift: #{inspect(migrations)}")
+      end
+
       if report.derived.differing != [] do
         # Reported with both fingerprints rather than by name. These tables are
         # recomputed rather than copied, so some difference is expected, and
@@ -135,6 +143,23 @@ defmodule Tuist.ClickHouse.Parity do
 
       {:ok, report}
     end)
+  end
+
+  defp migration_drift(source, target) do
+    left = migration_versions(source)
+    right = migration_versions(target)
+
+    %{
+      missing_on_destination: left |> MapSet.difference(right) |> Enum.sort(),
+      only_on_destination: right |> MapSet.difference(left) |> Enum.sort()
+    }
+  end
+
+  defp migration_versions(endpoint) do
+    statement = "SELECT DISTINCT version FROM #{quote_ident(endpoint.database)}.schema_migrations"
+    %{rows: rows} = endpoint.repo.query!(statement, [], log: false)
+
+    rows |> List.flatten() |> MapSet.new()
   end
 
   defp split(source, target, tables, since, as_of) do

@@ -4131,7 +4131,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:outcome_review_form, nil)
     |> clear_outcome_proposal_modal()
     |> assign_note_form(account)
-    |> assign(:leadership?, Users.executive?(socket.assigns.current_user))
+    |> assign(:leadership?, Users.has_scope?(socket.assigns.current_user, "briefs:read"))
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end

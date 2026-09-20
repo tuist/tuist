@@ -8,7 +8,7 @@ defmodule Atlas.AuditTest do
   alias Atlas.Users.User
 
   test "records actor, interface, changed fields, and dashboard path from context operations" do
-    user = insert_user!(%{email: "auditor@example.com", name: "Auditor", role: :executive})
+    user = insert_user!(%{email: "auditor@example.com", name: "Auditor"})
 
     {:ok, account} =
       Audit.with_context(%{actor: user, interface: "dashboard"}, fn ->
@@ -24,7 +24,6 @@ defmodule Atlas.AuditTest do
     assert activity.actor_id == user.id
     assert activity.actor_email == "auditor@example.com"
     assert activity.actor_name == "Auditor"
-    assert activity.actor_role == "executive"
     assert activity.interface == "dashboard"
     assert activity.target_type == "account"
     assert activity.target_id == account.id
@@ -115,8 +114,7 @@ defmodule Atlas.AuditTest do
   defp insert_user!(attrs) do
     defaults = %{
       email: "user-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Test User",
-      role: :employee
+      name: "Test User"
     }
 
     %User{}
