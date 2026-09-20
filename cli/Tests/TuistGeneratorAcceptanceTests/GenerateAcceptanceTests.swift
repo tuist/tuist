@@ -130,6 +130,25 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         )
         let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
         #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+
+        // And: the tagged entry carries the normalized selected tags and no skipped tags
+        let appTestsEntry = try #require(
+            unitTargets.first { ($0["target"] as? [String: Any])?["name"] as? String == "AppTests" }
+        )
+        #expect(appTestsEntry["selectedTags"] as? [String: [String]] == ["tags": [".contract"]])
+        #expect(appTestsEntry["skippedTags"] == nil)
+
+        // And: the untagged plan omits both tag keys
+        let snapshotPlanData = try Data(contentsOf: snapshotPlanPath.url)
+        let snapshotPlanJSON = try #require(
+            try JSONSerialization.jsonObject(with: snapshotPlanData) as? [String: Any]
+        )
+        let snapshotTargets = try #require(snapshotPlanJSON["testTargets"] as? [[String: Any]])
+        let appSnapshotTestsEntry = try #require(
+            snapshotTargets.first { ($0["target"] as? [String: Any])?["name"] as? String == "AppSnapshotTests" }
+        )
+        #expect(appSnapshotTestsEntry["selectedTags"] == nil)
+        #expect(appSnapshotTestsEntry["skippedTags"] == nil)
     }
 }
 
