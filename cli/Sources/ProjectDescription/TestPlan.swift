@@ -7,6 +7,9 @@
 /// ```swift
 /// .testPlans([
 ///     .generated(name: "UnitTests", testTargets: allUnitTests),
+///     .generated(name: "Contract", testTargets: [
+///         .testableTarget(target: "ContractTests", selectedTags: ["contract"]),
+///     ]),
 ///     .path("TestPlans/Legacy.xctestplan"),
 /// ])
 /// ```
