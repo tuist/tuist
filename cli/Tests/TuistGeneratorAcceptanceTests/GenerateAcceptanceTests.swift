@@ -149,6 +149,11 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         )
         #expect(appSnapshotTestsEntry["selectedTags"] == nil)
         #expect(appSnapshotTestsEntry["skippedTags"] == nil)
+
+        // And: both plans are visible in the project navigator
+        let fileReferencePaths = xcodeproj.pbxproj.fileReferences.compactMap(\.path)
+        #expect(fileReferencePaths.contains { $0.hasSuffix("UnitTests.xctestplan") })
+        #expect(fileReferencePaths.contains { $0.hasSuffix("SnapshotTests.xctestplan") })
     }
 }
 
