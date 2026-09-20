@@ -34,8 +34,8 @@ defmodule Atlas.MCP.Tools.ListAssets do
         args
         |> Map.take(["state", "category", "location", "holder_id"])
         |> Enum.map(fn
-          {"holder_id", v} -> %{field: :assigned_to_id, op: :==, value: v}
-          {k, v} -> %{field: String.to_existing_atom(k), op: :==, value: v}
+          {"holder_id", v} -> %Flop.Filter{field: :assigned_to_id, op: :==, value: v}
+          {k, v} -> %Flop.Filter{field: String.to_existing_atom(k), op: :==, value: v}
         end)
 
       params = %{
