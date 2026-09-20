@@ -308,10 +308,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             // the scheme would silently carry no test plans. Keep it, and let the GraphLinter
             // warning about the unresolved entries be what the user sees.
             let wasPruned = testPlan.testTargets.contains { originalTargets.contains($0.target) }
-            if testPlan.kind == .referenced, !wasPruned {
-                return testPlan
-            }
-            return nil
+            return testPlan.kind == .referenced && !wasPruned ? testPlan : nil
         } else {
             return TestPlan(
                 path: testPlan.path,
