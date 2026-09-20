@@ -16,13 +16,45 @@ struct TestCoverageEvidenceServiceTests {
         let evidence = TestCoverageEvidenceService.reduce(
             outputs: [output([
                 .init(kind: .gap, overlapped: false, module: "AppTests", suite: "MathTests", name: "", counters: [0: [3]]),
-                .init(kind: .xctest, overlapped: false, module: "AppTests", suite: "MathTests", name: "testAddAndReturnError:", counters: [0: [0, 1]]),
-                .init(kind: .swiftTesting, overlapped: false, module: "AppTests", suite: "SwiftTests", name: "signs(value:)", counters: [0: [2]]),
-                .init(kind: .swiftTesting, overlapped: false, module: "AppTests", suite: "SwiftTests", name: "signs(value:)", counters: [0: [0, 4]]),
-                .init(kind: .swiftTesting, overlapped: true, module: "AppTests", suite: "SwiftTests", name: "overlaps()", counters: [0: [2]]),
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppTests",
+                    suite: "MathTests",
+                    name: "testAddAndReturnError:",
+                    counters: [0: [0, 1]]
+                ),
+                .init(
+                    kind: .swiftTesting,
+                    overlapped: false,
+                    module: "AppTests",
+                    suite: "SwiftTests",
+                    name: "signs(value:)",
+                    counters: [0: [2]]
+                ),
+                .init(
+                    kind: .swiftTesting,
+                    overlapped: false,
+                    module: "AppTests",
+                    suite: "SwiftTests",
+                    name: "signs(value:)",
+                    counters: [0: [0, 4]]
+                ),
+                .init(
+                    kind: .swiftTesting,
+                    overlapped: true,
+                    module: "AppTests",
+                    suite: "SwiftTests",
+                    name: "overlaps()",
+                    counters: [0: [2]]
+                ),
                 .init(kind: .gap, overlapped: false, module: "AppTests", suite: "", name: "", counters: [0: [4]]),
             ])],
-            filesByFunction: ["/products/App": ["add": ["/src/Math.swift"], "sign": ["/src/Sign.swift"], "bootstrap": ["/src/Boot.swift"]]]
+            filesByFunction: ["/products/App": [
+                "add": ["/src/Math.swift"],
+                "sign": ["/src/Sign.swift"],
+                "bootstrap": ["/src/Boot.swift"],
+            ]]
         )
 
         #expect(evidence == TestCoverageEvidence(
@@ -45,12 +77,28 @@ struct TestCoverageEvidenceServiceTests {
 
     @Test func readsFunctionsAndTheirFilesOffLCOV() {
         var table = TestCoverageEvidenceService.LCOVFunctionTable()
-        for line in ["SF:/src/Math.swift", "FN:2,add", "FNDA:1,add", "DA:2,1", "end_of_record", "SF:/src/Shared.h", "FN:9,add", "FN:1,a,b"] {
+        for line in [
+            "SF:/src/Math.swift",
+            "FN:2,add",
+            "FNDA:1,add",
+            "DA:2,1",
+            "end_of_record",
+            "SF:/src/Shared.h",
+            "FN:9,add",
+            "FN:1,a,b",
+        ] {
             table.read(Substring(line))
         }
 
         #expect(table.filesByFunction == ["add": ["/src/Math.swift", "/src/Shared.h"], "a,b": ["/src/Shared.h"]])
-        for (line, kept) in [("SF:/src/Math.swift", true), ("FN:2,add", true), ("FNDA:1,add", false), ("FNF:3", false), ("DA:2,1", false), ("FN:", false)] {
+        for (line, kept) in [
+            ("SF:/src/Math.swift", true),
+            ("FN:2,add", true),
+            ("FNDA:1,add", false),
+            ("FNF:3", false),
+            ("DA:2,1", false),
+            ("FN:", false),
+        ] {
             #expect(TestCoverageEvidenceService.LCOVFunctionTable.reads(Array(line.utf8)) == kept)
         }
     }

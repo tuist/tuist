@@ -663,7 +663,8 @@ extension XcodeBuildTestCommandService {
         derivedDataPath: AbsolutePath?
     ) async throws {
         let session = await testCoverageEvidenceService.prepare(
-            platform: passedValue(for: "-destination", arguments: arguments).flatMap(TestCoverageEvidencePlatform.init(destination:))
+            platform: passedValue(for: "-destination", arguments: arguments)
+                .flatMap(TestCoverageEvidencePlatform.init(destination:))
         )
         var runError: Error?
         do {

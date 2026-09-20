@@ -147,7 +147,9 @@ struct CoverageObserverOutput {
     ) -> [String?] {
         let totalCounters = countersSize / 8
         var byReference: [UInt64: String] = [:]
-        for name in names { byReference[nameReference(name)] = name }
+        for name in names {
+            byReference[nameReference(name)] = name
+        }
 
         let layouts: [(recordSize: Int, countOffset: Int)] = [(64, 48), (56, 40), (48, 40)]
         for layout in layouts where data.count % layout.recordSize == 0 && !data.isEmpty {
@@ -169,7 +171,9 @@ struct CoverageObserverOutput {
                     let first = Int(distance / 8)
                     guard first + count <= totalCounters else { valid = false; break }
                     let name = byReference[reference]
-                    for counter in first ..< first + count { result[counter] = name }
+                    for counter in first ..< first + count {
+                        result[counter] = name
+                    }
                     claimed += count
                 }
                 if valid, claimed > 0, claimed * 2 >= totalCounters { return result }

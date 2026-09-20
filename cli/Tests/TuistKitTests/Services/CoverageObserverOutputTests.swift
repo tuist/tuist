@@ -7,11 +7,20 @@ struct CoverageObserverOutputTests {
     private func u64(_ value: UInt64) -> Data { withUnsafeBytes(of: value.littleEndian) { Data($0) } }
     private func string(_ value: String) -> Data { u32(UInt32(value.utf8.count)) + Data(value.utf8) }
 
-    private func record(kind: UInt8, flags: UInt8, _ module: String, _ suite: String, _ name: String, _ images: [(UInt32, [UInt32])]) -> Data {
+    private func record(
+        kind: UInt8,
+        flags: UInt8,
+        _ module: String,
+        _ suite: String,
+        _ name: String,
+        _ images: [(UInt32, [UInt32])]
+    ) -> Data {
         var data = Data([kind, flags, 0, 0]) + string(module) + string(suite) + string(name) + u32(UInt32(images.count))
         for (index, counters) in images {
             data += u32(index) + u32(UInt32(counters.count))
-            for counter in counters { data += u32(counter) }
+            for counter in counters {
+                data += u32(counter)
+            }
         }
         return data
     }
@@ -22,7 +31,14 @@ struct CoverageObserverOutputTests {
         let truncated = record(kind: 0, flags: 0, "AppTests", "", "", [(0, [1])]).dropLast(2)
 
         #expect(CoverageObserverOutput.parseRecords(whole + truncated) == [
-            .init(kind: .xctest, overlapped: false, module: "AppTests", suite: "MathTests", name: "testAdd", counters: [0: [3, 4], 2: [9]]),
+            .init(
+                kind: .xctest,
+                overlapped: false,
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd",
+                counters: [0: [3, 4], 2: [9]]
+            ),
             .init(kind: .swiftTesting, overlapped: true, module: "AppTests", suite: "SwiftTests", name: "adds()", counters: [:]),
         ])
     }

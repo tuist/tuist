@@ -161,7 +161,9 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 var recordFiles: Set<String> = []
                 for (image, functions) in output.functions(of: record) {
                     guard let table = filesByFunction[image] else { continue }
-                    for function in functions { recordFiles.formUnion(table[function] ?? []) }
+                    for function in functions {
+                        recordFiles.formUnion(table[function] ?? [])
+                    }
                 }
                 if !record.module.isEmpty {
                     files[Key(kind: .target, module: record.module, suite: "", name: ""), default: []].formUnion(recordFiles)
