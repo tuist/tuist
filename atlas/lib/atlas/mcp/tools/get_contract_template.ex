@@ -66,7 +66,7 @@ defmodule Atlas.MCP.Tools.GetContractTemplate do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Contract templates"),
+    with :ok <- Tool.authorize_scope(conn, "contracts:read", "Contract templates"),
          {:ok, filename} <- fetch_filename(args),
          template_set = args["template_set"] || Contracts.default_template_set(),
          {:ok, %Template{} = template} <- Contracts.fetch_template(template_set, filename) do

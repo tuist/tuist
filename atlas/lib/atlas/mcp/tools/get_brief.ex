@@ -16,7 +16,7 @@ defmodule Atlas.MCP.Tools.GetBrief do
   def description, do: "Get one leadership brief with its next moves, evidence, owners, results, and feedback."
 
   def execute(conn, %{"brief_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Leadership brief tools"),
+    with :ok <- Tool.authorize_scope(conn, "briefs:read", "Leadership brief tools"),
          brief when not is_nil(brief) <- Briefs.get_brief(id) do
       {:ok, BriefSerializer.brief(brief, include_items: true)}
     else

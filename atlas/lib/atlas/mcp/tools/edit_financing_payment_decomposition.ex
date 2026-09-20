@@ -41,7 +41,7 @@ defmodule Atlas.MCP.Tools.EditFinancingPaymentDecomposition do
   end
 
   def execute(conn, %{"payment_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools") do
       decomposition = args |> Map.delete("payment_id") |> normalize()
 
       case Financings.edit_payment_decomposition(id, decomposition) do

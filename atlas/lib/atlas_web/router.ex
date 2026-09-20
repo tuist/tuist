@@ -227,37 +227,66 @@ defmodule AtlasWeb.Router do
       live "/engineering/postmortems/:number/edit", PostmortemLive.Form, :edit
     end
 
-    live_session :executive_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :executive}],
+    live_session :scoped_finance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "finance:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/commercial/finance", FinanceLive, :index
       live "/commercial/finance/vendors", FinanceVendorLive, :index
+    end
+
+    live_session :scoped_documents,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "documents:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/library/documents", DocumentsLive, :index
       live "/library/documents/:id", DocumentLive, :show
+    end
+
+    live_session :scoped_letters,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "letters:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/outbound/postal", PostalLive, :index
+    end
+
+    live_session :scoped_licenses,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "licenses:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/commercial/sales/licenses", LicensesLive, :index
+    end
+
+    live_session :scoped_assets,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/operations/hardware", HardwareLive, :index
       live "/operations/hardware/financings", FinancingsLive, :index
       live "/operations/hardware/financings/:id", FinancingShowLive, :show
       live "/operations/hardware/data-centers", DataCentersLive, :index
       live "/operations/hardware/data-centers/:id", DataCenterShowLive, :show
+      live "/operations/hardware/:id", HardwareShowLive, :show
+    end
+
+    live_session :scoped_insurance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "insurance:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/operations/hardware/insurance", InsuranceLive, :index
       live "/operations/hardware/insurance/:id", InsuranceShowLive, :show
-      live "/operations/hardware/:id", HardwareShowLive, :show
+    end
+
+    live_session :scoped_admin,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "admin:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
       live "/admin/mcps", MCPLive, :index
       live "/admin/memory", Admin.MemoryLive, :index
       live "/admin/memory/:id", Admin.MemoryLive, :show
       live "/admin/sessions", SessionsLive, :index
       live "/admin/sessions/:id", SessionLive, :show
-    end
 
-    live_session :admin_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :admin}],
-      layout: {AtlasWeb.Layouts, :dashboard} do
       scope "/admin", Admin do
         live "/audit", AuditLive, :index
         live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
+        live "/roles", RolesLive, :index
+        live "/roles/new", RolesLive, :new
+        live "/roles/:id", RolesLive, :edit
         live "/inference", InferenceLive, :index
         live "/inference/profiles", InferenceLive, :index
         live "/inference/profiles/:id", InferenceProfileLive, :show

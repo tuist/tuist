@@ -767,7 +767,7 @@ defmodule Atlas.MCP.Server do
   defp admin_tool_allowed?(conn, tool_module) when tool_module in @admin_tools do
     conn
     |> Tool.current_user()
-    |> Atlas.Users.executive?()
+    |> Atlas.Users.has_scope?("admin:read")
   end
 
   defp admin_tool_allowed?(_conn, _tool_module), do: true

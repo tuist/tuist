@@ -31,7 +31,7 @@ defmodule Atlas.MCP.Tools.FinalizeLetterDocumentUpload do
       "Attach a previously uploaded outgoing PDF to its letter, move it to `collecting_delivery_details`, and queue delivery-detail preparation. Requires that the PDF bytes have been PUT to the URL returned by `create_letter_document_upload`. Does not send the letter."
 
   def execute(conn, %{"letter_id" => letter_id, "document_id" => document_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools") do
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools") do
       case Letters.finalize_letter_document_upload(letter_id, document_id, Tool.current_user(conn)) do
         {:ok, letter} -> {:ok, %{letter: LetterSerializer.letter(letter)}}
         {:error, reason} -> {:error, format_error(reason)}

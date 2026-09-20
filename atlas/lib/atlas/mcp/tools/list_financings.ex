@@ -27,7 +27,7 @@ defmodule Atlas.MCP.Tools.ListFinancings do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Financing tools") do
       filters =
         args
         |> Map.take(["type", "status"])

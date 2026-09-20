@@ -59,7 +59,7 @@ defmodule Atlas.MCP.Tools.FinanceAddTransactionAttachment do
         "transaction_external_id" => transaction_external_id,
         "document_id" => document_id
       }) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, source} <- Config.fetch_source(source_key),
          %Document{} = document <- Documents.get_document(document_id),
          {:ok, document_content} <- download_document_content(document) do

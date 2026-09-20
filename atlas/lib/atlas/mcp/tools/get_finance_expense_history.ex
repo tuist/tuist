@@ -95,7 +95,7 @@ defmodule Atlas.MCP.Tools.GetFinanceExpenseHistory do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools"),
          {:ok, ending_on} <- parse_date(Map.get(args, "ending_on")),
          {:ok, months} <- parse_months(Map.get(args, "months")),
          {:ok, currency} <- parse_currency(Map.get(args, "currency")) do
