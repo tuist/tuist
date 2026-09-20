@@ -22,8 +22,13 @@ defmodule Atlas.Repo.Migrations.CreateRolesAndUserRoles do
     create unique_index(:roles, [:slug])
 
     create table(:user_roles, primary_key: false) do
-      add :user_id, references(:users, type: :uuid, on_delete: :delete_all), primary_key: true, null: false
-      add :role_id, references(:roles, type: :uuid, on_delete: :delete_all), primary_key: true, null: false
+      add :user_id, references(:users, type: :uuid, on_delete: :delete_all),
+        primary_key: true,
+        null: false
+
+      add :role_id, references(:roles, type: :uuid, on_delete: :delete_all),
+        primary_key: true,
+        null: false
 
       add :inserted_at, :timestamptz, null: false, default: fragment("now()")
     end

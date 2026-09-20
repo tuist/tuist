@@ -25,6 +25,7 @@ alias Atlas.Agents.Sessions.Session, as: AgentSession
 alias Atlas.Assets.Asset
 alias Atlas.Assets.DataCenter
 alias Atlas.Audit
+alias Atlas.Authorization.Roles
 alias Atlas.Briefs.Brief
 alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
@@ -91,14 +92,14 @@ seed_users = [
   %{email: "sam@atlas.dev", name: "Sam Okafor", roles: [:member]}
 ]
 
-executive_role = Atlas.Authorization.Roles.ensure_executive_role!()
-member_role = Atlas.Authorization.Roles.ensure_member_role!()
+executive_role = Roles.ensure_executive_role!()
+member_role = Roles.ensure_member_role!()
 
 finance_reader_role =
-  case Atlas.Authorization.Roles.get_role_by_slug("finance-reader") do
+  case Roles.get_role_by_slug("finance-reader") do
     nil ->
       {:ok, role} =
-        Atlas.Authorization.Roles.create_role(%{
+        Roles.create_role(%{
           name: "Finance reader",
           slug: "finance-reader",
           description: "Read-only access to finance dashboards and documents.",
@@ -129,7 +130,7 @@ for attrs <- seed_users do
     |> Repo.insert_or_update!()
 
   role_ids = Enum.map(roles, fn slug -> Map.fetch!(role_lookup, slug).id end)
-  {:ok, _} = Atlas.Authorization.Roles.set_user_roles(user, role_ids)
+  {:ok, _} = Roles.set_user_roles(user, role_ids)
 end
 
 seed_user = Repo.get_by!(User, email: "test@atlas.dev")

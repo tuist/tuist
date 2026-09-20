@@ -84,9 +84,7 @@ defmodule AtlasWeb.Admin.UsersLive do
         <div data-part="text">
           <h1 data-part="title">{gettext("Users")}</h1>
           <p data-part="description">
-            {gettext(
-              "Assign roles to users. Roles bundle scopes and are managed on the Roles page."
-            )}
+            {gettext("Assign roles to users. Roles bundle scopes and are managed on the Roles page.")}
           </p>
         </div>
       </div>
@@ -363,10 +361,9 @@ defmodule AtlasWeb.Admin.UsersLive do
   end
 
   defp roles_label([]), do: "-"
-  defp roles_label(roles), do: roles |> Enum.map(& &1.name) |> Enum.join(", ")
+  defp roles_label(roles), do: roles |> Enum.map_join(", ", & &1.name)
 
-  defp scope_count(roles),
-    do: roles |> Enum.flat_map(& &1.scopes) |> Enum.uniq() |> length()
+  defp scope_count(roles), do: roles |> Enum.flat_map(& &1.scopes) |> Enum.uniq() |> length()
 
   defp avatar_color(user) do
     Enum.at(@avatar_colors, :erlang.phash2(user.name || user.email, length(@avatar_colors)))

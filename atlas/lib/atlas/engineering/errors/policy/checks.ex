@@ -8,10 +8,11 @@ defmodule Atlas.Engineering.Errors.Policy.Checks do
   """
 
   alias Atlas.Users
+  alias Atlas.Users.User
 
   def member(%{id: _}, _object), do: true
   def member(_subject, _object), do: false
 
-  def admin(%Atlas.Users.User{} = user, _object), do: Users.has_scope?(user, "engineering:write")
+  def admin(%User{} = user, _object), do: Users.has_scope?(user, "engineering:write")
   def admin(_subject, _object), do: false
 end

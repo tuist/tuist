@@ -349,10 +349,7 @@ defmodule AtlasWeb.Admin.RolesLive do
         <span data-part="title">{gettext("Delete role")}</span>
         <span data-part="subtitle">
           {if @role.builtin,
-            do:
-              gettext(
-                "This is a built-in role that Atlas depends on. It cannot be deleted."
-              ),
+            do: gettext("This is a built-in role that Atlas depends on. It cannot be deleted."),
             else: gettext("Deleting the role will remove it from every user that holds it.")}
         </span>
       </div>
