@@ -43,6 +43,18 @@ defmodule Atlas.MCP.Tools.AssetsToolsTest do
     assert message =~ "executives"
   end
 
+  test "list_assets narrows the fleet by category" do
+    server = insert_asset!(%{name: "CI runner", category: "server"})
+    _laptop = insert_asset!(%{name: "MBP", category: "laptop"})
+
+    assert {:ok, %{assets: assets, count: count}} =
+             execute_tool(ListAssets, executive_mcp_conn(), %{"category" => "server"})
+
+    assert count == length(assets)
+    assert Enum.all?(assets, &(&1.category == "server"))
+    assert Enum.any?(assets, &(&1.id == server.id))
+  end
+
   test "list_assets searches by serial number" do
     asset = insert_asset!(%{name: "Mac mini", serial_number: "MAC-#{System.unique_integer([:positive])}"})
 
