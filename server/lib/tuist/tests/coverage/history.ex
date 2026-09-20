@@ -337,7 +337,7 @@ defmodule Tuist.Tests.Coverage.History do
           ran_at: max(r.ran_at),
           covered_lines: fragment("argMax(?, ?)", c.covered_lines, r.ran_at),
           executable_lines: fragment("argMax(?, ?)", c.executable_lines, r.ran_at),
-          files_count: fragment("argMax(?, ?)", c.files_count, r.ran_at),
+          measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, r.ran_at),
           unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, r.ran_at),
           schemes: fragment("argMax(?, ?)", c.schemes, r.ran_at),
           partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, r.ran_at),

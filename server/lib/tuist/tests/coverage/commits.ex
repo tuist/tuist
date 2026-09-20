@@ -77,7 +77,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         build_system: runs |> hd() |> Map.fetch!(:build_system),
         covered_lines: totals.covered_lines,
         executable_lines: totals.executable_lines,
-        files_count: totals.files_count,
+        measured_files_count: totals.measured_files_count,
         unmeasured_files_count: unmeasured_files_count(project.id, repository_id, sha, run_ids, excluded),
         schemes: schemes,
         partial_schemes: partial_schemes,
@@ -123,7 +123,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         build_system: fragment("argMax(?, ?)", c.build_system, c.version),
         covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
         executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        files_count: fragment("argMax(?, ?)", c.files_count, c.version),
+        measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, c.version),
         unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, c.version),
         schemes: fragment("argMax(?, ?)", c.schemes, c.version),
         partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
@@ -160,7 +160,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         build_system: fragment("argMax(?, ?)", c.build_system, c.version),
         covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
         executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        files_count: fragment("argMax(?, ?)", c.files_count, c.version),
+        measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, c.version),
         unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, c.version),
         schemes: fragment("argMax(?, ?)", c.schemes, c.version),
         partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
@@ -228,11 +228,11 @@ defmodule Tuist.Tests.Coverage.Commits do
         select: %{
           covered_lines: fragment("toUInt64(sum(?))", f.covered_lines),
           executable_lines: fragment("toUInt64(sum(?))", f.executable_lines),
-          files_count: fragment("toUInt32(count(?))", f.path)
+          measured_files_count: fragment("toUInt32(count(?))", f.path)
         }
       ),
       settings: [select_sequential_consistency: 1]
-    ) || %{covered_lines: 0, executable_lines: 0, files_count: 0}
+    ) || %{covered_lines: 0, executable_lines: 0, measured_files_count: 0}
   end
 
   # The commit's listing narrowed to the languages the runs measured (a

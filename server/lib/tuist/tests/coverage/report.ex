@@ -43,7 +43,7 @@ defmodule Tuist.Tests.Coverage.Report do
         covered_lines: summary.covered_lines,
         executable_lines: summary.executable_lines,
         coverage: summary.coverage,
-        measured_files_count: summary.files_count,
+        measured_files_count: summary.measured_files_count,
         unmeasured_files_count: summary.unmeasured_files_count,
         schemes: summary.schemes,
         partial_schemes: summary.partial_schemes,

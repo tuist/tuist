@@ -37,7 +37,9 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     summary = Commits.summary(project.id, "abc123")
 
-    assert {summary.covered_lines, summary.executable_lines, summary.coverage, summary.files_count} == {3, 6, 50.0, 3}
+    assert {summary.covered_lines, summary.executable_lines, summary.coverage, summary.measured_files_count} ==
+             {3, 6, 50.0, 3}
+
     assert {summary.schemes, summary.partial_schemes} == {["App", "Other"], ["Other"]}
     assert Enum.sort(summary.test_run_ids) == Enum.sort([app.id, other.id])
     assert {summary.complete, summary.completeness} == {false, ""}
@@ -104,7 +106,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     # A run landing after the signal joins the union; the commit stays complete.
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])])
-    assert %{complete: true, completeness: "signal", files_count: 2} = Commits.summary(project.id, "abc123")
+    assert %{complete: true, completeness: "signal", measured_files_count: 2} = Commits.summary(project.id, "abc123")
 
     assert Commits.signal_complete(project, "unmeasured") == nil
   end

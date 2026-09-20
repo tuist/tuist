@@ -119,7 +119,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
       `build_system` LowCardinality(String) DEFAULT 'xcode',
       `covered_lines` UInt64,
       `executable_lines` UInt64,
-      `files_count` UInt32 DEFAULT 0,
+      `measured_files_count` UInt32 DEFAULT 0,
       `unmeasured_files_count` UInt32 DEFAULT 0,
       `schemes` Array(String),
       `partial_schemes` Array(String),

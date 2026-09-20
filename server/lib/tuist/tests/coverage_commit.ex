@@ -26,7 +26,7 @@ defmodule Tuist.Tests.CoverageCommit do
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
     field :covered_lines, Ch, type: "UInt64"
     field :executable_lines, Ch, type: "UInt64"
-    field :files_count, Ch, type: "UInt32", default: 0
+    field :measured_files_count, Ch, type: "UInt32", default: 0
     field :unmeasured_files_count, Ch, type: "UInt32", default: 0
     field :schemes, Ch, type: "Array(String)", default: []
     field :partial_schemes, Ch, type: "Array(String)", default: []
