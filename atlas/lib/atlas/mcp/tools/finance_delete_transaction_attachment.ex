@@ -40,7 +40,7 @@ defmodule Atlas.MCP.Tools.FinanceDeleteTransactionAttachment do
   end
 
   def execute(conn, %{"source_key" => source_key, "attachment_id" => attachment_id}) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, source} <- Config.fetch_source(source_key) do
       case Qonto.delete_attachment(source, attachment_id) do
         :ok ->

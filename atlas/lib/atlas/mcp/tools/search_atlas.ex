@@ -86,7 +86,7 @@ defmodule Atlas.MCP.Tools.SearchAtlas do
 
   defp document_search_authorization(conn) do
     with :ok <- authorize_document_group(conn) do
-      Tool.authorize_executive(conn, "Document tools")
+      Tool.authorize_scope(conn, "documents:read", "Document tools")
     end
   end
 

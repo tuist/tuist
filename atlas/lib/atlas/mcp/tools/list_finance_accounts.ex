@@ -121,7 +121,7 @@ defmodule Atlas.MCP.Tools.ListFinanceAccounts do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn) do
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools") do
       accounts =
         args
         |> list_opts()

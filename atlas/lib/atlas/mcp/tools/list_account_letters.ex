@@ -30,7 +30,7 @@ defmodule Atlas.MCP.Tools.ListAccountLetters do
   def description, do: "List the stored postal letters for an account."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools"),
+    with :ok <- Tool.authorize_scope(conn, "letters:read", "Letter tools"),
          {:ok, account} <- AccountLookup.resolve(args) do
       limit = args["limit"] || 25
       letters = Letters.list_account_letters(account, limit: limit)

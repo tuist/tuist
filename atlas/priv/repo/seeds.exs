@@ -25,6 +25,7 @@ alias Atlas.Agents.Sessions.Session, as: AgentSession
 alias Atlas.Assets.Asset
 alias Atlas.Assets.DataCenter
 alias Atlas.Audit
+alias Atlas.Authorization.Roles
 alias Atlas.Briefs.Brief
 alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
@@ -87,19 +88,51 @@ alias Atlas.Support.Thread, as: SupportThread
 alias Atlas.Users.User
 
 seed_users = [
-  %{email: "test@atlas.dev", name: "Test User", role: :executive},
-  %{email: "alex@atlas.dev", name: "Alex Rivera", role: :executive},
-  %{email: "morgan@atlas.dev", name: "Morgan Chen", role: :employee},
-  %{email: "sam@atlas.dev", name: "Sam Okafor", role: :employee}
+  %{email: "test@atlas.dev", name: "Test User", roles: [:executive]},
+  %{email: "alex@atlas.dev", name: "Alex Rivera", roles: [:executive]},
+  %{email: "morgan@atlas.dev", name: "Morgan Chen", roles: [:finance_reader]},
+  %{email: "sam@atlas.dev", name: "Sam Okafor", roles: [:member]}
 ]
 
-for attrs <- seed_users do
-  case Repo.get_by(User, email: attrs.email) do
-    nil -> %User{}
-    existing -> existing
+executive_role = Roles.ensure_executive_role!()
+member_role = Roles.ensure_member_role!()
+
+finance_reader_role =
+  case Roles.get_role_by_slug("finance-reader") do
+    nil ->
+      {:ok, role} =
+        Roles.create_role(%{
+          name: "Finance reader",
+          slug: "finance-reader",
+          description: "Read-only access to finance dashboards and documents.",
+          scopes: ["finance:read", "documents:read"]
+        })
+
+      role
+
+    role ->
+      role
   end
-  |> User.changeset(attrs)
-  |> Repo.insert_or_update!()
+
+role_lookup = %{
+  executive: executive_role,
+  member: member_role,
+  finance_reader: finance_reader_role
+}
+
+for attrs <- seed_users do
+  {roles, attrs} = Map.pop(attrs, :roles, [])
+
+  user =
+    case Repo.get_by(User, email: attrs.email) do
+      nil -> %User{}
+      existing -> existing
+    end
+    |> User.changeset(attrs)
+    |> Repo.insert_or_update!()
+
+  role_ids = Enum.map(roles, fn slug -> Map.fetch!(role_lookup, slug).id end)
+  {:ok, _} = Roles.set_user_roles(user, role_ids)
 end
 
 seed_user = Repo.get_by!(User, email: "test@atlas.dev")

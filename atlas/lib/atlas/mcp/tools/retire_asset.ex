@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.RetireAsset do
   end
 
   def execute(conn, %{"asset_id" => asset_id, "on" => on}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          {:ok, date} <- Date.from_iso8601(on),
          %_{} = asset <- Assets.get_asset(asset_id) do
       case Assets.retire(asset, on: date) do

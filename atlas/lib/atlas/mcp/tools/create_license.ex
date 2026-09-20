@@ -29,7 +29,7 @@ defmodule Atlas.MCP.Tools.CreateLicense do
   end
 
   def execute(conn, %{"account_id" => account_id, "expires_on" => expires_on}) do
-    with :ok <- Tool.authorize_executive(conn, "License tools") do
+    with :ok <- Tool.authorize_scope(conn, "licenses:write", "License tools") do
       case Licenses.create_license(%{"account_id" => account_id, "expires_on" => expires_on}) do
         {:ok, license} -> {:ok, LicenseSerializer.license(license)}
         {:error, changeset} -> {:error, "Could not create license: #{Tool.format_changeset_errors(changeset)}"}

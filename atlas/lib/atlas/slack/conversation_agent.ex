@@ -257,7 +257,7 @@ defmodule Atlas.Slack.ConversationAgent do
   defp requester_executive?(opts) do
     opts
     |> requester_atlas_user()
-    |> Users.executive?()
+    |> Users.has_scope?("admin:write")
   end
 
   defp requester_atlas_user(opts) do
@@ -445,7 +445,7 @@ defmodule Atlas.Slack.ConversationAgent do
   defp effective_mcp_user(%Atlas.Users.User{} = mcp_user, tool_groups, opts) do
     requester = requester_atlas_user(opts)
 
-    if "finance" in tool_groups and Users.executive?(requester) do
+    if "finance" in tool_groups and Users.has_scope?(requester, "finance:write") do
       requester
     else
       mcp_user

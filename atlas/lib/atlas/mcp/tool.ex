@@ -107,13 +107,22 @@ defmodule Atlas.MCP.Tool do
     end
   end
 
-  def authorize_executive(conn, label \\ "Finance tools") do
+  @doc """
+  Ensure the caller holds the required scope. `scope` is a string like
+  `"finance:write"`. `label` is used in error messages so a client sees which
+  family of tools requested the permission.
+  """
+  def authorize_scope(conn, scope, label) when is_binary(scope) and is_binary(label) do
     case current_user(conn) do
       %User{} = user ->
-        if Users.executive?(user), do: :ok, else: {:error, "#{label} are only available to executives."}
+        if Users.has_scope?(user, scope) do
+          :ok
+        else
+          {:error, "#{label} require the #{scope} scope."}
+        end
 
       _user ->
-        {:error, "#{label} require an authenticated executive user."}
+        {:error, "#{label} require an authenticated user with the #{scope} scope."}
     end
   end
 

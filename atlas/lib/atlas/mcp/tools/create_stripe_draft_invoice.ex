@@ -123,7 +123,7 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoice do
       "Create a Stripe draft invoice for an account using the most recent signed order form stored in Atlas. The invoice remains a draft and is not finalized or sent. Accepts an optional `line_items` override for cases where Atlas cannot auto-extract amounts from the order form."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Finance tools"),
+    with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, account} <- AccountLookup.resolve(args) do
       account
       |> Accounts.create_stripe_draft_invoice_from_latest_signed_order_form(build_opts(args))
