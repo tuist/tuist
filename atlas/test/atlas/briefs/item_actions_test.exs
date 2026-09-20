@@ -3,6 +3,8 @@ defmodule Atlas.Briefs.ItemActionsTest do
   use Oban.Testing, repo: Atlas.Repo
 
   alias Atlas.Audit.Activity
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Briefs.Brief
   alias Atlas.Briefs.BriefItem
   alias Atlas.Briefs.ItemActions
@@ -64,8 +66,7 @@ defmodule Atlas.Briefs.ItemActionsTest do
       %User{}
       |> User.changeset(%{
         email: "brief-employee-#{System.unique_integer([:positive])}@example.com",
-        name: "Brief Employee",
-        role: :employee
+        name: "Brief Employee"
       })
       |> Repo.insert!()
 
@@ -154,12 +155,20 @@ defmodule Atlas.Briefs.ItemActionsTest do
   end
 
   defp insert_user! do
-    %User{}
-    |> User.changeset(%{
-      email: "brief-owner-#{System.unique_integer([:positive])}@example.com",
-      name: "Brief Owner",
-      role: :executive
-    })
+    user =
+      %User{}
+      |> User.changeset(%{
+        email: "brief-owner-#{System.unique_integer([:positive])}@example.com",
+        name: "Brief Owner"
+      })
+      |> Repo.insert!()
+
+    executive_role = Roles.ensure_executive_role!()
+
+    %UserRole{}
+    |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
     |> Repo.insert!()
+
+    user
   end
 end

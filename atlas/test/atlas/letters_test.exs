@@ -6,6 +6,8 @@ defmodule Atlas.LettersTest do
   alias Atlas.Accounts.Account
   alias Atlas.Audit
   alias Atlas.Audit.Activity
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Storage
   alias Atlas.Letters
   alias Atlas.Letters.Config
@@ -401,14 +403,26 @@ defmodule Atlas.LettersTest do
   defp insert_user!(attrs) do
     suffix = System.unique_integer([:positive])
 
+    {role, attrs} = Map.pop(attrs, :role)
+
     defaults = %{
       email: "letter-user-#{suffix}@tuist.dev",
-      name: "Letter User",
-      role: :employee
+      name: "Letter User"
     }
 
-    %User{}
-    |> User.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
+    user =
+      %User{}
+      |> User.changeset(Map.merge(defaults, attrs))
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 end
