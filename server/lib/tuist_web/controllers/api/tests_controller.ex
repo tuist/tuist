@@ -393,6 +393,60 @@ defmodule TuistWeb.API.TestsController do
              description:
                "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
            },
+           enumerated_tests: %Schema{
+             type: :array,
+             description:
+               "The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 module: %Schema{type: :string, description: "The test target."},
+                 suite: %Schema{
+                   type: :string,
+                   description:
+                     "The suite that declares the test, the innermost one when suites nest; empty outside any suite."
+                 },
+                 name: %Schema{type: :string, description: "The test's name as the run reports it, `testExample()`."},
+                 enabled: %Schema{
+                   type: :boolean,
+                   description: "False when the scheme or the test plan disables the test."
+                 }
+               },
+               required: [:module, :name]
+             }
+           },
+           coverage_evidence: %Schema{
+             type: :object,
+             description:
+               "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
+             properties: %{
+               paths: %Schema{type: :array, items: %Schema{type: :string}},
+               scopes: %Schema{
+                 type: :array,
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     kind: %Schema{
+                       type: :string,
+                       enum: ["test", "suite", "target"],
+                       description:
+                         "`test`: what one test executed. `suite`: what ran around a suite's tests and belongs to none. `target`: everything the target's processes executed."
+                     },
+                     module: %Schema{type: :string, description: "The test target."},
+                     suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
+                     name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
+                     files: %Schema{type: :array, items: %Schema{type: :integer}, description: "Indices into `paths`."}
+                   },
+                   required: [:kind, :module, :files]
+                 }
+               },
+               unattributed_tests: %Schema{
+                 type: :integer,
+                 description: "Tests that overlapped another of their process, so nothing could be attributed to them."
+               }
+             },
+             required: [:paths, :scopes]
+           },
            xcode_coverage: XcodeCoverage,
            xcode_coverage_storage_key: %Schema{
              type: :string,
@@ -844,7 +898,19 @@ defmodule TuistWeb.API.TestsController do
              total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
              failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
-             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
+             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."},
+             enumerated_test_count: %Schema{
+               type: :integer,
+               nullable: true,
+               description:
+                 "How many tests the run could have executed, as the client listed them without running any; null when it listed none."
+             },
+             not_run_test_count: %Schema{
+               type: :integer,
+               nullable: true,
+               description:
+                 "How many of the enabled tests the run could have executed it left out; null when none were listed."
+             }
            },
            required: [
              :id,
@@ -868,6 +934,7 @@ defmodule TuistWeb.API.TestsController do
     case Tests.get_test(test_run_id) do
       {:ok, %{project_id: project_id} = run} when project_id == selected_project.id ->
         test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
+        enumeration = Tests.Enumeration.summary(run)
 
         json(conn, %{
           id: run.id,
@@ -885,7 +952,9 @@ defmodule TuistWeb.API.TestsController do
           total_test_count: test_metrics.total_count,
           failed_test_count: test_metrics.failed_count,
           flaky_test_count: test_metrics.flaky_count,
-          avg_test_duration: test_metrics.avg_duration
+          avg_test_duration: test_metrics.avg_duration,
+          enumerated_test_count: enumeration && enumeration.enumerated,
+          not_run_test_count: enumeration && enumeration.not_run
         })
 
       _error ->
@@ -972,6 +1041,8 @@ defmodule TuistWeb.API.TestsController do
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
           stress_new_tests: Map.get(params, :stress_new_tests),
+          enumerated_tests: Map.get(params, :enumerated_tests),
+          coverage_evidence: Map.get(params, :coverage_evidence),
           xcode_coverage: Map.get(params, :xcode_coverage),
           xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
           xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)

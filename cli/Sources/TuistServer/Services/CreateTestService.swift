@@ -283,6 +283,7 @@ import TuistHTTP
                             status: status,
                             shard_index: shardIndex,
                             only_test_identifiers: onlyTestIdentifiers,
+                            coverage_evidence: testSummary.coverageEvidencePayload,
                             git_dirty: gitHistory?.dirty,
                             history_source: history.source,
                             build_run_id: buildRunId,
@@ -296,6 +297,7 @@ import TuistHTTP
                             pull_request_number: gitHistory?.pullRequestNumber,
                             stress_new_tests: stressNewTests,
                             xcode_coverage_partial: coverageUpload?.partial,
+                            enumerated_tests: testSummary.enumeratedTestsPayload,
                             macos_version: macOSVersion,
                             id: id,
                             changed_files: history.changedFiles,
@@ -584,5 +586,29 @@ private func stressFailures(
             message: failure.message,
             path: failure.path
         )
+    }
+}
+
+extension TestSummary {
+    fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
+        enumeratedTests?.map { .init(enabled: $0.enabled, module: $0.module, name: $0.name, suite: $0.suite) }
+    }
+
+    fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
+        coverageEvidence.map { evidence in
+            .init(
+                paths: evidence.paths,
+                scopes: evidence.scopes.map {
+                    .init(
+                        files: $0.files,
+                        kind: .init(rawValue: $0.kind.rawValue) ?? .target,
+                        module: $0.module,
+                        name: $0.name,
+                        suite: $0.suite
+                    )
+                },
+                unattributed_tests: evidence.unattributedTests
+            )
+        }
     }
 }

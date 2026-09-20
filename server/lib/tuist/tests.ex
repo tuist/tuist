@@ -35,6 +35,7 @@ defmodule Tuist.Tests do
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
+  alias Tuist.Tests.Enumeration
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
@@ -579,6 +580,9 @@ defmodule Tuist.Tests do
         Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
       end
 
+      Enumeration.record(test, Map.get(attrs, :enumerated_tests))
+      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(test, test_modules, shard_index, shard_plan)
 
@@ -864,6 +868,8 @@ defmodule Tuist.Tests do
 
           xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
           Coverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
+          Enumeration.record(existing_test, Map.get(attrs, :enumerated_tests))
+          Coverage.Evidence.record(existing_test, Map.get(attrs, :coverage_evidence), shard_index)
 
           updated_test =
             merged_test

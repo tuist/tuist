@@ -17,6 +17,7 @@ defmodule TuistWeb.API.CoverageController do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Report
   alias TuistWeb.API.Schemas.Error
@@ -687,6 +688,195 @@ defmodule TuistWeb.API.CoverageController do
     end)
   end
 
+  @evidence_summary %Schema{
+    title: "TestRunCoverageEvidenceSummary",
+    type: :object,
+    description: "How much of the run has per-test coverage evidence.",
+    properties: %{
+      tests: %Schema{type: :integer, description: "Tests with evidence of their own."},
+      tests_without_evidence: %Schema{
+        type: :integer,
+        description:
+          "Tests that ran without evidence of their own (Swift Testing without the trait, or overlapping another test): their target's evidence is all they have."
+      },
+      suites: %Schema{type: :integer, description: "Suites with activity around their tests that belongs to none."},
+      targets: %Schema{type: :integer, description: "Test targets with evidence: the floor for each of their tests."},
+      files: %Schema{type: :integer, description: "Files some scope covers."},
+      median_files_per_test: %Schema{type: :integer},
+      max_files_per_test: %Schema{type: :integer}
+    },
+    required: [:tests, :tests_without_evidence, :suites, :targets, :files, :median_files_per_test, :max_files_per_test]
+  }
+
+  operation(:show_run_evidence,
+    summary: "Get a test run's per-test coverage evidence.",
+    description:
+      "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Returns how much of the run has evidence and a page of its scopes of one kind, those covering most files first.",
+    operation_id: "getTestRunCoverageEvidence",
+    parameters:
+      @path_parameters ++
+        @run_id_parameter ++
+        [
+          kind: [
+            in: :query,
+            schema: %Schema{type: :string, enum: ["test", "suite", "target"], default: "test"},
+            required: false,
+            description: "The scopes to list."
+          ],
+          page: [in: :query, type: :integer, required: false, description: "The page number, starting at 1."],
+          page_size: [
+            in: :query,
+            type: :integer,
+            required: false,
+            description: "Scopes per page (default 50, at most 500)."
+          ]
+        ],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The evidence", "application/json",
+         %Schema{
+           title: "TestRunCoverageEvidence",
+           type: :object,
+           properties: %{
+             summary: @evidence_summary,
+             scopes: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   kind: %Schema{type: :string, enum: ["test", "suite", "target"]},
+                   scope_id: %Schema{
+                     type: :string,
+                     description: "`Module/Suite/name` for a test, `Module/Suite` for a suite, `Module` for a target."
+                   },
+                   files_count: %Schema{type: :integer}
+                 },
+                 required: [:kind, :scope_id, :files_count]
+               }
+             },
+             pagination_metadata: @pagination
+           },
+           required: [:summary, :scopes, :pagination_metadata]
+         }}
+      )
+  )
+
+  def show_run_evidence(conn, %{test_run_id: test_run_id} = params) do
+    page = max(Map.get(params, :page) || 1, 1)
+    page_size = params |> Map.get(:page_size) |> Kernel.||(50) |> max(1) |> min(500)
+    kind = Map.get(params, :kind) || "test"
+
+    with_run_evidence(conn, test_run_id, fn run, summary ->
+      {scopes, count} = Evidence.list_scopes(run, kind: kind, page: page, page_size: page_size)
+
+      json(conn, %{
+        summary: summary,
+        scopes: Enum.map(scopes, &%{kind: &1.scope_kind, scope_id: &1.scope_id, files_count: &1.files_count}),
+        pagination_metadata: %{
+          current_page: page,
+          page_size: page_size,
+          total_count: count,
+          total_pages: max(1, ceil(count / page_size))
+        }
+      })
+    end)
+  end
+
+  operation(:list_run_evidence_files,
+    summary: "List the files a test's coverage evidence holds.",
+    description:
+      "The files the test executed, then those its suite ran around its tests, then the rest of its target's: each file by the narrowest scope that holds it. A test without evidence of its own still gets its suite's and its target's.",
+    operation_id: "listTestRunCoverageEvidenceFiles",
+    parameters:
+      @path_parameters ++
+        @run_id_parameter ++
+        [
+          module: [in: :query, type: :string, required: true, description: "The test target."],
+          suite: [in: :query, type: :string, required: false, description: "The test's suite; empty outside any."],
+          name: [in: :query, type: :string, required: true, description: "The test's name, `testExample()`."]
+        ],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The files", "application/json",
+         %Schema{
+           title: "TestRunCoverageEvidenceFiles",
+           type: :object,
+           properties: %{
+             files: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   path: %Schema{type: :string},
+                   scope: %Schema{type: :string, enum: ["test", "suite", "target"]},
+                   git_blob_id: %Schema{
+                     type: :string,
+                     description: "The file's Git blob in the run's own coverage; empty when the run has none for it."
+                   }
+                 },
+                 required: [:path, :scope, :git_blob_id]
+               }
+             }
+           },
+           required: [:files]
+         }}
+      )
+  )
+
+  def list_run_evidence_files(conn, %{test_run_id: test_run_id, module: module_name, name: name} = params) do
+    with_run_evidence(conn, test_run_id, fn run, _summary ->
+      files = Evidence.files(run, module_name, Map.get(params, :suite) || "", name)
+      json(conn, %{files: Enum.map(files, &Map.update!(&1, :git_blob_id, fn blob -> blob || "" end))})
+    end)
+  end
+
+  operation(:list_run_evidence_tests,
+    summary: "List the tests of a run whose coverage evidence holds a file.",
+    description:
+      "The tests that executed the file, by their own evidence. `suites` and `targets` name the wider scopes that hold it: every test of those may depend on the file too.",
+    operation_id: "listTestRunCoverageEvidenceTests",
+    parameters:
+      @path_parameters ++
+        @run_id_parameter ++
+        [path: [in: :query, type: :string, required: true, description: "The file's repository-relative path."]],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"The tests", "application/json",
+         %Schema{
+           title: "TestRunCoverageEvidenceTests",
+           type: :object,
+           properties: %{
+             tests: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   test_case_id: %Schema{type: :string, format: :uuid},
+                   module_name: %Schema{type: :string},
+                   suite_name: %Schema{type: :string},
+                   name: %Schema{type: :string}
+                 },
+                 required: [:test_case_id, :module_name, :suite_name, :name]
+               }
+             },
+             suites: %Schema{type: :array, items: %Schema{type: :string}},
+             targets: %Schema{type: :array, items: %Schema{type: :string}}
+           },
+           required: [:tests, :suites, :targets]
+         }}
+      )
+  )
+
+  def list_run_evidence_tests(conn, %{test_run_id: test_run_id, path: path}) do
+    with_run_evidence(conn, test_run_id, fn run, _summary -> json(conn, Evidence.covering(run, path)) end)
+  end
+
   operation(:show_commit,
     summary: "Get a commit's code coverage.",
     description:
@@ -951,6 +1141,16 @@ defmodule TuistWeb.API.CoverageController do
       fun.(run, summary)
     else
       nil -> not_found(conn, "The test run gathered no coverage")
+      _ -> not_found(conn, "The test run was not found")
+    end
+  end
+
+  defp with_run_evidence(%{assigns: %{selected_project: project}} = conn, test_run_id, fun) do
+    with {:ok, %{project_id: project_id} = run} when project_id == project.id <- Tests.get_test(test_run_id),
+         summary when not is_nil(summary) <- Evidence.summary(run) do
+      fun.(run, summary)
+    else
+      nil -> not_found(conn, "The test run gathered no coverage evidence")
       _ -> not_found(conn, "The test run was not found")
     end
   end

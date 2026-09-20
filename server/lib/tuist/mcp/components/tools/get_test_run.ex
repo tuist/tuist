@@ -33,6 +33,14 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         "failed_test_count" => %{"type" => "integer"},
         "flaky_test_count" => %{"type" => "integer"},
         "avg_test_duration" => %{"type" => "number"},
+        "enumerated_test_count" => %{
+          "type" => ["integer", "null"],
+          "description" => "Tests the run could have executed, listed without running any; null when none were listed."
+        },
+        "not_run_test_count" => %{
+          "type" => ["integer", "null"],
+          "description" => "Enabled tests among those the run left out (see list_test_run_not_run_tests)."
+        },
         "result_bundle_url" => %{"type" => "string"},
         "session_url" => %{"type" => "string"}
       },
@@ -62,6 +70,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Enumeration
 
   # Shorter than the hour `list_test_case_run_attachments` hands out: these URLs
   # ride along with metadata the caller may only have wanted the numbers from,
@@ -86,6 +95,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
              "Test run not found: #{test_run_id}"
            ) do
       metrics = Analytics.get_test_run_metrics(run.id)
+      enumeration = Enumeration.summary(run)
 
       {:ok,
        %{
@@ -102,6 +112,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
          failed_test_count: metrics.failed_count,
          flaky_test_count: metrics.flaky_count,
          avg_test_duration: metrics.avg_duration,
+         enumerated_test_count: enumeration && enumeration.enumerated,
+         not_run_test_count: enumeration && enumeration.not_run,
          result_bundle_url: artifact_url(CommandEvents.get_result_bundle_key(run.id, project), project.account),
          session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account)
        }}

@@ -157,12 +157,14 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         // The server that receives a locally processed run has no Xcode to read the coverage
         // with, so the client reads it, through the same parser the server runs on a bundle.
-        // The execution modes were recorded into the bundle after the summary was parsed.
+        // The execution modes and the enumerated tests were recorded into the bundle after the
+        // summary was parsed.
         var testSummary = testSummary
         if let resultBundlePath {
-            testSummary = testSummary.applying(
-                executionModes: TestExecutionModes.read(fromResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
-            )
+            let bundle = URL(fileURLWithPath: resultBundlePath.pathString)
+            testSummary = testSummary
+                .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+                .applying(enumeration: TestEnumeration.read(fromResultBundle: bundle))
         }
         var coverageUpload: XcodeCoverageUpload?
         var testRunId: String?
@@ -173,17 +175,25 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                rootDirectory: gitInfoDirectory,
                onlyTestIdentifiers: onlyTestIdentifiers,
                skipTestIdentifiers: skipTestIdentifiers
-           ),
-           let prepared = await coverageUploadService.prepare(
-               resultBundlePath: resultBundlePath,
-               manifest: manifest,
-               fullHandle: fullHandle,
-               serverURL: serverURL
            )
         {
-            testSummary.coverage = prepared.inline
-            coverageUpload = prepared.upload
-            testRunId = prepared.testRunId
+            // The evidence's paths are the compiler's; the manifest is what ties them to the
+            // repository, as it does for the coverage itself.
+            testSummary = testSummary.applying(
+                coverageEvidence: TestCoverageEvidence
+                    .read(fromResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))?
+                    .inRepository(manifest: manifest)
+            )
+            if let prepared = await coverageUploadService.prepare(
+                resultBundlePath: resultBundlePath,
+                manifest: manifest,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            ) {
+                testSummary.coverage = prepared.inline
+                coverageUpload = prepared.upload
+                testRunId = prepared.testRunId
+            }
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)

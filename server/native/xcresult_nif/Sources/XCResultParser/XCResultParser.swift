@@ -98,7 +98,21 @@ public struct XCResultParser: Sendable {
             attachmentsDirectory: attachmentsDirectory,
             xcresultPath: path
         )
-        return summary.applying(executionModes: TestExecutionModes.read(fromResultBundle: URL(fileURLWithPath: path.pathString)))
+        let bundle = URL(fileURLWithPath: path.pathString)
+        return summary
+            .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+            .applying(enumeration: TestEnumeration.read(fromResultBundle: bundle))
+            .applying(coverageEvidence: Self.coverageEvidence(inResultBundle: bundle))
+    }
+
+    /// The evidence a client wrote into the bundle, tied to the repository by the coverage
+    /// manifest beside it. Nil without either: evidence over paths nobody can place is no use.
+    static func coverageEvidence(inResultBundle bundle: URL) -> TestCoverageEvidence? {
+        guard let evidence = TestCoverageEvidence.read(fromResultBundle: bundle),
+              let data = try? Data(contentsOf: bundle.appendingPathComponent(XcodeCoverageManifest.fileName)),
+              let manifest = try? JSONDecoder().decode(XcodeCoverageManifest.self, from: data)
+        else { return nil }
+        return evidence.inRepository(manifest: manifest)
     }
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote

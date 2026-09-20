@@ -2310,6 +2310,52 @@
           />
         </div>
       </.card_section>
+      <.card_section
+        :if={@coverage_evidence || @coverage_enumeration}
+        data-part="coverage-evidence-section"
+      >
+        <div data-part="widgets">
+          <.widget
+            :if={@coverage_enumeration}
+            title={dgettext("dashboard_tests", "Tests left out")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Enabled tests the run could have executed and did not, out of the %{count} it listed before running.",
+                count: format_number(@coverage_enumeration.enumerated)
+              )
+            }
+            value={format_number(@coverage_enumeration.not_run)}
+            id="widget-coverage-tests-left-out"
+          />
+          <.widget
+            :if={@coverage_evidence}
+            title={dgettext("dashboard_tests", "Tests with evidence")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Tests whose covered files were recorded one by one: what test selection plans over. %{count} ran without evidence of their own.",
+                count: format_number(@coverage_evidence.tests_without_evidence)
+              )
+            }
+            value={format_number(@coverage_evidence.tests)}
+            id="widget-coverage-tests-with-evidence"
+          />
+          <.widget
+            :if={@coverage_evidence}
+            title={dgettext("dashboard_tests", "Files per test")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "The median number of files a test executes; the widest test executes %{count}.",
+                count: format_number(@coverage_evidence.max_files_per_test)
+              )
+            }
+            value={format_number(@coverage_evidence.median_files_per_test)}
+            id="widget-coverage-files-per-test"
+          />
+        </div>
+      </.card_section>
       <.card_section data-part="coverage-targets-section">
         <.table id="coverage-targets-table" rows={@coverage_targets}>
           <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
@@ -2390,6 +2436,41 @@
                 [] -> dgettext("dashboard_tests", "None")
                 ranges -> coverage_line_ranges(ranges)
               end}
+            </dd>
+          </div>
+        </dl>
+      </.card_section>
+      <.card_section :if={@coverage_file_tests} data-part="coverage-file-tests-section">
+        <.table
+          :if={@coverage_file_tests.tests != []}
+          id="coverage-file-tests-table"
+          rows={@coverage_file_tests.tests}
+        >
+          <:col :let={test} label={dgettext("dashboard_tests", "Test executing this file")}>
+            <.text_cell label={test.name} />
+          </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Suite")}>
+            <.text_cell label={test.suite} />
+          </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Target")}>
+            <.text_cell label={test.module} />
+          </:col>
+        </.table>
+        <dl data-part="coverage-file-details">
+          <div :if={@coverage_file_tests.tests == []}>
+            <dt>{dgettext("dashboard_tests", "Tests executing this file")}</dt>
+            <dd id="coverage-file-no-tests">
+              {dgettext("dashboard_tests", "None by their own evidence")}
+            </dd>
+          </div>
+          <div :if={@coverage_file_tests.suites != []}>
+            <dt>{dgettext("dashboard_tests", "Suites running it around their tests")}</dt>
+            <dd>{Enum.join(@coverage_file_tests.suites, ", ")}</dd>
+          </div>
+          <div :if={@coverage_file_tests.targets != []}>
+            <dt>{dgettext("dashboard_tests", "Test targets executing it")}</dt>
+            <dd id="coverage-file-test-targets">
+              {Enum.join(@coverage_file_tests.targets, ", ")}
             </dd>
           </div>
         </dl>

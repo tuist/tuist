@@ -20,11 +20,18 @@ public struct TestSummary: Encodable, Sendable {
     public var coverageError: String?
     /// `parallel` or `serial`, when the client recorded how the run executed its tests.
     public var executionMode: String?
+    /// The tests the run could have executed, when the client enumerated them.
+    public var enumeratedTests: [TestEnumeration.Test]?
+    /// Which files each test executed, over repository-relative paths, when the client's
+    /// coverage observer recorded it.
+    public var coverageEvidence: TestCoverageEvidence?
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
         case status, duration, errors, coverage
         case executionMode = "execution_mode"
+        case enumeratedTests = "enumerated_tests"
+        case coverageEvidence = "coverage_evidence"
         case coveragePath = "coverage_path"
         case coveragePartial = "coverage_partial"
         case coverageFileCount = "coverage_file_count"

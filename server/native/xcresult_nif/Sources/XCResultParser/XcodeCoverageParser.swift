@@ -274,7 +274,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     }
 
     /// Longest first, so a root nested in another one wins.
-    private static func roots(_ rootDirectories: [String]) -> [String] {
+    static func roots(_ rootDirectories: [String]) -> [String] {
         rootDirectories
             .map { $0.count > 1 && $0.hasSuffix("/") ? String($0.dropLast()) : $0 }
             .filter { $0.hasPrefix("/") }
@@ -284,7 +284,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     /// Plain string prefixes: the manifest already lists every spelling of the root the build
     /// could have used, and whoever processes the bundle may not have the checkout to resolve
     /// anything against.
-    private static func relativize(_ path: String, to roots: [String]) -> String {
+    static func relativize(_ path: String, to roots: [String]) -> String {
         for root in roots {
             let prefix = root == "/" ? root : root + "/"
             if path.hasPrefix(prefix), path.count > prefix.count {

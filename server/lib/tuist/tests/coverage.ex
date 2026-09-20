@@ -84,7 +84,8 @@ defmodule Tuist.Tests.Coverage do
     if enabled_for_project?(project_id), do: rows(coverage)
   end
 
-  defp enabled_for_project?(project_id) do
+  @doc false
+  def enabled_for_project?(project_id) do
     case Projects.get_project_by_id(project_id) do
       nil -> false
       project -> FeatureFlags.xcode_coverage_enabled?(project.account)

@@ -454,6 +454,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || []),
         run_errors: parsed_data["errors"] || [],
         execution_mode: parsed_data["execution_mode"],
+        enumerated_tests: parsed_data["enumerated_tests"],
+        coverage_evidence: parsed_data["coverage_evidence"],
         xcode_coverage: coverage_attrs(parsed_data)
       })
 

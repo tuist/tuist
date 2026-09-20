@@ -140,6 +140,17 @@ defmodule TuistWeb.TestRunLiveTest do
             ]),
             file.("Sources/Calculator/Untested.swift", [{2, 0}, {3, 0}], [])
           ]
+        },
+        enumerated_tests: [
+          %{module: "CalculatorTests", suite: "AddTests", name: "testAdd()"},
+          %{module: "CalculatorTests", suite: "AddTests", name: "testOverflow()"}
+        ],
+        coverage_evidence: %{
+          paths: ["Sources/Calculator/Add.swift"],
+          scopes: [
+            %{kind: "test", module: "CalculatorTests", suite: "AddTests", name: "testAdd()", files: [0]},
+            %{kind: "target", module: "CalculatorTests", suite: "", name: "", files: [0]}
+          ]
         }
       })
 
@@ -160,6 +171,14 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
     assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
     assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
+    assert has_element?(lv, "#widget-coverage-tests-left-out", "2")
+    assert has_element?(lv, "#widget-coverage-tests-with-evidence", "1")
+    assert has_element?(lv, "#coverage-file-tests-table", "testAdd()")
+    assert has_element?(lv, "#coverage-file-test-targets", "CalculatorTests")
+
+    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Untested.swift")
+    assert has_element?(lv, "#coverage-file-no-tests")
+    refute has_element?(lv, "#coverage-file-tests-table")
   end
 
   test "shows a file without line data with its reported counts and its uncovered lines as unavailable", %{

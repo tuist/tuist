@@ -783,6 +783,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
+          get "/:test_run_id/not-run-tests", NotRunTestsController, :index
           post "/", TestsController, :create
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
@@ -797,6 +798,9 @@ defmodule TuistWeb.Router do
             get "/runs/:test_run_id/files", CoverageController, :list_run_files
             get "/runs/:test_run_id/file", CoverageController, :show_run_file
             get "/runs/:test_run_id/comparison", CoverageController, :show_run_comparison
+            get "/runs/:test_run_id/evidence", CoverageController, :show_run_evidence
+            get "/runs/:test_run_id/evidence/files", CoverageController, :list_run_evidence_files
+            get "/runs/:test_run_id/evidence/tests", CoverageController, :list_run_evidence_tests
             get "/history", CoverageController, :list_history
             get "/commits/:git_commit_sha", CoverageController, :show_commit
             get "/commits/:git_commit_sha/files", CoverageController, :list_commit_files

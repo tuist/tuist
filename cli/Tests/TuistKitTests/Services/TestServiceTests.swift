@@ -212,6 +212,7 @@ final class TestServiceTests: TuistUnitTestCase {
             gitController: gitController,
             uploadResultBundleService: uploadResultBundleService,
             derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration(),
             createTestService: createTestService,
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
@@ -7927,7 +7928,8 @@ private struct TestServiceSchemePlanningFixture {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
-            derivedDataLocator: derivedDataLocator
+            derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration()
         )
     }
 
@@ -8290,6 +8292,7 @@ private struct TestServiceStressNewTestsFixture {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             gitController: gitController,
             derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration(),
             serverEnvironmentService: serverEnvironmentService,
             uploadBuildRunService: nil,
             stressNewTestsService: stressNewTestsService
@@ -8377,4 +8380,17 @@ extension StressNewTestsResult {
             ]
         )
     }
+}
+
+/// The tests of a run are listed with a second xcodebuild invocation, which these tests have no
+/// products for.
+private func noTestEnumeration() -> MockTestEnumerationServicing {
+    let service = MockTestEnumerationServicing()
+    given(service)
+        .record(
+            resultBundlePath: .any, target: .any, scheme: .any, destination: .any, rosetta: .any,
+            derivedDataPath: .any, testPlan: .any, xcodebuildArguments: .any
+        )
+        .willReturn(nil)
+    return service
 }
