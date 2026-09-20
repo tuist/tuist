@@ -40,7 +40,7 @@ defmodule Atlas.MCP.Tools.AssetsToolsTest do
     assert {:error, message} =
              ListAssets.execute(mcp_conn(non_exec), %{})
 
-    assert message =~ "executives"
+    assert message =~ "assets:read"
   end
 
   test "list_assets narrows the fleet by category" do

@@ -5,6 +5,8 @@ defmodule Atlas.Slack.ConversationAgentTest do
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
   alias Atlas.Agents.Identity
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
   alias Atlas.Documents.DocumentPage
   alias Atlas.GTM
@@ -269,9 +271,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
 
     model = ReqLLM.model!(%{provider: :openai, id: "Balanced"})
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Identity Agent", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Identity Agent", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_POLICY", channel_name: "fixture-channel"}
 
@@ -327,9 +327,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
   test "searches documents from Slack when the channel has document access" do
     mcp_user_email = "slack-agent-document-search@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Document Search Agent", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Document Search Agent", role: :executive})
 
     account = insert_account!(%{account_key: "account:leadership-doc", name: "Leadership Doc", segment: :customer})
     document = insert_document!(account, %{title: "Leadership Board Consent"})
@@ -383,9 +381,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
   test "adds finance tools for channels granted finance by configured identity" do
     mcp_user_email = "slack-agent-configured-identity@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Configured Identity Agent", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Configured Identity Agent", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_CONFIGURED", channel_name: "private-channel"}
 
@@ -426,17 +422,9 @@ defmodule Atlas.Slack.ConversationAgentTest do
     employee_email = "leadership-employee@example.com"
     executive_email = "leadership-executive@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Leadership Agent", role: :executive})
-    |> Repo.insert!()
-
-    %User{}
-    |> User.changeset(%{email: employee_email, name: "Employee Requester", role: :employee})
-    |> Repo.insert!()
-
-    %User{}
-    |> User.changeset(%{email: executive_email, name: "Executive Requester", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Leadership Agent", role: :executive})
+    insert_atlas_user!(%{email: employee_email, name: "Employee Requester"})
+    insert_atlas_user!(%{email: executive_email, name: "Executive Requester", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_LEADERSHIP", channel_name: "leadership"}
 
@@ -500,13 +488,8 @@ defmodule Atlas.Slack.ConversationAgentTest do
     mcp_user_email = "slack-agent-executive-requester@example.com"
     executive_email = "executive-requester@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Slack Agent"})
-    |> Repo.insert!()
-
-    %User{}
-    |> User.changeset(%{email: executive_email, name: "Executive Requester", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Slack Agent"})
+    insert_atlas_user!(%{email: executive_email, name: "Executive Requester", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_SALES", channel_name: "sales"}
     requester = %SlackUser{slack_app: :company, slack_user_id: "U_EXEC", email: executive_email}
@@ -524,13 +507,8 @@ defmodule Atlas.Slack.ConversationAgentTest do
     mcp_user_email = "slack-agent-employee-requester@example.com"
     employee_email = "employee-requester@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Slack Agent", role: :executive})
-    |> Repo.insert!()
-
-    %User{}
-    |> User.changeset(%{email: employee_email, name: "Employee Requester", role: :employee})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Slack Agent", role: :executive})
+    insert_atlas_user!(%{email: employee_email, name: "Employee Requester"})
 
     channel = %Channel{slack_app: :company, channel_id: "C_SALES", channel_name: "sales"}
     requester = %SlackUser{slack_app: :company, slack_user_id: "U_EMPLOYEE", email: employee_email}
@@ -553,13 +531,8 @@ defmodule Atlas.Slack.ConversationAgentTest do
       tool_groups_by_agent: %{"conversation" => [], "systems_investigator" => ["finance", "observability"]}
     }
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Mapped Agent"})
-    |> Repo.insert!()
-
-    %User{}
-    |> User.changeset(%{email: executive_email, name: "Mapped Executive", role: :executive})
-    |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Mapped Agent"})
+    insert_atlas_user!(%{email: executive_email, name: "Mapped Executive", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_MAPPED", channel_name: "mapped-channel"}
     requester = %SlackUser{slack_app: :company, slack_user_id: "U_MAPPED_EXEC", email: executive_email}
@@ -585,14 +558,8 @@ defmodule Atlas.Slack.ConversationAgentTest do
     mcp_user_email = "slack-agent-leadership-configured@example.com"
     executive_email = "leadership-configured-executive@example.com"
 
-    %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Leadership Agent"})
-    |> Repo.insert!()
-
-    executive =
-      %User{}
-      |> User.changeset(%{email: executive_email, name: "Leadership Executive", role: :executive})
-      |> Repo.insert!()
+    insert_atlas_user!(%{email: mcp_user_email, name: "Leadership Agent"})
+    executive = insert_atlas_user!(%{email: executive_email, name: "Leadership Executive", role: :executive})
 
     channel = %Channel{slack_app: :company, channel_id: "C_LEADERSHIP", channel_name: "leadership"}
 
@@ -948,5 +915,24 @@ defmodule Atlas.Slack.ConversationAgentTest do
     }
     |> ServiceLevel.changeset(attrs)
     |> Repo.insert!()
+  end
+
+  defp insert_atlas_user!(attrs) do
+    {role, attrs} = Map.pop(attrs, :role)
+
+    user =
+      %User{}
+      |> User.changeset(attrs)
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 end
