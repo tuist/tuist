@@ -182,10 +182,10 @@ VAT, excl. shipping. The offer count is a rough stock signal.
 | CPU | AMD EPYC 4344P, 8C/16T, 3.80-5.30 GHz, tray | 228.00 EUR | 9 |
 | Cooler | Thermalright Peerless Assassin 120 SE (AM5) | 29.15 EUR | 108 |
 | Memory | 2x Kingston Server Premier `KSM56E46BS8KM-16HA`, 16 GB DDR5-5600 ECC UDIMM | 991.74 EUR | 24 |
-| Storage | Samsung 990 EVO Plus 1 TB, M.2 2280 PCIe 4.0 x4 | 185.90 EUR | 72 |
+| Storage | Samsung 990 Pro 1 TB, M.2 2280 PCIe 4.0 x4 (`MZ-V9P1T0BW`) | 203.90 EUR | 75 |
 | PSU | be quiet! Pure Power 13 M 750W, ATX 3.1 (`BP026EU`) | 104.89 EUR | 50 |
 | Bench | Streacom BC1 Open Benchtable V2 | 159.90 EUR | 7 |
-| | **Total** | **2,038.58 EUR** | |
+| | **Total** | **2,056.58 EUR** | |
 
 Notes, because three of these lines are not obvious:
 
@@ -205,6 +205,20 @@ Notes, because three of these lines are not obvious:
   The 550W model of the same line is 82.24 EUR, and its connector complement
   was not verified; an 8-core 65 W part would run from a single EPS in
   practice, so this is a 22 EUR insurance line, not a requirement.
+- **The OS drive is the 990 Pro because the rack already runs that part, not
+  because the bench needs 1 TB.** Three were bought on 2026-09-12 as the boot
+  drives for `ber1-edge`, `ber1-svc` and `ber1-store-a` (219.99 EUR each then,
+  203.90 EUR on 2026-09-21). A fourth identical drive is also the **spare OS
+  NVMe** the spares pool is recorded as needing and not having, so it survives
+  either pilot outcome the same way the board does. The cheap alternative is a
+  Kingston NV3 500 GB (`SNV3S/500G`) at 94.90 EUR, which saves 91.00 EUR and is
+  more than enough to boot Ubuntu and be poked over Redfish.
+- **Do not plan on reusing `ber1-store-a`'s drives.** Its boot 990 Pro is one of
+  exactly three bought for three nodes, so taking it strands a node. Its data
+  drive is the PM9A3 7.68 TB **U.2** (`MZQL27T6HBLA-00A07`, 3,612.07 EUR): wrong
+  form factor for this board, which has one M.2 and four SATA and no U.2 or
+  OCuLink, so it would need a PCIe-to-U.2 adapter off the x16 slot. It is also
+  the one part the rack is blocked on.
 - **The benchtable is the most substitutable line.** Any mATX case works. An
   open bench is preferred for the same reason the AMISCE validation doctrine
   prefers it: the CMOS jumper stays reachable, which matters on the one class
