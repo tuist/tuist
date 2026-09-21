@@ -4,7 +4,8 @@
 > Four facts established on 2026-09-21 that the rest of this document rests on.
 >
 > - The **Eaton Rack PDU G4** takes **three** daisy-chained EMP Gen 2 probes. The
->   **APC AP4423A** has exactly **one** Universal I/O port and therefore one probe.
+>   **Eaton EATS16N** ATS names no sensor port at all, and the **APC AP4423A** it
+>   replaced has exactly **one** Universal I/O port and therefore one probe.
 > - The Mac mini draws air in **and** exhausts it through the **bottom foot**. A flush
 >   stack is a recirculation question, not an intake-clearance question.
 > - The macOS fleet reports **no temperature at all** today, for three independent
@@ -14,10 +15,10 @@
 
 ## Summary
 
-The rack gets three temperature/humidity probes hanging off the zero-U Eaton Rack
-PDU G4, polled over SNMP by the staging cluster's Alloy through the same tailnet
-egress path that already scrapes the Mac minis, with five Grafana Cloud rules on
-top. Host thermal telemetry is enabled separately and is not a substitute. Every
+The rack gets three temperature/humidity probes hanging off one of its two zero-U
+Eaton Rack PDU G4s, polled over SNMP by the staging cluster's Alloy through the
+same tailnet egress path that already scrapes the Mac minis, with five Grafana
+Cloud rules on top. Host thermal telemetry is enabled separately and is not a substitute. Every
 threshold here is provisional until the stack-thermal bench test replaces it with
 measurements, and this document says what that test has to record.
 
@@ -28,8 +29,8 @@ decision, not placed.
 
 The rack will hold 16 to 20 Mac minis per top-of-rack switch (40+ on the long run),
 flush-stacked in MyElectronics 1.25U three-up mounts, plus four x86 nodes, two ToR
-switches, a management switch, a rack ATS and a zero-U switched PDU. Nothing in the
-plan watches rack temperature. The flush-stack thermal question is a line item on
+switches, a management switch, three rack ATS units and two zero-U switched PDUs.
+Nothing in the plan watches rack temperature. The flush-stack thermal question is a line item on
 the bench acceptance list and then nothing ongoing.
 
 A dense column of passively arranged mini PCs in a facility nobody visits is the
@@ -62,17 +63,31 @@ Four supporting reasons, none of which would carry the decision alone:
 - The zero-U PDU is 1000 mm of aluminium standing in the rear channel, so it spans
   the column the probes are measuring and every cable run is short.
 - The ATS is 1U at one height. A probe hanging off it is a probe at that height.
-- The PDU is already on the management VLAN speaking SNMP, Modbus TCP, REST and
+- The PDU is already on the management VLAN speaking REST, Modbus TCP, SNMP, LDAP and
   HTTPS, so this adds no device, no factory IP and no web UI to enroll. That was the
   stated preference and it is met.
 - The rack's power driver is going to target this box anyway, so it is a device we
   are committing to operate regardless.
 
-Full build is two PDUs and therefore six possible probes. Put all three on one
-chain. Splitting them across two PDUs doubles the SNMP targets to gain redundancy
-against a fault that already takes half the cattle down and alerts loudly on its
-own. Note the consequence and accept it: losing PDU A loses the environmental data
-with it.
+### Environmental monitoring is single-homed by design, not by omission
+
+The rack has **two** G4 PDUs, one per power chain, mirroring the A/B split that runs
+through the whole rack: minis split across chains the way they split across ToR
+switches, and the storage pair splits the same way. Two PDUs means six possible probes,
+and the spec uses three.
+
+**All three go on `ber1-pdu-a`, and that is a choice rather than an oversight.** The two
+deltas are the measurement, and a delta only means something if both readings come from
+the same column on the same face. Splitting probes across chains buys independence and
+destroys the thing being measured. The cost is stated plainly: losing that PDU, or its
+chain, loses the environmental data with it.
+
+That cost is smaller than it looks, because losing a chain already takes half the
+cattle down and alerts loudly on its own, so the environmental signal is not the thing
+that would have told you. It is worth writing down rather than leaving implicit: this
+rack already distinguishes storage being single-homed **by** design from `ber1-svc`
+being single-homed **against** it, and an unexplained single point reads as an
+oversight to the next person who finds it.
 
 ### The probe has no network identity, and that is the argument
 
@@ -80,8 +95,8 @@ with it.
 accumulating small managed devices and each one is another factory IP, another web UI
 and another thing to enrol. An EMP is not one of them: it has no Ethernet port, no
 address and no web interface. It is a sensor on a bus, powered over that bus by a
-device that already has exactly one management port on `ber1-mgmt` and is already in
-the site definition as `ber1-pdu`.
+device that already has exactly one management port on `ber1-mgmt` and is already a
+node in the site definition.
 
 That is the whole case for this option, and it is the case that dies if a standalone
 networked sensor is chosen instead. A standalone sensor becomes a node with its own
@@ -91,22 +106,28 @@ access behind a ToR sits behind the thing it exists to recover. One more address
 more credential, one more port on the one switch whose loss costs out-of-band access
 to everything at once. Not worth it for three numbers.
 
-### The ATS carries one probe at most, and the probes are not going there
+### The ATS probably carries no probe at all, and could carry one at most
 
-**Do not buy an ATS probe.** The site definition records `ber1-ats-nmc` as an APC
-network management card in the ATS, which agrees with the AP4423A in the rack plan
-and makes the one-port limit above the operative one. A separate 2026-09-21
-power-layer note has the whole power layer ordered as Eaton, which would put an
-EATS16N there instead. **Settle which before the PDU arrives**, because one of the two
-records is wrong and `ber1-ats-nmc`'s note is written from the APC reading.
+**Do not buy an ATS probe.** The ATS is the **Eaton EATS16N**: the APC AP4423A was
+picked on 2026-09-12 and superseded on 2026-09-21, when the earlier Eaton rejection was
+re-checked and the deciding argument became coherence with the PDU vendor. The order is
+2x EVMAFC20A plus 3x EATS16N in one Mindfactory order at € 5,595.55 including VAT, **not
+yet placed**. The site definition carries that shape: three `ber1-ats-1/2/3` on an
+`eats16n` entry and two `ber1-pdu-a` / `ber1-pdu-b` on `evmafc20a`, all planned. The
+`ber1-ats-nmc` node an earlier draft of this document referred to is gone, because NMC
+is APC's name for an add-in card and the Eaton equivalent is a built-in Netpack.
 
-Neither answer changes the recommendation. If the ATS is the AP4423A it caps at one
-probe. If it is the EATS16N it probably carries none at all: Eaton's own specification
-page for that model lists Ethernet, SNMP and a serial cable for card configuration and
-names no environmental probe or sensor port, and the EMP Gen 2 installation guide
-lists its supported hosts as Network-M2, Network-M3, INDGW, eNMC and eNMC2, none of
-which is the EATS16N's built-in card by name. **Unknown, treated as no**, and free to
-be wrong about since the probes are not going there.
+**The EATS16N almost certainly takes no probe.** Eaton's specification page for it
+lists Ethernet, SNMP and a serial cable for card configuration, and names no
+environmental probe or sensor port; it is a 2015-generation product. The EMP Gen 2
+installation guide lists its supported hosts as Network-M2, Network-M3, INDGW, eNMC and
+eNMC2, and the EATS16N's built-in card is none of those by name. **Unknown, treated as
+no.**
+
+The AP44XXA limit above is therefore the fallback branch rather than the operative one,
+and it is worth keeping: if the ATS decision reverts to APC, that box caps at a single
+sensor, which still loses to three on the PDU for the same reason. The recommendation
+does not move on either answer, which is the point of resting it on probe count.
 
 ### Where the probes go
 
@@ -132,35 +153,40 @@ bench test measures that gap once with a thermocouple and produces the offset
 between gap air and rack inlet air; the permanent thresholds then carry that offset.
 That is the whole reason the thresholds below are provisional rather than arbitrary.
 
-### What the site definition has to hold for a probe to be expressible
+### How the probes are expressed in the site definition
 
 The BER1 site definition (`infra/rack-switch-fleet/sites/ber1.json`, arriving with
-[#13458](https://github.com/tuist/tuist/pull/13458)) already carries a `node_roles`
-entry for `environment`, described as "temperature and humidity probe", so the landing
-place exists. Three probes become three nodes named `ber1-env-inlet`, `ber1-env-top`
-and `ber1-env-exhaust`.
+[#13458](https://github.com/tuist/tuist/pull/13458)) holds the probes as data. Three
+nodes, `ber1-env-inlet`, `ber1-env-top` and `ber1-env-exhaust`, role `environment`,
+hardware `emp-gen2`, all `planned`, all on `ber1-pdu-a`, Modbus addresses 1, 2 and 3,
+with `exhaust` carrying the RS485 terminator.
 
-Two small things have to give, and both are cheap now and awkward later:
+Two things gave, and both were cheap to do now:
 
-- **A hardware entry with no interfaces.** `node_models.json` describes hardware by
-  its ports, and the EMP has none of the kind that file means. It needs an entry that
-  declares no interfaces at all, the way `mac-mini` declares no out-of-band one: the
-  absence is the fact. The existing rule that a node whose hardware declares no
-  out-of-band interface has zero management links then holds for free.
-- **A node with zero links.** `nodes` is currently described as everything that
-  occupies a port and has an identity. A probe has an identity and occupies no port,
-  so either that description widens or the probe cannot be recorded at all.
+- **A hardware entry with no interfaces.** `node_models.json` describes hardware by its
+  ports and the EMP has none of the kind that file means, so `emp-gen2` declares none at
+  all, the way `mac-mini` declares no out-of-band one: the absence is the fact. The
+  existing rule that a node whose hardware declares no out-of-band interface has zero
+  management links then holds for free, with no special case.
+- **A node with zero links.** `nodes` widened from everything that occupies a port to
+  everything with an identity, so a node with no links is one reached some other way.
 
-**The field that replaces `nic` is the Modbus address.** A management link recorded
-without its NIC gets patched into the i226-V instead of the i226-LM, and nothing
-reveals it until the node is the one that needs recovering. A daisy-chained EMP has the
-same shape of trap: each probe's Modbus address must be unique and set **before** the
-probe is powered up, address 0 is never detected, and RS485 termination is set on the
-last probe in the chain and no other. Get any of that wrong and the chain does not
-enumerate, with nothing on the PDU naming the cause. So each probe node records the
-host it hangs off (`ber1-pdu`), its Modbus address, and which one carries the
-termination. That is the probe's equivalent of "which socket", and it is the only
-hardware fact about it that is easy to get wrong.
+**The Modbus chain is an `attachment`, not a link field.** The first draft of this
+proposed putting the Modbus address where a management link's `nic` goes, by analogy
+with the i226-LM trap. That was the wrong shape: a probe has no link for it to be a
+property of. It is instead an `attachment` carrying host, bus, address and terminator.
+
+The analogy it was reaching for still holds, and is why the attachment is worth
+enforcing rather than merely recording. A management link written without its NIC gets
+patched into the i226-V and nothing reveals it until the node is the one that needs
+recovering. A daisy-chained EMP fails the same way: each address must be unique and set
+**before** the probe is powered up, address 0 is never detected, and the terminator goes
+on the last probe and no other. Get any of it wrong and the chain does not enumerate,
+with nothing on the PDU naming the cause. All three are checked at render, each with a
+test verified to fire, plus a fourth for an attachment naming a host that is not a node.
+
+A probe attaches over USB and RS485, never to an outlet, so the outlet-to-machine map
+that lives outside this model is not a dependency here.
 
 ### No standalone networked sensor is needed
 
@@ -522,25 +548,22 @@ six spare dry contacts; anything about rack 2.
 
 ## Open questions
 
-1. **Is the rack ATS the APC AP4423A or the Eaton EATS16N?** The site definition says
-   APC and a 2026-09-21 power-order note says Eaton, so one of them is wrong and
-   `ber1-ats-nmc`'s note depends on the answer. Does not change the recommendation, but
-   it does decide whether the ATS could ever carry a backup probe.
-2. **Does the EATS16N support any environmental probe?** Its specification page names
-   none and the EMP Gen 2 host list does not include it. Assumed no.
-3. **Which socket does the EVMAFC20A present for the EMP, USB or RJ45?** The
+1. **Does the EATS16N support any environmental probe?** Its specification page names
+   none and the EMP Gen 2 host list does not include it. Assumed no. Decides only
+   whether the ATS could ever carry a backup probe, not where these three go.
+2. **Which socket does the EVMAFC20A present for the EMP, USB or RJ45?** The
    installation guide documents both shapes and the G4's module was not established.
    Changes the cabling steps, not the BOM, since the converter ships with the probe.
-4. **Does the Tailscale operator's egress proxy forward UDP on our version?** The
+3. **Does the Tailscale operator's egress proxy forward UDP on our version?** The
    documentation allows a protocol in `spec.ports` and shows UDP examples. Verify once
    against the deployed operator before relying on it; if it does not, the PDU's REST
    API over HTTPS is the TCP fallback and needs something to turn JSON into metrics.
-5. **Are the four x86 nodes scraped at all?** If they are, `node_hwmon_temp_celsius`
+4. **Are the four x86 nodes scraped at all?** If they are, `node_hwmon_temp_celsius`
    is a free second in-rack temperature.
-6. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
-7. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
+5. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
+6. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
    vendor catalogue, and the fact sheet the facility asked for still does not exist.
-8. **Does a flush stack actually recirculate?** The intake and the exhaust share the
+7. **Does a flush stack actually recirculate?** The intake and the exhaust share the
    bottom foot, which makes it plausible rather than proven. This is what the bench test
    is for, and every threshold here is provisional until it answers.
 
