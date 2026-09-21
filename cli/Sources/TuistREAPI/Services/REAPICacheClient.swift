@@ -7,7 +7,7 @@ import Path
 import Synchronization
 import TuistEnvironment
 
-public final class REAPICacheClient: REAPICacheStoring, Sendable {
+public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:disable:this type_body_length
     private let clients: [GRPCClient<HTTP2ClientTransport.Posix>]
     private let connections: [Task<Void, Error>]
     private let nextClient = Mutex(0)

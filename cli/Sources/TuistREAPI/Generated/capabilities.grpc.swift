@@ -1,5 +1,3 @@
-// Wire-compatible REAPI capability fields used for module-cache negotiation.
-
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all

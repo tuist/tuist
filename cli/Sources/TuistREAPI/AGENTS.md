@@ -25,7 +25,7 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 
 ## Code generation
 - Generated `*.pb.swift`/`*.grpc.swift` are checked in. Regenerate with `mise run cli:generate-reapi-proto` after editing the vendored `.proto` files.
-- The task post-processes the raw `protoc` output so the committed files compile and pass lint: it strips the `type:` argument the pinned `protoc-gen-grpc-swift-2` emits on `MethodDescriptor` (the resolved `grpc-swift-2` runtime rejects it), then runs `swiftformat` (generated files are excluded from SwiftLint, like the TuistCAS stubs). Once the runtime accepts `type:`, drop the strip step.
+- The task post-processes the raw `protoc` output so the committed files compile and pass lint: it strips the `type:` argument the pinned `protoc-gen-grpc-swift-2` emits on `MethodDescriptor` (the resolved `grpc-swift-2` runtime rejects it), then runs `swiftformat` with its cache disabled. A second uncached `fileHeader` pass removes the proto comment exposed by stripping the generator header; otherwise fresh CI lint rejects output that the formatter cache considers clean. Generated files are excluded from SwiftLint. Once the runtime accepts `type:`, drop the strip step.
 
 ## Related Context
 - cli/Sources/TuistCAS/AGENTS.md

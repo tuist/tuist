@@ -1,6 +1,3 @@
-// Wire-compatible cache subset of bazelbuild/remote-apis remote_execution.proto.
-// Field numbers and service names are upstream REAPI v2. Remote execution is not exposed.
-
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all

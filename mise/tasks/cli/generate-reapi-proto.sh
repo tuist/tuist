@@ -18,6 +18,9 @@ grpc_root=$(mise where spm:grpc/grpc-swift-protobuf@2.1.1)
 # portable across the BSD/GNU sed split.
 perl -0pi -e 's/,\s*type:\s*\.(unary|serverStreaming|clientStreaming)//g' Generated/*.grpc.swift
 
-swiftformat Generated/*.swift
+swiftformat Generated/*.swift --cache ignore
+# The first pass strips the generator header, exposing the proto file comment as another header.
+# Normalize that header without the formatter cache masking the second pass.
+swiftformat Generated/*.grpc.swift --rules fileHeader --cache ignore
 
 echo "Generated protobuf files for TuistREAPI"
