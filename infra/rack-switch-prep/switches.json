@@ -1,0 +1,26 @@
+{
+  "vault": "Infastructure",
+  "switches": {
+    "ber1-tor-a": {
+      "model": "TP-Link Omada SX3832",
+      "role": "top of rack A: WAN-DMZ landing, edge trunk A, half the machines",
+      "mgmt_ip": "192.168.0.11",
+      "mgmt_mask": "255.255.255.0",
+      "credential_item": "ber1-tor-a switch admin"
+    },
+    "ber1-tor-b": {
+      "model": "TP-Link Omada SX3832",
+      "role": "top of rack B: edge trunk B, other half of the machines, pre-provisioned WAN failover",
+      "mgmt_ip": "192.168.0.12",
+      "mgmt_mask": "255.255.255.0",
+      "credential_item": "ber1-tor-b switch admin"
+    },
+    "ber1-mgmt": {
+      "model": "TP-Link JetStream TL-SG3452",
+      "role": "management plane: uplinks to ber1-edge directly, never through a ToR",
+      "mgmt_ip": "192.168.0.13",
+      "mgmt_mask": "255.255.255.0",
+      "credential_item": "ber1-mgmt switch admin"
+    }
+  }
+}

@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""Prepare a rack switch over its USB-C console port.
+
+A factory switch has no usable network identity: TP-Link ships every unit on
+192.168.0.1, which collides with the gateway of almost every network it is
+unboxed on, and its SSH server is disabled. The console port is the only
+interface that works regardless of addressing, so provisioning starts there and
+ends with a switch that is reachable and key-driveable over the network.
+
+Credentials never live in this repo. The admin account is read from (or created
+in) 1Password with the `op` CLI, so the same command works for an operator who
+has never touched the device.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import pathlib
+import re
+import select
+import subprocess
+import sys
+import termios
+import time
+
+BAUD_RATES = {9600: termios.B9600, 38400: termios.B38400, 115200: termios.B115200}
+DEFAULT_BAUD = 38400
+INVENTORY = pathlib.Path(__file__).with_name("switches.json")
+
+PROMPT = re.compile(r"[\r\n][\w.-]+[>#]\s*$")
+PAGER = re.compile(r"(press any key to continue|--more--|q to quit)", re.I)
+
+
+class ConsoleError(RuntimeError):
+    pass
+
+
+class Console:
+    """A line-oriented session on a switch console.
+
+    These CLIs drop characters when a whole line arrives in one write, and they
+    treat CR (not LF) as the submit key, so input is typed a character at a time.
+    """
+
+    def __init__(self, device: str, baud: int, echo: bool = False):
+        self.fd = os.open(device, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+        self.echo = echo
+        attrs = termios.tcgetattr(self.fd)
+        attrs[0] = 0
+        attrs[1] = 0
+        attrs[3] = 0
+        attrs[2] = termios.CREAD | termios.CLOCAL | termios.CS8
+        attrs[4] = attrs[5] = BAUD_RATES[baud]
+        termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
+        termios.tcflush(self.fd, termios.TCIOFLUSH)
+
+    def read(self, idle: float = 1.5, limit: float = 45.0) -> str:
+        out = b""
+        deadline = time.time() + limit
+        quiet = time.time() + idle
+        while time.time() < deadline and time.time() < quiet:
+            if not select.select([self.fd], [], [], 0.2)[0]:
+                continue
+            try:
+                chunk = os.read(self.fd, 4096)
+            except OSError:
+                break
+            if not chunk:
+                continue
+            out += chunk
+            quiet = time.time() + idle
+            if PAGER.search(out[-200:].decode("utf-8", "replace")):
+                os.write(self.fd, b" ")
+        text = out.decode("utf-8", "replace").replace("\r", "")
+        if self.echo and text.strip():
+            print(text, end="", file=sys.stderr, flush=True)
+        return text
+
+    def send(self, line: str, idle: float = 1.5, secret: bool = False) -> str:
+        if self.echo:
+            print(f"\n>>> {'*' * 8 if secret else line}", file=sys.stderr, flush=True)
+        for char in line:
+            os.write(self.fd, char.encode())
+            time.sleep(0.02)
+        time.sleep(0.3)
+        os.write(self.fd, b"\r")
+        time.sleep(0.4)
+        return self.read(idle=idle)
+
+    def close(self) -> None:
+        os.close(self.fd)
+
+
+def find_console(explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    candidates = sorted(glob.glob("/dev/cu.usbmodem*"))
+    if not candidates:
+        raise ConsoleError(
+            "no USB console found. Connect a USB-C cable from this machine to the "
+            "switch's console port, then retry."
+        )
+    if len(candidates) > 1:
+        raise ConsoleError(f"several USB consoles present, pick one with --device: {candidates}")
+    return candidates[0]
+
+
+def op(args: list[str], account: str | None) -> subprocess.CompletedProcess:
+    command = ["op", *args]
+    if account:
+        command += ["--account", account]
+    return subprocess.run(command, capture_output=True, text=True)
+
+
+def read_credentials(item: str, vault: str, account: str | None, create: bool) -> tuple[str, str]:
+    """Fetch the switch's admin login, creating it on first run.
+
+    A generated password stays letters and digits: TP-Link firmware rejects many
+    symbols, and it does so after the account form is submitted, which on a
+    console means starting the dialog again.
+    """
+    result = op(["item", "get", item, "--vault", vault, "--format=json"], account)
+    if result.returncode != 0:
+        if not create:
+            raise ConsoleError(
+                f"1Password item {item!r} not found in vault {vault!r}. "
+                "Pass --create-credentials to generate it."
+            )
+        created = op(
+            [
+                "item", "create", "--category=login", f"--title={item}", "--vault", vault,
+                "--generate-password=letters,digits,24", "--tags=ber1,rack,network",
+                "username=tuist",
+            ],
+            account,
+        )
+        if created.returncode != 0:
+            raise ConsoleError(f"could not create 1Password item: {created.stderr.strip()}")
+        result = op(["item", "get", item, "--vault", vault, "--format=json"], account)
+        if result.returncode != 0:
+            raise ConsoleError(f"could not read back 1Password item: {result.stderr.strip()}")
+
+    fields = {f.get("id"): f.get("value") for f in json.loads(result.stdout).get("fields", [])}
+    username, password = fields.get("username"), fields.get("password")
+    if not username or not password:
+        raise ConsoleError(f"1Password item {item!r} has no username/password")
+    return username, password
+
+
+def login(console: Console, username: str, password: str) -> None:
+    """Take the session from wherever it is to a privileged prompt."""
+    banner = console.send("", idle=2.0)
+
+    if "Set now" in banner or "set an administrator account" in banner:
+        console.send("Y", idle=2.0)
+        console.send(username, idle=2.0)
+        console.send(password, idle=2.0, secret=True)
+        banner = console.send(password, idle=3.0, secret=True)
+
+    if "User:" in banner or "Username:" in banner or "Login invalid" in banner:
+        console.send(username, idle=2.0)
+        banner = console.send(password, idle=3.0, secret=True)
+
+    if "Login invalid" in banner:
+        raise ConsoleError(
+            "the switch rejected the stored credentials. If this unit was set up by "
+            "hand, update the 1Password item, or factory-reset the switch."
+        )
+
+    if "#" not in banner:
+        banner = console.send("enable", idle=2.0)
+    if "#" not in banner:
+        raise ConsoleError(f"could not reach a privileged prompt, last output:\n{banner}")
+
+
+def configure(console: Console, switch: dict, dry_run: bool) -> list[str]:
+    commands = [
+        "configure",
+        f"hostname {switch['name']}",
+        "interface vlan 1",
+        f"ip address {switch['mgmt_ip']} {switch['mgmt_mask']}",
+        "exit",
+        "ip ssh server",
+        "end",
+        "copy running-config startup-config",
+    ]
+    if dry_run:
+        return commands
+    for command in commands:
+        idle = 6.0 if command.startswith("copy") else 1.5
+        output = console.send(command, idle=idle)
+        if "Bad command" in output or "Invalid" in output:
+            raise ConsoleError(f"switch rejected {command!r}:\n{output}")
+    return commands
+
+
+def verify(console: Console, switch: dict) -> dict:
+    info = console.send("show system-info", idle=4.0)
+    address = console.send("show interface vlan 1", idle=3.0)
+
+    def field(pattern: str, text: str) -> str:
+        match = re.search(pattern, text)
+        return match.group(1).strip() if match else ""
+
+    found = {
+        "name": field(r"System Name\s+-\s+(.+)", info),
+        "hardware": field(r"Hardware Version\s+-\s+(.+)", info),
+        "firmware": field(r"Software Version\s+-\s+(.+)", info),
+        "mac": field(r"Mac Address\s+-\s+(.+)", info),
+        "serial": field(r"Serial Number\s+-\s+(.+)", info),
+        "ip": field(r"ip is ([0-9.]+)", address),
+    }
+    if found["name"] != switch["name"]:
+        raise ConsoleError(f"hostname is {found['name']!r}, expected {switch['name']!r}")
+    if found["ip"] != switch["mgmt_ip"]:
+        raise ConsoleError(f"management address is {found['ip']!r}, expected {switch['mgmt_ip']!r}")
+    return found
+
+
+def main() -> int:
+    inventory = json.loads(INVENTORY.read_text())
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("switch", choices=sorted(inventory["switches"]), help="inventory entry to apply")
+    parser.add_argument("--device", help="console device (default: the only /dev/cu.usbmodem*)")
+    parser.add_argument("--baud", type=int, default=DEFAULT_BAUD, choices=sorted(BAUD_RATES))
+    parser.add_argument("--vault", default=inventory["vault"], help="1Password vault holding the admin logins")
+    parser.add_argument("--account", default=os.environ.get("OP_ACCOUNT"), help="1Password account")
+    parser.add_argument("--create-credentials", action="store_true", help="generate the admin login if absent")
+    parser.add_argument("--dry-run", action="store_true", help="print the commands without touching the switch")
+    parser.add_argument("--verbose", action="store_true", help="echo the console session to stderr")
+    args = parser.parse_args()
+
+    switch = inventory["switches"][args.switch]
+    switch.setdefault("name", args.switch)
+
+    if args.dry_run:
+        print(f"would apply to {switch['name']} ({switch['model']}):")
+        for command in configure(None, switch, dry_run=True):
+            print(f"  {command}")
+        return 0
+
+    device = find_console(args.device)
+    username, password = read_credentials(
+        switch["credential_item"], args.vault, args.account, args.create_credentials
+    )
+
+    print(f"console {device} at {args.baud} baud")
+    console = Console(device, args.baud, echo=args.verbose)
+    try:
+        login(console, username, password)
+        configure(console, switch, dry_run=False)
+        found = verify(console, switch)
+    finally:
+        console.close()
+
+    print(f"{found['name']} ready: {found['hardware']}, firmware {found['firmware']}")
+    print(f"  serial {found['serial']}, mac {found['mac']}, management {found['ip']}")
+    print("  SSH is enabled; import the fleet public key in the web UI to drop password auth:")
+    print(f"    https://{found['ip']} -> Security -> Access Security -> SSH Config -> Import Key File")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except ConsoleError as error:
+        print(f"error: {error}", file=sys.stderr)
+        sys.exit(1)
