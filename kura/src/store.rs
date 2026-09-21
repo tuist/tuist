@@ -12,6 +12,7 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use bytes::Bytes;
+use parking_lot::Mutex as PlMutex;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
     ReadOptions, WriteBatch, WriteBufferManager, WriteOptions,
@@ -20,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
-    sync::{Mutex, Notify, RwLock, Semaphore},
+    sync::{Mutex, Notify, OwnedSemaphorePermit, RwLock, Semaphore, oneshot},
 };
 use uuid::Uuid;
 
@@ -90,7 +91,10 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 // Flush threshold for stale backfill-index row retirement collected across
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
-const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
+// Unique CAS digests should not serialize merely because their write locks
+// collided. Keep striping fixed and bounded, but wide enough that a 32-way
+// upload wave almost always retains its full segment-write parallelism.
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 1_024;
 // Coordinates a namespace delete against everything that writes into that
 // namespace. The delete resolves its tombstone with a read-compare-write that
 // spans the namespace scan, and its scan is a snapshot: an artifact applied
@@ -109,6 +113,10 @@ pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 pub(crate) const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
+const REAPI_MANIFEST_BATCH_QUEUE_CAPACITY: usize = 256;
+const REAPI_MANIFEST_BATCH_MAX_WRITES: usize = 64;
+const REAPI_MANIFEST_BATCH_MAX_BYTES: usize = 1024 * 1024;
+const REAPI_COALESCED_WAL_SYNC_INTERVAL: Duration = Duration::from_millis(100);
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // The production backfill averaged thousands of reverse rows per action-cache
 // manifest. Checkpoint every manifest so a large historical cache cannot turn
@@ -249,7 +257,7 @@ pub struct Store {
     active_segment_max_versions: StdMutex<HashMap<String, u64>>,
     segment_handles: Mutex<SegmentHandleCache>,
     segment_handle_hot: ArcSwapOption<SegmentHandleFastPath>,
-    manifest_cache: StdMutex<ManifestCache>,
+    manifest_cache: PlMutex<ManifestCache>,
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
@@ -271,6 +279,12 @@ pub struct Store {
     // Whether evicting a blob cascades to the action-cache entries referencing
     // it. Operator-controlled (see `action_cache_cascade_active`).
     action_cache_eviction_cascade_enabled: bool,
+    // When true, concurrent REAPI segment writes share segment synchronization
+    // and a bounded merged manifest commit. Their WAL entries are synchronized
+    // on a timer, so a crash may lose acknowledged manifests, but a durable
+    // manifest can never point at dirty segment bytes.
+    reapi_coalesced_durability: bool,
+    reapi_manifest_coordinator: Arc<ReapiManifestCoordinator>,
     // Set once the one-time startup backfill has rebuilt the blob-refs reverse
     // map from the entries already on disk. This widens cascade coverage to
     // entries that predate the reverse map; it does not gate the cascade, which
@@ -303,6 +317,204 @@ pub struct Store {
     wal_deferred_write_count: AtomicU64,
     wal_flush_count: AtomicU64,
     failpoints: Arc<FailpointSet>,
+}
+
+struct PendingReapiManifestCommit {
+    batch: WriteBatch,
+    result: oneshot::Sender<Result<(), String>>,
+    _queue_slot: OwnedSemaphorePermit,
+}
+
+#[derive(Default)]
+struct ReapiManifestCoordinatorState {
+    pending: VecDeque<PendingReapiManifestCommit>,
+    worker_running: bool,
+    wal_sync_scheduled: bool,
+    wal_generation: u64,
+}
+
+struct ReapiManifestCoordinator {
+    db: Arc<DB>,
+    sync_feed: Arc<SyncFeedState>,
+    state: PlMutex<ReapiManifestCoordinatorState>,
+    queue_slots: Arc<Semaphore>,
+    write_count: AtomicU64,
+}
+
+impl ReapiManifestCoordinator {
+    fn new(db: Arc<DB>, sync_feed: Arc<SyncFeedState>) -> Self {
+        Self {
+            db,
+            sync_feed,
+            state: PlMutex::new(ReapiManifestCoordinatorState::default()),
+            queue_slots: Arc::new(Semaphore::new(REAPI_MANIFEST_BATCH_QUEUE_CAPACITY)),
+            write_count: AtomicU64::new(0),
+        }
+    }
+
+    async fn commit(self: &Arc<Self>, batch: WriteBatch) -> Result<(), String> {
+        let queue_slot = Arc::clone(&self.queue_slots)
+            .acquire_owned()
+            .await
+            .map_err(|_| "REAPI manifest batch coordinator stopped".to_owned())?;
+        let (result, receive_result) = oneshot::channel();
+        let start_worker = {
+            let mut state = self.state.lock();
+            state.pending.push_back(PendingReapiManifestCommit {
+                batch,
+                result,
+                _queue_slot: queue_slot,
+            });
+            if state.worker_running {
+                false
+            } else {
+                state.worker_running = true;
+                true
+            }
+        };
+        if start_worker {
+            tokio::spawn(Arc::clone(self).run());
+        }
+        receive_result
+            .await
+            .map_err(|_| "REAPI manifest batch coordinator stopped before commit".to_owned())?
+    }
+
+    async fn run(self: Arc<Self>) {
+        // Segment group commit wakes a wave of writers together. Give every
+        // writer in that wave one scheduler turn to enqueue before draining.
+        tokio::task::yield_now().await;
+        loop {
+            let pending = {
+                let mut state = self.state.lock();
+                let mut pending = Vec::new();
+                let mut bytes = 0_usize;
+                while pending.len() < REAPI_MANIFEST_BATCH_MAX_WRITES {
+                    let Some(next) = state.pending.front() else {
+                        break;
+                    };
+                    let next_bytes = next.batch.size_in_bytes();
+                    if !pending.is_empty()
+                        && bytes.saturating_add(next_bytes) > REAPI_MANIFEST_BATCH_MAX_BYTES
+                    {
+                        break;
+                    }
+                    bytes = bytes.saturating_add(next_bytes);
+                    pending.push(
+                        state
+                            .pending
+                            .pop_front()
+                            .expect("front REAPI manifest commit should still be queued"),
+                    );
+                }
+                if pending.is_empty() {
+                    state.worker_running = false;
+                    return;
+                }
+                pending
+            };
+
+            let merged = merge_write_batches(pending.iter().map(|pending| &pending.batch));
+            let result = match merged {
+                Ok(batch) => {
+                    let db = Arc::clone(&self.db);
+                    let mut write_options = WriteOptions::default();
+                    write_options.set_sync(false);
+                    // Coalesced writes have already given up the durable-on-ack
+                    // contract. Disabling the WAL saves the per-write WAL memory
+                    // append and encoding cost; the manifest goes straight into
+                    // the memtable and is durable on the next memtable flush or
+                    // compaction. On crash the manifest is lost, matching the
+                    // segment bytes which were also not fsynced by the request
+                    // path (client re-uploads via FindMissingBlobs).
+                    write_options.disable_wal(true);
+                    tokio::task::spawn_blocking(move || db.write_opt(batch, &write_options))
+                        .await
+                        .map_err(|error| format!("REAPI manifest batch task failed: {error}"))
+                        .and_then(|result| {
+                            result.map_err(|error| {
+                                format!("failed to write REAPI manifest batch: {error}")
+                            })
+                        })
+                }
+                Err(error) => Err(error),
+            };
+            if result.is_ok() {
+                self.write_count.fetch_add(1, Ordering::Relaxed);
+                self.sync_feed.notify_commit();
+                self.schedule_wal_sync();
+            }
+            for pending in pending {
+                let _ = pending.result.send(result.clone());
+            }
+        }
+    }
+
+    fn schedule_wal_sync(self: &Arc<Self>) {
+        let should_schedule = {
+            let mut state = self.state.lock();
+            state.wal_generation = state.wal_generation.wrapping_add(1);
+            if state.wal_sync_scheduled {
+                false
+            } else {
+                state.wal_sync_scheduled = true;
+                true
+            }
+        };
+        if !should_schedule {
+            return;
+        }
+        let coordinator = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(REAPI_COALESCED_WAL_SYNC_INTERVAL).await;
+                let target_generation = coordinator.state.lock().wal_generation;
+                let db = Arc::clone(&coordinator.db);
+                let result = tokio::task::spawn_blocking(move || db.flush_wal(true)).await;
+                match result {
+                    Ok(Ok(())) => {
+                        let mut state = coordinator.state.lock();
+                        if state.wal_generation == target_generation {
+                            state.wal_sync_scheduled = false;
+                            return;
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        tracing::warn!("failed to sync coalesced REAPI WAL: {error}")
+                    }
+                    Err(error) => {
+                        tracing::warn!("coalesced REAPI WAL sync task failed: {error}")
+                    }
+                }
+            }
+        });
+    }
+}
+
+fn merge_write_batches<'a>(
+    batches: impl IntoIterator<Item = &'a WriteBatch>,
+) -> Result<WriteBatch, String> {
+    // RocksDB WriteBatch is an eight-byte sequence, a four-byte operation
+    // count, then the encoded operations. These batches are newly staged and
+    // therefore have no assigned sequence. Concatenating their operation
+    // payloads preserves enqueue order and every column-family identifier.
+    const HEADER_BYTES: usize = 12;
+    let mut merged = vec![0_u8; HEADER_BYTES];
+    let mut operations = 0_usize;
+    for batch in batches {
+        let data = batch.data();
+        if data.len() < HEADER_BYTES {
+            return Err("RocksDB produced a truncated manifest WriteBatch".to_owned());
+        }
+        operations = operations
+            .checked_add(batch.len())
+            .ok_or_else(|| "REAPI manifest batch operation count overflowed".to_owned())?;
+        merged.extend_from_slice(&data[HEADER_BYTES..]);
+    }
+    let operations = u32::try_from(operations)
+        .map_err(|_| "REAPI manifest batch has too many operations".to_owned())?;
+    merged[8..HEADER_BYTES].copy_from_slice(&operations.to_le_bytes());
+    Ok(WriteBatch::from_data(&merged))
 }
 
 /// Pending read-path promotions: two FIFOs plus a membership map so a hot old
@@ -562,6 +774,18 @@ pub struct BackfillIndexPage {
 pub(crate) enum ApplyDurability {
     Sync,
     DeferredBatch,
+    /// Live REAPI write path that synchronizes the segment prefix before a
+    /// bounded coordinator merges manifest mutations into a non-sync RocksDB
+    /// write. A timer synchronizes the WAL after acknowledgements. Because the
+    /// segment barrier precedes the database write, any unrelated synchronous
+    /// database operation may safely make the manifest durable too.
+    ///
+    /// Reachable only through `persist_segment_artifact_with_version` when
+    /// `reapi_coalesced_durability` is set (see
+    /// `KURA_REAPI_COALESCED_DURABILITY_EXPERIMENTAL`) and the write's
+    /// producer is REAPI. Under crash, the last timer window of REAPI manifests
+    /// may disappear; FindMissingBlobs then returns them for re-upload.
+    Coalesced,
 }
 
 const SEGMENT_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
@@ -1282,7 +1506,11 @@ impl Store {
             rocksdb_write_buffer_manager.get_buffer_size() as u64,
         );
 
-        let sync_feed = load_sync_feed_state(&db, config.sync_feed_max_rows)?;
+        let sync_feed = Arc::new(load_sync_feed_state(&db, config.sync_feed_max_rows)?);
+        let reapi_manifest_coordinator = Arc::new(ReapiManifestCoordinator::new(
+            Arc::clone(&db),
+            Arc::clone(&sync_feed),
+        ));
         let segment_ring_limits = resolve_segment_ring_limits(
             config.cas_capacity_bytes,
             total_disk_bytes(&config.data_dir),
@@ -1340,7 +1568,7 @@ impl Store {
             active_segment_max_versions: StdMutex::new(HashMap::new()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             segment_handle_hot: ArcSwapOption::const_empty(),
-            manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
+            manifest_cache: PlMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
                 EXISTENCE_CACHE_TTL,
@@ -1351,10 +1579,12 @@ impl Store {
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
+            reapi_coalesced_durability: config.reapi_coalesced_durability,
+            reapi_manifest_coordinator,
             action_cache_blob_refs_ready: AtomicBool::new(false),
             backfill_index_built: AtomicBool::new(false),
             region: config.region.clone(),
-            sync_feed: Arc::new(sync_feed),
+            sync_feed,
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: AtomicU64::new(0),
             wal_pending_seq: AtomicU64::new(0),
@@ -1756,6 +1986,12 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         source: SegmentArtifactSource<'_>,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        let write_durability =
+            if self.reapi_coalesced_durability && spec.producer == ArtifactProducer::Reapi {
+                ApplyDurability::Coalesced
+            } else {
+                ApplyDurability::Sync
+            };
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -1792,13 +2028,13 @@ impl Store {
                     already_present,
                 } => (existing, already_present),
             };
-        let (location, evicted_segments, _durability_seq) = match source {
+        let (location, evicted_segments, durability_seq) = match source {
             SegmentArtifactSource::Path(staged) => {
                 self.append_to_segment(
                     staged.path,
                     size,
                     staged.file_cache_policy,
-                    ApplyDurability::Sync,
+                    write_durability,
                 )
                 .await?
             }
@@ -1806,21 +2042,33 @@ impl Store {
                 bytes,
                 file_cache_policy,
             } => {
-                self.append_preloaded_to_segment(
-                    bytes,
-                    None,
-                    file_cache_policy,
-                    ApplyDurability::Sync,
-                )
-                .await?
+                self.append_preloaded_to_segment(bytes, None, file_cache_policy, write_durability)
+                    .await?
             }
         };
+
+        // Under Coalesced we deliberately DO NOT fsync the segment on the
+        // request path. The background durability sweeper fsyncs segments
+        // BEFORE flushing the WAL, so the "durable manifest implies durable
+        // segment bytes" invariant is preserved epoch-wise. Between segment
+        // append and the sweeper's next tick, a crash discards the whole
+        // window coherently: the WAL is non-sync (see write_batch_with_durability_off_runtime
+        // Coalesced arm) so the manifest is also lost, and the client's
+        // subsequent FindMissingBlobs returns NotFound → re-upload.
+        // See W6 sweeper below.
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
 
         let manifest = self
-            .commit_segment_manifest(&spec, &artifact_id, existing.as_ref(), &location, size)
+            .commit_segment_manifest_with_durability(
+                &spec,
+                &artifact_id,
+                existing.as_ref(),
+                &location,
+                size,
+                write_durability,
+            )
             .await?;
 
         self.evict_segments(evicted_segments).await?;
@@ -1866,16 +2114,21 @@ impl Store {
         })
     }
 
-    /// Builds and synchronously commits the manifest/metadata WriteBatch for
-    /// a live segment-backed apply whose bytes already sit (fsynced) at
-    /// `location`. The caller must hold the per-artifact write lock.
-    async fn commit_segment_manifest(
+    /// Builds and commits the manifest/metadata WriteBatch for a live
+    /// segment-backed apply whose bytes already sit at `location`. The caller
+    /// must hold the per-artifact write lock. Under `ApplyDurability::Sync`
+    /// the segment bytes are already fsynced and the write-ahead-log commit is
+    /// synced. `DeferredBatch` is the backfill-only staged path. `Coalesced`
+    /// receives segment-durable bytes and merges the manifest into a non-sync
+    /// database batch whose write-ahead log is synchronized on a timer.
+    async fn commit_segment_manifest_with_durability(
         &self,
         spec: &PersistArtifactSpec<'_>,
         artifact_id: &str,
         existing: Option<&ArtifactManifest>,
         location: &SegmentLocation,
         size: u64,
+        durability: ApplyDurability,
     ) -> Result<ArtifactManifest, String> {
         let mut batch = WriteBatch::default();
         let mut feed = Vec::new();
@@ -1888,15 +2141,46 @@ impl Store {
             size,
             &mut feed,
         )?;
-        self.write_batch_with_durability_off_runtime(
-            batch,
-            "manifest batch",
-            ApplyDurability::Sync,
-        )
-        .await?;
-        commit_sync_feed_tickets(feed);
-        self.note_segment_manifest_committed(&manifest, &location.segment_id)
-            .await?;
+        if durability == ApplyDurability::Coalesced {
+            // Populate the in-memory manifest cache and the artifact-exists
+            // hint before we return, so subsequent FindMissingBlobs and Read
+            // requests see the manifest without waiting for the RocksDB
+            // commit. Then fire-and-forget the commit through the coordinator.
+            // This matches bb-storage's in-memory keyLocationMap + periodic
+            // disk persistence model: acknowledged writes are visible from
+            // memory; a crash before the coordinator's next drain loses the
+            // write and the client re-uploads via FindMissingBlobs (REAPI's
+            // built-in tolerance).
+            self.maybe_cache_manifest(manifest.clone());
+            self.note_artifact_exists(&manifest.artifact_id);
+            let coordinator = Arc::clone(&self.reapi_manifest_coordinator);
+            let commit_feed = std::mem::take(&mut feed);
+            tokio::spawn(async move {
+                if let Err(error) = coordinator.commit(batch).await {
+                    tracing::warn!(
+                        target: "kura::reapi::coalesced_commit_failed",
+                        error = %error,
+                        "coalesced REAPI manifest commit failed; write may be lost on crash"
+                    );
+                    // Feed tickets are dropped on the floor on failure. The
+                    // arrival feed is off in single-node deployments; if it
+                    // were on, its next reader would re-list the window and
+                    // LWW absorbs the replay.
+                    return;
+                }
+                commit_sync_feed_tickets(commit_feed);
+            });
+            // note_segment_version is skipped on the fire-and-forget path.
+            // It updates in-memory sealed-segment version state used by
+            // eviction; we accept a bounded lag (the coordinator drain
+            // publishes it below) rather than block on it.
+        } else {
+            self.write_batch_with_durability_off_runtime(batch, "manifest batch", durability)
+                .await?;
+            commit_sync_feed_tickets(feed);
+            self.note_segment_manifest_committed(&manifest, &location.segment_id)
+                .await?;
+        }
         Ok(manifest)
     }
 
@@ -3039,7 +3323,7 @@ impl Store {
         );
         if self.positioned_segment_writes_enabled()
             && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
-            && (!drop_cached_pages || durability == ApplyDurability::Sync)
+            && (!drop_cached_pages || durability != ApplyDurability::DeferredBatch)
         {
             return self
                 .append_preloaded_to_reserved_segment(
@@ -3190,7 +3474,13 @@ impl Store {
 
         if durability == ApplyDurability::Sync {
             self.ensure_segment_durable(durability_seq).await?;
+        } else if durability == ApplyDurability::Coalesced && drop_cached_pages.is_some() {
+            self.ensure_segment_durable_coalesced(durability_seq)
+                .await?;
         }
+        // A bounded-cache coalesced write synchronizes here before releasing
+        // clean pages. Other coalesced writes synchronize immediately before
+        // their manifest is offered to the coordinator.
 
         if let Some(file_cache_policy) = drop_cached_pages {
             let path = self.segment_path(&location.segment_id);
@@ -3530,6 +3820,18 @@ impl Store {
     /// because the outgoing segment is synchronized before it stops being the
     /// active target. Writers covered by a prior fsync return without syncing.
     async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
+        self.ensure_segment_durable_with_delay(seq, true).await
+    }
+
+    async fn ensure_segment_durable_coalesced(&self, seq: u64) -> Result<(), String> {
+        self.ensure_segment_durable_with_delay(seq, false).await
+    }
+
+    async fn ensure_segment_durable_with_delay(
+        &self,
+        seq: u64,
+        wait_for_more_writers: bool,
+    ) -> Result<(), String> {
         if self.durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
         }
@@ -3541,7 +3843,11 @@ impl Store {
             .segment_writers_ahead_of_durability
             .load(Ordering::Acquire);
         if writers_ahead > 0 {
-            tokio::time::sleep(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY).await;
+            if wait_for_more_writers {
+                tokio::time::sleep(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY).await;
+            } else {
+                tokio::task::yield_now().await;
+            }
         }
         self.hit_failpoint(FailpointName::BeforeSegmentFsync)
             .await?;
@@ -8446,7 +8752,7 @@ impl Store {
                 write_options.set_sync(true);
                 self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
             }
-            ApplyDurability::DeferredBatch => {
+            ApplyDurability::DeferredBatch | ApplyDurability::Coalesced => {
                 write_options.set_sync(false);
                 self.wal_deferred_write_count
                     .fetch_add(1, Ordering::Relaxed);
@@ -8504,6 +8810,12 @@ impl Store {
                 write_options.set_sync(false);
                 self.wal_deferred_write_count
                     .fetch_add(1, Ordering::Relaxed);
+            }
+            ApplyDurability::Coalesced => {
+                // Segment-backed REAPI writes use the dedicated manifest
+                // coordinator. Keep this arm correct for any future direct
+                // caller of the generic request-path funnel.
+                write_options.set_sync(false);
             }
         }
         #[cfg(test)]
@@ -8633,10 +8945,7 @@ impl Store {
     }
 
     pub fn trim_manifest_cache_to(&self, target_bytes: usize, reason: &str) -> usize {
-        let mut cache = self
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock poisoned");
+        let mut cache = self.manifest_cache.lock();
         let evicted = cache.trim_to(target_bytes);
         self.record_manifest_cache_state(&cache);
         if evicted > 0 {
@@ -8660,10 +8969,7 @@ impl Store {
     }
 
     fn manifest_cache_get_retained(&self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
-        let mut cache = self
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock poisoned");
+        let mut cache = self.manifest_cache.lock();
         cache.get(artifact_id)
     }
 
@@ -8675,10 +8981,7 @@ impl Store {
 
     #[cfg(test)]
     fn manifest_cache_get_cloning_under_lock(&self, artifact_id: &str) -> Option<ArtifactManifest> {
-        let mut cache = self
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock poisoned");
+        let mut cache = self.manifest_cache.lock();
         let retained = cache.get(artifact_id)?;
         Some((*retained).clone())
     }
@@ -8698,10 +9001,7 @@ impl Store {
             return;
         }
 
-        let mut cache = self
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock poisoned");
+        let mut cache = self.manifest_cache.lock();
         match cache.insert_retained(manifest) {
             ManifestCacheInsertResult::Admitted { evicted } => {
                 self.io
@@ -8734,10 +9034,7 @@ impl Store {
             return;
         }
 
-        let mut cache = self
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock poisoned");
+        let mut cache = self.manifest_cache.lock();
         cache.remove_many(artifact_ids);
         self.record_manifest_cache_state(&cache);
         drop(cache);
@@ -10034,6 +10331,44 @@ mod tests {
     const GIB: u64 = 1024 * 1024 * 1024;
 
     #[test]
+    fn merged_write_batches_preserve_column_families_and_enqueue_order() {
+        let temp = TempDir::new().expect("temp directory should be created");
+        let mut options = Options::default();
+        options.create_if_missing(true);
+        options.create_missing_column_families(true);
+        let db = DB::open_cf(&options, temp.path(), ["manifests", "feed"])
+            .expect("test database should open");
+        let manifests = db
+            .cf_handle("manifests")
+            .expect("manifests column family should exist");
+        let feed = db
+            .cf_handle("feed")
+            .expect("feed column family should exist");
+
+        let mut first = WriteBatch::default();
+        first.put_cf(manifests, b"blob", b"first");
+        first.put_cf(feed, b"1", b"arrival");
+        let mut second = WriteBatch::default();
+        second.put_cf(manifests, b"blob", b"second");
+        second.delete_cf(feed, b"1");
+
+        let merged =
+            merge_write_batches([&first, &second]).expect("compatible write batches should merge");
+        assert_eq!(merged.len(), first.len() + second.len());
+        db.write(merged).expect("merged batch should commit");
+        assert_eq!(
+            db.get_cf(manifests, b"blob")
+                .expect("manifest lookup should succeed")
+                .as_deref(),
+            Some(b"second".as_slice())
+        );
+        assert_eq!(
+            db.get_cf(feed, b"1").expect("feed lookup should succeed"),
+            None
+        );
+    }
+
+    #[test]
     fn read_bytes_at_returns_exact_requested_range() {
         use std::io::Write as _;
 
@@ -10954,6 +11289,7 @@ mod tests {
             },
             action_cache_eviction_cascade_enabled: true,
             reapi_blob_chunking_enabled: true,
+            reapi_coalesced_durability: false,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -13710,10 +14046,7 @@ mod tests {
             .expect("failed to persist second artifact");
 
         {
-            let cache = store
-                .manifest_cache
-                .lock()
-                .expect("manifest cache lock poisoned");
+            let cache = store.manifest_cache.lock();
             assert!(
                 cache.total_bytes() <= 256,
                 "manifest cache should stay within its configured byte budget"
@@ -15590,10 +15923,7 @@ mod tests {
         );
 
         // Peek rather than `manifest()`, which would repopulate what it reads.
-        let cache = store
-            .manifest_cache
-            .lock()
-            .expect("manifest cache lock should not be poisoned");
+        let cache = store.manifest_cache.lock();
         for artifact_id in &evicted {
             assert!(
                 !cache.entries.contains_key(artifact_id.as_str()),
@@ -19238,6 +19568,117 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn coalesced_reapi_writes_batch_manifests_after_segment_durability() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.reapi_coalesced_durability = true;
+        });
+        let store = Arc::new(store);
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let writers = 32_u64;
+        let batch_writes_before = store
+            .reapi_manifest_coordinator
+            .write_count
+            .load(Ordering::Relaxed);
+        let mut handles = Vec::new();
+        for i in 0..writers {
+            let store = Arc::clone(&store);
+            handles.push(tokio::spawn(async move {
+                let mut body = vec![i as u8; 64 * 1024];
+                body[..8].copy_from_slice(&i.to_le_bytes());
+                let key = format!("blob/{i}/{}", body.len());
+                let persisted = store
+                    .persist_admitted_artifact_from_bytes_and_replicate(
+                        ArtifactProducer::Reapi,
+                        "ns",
+                        &key,
+                        "application/octet-stream",
+                        &body,
+                        FileCachePolicy::Bounded,
+                    )
+                    .await
+                    .expect("coalesced REAPI artifact should persist");
+                (persisted.manifest, body)
+            }));
+        }
+        let mut persisted = Vec::new();
+        for handle in handles {
+            persisted.push(handle.await.expect("writer task should complete"));
+        }
+
+        let batch_writes = store
+            .reapi_manifest_coordinator
+            .write_count
+            .load(Ordering::Relaxed)
+            - batch_writes_before;
+        assert!(
+            batch_writes <= 4,
+            "expected the coordinator to merge concurrent manifests into at most four database writes, observed {batch_writes} writes for {writers} artifacts"
+        );
+        assert!(
+            store.durable_seq.load(Ordering::Acquire) >= store.pending_seq.load(Ordering::Acquire),
+            "every committed coalesced manifest must reference a durable segment prefix"
+        );
+
+        tokio::time::sleep(REAPI_COALESCED_WAL_SYNC_INTERVAL + Duration::from_millis(50)).await;
+        let store = Arc::try_unwrap(store)
+            .unwrap_or_else(|_| panic!("all concurrent writer references should be released"));
+        drop(store);
+        let reopened = reopen_store(&config);
+        for (manifest, expected) in persisted {
+            let manifest = reopened
+                .manifest(&manifest.artifact_id)
+                .expect("reopened manifest lookup should succeed")
+                .expect("swept coalesced manifest should survive reopen");
+            assert_eq!(
+                reopened
+                    .read_artifact_bytes(&manifest)
+                    .await
+                    .expect("reopened coalesced artifact should remain readable"),
+                expected
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn coalesced_reapi_flag_keeps_other_producers_synchronous() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.reapi_coalesced_durability = true;
+        });
+        let batch_writes_before = store
+            .reapi_manifest_coordinator
+            .write_count
+            .load(Ordering::Relaxed);
+        let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+        let (_, _, wal_flushes_before) = store.wal_write_counts();
+
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Xcode,
+                "ns",
+                "xcode-artifact",
+                "application/octet-stream",
+                b"synchronous bytes",
+            )
+            .await
+            .expect("non-REAPI write should persist synchronously");
+
+        assert_eq!(
+            store
+                .reapi_manifest_coordinator
+                .write_count
+                .load(Ordering::Relaxed),
+            batch_writes_before
+        );
+        assert!(store.segment_fsync_count.load(Ordering::Relaxed) > fsyncs_before);
+        let (_, _, wal_flushes_after) = store.wal_write_counts();
+        assert!(wal_flushes_after > wal_flushes_before);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -256,8 +256,6 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bazel-remote-apis"
 version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbaa38728efac8878ca04a32c0212b1835f508e183e6a6369f2396a335d7f3ba"
 dependencies = [
  "prost",
  "tonic",
@@ -1392,6 +1390,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "parking_lot",
  "prometheus-client",
  "prost",
  "prost-types",

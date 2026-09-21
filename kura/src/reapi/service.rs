@@ -28,6 +28,7 @@ use bazel_remote_apis::{
         rpc::Status as RpcStatus,
     },
 };
+use bytes::Bytes;
 use futures_util::{FutureExt, StreamExt};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
@@ -2833,7 +2834,7 @@ fn bytestream_read_response_stream(
 ) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
     futures_util::stream::try_unfold(reader, move |mut reader| async move {
         let data = reader
-            .read_chunk_owned(chunk_bytes)
+            .read_bytes_chunk(chunk_bytes)
             .await
             .map_err(|error| Status::internal(format!("failed to stream blob chunk: {error}")))?;
         if data.is_empty() {
@@ -2901,7 +2902,7 @@ fn compressed_bytestream_read_response_stream(
             // Emit a wire-sized chunk of compressed output as soon as one is
             // ready, so a slow decode-loop client still receives frames.
             if state.pending.len() >= state.chunk_bytes {
-                let data = take_front(&mut state.pending, state.chunk_bytes);
+                let data = Bytes::from(take_front(&mut state.pending, state.chunk_bytes));
                 return Ok(Some((bytestream::ReadResponse { data }, state)));
             }
 
@@ -2946,7 +2947,7 @@ fn compressed_bytestream_read_response_stream(
                 return Ok(None);
             }
             let take = state.chunk_bytes.min(state.pending.len());
-            let data = take_front(&mut state.pending, take);
+            let data = Bytes::from(take_front(&mut state.pending, take));
             return Ok(Some((bytestream::ReadResponse { data }, state)));
         }
     })
@@ -2987,7 +2988,7 @@ fn composite_bytestream_read_response_stream(
             loop {
                 if let Some(mut current) = reader.take() {
                     let data = current
-                        .read_chunk_owned(chunk_bytes)
+                        .read_bytes_chunk(chunk_bytes)
                         .await
                         .map_err(|error| {
                             Status::internal(format!("failed to stream blob chunk: {error}"))
@@ -3033,7 +3034,10 @@ where
         let mut data = Vec::with_capacity(chunk_bytes);
         match tokio::io::AsyncReadExt::read_buf(&mut reader, &mut data).await {
             Ok(0) => Ok(None),
-            Ok(_) => Ok(Some((bytestream::ReadResponse { data }, reader))),
+            Ok(_) => Ok(Some((
+                bytestream::ReadResponse { data: data.into() },
+                reader,
+            ))),
             Err(error) => Err(Status::internal(format!(
                 "failed to stream blob chunk: {error}"
             ))),
@@ -3050,9 +3054,7 @@ where
     R: tokio::io::AsyncRead + Send,
 {
     tokio_util::io::ReaderStream::with_capacity(reader, chunk_bytes).map(|result| match result {
-        Ok(bytes) => Ok(bytestream::ReadResponse {
-            data: bytes.to_vec(),
-        }),
+        Ok(bytes) => Ok(bytestream::ReadResponse { data: bytes }),
         Err(error) => Err(Status::internal(format!(
             "failed to stream blob chunk: {error}"
         ))),
@@ -7661,7 +7663,7 @@ mod tests {
                             },
                             write_offset: offset as i64,
                             finish_write: offset + data.len() == blob.len(),
-                            data: data.to_vec(),
+                            data: data.to_vec().into(),
                         });
                     }
                     drop(blob);
@@ -8185,7 +8187,7 @@ mod tests {
                         },
                         write_offset: offset as i64,
                         finish_write: end == blob.len(),
-                        data: blob[offset..end].to_vec(),
+                        data: blob[offset..end].to_vec().into(),
                     });
                     offset = end;
                 }
@@ -8256,7 +8258,7 @@ mod tests {
                 resource_name: resource,
                 write_offset: 0,
                 finish_write: true,
-                data: blob,
+                data: blob.into(),
             }]))
             .await
             .expect("the existing decode limit should remain accepted")
@@ -8310,7 +8312,7 @@ mod tests {
                         resource_name: resource,
                         write_offset: 0,
                         finish_write: true,
-                        data: blob,
+                        data: blob.into(),
                     }]))
                     .await
             }));
@@ -8337,7 +8339,7 @@ mod tests {
                 resource_name: resource,
                 write_offset: 0,
                 finish_write: true,
-                data: blob,
+                data: blob.into(),
             }]))
             .await
             .expect("the shared connection should remain usable after rejection")
@@ -8399,7 +8401,7 @@ mod tests {
                 ),
                 write_offset: 0,
                 finish_write: false,
-                data: vec![0xA5],
+                data: vec![0xA5].into(),
             })
             .await
             .expect("first message should enter the stream");
@@ -8417,7 +8419,7 @@ mod tests {
                 resource_name: String::new(),
                 write_offset: 1,
                 finish_write: false,
-                data: vec![0x5A; MEBIBYTE as usize],
+                data: vec![0x5A; MEBIBYTE as usize].into(),
             })
             .await
             .expect("second message should enter the client transport");
@@ -8438,7 +8440,7 @@ mod tests {
                 resource_name: format!("uploads/recovered/blobs/{hash}/{}", blob.len()),
                 write_offset: 0,
                 finish_write: true,
-                data: blob,
+                data: blob.into(),
             }]))
             .await
             .expect("the connection should remain usable after mid-stream rejection")
@@ -8501,7 +8503,7 @@ mod tests {
                 resource_name: format!("uploads/regression/blobs/{hash}/{len}"),
                 write_offset: 0,
                 finish_write: true,
-                data: blob.clone(),
+                data: blob.clone().into(),
             }]))
             .await
             .expect("ByteStream write should succeed")
@@ -9002,7 +9004,7 @@ mod tests {
                     resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
                     write_offset: 0,
                     finish_write: true,
-                    data: blob.clone(),
+                    data: blob.clone().into(),
                 },
             ])))
             .await
@@ -9022,7 +9024,7 @@ mod tests {
                     resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
                     write_offset: 0,
                     finish_write: true,
-                    data: blob.clone(),
+                    data: blob.clone().into(),
                 },
             ])))
             .await
@@ -10252,7 +10254,7 @@ mod tests {
                     },
                     write_offset: offset as i64,
                     finish_write: end == blob.len(),
-                    data: blob[offset..end].to_vec(),
+                    data: blob[offset..end].to_vec().into(),
                 });
                 offset = end;
             }
@@ -10594,7 +10596,7 @@ mod tests {
                     },
                     write_offset: offset as i64,
                     finish_write: finish,
-                    data: chunk.to_vec(),
+                    data: chunk.to_vec().into(),
                 });
                 offset += chunk.len();
             }

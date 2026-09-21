@@ -1,0 +1,4 @@
+# temporary file used by pbjson build
+proto_descriptor.bin
+# we use serde functions from pbjson_types, so this file should not be included
+google.protobuf.serde.rs

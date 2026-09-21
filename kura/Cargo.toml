@@ -10,6 +10,11 @@ axum = "0.8.9"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 base64 = "0.22.1"
 bazel-remote-apis = "0.27.0"
+
+# Local vendored bazel-remote-apis with `ReadResponse.data` and `WriteRequest.data`
+# retyped as `prost::bytes::Bytes` so the ByteStream Read/Write hot path can
+# alias mmap regions instead of allocating a fresh `Vec<u8>` per chunk.
+# See kura/vendor/bazel-remote-apis/.
 bytes = "1.11.0"
 deadpool = { version = "0.13.0", default-features = false, features = ["unmanaged"] }
 futures-util = "0.3.31"
@@ -25,6 +30,7 @@ libc = "0.2.177"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 memmap2 = "0.9.10"
 moka = { version = "0.12.16", features = ["future", "sync"] }
+parking_lot = "0.12"
 opentelemetry = "0.32.0"
 opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
@@ -83,3 +89,6 @@ debug = false
 
 [profile.dev.build-override]
 debug = false
+
+[patch.crates-io]
+bazel-remote-apis = { path = "vendor/bazel-remote-apis" }

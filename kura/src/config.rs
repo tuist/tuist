@@ -46,6 +46,7 @@ const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_S
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
 const KURA_REAPI_BLOB_CHUNKING_ENABLED: &str = "KURA_REAPI_BLOB_CHUNKING_ENABLED";
+const KURA_REAPI_COALESCED_DURABILITY: &str = "KURA_REAPI_COALESCED_DURABILITY_EXPERIMENTAL";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -192,6 +193,13 @@ pub struct Config {
     /// recipes remain readable when disabled so a rollback flag change cannot
     /// strand data that is already stored.
     pub reapi_blob_chunking_enabled: bool,
+    /// When true, concurrent REAPI segment writes synchronize their completed
+    /// segment prefix once, merge their manifest mutations into bounded RocksDB
+    /// batches, and synchronize the WAL on a timer. Segment bytes are always
+    /// durable before their manifests can become durable. A crash may lose the
+    /// last bounded window of acknowledged manifests; FindMissingBlobs then
+    /// reports those blobs missing and the client re-uploads. Default is off.
+    pub reapi_coalesced_durability: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -828,6 +836,17 @@ impl Config {
             },
         )
         .unwrap_or(true);
+        let reapi_coalesced_durability = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_COALESCED_DURABILITY,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_REAPI_COALESCED_DURABILITY} must be a valid bool"))
+            },
+        )
+        .unwrap_or(false);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -1904,6 +1923,7 @@ impl Config {
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
             reapi_blob_chunking_enabled,
+            reapi_coalesced_durability,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,

@@ -68,6 +68,7 @@ where
         },
         action_cache_eviction_cascade_enabled: true,
         reapi_blob_chunking_enabled: true,
+        reapi_coalesced_durability: false,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
