@@ -60,11 +60,9 @@ BEGIN { if (mode == "") mode = "normalize" }
     if (bare ~ /^!/) next
 
     # Lines the rendered state deliberately does not own, so a difference in
-    # them is not drift. The local login belongs to rack:prep-switch and
-    # 1Password; `system-time ntp`'s operand order is unconfirmed. Both are
-    # written up in AGENTS.md.
-    if (bare ~ /^user name /) next
-    if (bare ~ /^system-time ntp /) next
+    # them is not drift. The pattern comes from lib/config.sh so the normaliser
+    # and the merger cannot disagree about what is unmanaged.
+    if (unmanaged != "" && bare ~ unmanaged) next
 
     if (mode == "context") {
         if (line !~ /^[ \t]/) {

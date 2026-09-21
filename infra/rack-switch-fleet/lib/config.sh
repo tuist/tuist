@@ -11,6 +11,17 @@ FLEET_AWK="$FLEET_ROOT/lib/normalize.awk"
 FLEET_TRANSCRIPT_AWK="$FLEET_ROOT/lib/transcript.awk"
 FLEET_MERGE_AWK="$FLEET_ROOT/lib/merge.awk"
 
+# The lines the render does not own, in one place because two copies of this
+# list drift: a pattern added to the normaliser but not the merger is a line
+# that reads as absent and then gets deleted on the next replace.
+#
+# This list is evidence from ber1-tor-b, not a fleet law. ber1-tor-a holds
+# configuration that switch has never had, and ber1-mgmt is a different model
+# entirely, so neither's unmanaged set is known. `replace` therefore reports
+# every line it would remove rather than trusting this list to be complete.
+FLEET_UNMANAGED='^user name |^system-time ntp '
+export FLEET_UNMANAGED
+
 fleet_site_file() { echo "$FLEET_ROOT/sites/$1.json"; }
 
 fleet_device() {
@@ -36,9 +47,9 @@ fleet_model() {
   echo "$spec"
 }
 
-fleet_normalize() { tr -d '\000' | awk -v mode=normalize -f "$FLEET_AWK"; }
-fleet_context()   { tr -d '\000' | awk -v mode=context   -f "$FLEET_AWK"; }
-fleet_clean()     { tr -d '\000' | awk -v mode=clean     -f "$FLEET_AWK"; }
+fleet_normalize() { tr -d '\000' | awk -v mode=normalize -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
+fleet_context()   { tr -d '\000' | awk -v mode=context   -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
+fleet_clean()     { tr -d '\000' | awk -v mode=clean     -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
 
 # NUL is dropped here rather than in the normalisers because awk truncates a
 # record at NUL, which silently loses whichever configuration line the pager
@@ -326,10 +337,22 @@ fleet_diff() {
 fleet_merge_unmanaged() {
   local current="$1" rendered="$2"
   tr -d '\000' < "$current" > "$current.stripped"
-  awk -f "$FLEET_MERGE_AWK" "$current.stripped" "$rendered"
+  awk -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_MERGE_AWK" "$current.stripped" "$rendered"
   rm -f "$current.stripped"
 }
 
 # The switch's own configuration-file encoding: CRLF throughout, one NUL after
 # the final `end`. Read off a real export rather than guessed.
 fleet_device_file() { awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }'; printf '\000'; }
+
+
+# Configuration lines the switch holds that a pushed file would not. Empty is
+# the answer that means nothing is being deleted.
+fleet_removed_lines() {
+  local current="$1" merged="$2" have want
+  have="$(mktemp)"; want="$(mktemp)"
+  fleet_normalize < "$current" | sed 's/^[ \t]*//' | sort -u > "$have"
+  fleet_normalize < "$merged"  | sed 's/^[ \t]*//' | sort -u > "$want"
+  comm -23 "$have" "$want"
+  rm -f "$have" "$want"
+}

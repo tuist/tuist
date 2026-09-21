@@ -16,7 +16,8 @@
 
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 function is_structural(t) { return t == "" || t == "#" || t == "end" || t ~ /^!/ }
-function is_unmanaged(t) { return t ~ /^user name / || t ~ /^system-time ntp / }
+# -v unmanaged=<regex>, defined once in lib/config.sh.
+function is_unmanaged(t) { return unmanaged != "" && t ~ unmanaged }
 
 NR == FNR {
     line = $0

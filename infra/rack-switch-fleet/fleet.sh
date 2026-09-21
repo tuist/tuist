@@ -472,9 +472,22 @@ cmd_replace() {
   echo "$name would change:"
   if fleet_diff "$current" "$merged" "live/$name" "rendered/$name"; then
     echo "  nothing; the switch already matches the rendered configuration"
-    if (( ! assume_yes )) && (( ! dry_run )); then
-      echo "  (replacing anyway would still cost a reboot)"
-    fi
+  fi
+
+  # The unmanaged list is evidence from one switch, not a fleet law, so every
+  # line this would delete is named rather than trusted to be intentional. A
+  # line only this device has, that the render does not model and the list does
+  # not cover, shows up here instead of disappearing on the next reboot.
+  local removals
+  removals="$(fleet_removed_lines "$current" "$merged")"
+  if [ -n "$removals" ]; then
+    echo ""
+    echo "$name would LOSE these lines:"
+    printf '%s\n' "$removals" | sed 's/^/  - /'
+    echo ""
+    echo "Each one is either a change the render intends, or configuration this switch"
+    echo "has that the render does not model. If it is the second, stop: add it to the"
+    echo "site definition, or to FLEET_UNMANAGED in lib/config.sh so it is carried over."
   fi
 
   if (( dry_run )); then
@@ -492,7 +505,11 @@ cmd_replace() {
     echo "$name: $(jq -r '.apply_note' <<<"$device")"
     echo "This overwrites the startup config and needs a reboot to take effect."
     local answer
-    read -r -p "replace? [y/N] " answer
+    if [ -n "$removals" ]; then
+      read -r -p "replace, losing the lines above? [y/N] " answer
+    else
+      read -r -p "replace? [y/N] " answer
+    fi
     [ "$answer" = "y" ] || [ "$answer" = "Y" ] || return 130
   fi
 

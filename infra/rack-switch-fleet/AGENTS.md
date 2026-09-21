@@ -259,10 +259,30 @@ used to log in and leaves the console as the only way back.
 
 `lib/merge.awk` carries each unmanaged line across from the switch's current
 export, re-inserting it in front of whichever configuration line followed it on
-the device, so ordering is derived rather than hard-coded and this code never
-has to know which lines those are. `fleet_device_file` then applies the CRLF and
-trailing-NUL encoding read off a real export. `replace` refuses to push a file
-with no `user name` line in it at all, which is the guard of last resort.
+the device, so ordering is derived rather than hard-coded. `fleet_device_file`
+then applies the CRLF and trailing-NUL encoding read off a real export.
+`replace` refuses to push a file with no `user name` line in it at all, which is
+the guard of last resort.
+
+**"Exactly two lines" is evidence from one switch, not a fleet law.** It was
+measured on `ber1-tor-b`: one device, one model, one firmware, against what the
+render covers today. `ber1-tor-a` is the same model but holds configuration that
+switch has never had, the WAN optic and the router uplink. `ber1-mgmt` is a
+different model entirely. Neither's unmanaged set has been measured.
+
+So the durable thing is the method, not the number: **diff the render against
+the device's own export byte for byte before the first push to each device**,
+again whenever the render changes what it covers, and again after a firmware
+change. A normalised diff will not show this, by construction, because
+normalising is what hides the unmanaged lines.
+
+`FLEET_UNMANAGED` in `lib/config.sh` is the single definition, read by both the
+normaliser and the merger, because two copies of that list drift and a pattern
+added to one but not the other is a line that reads as absent and then gets
+deleted. And because the list cannot be trusted to be complete on a device it
+was not measured on, `replace` names every line it would remove before it
+pushes. A line that only `ber1-mgmt` has, which the render does not model and
+the list does not cover, shows up there instead of disappearing on reboot.
 
 ## Replacing a switch's configuration
 
@@ -300,7 +320,10 @@ the ones only real hardware shows. Do it in this order:
 3. `mise run rack:fleet backup ber1-tor-b`. A fresh backup in the repository
    before the first write, because this is the change that could need undoing.
 4. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
-   names. Check the `user name` line is in it. This is the last cheap step.
+   names, and check the `user name` line is in it. Read the "would LOSE these
+   lines" block if there is one: an entry there that is not a change you meant
+   is configuration the render does not model, and it is a reason to stop. This
+   is the last cheap step.
 5. `mise run rack:fleet replace ber1-tor-b --reboot`.
 6. `mise run rack:fleet sessions ber1-tor-b` again, to confirm the reboot did
    not leave lines behind.
@@ -335,6 +358,25 @@ site definition. `apply` reads it and refuses a switch whose predecessors have
 not been brought up to the render yet, which makes "never both ToRs at once" a
 precondition the tool checks rather than a line someone has to remember.
 `--skip-order-check` exists for recovering a single switch.
+
+## The export carries a credential, and TFTP is in clear
+
+A full export is not safe to commit. It contains `user name ... secret 5 <hash>`,
+and a hash in git history is an offline cracking target that cannot be removed
+without rewriting history. `backup` therefore redacts on the way in, and
+`probe-tftp` leaves its export in a temp file outside the repository and says
+so. Nothing in `backups/` holds a hash, and it should stay that way.
+
+Restoring a dead switch does not need the export either, which is what makes
+the redaction free. `rack:prep-switch` installs a login from 1Password over the
+console, and `replace` then merges that switch's own unmanaged lines into the
+render. The credential goes from 1Password to the switch and never through git.
+
+Separately: **TFTP is unauthenticated and unencrypted**, so every export and
+every replace moves that hash across the wire in clear. The server here listens
+only for the length of a transfer, which is the right shape, but the thing that
+matters is where it listens. This path belongs on the management VLAN and
+nowhere else.
 
 ## Why the backups are committed
 

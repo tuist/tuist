@@ -783,3 +783,38 @@ STUB
     [[ "$output" == *"no login in it"* ]]
     [ ! -f "$pushed" ]
 }
+
+@test "replace names every line it would delete" {
+    # The unmanaged list is evidence from one switch. A line only another device
+    # has, that the render does not model, must show up here rather than
+    # disappear on the next reboot.
+    current="$BATS_TEST_TMPDIR/extra.cfg"
+    grep -v '^!' "$(export_fixture)" > "$current"
+    printf 'radius-server host 10.0.0.5 key secret\n' >> "$current"
+    desired="$BATS_TEST_TMPDIR/desired2.cfg"
+    merged="$BATS_TEST_TMPDIR/merged2.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    fleet_merge_unmanaged "$current" "$desired" > "$merged"
+
+    run fleet_removed_lines "$current" "$merged"
+    [[ "$output" == *"radius-server host 10.0.0.5"* ]]
+}
+
+@test "nothing is reported as lost when the switch already matches" {
+    current="$BATS_TEST_TMPDIR/same.cfg"
+    grep -v '^!' "$(export_fixture)" > "$current"
+    desired="$BATS_TEST_TMPDIR/desired3.cfg"
+    merged="$BATS_TEST_TMPDIR/merged3.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    fleet_merge_unmanaged "$current" "$desired" > "$merged"
+    run fleet_removed_lines "$current" "$merged"
+    [ "${#output}" -eq 0 ]
+}
+
+@test "the unmanaged list has one definition, so the two awk passes cannot disagree" {
+    run grep -c 'user name' "$FLEET_ROOT/lib/merge.awk"
+    [ "$output" = "0" ]
+    run bash -c "grep -c 'system-time ntp' '$FLEET_ROOT/lib/normalize.awk'"
+    [ "$output" = "0" ]
+    [ -n "$FLEET_UNMANAGED" ]
+}
