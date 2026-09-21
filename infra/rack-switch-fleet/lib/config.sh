@@ -346,13 +346,32 @@ fleet_merge_unmanaged() {
 fleet_device_file() { awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }'; printf '\000'; }
 
 
-# Configuration lines the switch holds that a pushed file would not. Empty is
-# the answer that means nothing is being deleted.
+# Configuration lines the switch holds that a pushed file would not, tagged
+# `declared` or `undeclared`.
+#
+# A removal is declared when the pushed file states the opposite of it: the
+# render says `no lldp` and the device says `lldp`. That is a change somebody
+# asked for, and the diff above already showed it. A removal is undeclared when
+# the pushed file says nothing about the subject at all, which is the unmeasured
+# case: configuration this device has that the render does not model.
+#
+# They are separated because merging them makes the dangerous one quieter the
+# more the fleet uses deliberate removals. Three intended removals and one
+# unmodelled line read as a routine four-item list, which is the shape that
+# trains people to skip the prompt.
 fleet_removed_lines() {
-  local current="$1" merged="$2" have want
+  local current="$1" merged="$2" have want line opposite
   have="$(mktemp)"; want="$(mktemp)"
   fleet_normalize < "$current" | sed 's/^[ \t]*//' | sort -u > "$have"
   fleet_normalize < "$merged"  | sed 's/^[ \t]*//' | sort -u > "$want"
-  comm -23 "$have" "$want"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if [ "${line#no }" != "$line" ]; then opposite="${line#no }"; else opposite="no $line"; fi
+    if grep -Fxq -- "$opposite" "$want"; then
+      printf 'declared\t%s\n' "$line"
+    else
+      printf 'undeclared\t%s\n' "$line"
+    fi
+  done < <(comm -23 "$have" "$want")
   rm -f "$have" "$want"
 }

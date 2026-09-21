@@ -323,7 +323,7 @@ STUB
 
 @test "the port map merges node links with the switch's own ports" {
     run fleet_port_map "$SITE_FILE" ber1-tor-b
-    [[ "$output" == *"25"*"node"*"ber1-edge"*"edge"* ]]
+    [[ "$output" == *"25"*"data"*"ber1-edge"*"edge/sfp28-1"* ]]
     [[ "$output" == *"32"*"isl"*"ber1-tor-a"* ]]
 }
 
@@ -359,11 +359,13 @@ STUB
 }
 
 @test "the model expresses a dual-homed node and a single-homed one" {
-    # ber1-edge reaches both ToRs; ber1-svc reaches only ToR B, which is the
-    # rack risk the note on it records. Adding its second link is a data edit.
-    run jq -r '[.nodes[] | select(.name == "ber1-edge") | .links[].switch] | sort | join(",")' "$SITE_FILE"
+    # Data links only: every x86 node also has a management link, and being
+    # dual-homed is about which ToRs carry its traffic.
+    run jq -r '[.nodes[] | select(.name == "ber1-edge") | .links[] | select(.purpose == "data") | .switch] | sort | join(",")' "$SITE_FILE"
     [ "$output" = "ber1-tor-a,ber1-tor-b" ]
-    run jq -r '[.nodes[] | select(.name == "ber1-svc") | .links[].switch] | join(",")' "$SITE_FILE"
+    # ber1-svc reaches one ToR, which is the rack risk its note records. Adding
+    # the second link is a data edit.
+    run jq -r '[.nodes[] | select(.name == "ber1-svc") | .links[] | select(.purpose == "data") | .switch] | join(",")' "$SITE_FILE"
     [ "$output" = "ber1-tor-b" ]
 }
 
@@ -371,11 +373,12 @@ STUB
     # Deliberate, and the same split as the ATS chains: losing a ToR must cost
     # one storage node and never both. Tidying them onto one switch would remove
     # the redundancy without looking like it removed anything, so it fails here.
-    run jq -r '[.nodes[] | select(.role == "storage") | .links[].switch] | sort | unique | length' "$SITE_FILE"
+    run jq -r '[.nodes[] | select(.role == "storage") | .links[] | select(.purpose == "data") | .switch] | sort | unique | length' "$SITE_FILE"
     [ "$output" = "2" ]
     run jq -r '[.nodes[] | select(.role == "storage")] | length' "$SITE_FILE"
     [ "$output" = "2" ]
-    run jq -r '[.nodes[] | select(.role == "storage") | select((.links | length) != 1)] | length' "$SITE_FILE"
+    # exactly one ToR each, so neither is quietly dual-homed onto both
+    run jq -r '[.nodes[] | select(.role == "storage") | select(([.links[] | select(.purpose == "data")] | length) != 1)] | length' "$SITE_FILE"
     [ "$output" = "0" ]
 }
 
@@ -817,4 +820,22 @@ STUB
     run bash -c "grep -c 'system-time ntp' '$FLEET_ROOT/lib/normalize.awk'"
     [ "$output" = "0" ]
     [ -n "$FLEET_UNMANAGED" ]
+}
+
+@test "a removal the render asked for is separated from one it says nothing about" {
+    # Merging the two makes the dangerous one quieter the more the fleet uses
+    # deliberate removals, which is the shape that trains people past the prompt.
+    current="$BATS_TEST_TMPDIR/mixed.cfg"
+    grep -v '^!' "$(export_fixture)" > "$current"
+    printf 'radius-server host 10.0.0.5 key x\n' >> "$current"
+
+    desired="$BATS_TEST_TMPDIR/mixed-desired.cfg"
+    merged="$BATS_TEST_TMPDIR/mixed-merged.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b | sed 's/^lldp$/no lldp/' > "$desired"
+    fleet_merge_unmanaged "$current" "$desired" > "$merged"
+
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^declared' | cut -f2"
+    [ "$output" = "lldp" ]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^undeclared' | cut -f2"
+    [ "$output" = "radius-server host 10.0.0.5 key x" ]
 }

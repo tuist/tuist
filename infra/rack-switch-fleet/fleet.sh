@@ -478,16 +478,24 @@ cmd_replace() {
   # line this would delete is named rather than trusted to be intentional. A
   # line only this device has, that the render does not model and the list does
   # not cover, shows up here instead of disappearing on the next reboot.
-  local removals
+  local removals declared undeclared
   removals="$(fleet_removed_lines "$current" "$merged")"
-  if [ -n "$removals" ]; then
+  declared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "declared" { print $2 }')"
+  undeclared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "undeclared" { print $2 }')"
+
+  if [ -n "$declared" ]; then
     echo ""
-    echo "$name would LOSE these lines:"
-    printf '%s\n' "$removals" | sed 's/^/  - /'
+    echo "$name loses these because the render says the opposite, which is the change:"
+    printf '%s\n' "$declared" | sed 's/^/  - /'
+  fi
+  if [ -n "$undeclared" ]; then
     echo ""
-    echo "Each one is either a change the render intends, or configuration this switch"
-    echo "has that the render does not model. If it is the second, stop: add it to the"
-    echo "site definition, or to FLEET_UNMANAGED in lib/config.sh so it is carried over."
+    echo "!! $name would LOSE these, and the render says nothing about them:"
+    printf '%s\n' "$undeclared" | sed 's/^/  - /'
+    echo ""
+    echo "   That is configuration this switch has and the render does not model. Stop"
+    echo "   unless you meant it: add it to the site definition, or to FLEET_UNMANAGED in"
+    echo "   lib/config.sh so it is carried across instead of deleted."
   fi
 
   if (( dry_run )); then
@@ -505,8 +513,8 @@ cmd_replace() {
     echo "$name: $(jq -r '.apply_note' <<<"$device")"
     echo "This overwrites the startup config and needs a reboot to take effect."
     local answer
-    if [ -n "$removals" ]; then
-      read -r -p "replace, losing the lines above? [y/N] " answer
+    if [ -n "$undeclared" ]; then
+      read -r -p "replace, DELETING the unaccounted-for lines above? [y/N] " answer
     else
       read -r -p "replace? [y/N] " answer
     fi

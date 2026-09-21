@@ -281,8 +281,21 @@ normaliser and the merger, because two copies of that list drift and a pattern
 added to one but not the other is a line that reads as absent and then gets
 deleted. And because the list cannot be trusted to be complete on a device it
 was not measured on, `replace` names every line it would remove before it
-pushes. A line that only `ber1-mgmt` has, which the render does not model and
-the list does not cover, shows up there instead of disappearing on reboot.
+pushes, in two groups.
+
+A removal is **declared** when the pushed file states the opposite of it: the
+render says `no lldp`, the device says `lldp`. Somebody asked for that. A
+removal is **undeclared** when the pushed file says nothing about the subject at
+all, which is the unmeasured case: configuration this device has that the render
+does not model. Only the second group gets the loud block and the differently
+worded confirmation.
+
+They are separated rather than listed together because merging them makes the
+dangerous one quieter the more the fleet uses deliberate removals. Three
+intended removals plus one unmodelled line reads as a routine four-item list,
+and that is the shape that trains people to skip the prompt. Keeping them apart
+means the alarming question only fires when something is genuinely unaccounted
+for, and stays alarming.
 
 ## Replacing a switch's configuration
 
@@ -320,10 +333,11 @@ the ones only real hardware shows. Do it in this order:
 3. `mise run rack:fleet backup ber1-tor-b`. A fresh backup in the repository
    before the first write, because this is the change that could need undoing.
 4. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
-   names, and check the `user name` line is in it. Read the "would LOSE these
-   lines" block if there is one: an entry there that is not a change you meant
-   is configuration the render does not model, and it is a reason to stop. This
-   is the last cheap step.
+   names, and check the `user name` line is in it. If there is a "would LOSE
+   these, and the render says nothing about them" block, stop and read it: that
+   is configuration the switch has which the render does not model. The other
+   block, the one headed by the render saying the opposite, is the change
+   itself. This is the last cheap step.
 5. `mise run rack:fleet replace ber1-tor-b --reboot`.
 6. `mise run rack:fleet sessions ber1-tor-b` again, to confirm the reboot did
    not leave lines behind.
