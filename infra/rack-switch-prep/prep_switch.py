@@ -57,29 +57,41 @@ class Console:
         termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
         termios.tcflush(self.fd, termios.TCIOFLUSH)
 
-    def read(self, idle: float = 1.5, limit: float = 45.0) -> str:
+    def read(self, idle: float = 1.5, limit: float = 45.0, until_prompt: bool = False) -> str:
+        """Read until the switch prompts again, or until it goes quiet.
+
+        Waiting for silence alone is not enough: this CLI echoes a command well
+        before it runs it, so a fixed pause lets the next line arrive mid-echo,
+        where it is appended to the previous one and rejected as one bad command.
+        """
         out = b""
         deadline = time.time() + limit
         quiet = time.time() + idle
-        while time.time() < deadline and time.time() < quiet:
-            if not select.select([self.fd], [], [], 0.2)[0]:
-                continue
-            try:
-                chunk = os.read(self.fd, 4096)
-            except OSError:
+        while time.time() < deadline:
+            if select.select([self.fd], [], [], 0.2)[0]:
+                try:
+                    chunk = os.read(self.fd, 4096)
+                except OSError:
+                    break
+                if chunk:
+                    out += chunk
+                    quiet = time.time() + idle
+                    tail = out[-200:].decode("utf-8", "replace")
+                    if PAGER.search(tail):
+                        os.write(self.fd, b" ")
+                    continue
+            settled = time.time() > quiet
+            if until_prompt:
+                if PROMPT.search(out.decode("utf-8", "replace")) and settled:
+                    break
+            elif settled:
                 break
-            if not chunk:
-                continue
-            out += chunk
-            quiet = time.time() + idle
-            if PAGER.search(out[-200:].decode("utf-8", "replace")):
-                os.write(self.fd, b" ")
         text = out.decode("utf-8", "replace").replace("\r", "")
         if self.echo and text.strip():
             print(text, end="", file=sys.stderr, flush=True)
         return text
 
-    def send(self, line: str, idle: float = 1.5, secret: bool = False) -> str:
+    def send(self, line: str, idle: float = 1.0, secret: bool = False, until_prompt: bool = True) -> str:
         if self.echo:
             print(f"\n>>> {'*' * 8 if secret else line}", file=sys.stderr, flush=True)
         for char in line:
@@ -87,8 +99,7 @@ class Console:
             time.sleep(0.02)
         time.sleep(0.3)
         os.write(self.fd, b"\r")
-        time.sleep(0.4)
-        return self.read(idle=idle)
+        return self.read(idle=idle, until_prompt=until_prompt)
 
     def close(self) -> None:
         os.close(self.fd)
@@ -152,17 +163,17 @@ def read_credentials(item: str, vault: str, account: str | None, create: bool) -
 
 def login(console: Console, username: str, password: str) -> None:
     """Take the session from wherever it is to a privileged prompt."""
-    banner = console.send("", idle=2.0)
+    banner = console.send("", idle=2.0, until_prompt=False)
 
     if "Set now" in banner or "set an administrator account" in banner:
-        console.send("Y", idle=2.0)
-        console.send(username, idle=2.0)
-        console.send(password, idle=2.0, secret=True)
-        banner = console.send(password, idle=3.0, secret=True)
+        console.send("Y", idle=2.0, until_prompt=False)
+        console.send(username, idle=2.0, until_prompt=False)
+        console.send(password, idle=2.0, secret=True, until_prompt=False)
+        banner = console.send(password, idle=3.0, secret=True, until_prompt=False)
 
     if "User:" in banner or "Username:" in banner or "Login invalid" in banner:
-        console.send(username, idle=2.0)
-        banner = console.send(password, idle=3.0, secret=True)
+        console.send(username, idle=2.0, until_prompt=False)
+        banner = console.send(password, idle=3.0, secret=True, until_prompt=False)
 
     if "Login invalid" in banner:
         raise ConsoleError(
