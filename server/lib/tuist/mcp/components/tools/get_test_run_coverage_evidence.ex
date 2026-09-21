@@ -84,14 +84,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestRunCoverageEvidence do
         "files and list_tests_covering_file for the tests behind a file."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
-    with {:ok, run, _project} <-
+    with {:ok, run, project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       case Evidence.summary(run) do
         nil ->
           {:error, "The test run gathered no coverage evidence: #{test_run_id}"}

@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.ListCommitCoverageFiles do
     name: "list_commit_coverage_files",
     title: "List Commit Coverage Files",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

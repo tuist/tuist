@@ -39,7 +39,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRunCoverage do
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       case Coverage.run_summary(project.id, run.id) do
         nil -> {:error, "The test run gathered no coverage: #{test_run_id}"}
         summary -> {:ok, Report.run(project, run, summary)}

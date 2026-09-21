@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistEnvironment
 import TuistTesting
 import XCResultParser
 @testable import TuistKit
@@ -83,6 +84,7 @@ struct TestExecutionModeResolverTests {
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["test"],
@@ -95,11 +97,28 @@ struct TestExecutionModeResolverTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func recordsNothingWithoutTheClientFlag() async throws {
+        let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "Run.xcresult")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+
+        let modes = await subject.record(
+            resultBundlePath: bundle,
+            xcodebuildArguments: ["test", "-parallel-testing-enabled", "NO"],
+            derivedDataPath: nil,
+            schemeTargets: [:]
+        )
+
+        #expect(modes == nil)
+        #expect(TestExecutionModes.read(fromResultBundle: URL(fileURLWithPath: bundle.pathString)) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func recordsNothingWithoutAnXctestrunOrAFlag() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["test"],
@@ -163,6 +182,7 @@ struct TestExecutionModeResolverTests {
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["-workspace", workspace.pathString, "-scheme", "App", "test"],

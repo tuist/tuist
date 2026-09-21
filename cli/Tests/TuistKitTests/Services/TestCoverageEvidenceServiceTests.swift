@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TuistEnvironment
 import TuistTesting
 import XCResultParser
 @testable import TuistKit
@@ -110,7 +111,10 @@ struct TestCoverageEvidenceServiceTests {
         #expect(TestCoverageEvidencePlatform(destination: "id=00008110-000A") == nil)
     }
 
-    @Test(.withMockedEnvironment()) func collectsNothingUnlessAskedTo() async {
+    @Test(.withMockedEnvironment()) func collectsNothingUnlessAskedToAndFlagged() async {
+        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
+
+        Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
         #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
     }
 }

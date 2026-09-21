@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.GetPullRequestCoverage do
     name: "get_pull_request_coverage",
     title: "Get Pull Request Coverage",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

@@ -29,6 +29,7 @@ defmodule TuistWeb.API.CoverageController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(TuistWeb.Plugs.RequireCoveragePlug)
 
   tags ["Tests"]
 

@@ -85,7 +85,8 @@ defmodule Tuist.Tests.Coverage.Evidence do
   target's evidence is all they have). Nil when the run reported none.
   """
   def summary(%{id: test_run_id, project_id: project_id}) do
-    with {:ok, test_run_id} <- Ecto.UUID.cast(test_run_id),
+    with true <- Coverage.enabled_for_project?(project_id),
+         {:ok, test_run_id} <- Ecto.UUID.cast(test_run_id),
          %{tests: _} = summary <-
            ClickHouseRepo.one(
              from(s in subquery(scopes_query(project_id, test_run_id)),

@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistEnvironment
 import TuistLogging
+import TuistServer
 import XcodeGraph
 import XCResultParser
 
@@ -21,6 +22,7 @@ import XCResultParser
 /// scheme's testable references or of the test plan it runs, and for `tuist test` the generated
 /// scheme itself. A target with no explicit setting runs its Swift Testing tests in parallel, so
 /// it counts as parallel. Without any of those the mode stays unknown: nothing is guessed.
+/// Behind the `COVERAGE` client flag with the rest of coverage and test selection.
 @Mockable
 public protocol TestExecutionModeResolving {
     /// Resolves the modes and writes them into the bundle. `schemeTargets` are the modes the
@@ -48,6 +50,7 @@ public struct TestExecutionModeResolver: TestExecutionModeResolving {
         derivedDataPath: AbsolutePath?,
         schemeTargets: [String: String]
     ) async -> TestExecutionModes? {
+        guard ClientFeatureFlags.contains("COVERAGE") else { return nil }
         do {
             var targets = schemeTargets
             targets.merge(try await schemeFileTargets(xcodebuildArguments: xcodebuildArguments)) { _, new in new }

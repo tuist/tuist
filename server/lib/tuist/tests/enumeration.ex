@@ -8,12 +8,17 @@ defmodule Tuist.Tests.Enumeration do
   selective run the difference with `test_case_runs` is the set the selection
   skipped. A generated project that prunes skipped targets from the workspace
   lists only what is left in it.
+
+  Behind the account's coverage flag with the rest of coverage and test
+  selection (`Tuist.Tests.Coverage.enabled_for_project?/1`): nothing is stored
+  and nothing is reported while it is off.
   """
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.EnumeratedTest
   alias Tuist.Tests.TestCaseRun
 
@@ -27,13 +32,17 @@ defmodule Tuist.Tests.Enumeration do
   def record(_test, []), do: :ok
 
   def record(%{id: test_run_id, project_id: project_id}, tests) when is_list(tests) do
-    inserted_at = NaiveDateTime.utc_now()
+    if Coverage.enabled_for_project?(project_id) do
+      inserted_at = NaiveDateTime.utc_now()
 
-    tests
-    |> Stream.map(&row(&1, project_id, test_run_id, inserted_at))
-    |> Stream.reject(&is_nil/1)
-    |> Stream.chunk_every(@insert_chunk_size)
-    |> Enum.each(&IngestRepo.insert_all(EnumeratedTest, &1))
+      tests
+      |> Stream.map(&row(&1, project_id, test_run_id, inserted_at))
+      |> Stream.reject(&is_nil/1)
+      |> Stream.chunk_every(@insert_chunk_size)
+      |> Enum.each(&IngestRepo.insert_all(EnumeratedTest, &1))
+    end
+
+    :ok
   end
 
   @doc """
@@ -42,9 +51,11 @@ defmodule Tuist.Tests.Enumeration do
   none.
   """
   def summary(%{id: test_run_id, project_id: project_id}) do
-    case Ecto.UUID.cast(test_run_id) do
-      {:ok, test_run_id} -> summary(project_id, test_run_id)
-      :error -> nil
+    with true <- Coverage.enabled_for_project?(project_id),
+         {:ok, test_run_id} <- Ecto.UUID.cast(test_run_id) do
+      summary(project_id, test_run_id)
+    else
+      _ -> nil
     end
   end
 

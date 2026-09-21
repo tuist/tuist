@@ -72,8 +72,12 @@ defmodule Tuist.MCP.Tool do
       @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
       @mcp_tool_destructive_hint Keyword.get(unquote(opts), :destructive_hint, false)
 
+      @mcp_tool_feature Keyword.get(unquote(opts), :feature)
+
       @impl EMCP.Tool
       def name, do: @mcp_tool_name
+
+      def feature, do: @mcp_tool_feature
 
       @impl EMCP.Tool
       def input_schema, do: @mcp_tool_schema
@@ -116,10 +120,28 @@ defmodule Tuist.MCP.Tool do
   def validate_input(_module, _arguments), do: {:error, "Arguments do not match the tool schema."}
 
   def call_with_project(conn, args, action, category, execute_fn, module) do
-    case resolve_and_authorize_project(args, conn.assigns, action, category) do
-      {:ok, project} -> respond(execute_fn.(conn, args, project), module)
+    with {:ok, project} <- resolve_and_authorize_project(args, conn.assigns, action, category),
+         :ok <- require_feature(project, module.feature()) do
+      respond(execute_fn.(conn, args, project), module)
+    else
       {:error, message} -> EMCP.Tool.error(message)
     end
+  end
+
+  @doc """
+  Whether the project's account has the feature a tool belongs to (the tool's
+  `feature:` option; tools that resolve their project themselves call this in
+  their own chain). `:coverage` is code coverage and test selection, in early
+  access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/1`.
+  """
+  def require_feature(_project, nil), do: :ok
+
+  def require_feature(project, :coverage) do
+    account = Tuist.Repo.preload(project, :account).account
+
+    if Tuist.FeatureFlags.xcode_coverage_enabled?(account),
+      do: :ok,
+      else: {:error, "Code coverage is in early access and is not enabled for this account."}
   end
 
   # --- Authorization ---

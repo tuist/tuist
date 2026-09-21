@@ -53,14 +53,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestRunNotRunTests do
         "Fails when the run's client did not enumerate its tests."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
-    with {:ok, run, _project} <-
+    with {:ok, run, project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       case Enumeration.summary(run) do
         nil ->
           {:error, "The tests of run #{test_run_id} were not enumerated."}

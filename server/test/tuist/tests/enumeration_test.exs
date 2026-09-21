@@ -1,5 +1,6 @@
 defmodule Tuist.Tests.EnumerationTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   alias Tuist.Tests
   alias Tuist.Tests.Enumeration
@@ -53,6 +54,17 @@ defmodule Tuist.Tests.EnumerationTest do
 
     assert id == Tests.generate_test_case_id(project.id, "testSubtract()", "AppTests", "MathTests")
     assert [%{name: "testSubtract()"}] = Enumeration.list_not_run(test, page: 2, page_size: 1)
+  end
+
+  test "stores and reports nothing while the account's coverage flag is off", %{project: project} do
+    test = run(project, [])
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+    Enumeration.record(test, [%{module: "AppTests", suite: "MathTests", name: "testSubtract()"}])
+    assert Enumeration.summary(test) == nil
+
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
+    assert Enumeration.summary(test) == nil
   end
 
   test "has nothing to say about a run whose client enumerated no tests", %{project: project} do

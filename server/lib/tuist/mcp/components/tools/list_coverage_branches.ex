@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.ListCoverageBranches do
     name: "list_coverage_branches",
     title: "List Coverage Branches",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

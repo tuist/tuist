@@ -52,14 +52,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestCoverageEvidenceFiles do
         "the rest of its target's. A test without evidence of its own still gets its suite's and its target's."
 
   def execute(conn, %{"test_run_id" => test_run_id, "module" => module_name, "name" => name} = args) do
-    with {:ok, run, _project} <-
+    with {:ok, run, project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       files = Evidence.files(run, module_name, Map.get(args, "suite", ""), name)
       {:ok, %{files: Enum.map(files, &Map.update!(&1, :git_blob_id, fn blob -> blob || "" end))}}
     end

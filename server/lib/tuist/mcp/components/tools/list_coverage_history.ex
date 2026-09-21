@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.ListCoverageHistory do
     name: "list_coverage_history",
     title: "List Coverage History",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

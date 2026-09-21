@@ -632,9 +632,13 @@ defmodule Tuist.Tests do
   # The repository the run's remote names, in the project's account, or 0 when
   # the run reported no remote: a commit is only related to others through
   # the repository's graph.
+  # A run only joins a repository, and only records the files it changed, while
+  # coverage is on for its account: both exist for coverage and test selection.
   defp repository_id(attrs) do
     with url when is_binary(url) and url != "" <- Map.get(attrs, :git_remote_url_origin),
-         %Project{account_id: account_id} <- Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
+         %Project{account_id: account_id, account: account} <-
+           Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
+         true <- Tuist.FeatureFlags.xcode_coverage_enabled?(account),
          id when is_integer(id) <- GitHistory.repository_id(account_id, url) do
       id
     else
@@ -695,7 +699,14 @@ defmodule Tuist.Tests do
   # The files the run's commit changed against its merge base, with their
   # hunks, as the client diffed them. Nothing reads them back in the request,
   # so they ride the buffer.
-  defp create_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) when is_list(files) do
+  defp create_run_changed_files(%Test{project_id: project_id} = test, files) when is_list(files) do
+    if files != [] and Coverage.enabled_for_project?(project_id), do: insert_run_changed_files(test, files)
+    :ok
+  end
+
+  defp create_run_changed_files(_test, _files), do: :ok
+
+  defp insert_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) do
     now = NaiveDateTime.utc_now()
 
     rows =
@@ -721,8 +732,6 @@ defmodule Tuist.Tests do
       rows -> TestRunChangedFile.Buffer.insert_all(rows)
     end
   end
-
-  defp create_run_changed_files(_test, _files), do: :ok
 
   defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
     now = NaiveDateTime.utc_now()

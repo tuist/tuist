@@ -50,14 +50,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestsCoveringFile do
         "changes. `suites` and `targets` name the wider scopes that hold the file; every test of those may depend on it too."
 
   def execute(conn, %{"test_run_id" => test_run_id, "path" => path}) do
-    with {:ok, run, _project} <-
+    with {:ok, run, project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       {:ok, Evidence.covering(run, path)}
     end
   end

@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistEnvironment
 import TuistTesting
 import XCResultParser
 @testable import TuistKit
@@ -21,6 +22,7 @@ struct TestEnumerationServiceTests {
     func writesTheTestsXcodebuildListsIntoTheResultBundle() async throws {
         let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "run.xcresult")
         try await FileSystem().makeDirectory(at: bundle)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(xcodeBuildController)
             .enumerateTests(
                 .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, testPlan: .any,
@@ -45,6 +47,7 @@ struct TestEnumerationServiceTests {
     func leavesTheRunAloneWhenTheTestsCannotBeListed() async throws {
         let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "run.xcresult")
         try await FileSystem().makeDirectory(at: bundle)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(xcodeBuildController)
             .enumerateTests(
                 .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, testPlan: .any,
@@ -59,6 +62,25 @@ struct TestEnumerationServiceTests {
 
         #expect(enumeration == nil)
         #expect(TestEnumeration.read(fromResultBundle: URL(fileURLWithPath: bundle.pathString)) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func listsNothingWithoutTheClientFlag() async throws {
+        let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "run.xcresult")
+        try await FileSystem().makeDirectory(at: bundle)
+
+        let enumeration = await subject.record(
+            resultBundlePath: bundle, target: nil, scheme: "App", destination: nil, rosetta: false,
+            derivedDataPath: nil, testPlan: nil, xcodebuildArguments: ["test"]
+        )
+
+        #expect(enumeration == nil)
+        verify(xcodeBuildController)
+            .enumerateTests(
+                .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, testPlan: .any,
+                passthroughXcodeBuildArguments: .any, outputPath: .any
+            )
+            .called(0)
     }
 
     @Test func theTimeoutComesFromTheEnvironmentAndZeroTurnsItOff() {

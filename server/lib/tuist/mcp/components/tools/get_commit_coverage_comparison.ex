@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.GetCommitCoverageComparison do
     name: "get_commit_coverage_comparison",
     title: "Get Commit Coverage Comparison",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

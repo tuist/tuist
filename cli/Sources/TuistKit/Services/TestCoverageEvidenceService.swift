@@ -7,6 +7,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLoader
 import TuistLogging
+import TuistServer
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the observer writes, and the
@@ -43,7 +44,8 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`. `prepare` hands back the environment that injects the
+/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. `prepare` hands back the environment that injects
+/// the
 /// coverage observer into the test hosts; after the run `record` reduces what the observer wrote
 /// (the coverage counters each test moved) to source files, through the functions the counters
 /// belong to and `llvm-cov`'s function-to-file table, and writes the result into the result
@@ -75,7 +77,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     }
 
     public func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession? {
-        guard Environment.current.isVariableTruthy(Self.enabledVariable) else { return nil }
+        guard ClientFeatureFlags.contains("COVERAGE"), Environment.current.isVariableTruthy(Self.enabledVariable)
+        else { return nil }
         guard let platform else {
             Logger.current.debug("Coverage evidence is only collected on macOS and the iOS simulator")
             return nil

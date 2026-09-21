@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.GetCommitCoverageFile do
     name: "get_commit_coverage_file",
     title: "Get Commit Coverage File",
     read_only_hint: true,
+    feature: :coverage,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

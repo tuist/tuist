@@ -42,7 +42,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRunCoverageFiles do
              :read,
              :test,
              "Test run not found: #{test_run_id}"
-           ) do
+           ),
+         :ok <- MCPTool.require_feature(project, :coverage) do
       {files, count} = Coverage.list_files(project.id, run.id, page, page_size)
       total_pages = max(1, ceil(count / page_size))
 

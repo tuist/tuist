@@ -5,6 +5,7 @@ import Path
 import TuistCore
 import TuistEnvironment
 import TuistLogging
+import TuistServer
 import TuistSupport
 import XCResultParser
 
@@ -14,7 +15,8 @@ import XCResultParser
 ///
 /// The list comes from `xcodebuild -enumerate-tests` over the products the run just built, with
 /// the run's own arguments minus its filters. It costs a second or two on a small project and is
-/// bounded by `TUIST_TEST_ENUMERATION_TIMEOUT_SECONDS` (60 by default; 0 turns it off).
+/// bounded by `TUIST_TEST_ENUMERATION_TIMEOUT_SECONDS` (60 by default; 0 turns it off). Behind the
+/// `COVERAGE` client flag with the rest of coverage and test selection.
 @Mockable
 public protocol TestEnumerationServicing {
     /// Nil when the tests could not be listed; never throws, since the list only enriches the run.
@@ -67,7 +69,7 @@ public struct TestEnumerationService: TestEnumerationServicing {
         xcodebuildArguments: [String]
     ) async -> TestEnumeration? {
         let timeout = Self.timeout(variables: Environment.current.variables)
-        guard timeout > 0, let resultBundlePath else { return nil }
+        guard ClientFeatureFlags.contains("COVERAGE"), timeout > 0, let resultBundlePath else { return nil }
         do {
             guard try await fileSystem.exists(resultBundlePath) else { return nil }
             return try await fileSystem.runInTemporaryDirectory(prefix: "test-enumeration") { directory in

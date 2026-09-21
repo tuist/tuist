@@ -1,5 +1,6 @@
 defmodule Tuist.Tests.Coverage.EvidenceTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -100,6 +101,19 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     })
 
     assert %{tests: 1, files: 1} = Evidence.summary(test_run)
+  end
+
+  test "stores and reports nothing while the account's coverage flag is off", %{test_run: test_run} do
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    Evidence.record(test_run, @evidence)
+    assert Evidence.summary(test_run) == nil
+
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
+    assert Evidence.summary(test_run) == nil
+
+    Evidence.record(test_run, @evidence)
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    assert Evidence.summary(test_run) == nil
   end
 
   test "never reaches the run's coverage", %{project: project, test_run: test_run} do

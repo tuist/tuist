@@ -18,9 +18,12 @@ protocol CoverageCompleteCommandServicing {
 enum CoverageCompleteCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case missingCommit
+    case earlyAccess
 
     var errorDescription: String? {
         switch self {
+        case .earlyAccess:
+            return "Code coverage is in early access. Set TUIST_FEATURE_FLAG_COVERAGE=1 to use it; your account needs it enabled too."
         case .missingFullHandle:
             return "We couldn't signal the coverage completion because the project's full handle is missing. Pass --full-handle or run it from a Tuist project."
         case .missingCommit:
@@ -48,6 +51,7 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
     }
 
     func run(path: String?, fullHandle: String?, commit: String?, json: Bool) async throws {
+        guard ClientFeatureFlags.contains("COVERAGE") else { throw CoverageCompleteCommandServiceError.earlyAccess }
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: directoryPath)
 
