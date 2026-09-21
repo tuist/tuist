@@ -67,8 +67,8 @@ defmodule Tuist.MCP.Components.Tools.CoverageEvidenceToolsTest do
     args = %{"test_run_id" => run.id, "module" => "AppTests", "suite" => "ATests", "name" => "testA()"}
 
     assert call(ListTestCoverageEvidenceFiles, conn, args)["files"] == [
-             %{"path" => "Sources/A.swift", "scope" => "test", "git_blob_id" => "blob-Sources/A.swift"},
-             %{"path" => "Sources/B.swift", "scope" => "target", "git_blob_id" => "blob-Sources/B.swift"}
+             %{"path" => "Sources/A.swift", "scope" => "test", "git_blob_id" => "blob-Sources/A.swift", "lines" => []},
+             %{"path" => "Sources/B.swift", "scope" => "target", "git_blob_id" => "blob-Sources/B.swift", "lines" => []}
            ]
   end
 

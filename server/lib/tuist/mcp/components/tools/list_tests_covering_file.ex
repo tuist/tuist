@@ -11,7 +11,12 @@ defmodule Tuist.MCP.Components.Tools.ListTestsCoveringFile do
       "type" => "object",
       "properties" => %{
         "test_run_id" => %{"type" => "string", "description" => "The ID of the test run."},
-        "path" => %{"type" => "string", "description" => "The file's repository-relative path."}
+        "path" => %{"type" => "string", "description" => "The file's repository-relative path."},
+        "line" => %{
+          "type" => "integer",
+          "description" =>
+            "Only the tests that ran this line. A test whose evidence only knows the file stays, since it may have."
+        }
       },
       "required" => ["test_run_id", "path"]
     },
@@ -26,9 +31,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestsCoveringFile do
               "test_case_id" => %{"type" => "string"},
               "module_name" => %{"type" => "string"},
               "suite_name" => %{"type" => "string"},
-              "name" => %{"type" => "string"}
+              "name" => %{"type" => "string"},
+              "lines" => %{
+                "type" => ["array", "null"],
+                "items" => %{"type" => "array", "items" => %{"type" => "integer"}},
+                "description" =>
+                  "The lines the test ran in the file, as [first, last] ranges; null when its evidence only knows the file."
+              }
             },
-            "required" => ["test_case_id", "module_name", "suite_name", "name"],
+            "required" => ["test_case_id", "module_name", "suite_name", "name", "lines"],
             "additionalProperties" => false
           }
         },
@@ -49,7 +60,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestsCoveringFile do
       "List the tests of a run that executed a file, by their own coverage evidence: the tests to run when the file " <>
         "changes. `suites` and `targets` name the wider scopes that hold the file; every test of those may depend on it too."
 
-  def execute(conn, %{"test_run_id" => test_run_id, "path" => path}) do
+  def execute(conn, %{"test_run_id" => test_run_id, "path" => path} = args) do
     with {:ok, run, project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
@@ -59,7 +70,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestsCoveringFile do
              "Test run not found: #{test_run_id}"
            ),
          :ok <- MCPTool.require_feature(project, :coverage) do
-      {:ok, Evidence.covering(run, path)}
+      {:ok, Evidence.covering(run, path, line: args["line"])}
     end
   end
 end

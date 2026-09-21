@@ -30,9 +30,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestCoverageEvidenceFiles do
                 "type" => "string",
                 "description" => "The narrowest scope that holds the file: test, suite or target."
               },
-              "git_blob_id" => %{"type" => "string"}
+              "git_blob_id" => %{"type" => "string"},
+              "lines" => %{
+                "type" => "array",
+                "items" => %{"type" => "array", "items" => %{"type" => "integer"}},
+                "description" =>
+                  "The lines that scope ran in the file, as [first, last] ranges; empty when the client could only tell the file."
+              }
             },
-            "required" => ["path", "scope", "git_blob_id"],
+            "required" => ["path", "scope", "git_blob_id", "lines"],
             "additionalProperties" => false
           }
         }

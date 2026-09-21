@@ -156,7 +156,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
   The files a test's evidence holds, each with the scope that says so: the
   test's own, its suite's, or its target's floor. A file several scopes cover
   is reported by the narrowest. `git_blob_id` comes from the run's own
-  coverage of the path, empty when the run has none.
+  coverage of the path, empty when the run has none. `lines` are the lines
+  that scope ran in the file, as `[first, last]` ranges; empty when the client
+  could only tell the file.
   """
   def files(%{id: test_run_id, project_id: project_id}, module_name, suite_name, name) do
     ids = %{
@@ -178,40 +180,105 @@ defmodule Tuist.Tests.Coverage.Evidence do
           left_join: b in subquery(blobs),
           on: b.path == f.path,
           where: f.scope_id in ^Map.values(ids),
-          select: %{path: f.path, scope: f.scope_kind, scope_id: f.scope_id, git_blob_id: b.git_blob_id}
+          select: %{
+            path: f.path,
+            scope: f.scope_kind,
+            scope_id: f.scope_id,
+            git_blob_id: b.git_blob_id,
+            line_numbers: f.line_numbers
+          }
         )
       )
 
     rows
     |> Enum.filter(&(ids[&1.scope] == &1.scope_id))
-    |> Enum.map(&Map.delete(&1, :scope_id))
+    |> Enum.group_by(&{&1.path, &1.scope})
+    |> Enum.map(fn {{path, scope}, shard_rows} ->
+      %{
+        path: path,
+        scope: scope,
+        git_blob_id: shard_rows |> hd() |> Map.get(:git_blob_id),
+        lines: shard_rows |> Enum.flat_map(& &1.line_numbers) |> line_ranges()
+      }
+    end)
     |> Enum.group_by(& &1.path)
     |> Enum.map(fn {_path, candidates} -> Enum.min_by(candidates, &scope_rank(&1.scope)) end)
     |> Enum.sort_by(&{scope_rank(&1.scope), &1.path})
   end
 
   @doc """
-  The tests of the run whose own evidence holds `path`, by module, suite and
-  name. Tests that only reach the file through their suite's or their
-  target's evidence are not listed: `suites` and `targets` name those scopes
-  so the caller can widen the answer.
+  The tests whose own evidence holds `path`, by module, suite and name, each
+  with the `lines` it ran there (`[first, last]` ranges; nil when its evidence
+  only knows the file). Tests that only reach the file through their suite's
+  or their target's evidence are not listed: `suites` and `targets` name those
+  scopes so the caller can widen the answer.
+
+  Takes a run, or `%{project_id:, test_run_ids:}` for several at once (a
+  commit's runs), a test then holding what it ran in any of them. `line:`
+  narrows the tests to those that ran that line; a test without line evidence
+  for the file stays, since it may have.
   """
-  def covering(%{id: test_run_id, project_id: project_id}, path) do
+  def covering(subject, path, opts \\ [])
+
+  def covering(%{id: test_run_id, project_id: project_id}, path, opts),
+    do: covering(%{project_id: project_id, test_run_ids: [test_run_id]}, path, opts)
+
+  def covering(%{project_id: _project_id, test_run_ids: []}, _path, _opts), do: %{tests: [], suites: [], targets: []}
+
+  def covering(%{project_id: project_id, test_run_ids: test_run_ids}, path, opts) do
+    line = Keyword.get(opts, :line)
+
     rows =
       ClickHouseRepo.all(
-        from(f in subquery(latest_rows_query(project_id, test_run_id)),
+        from(f in subquery(latest_rows_query(project_id, test_run_ids)),
           where: f.path == ^path,
-          select: %{scope_kind: f.scope_kind, scope_id: f.scope_id}
+          select: %{scope_kind: f.scope_kind, scope_id: f.scope_id, line_numbers: f.line_numbers}
         )
       )
 
     by_kind = Enum.group_by(rows, & &1.scope_kind)
 
+    tests =
+      by_kind
+      |> Map.get("test", [])
+      |> Enum.group_by(& &1.scope_id, & &1.line_numbers)
+      |> Enum.map(fn {scope_id, line_numbers} -> {scope_id, List.flatten(line_numbers)} end)
+      |> Enum.filter(fn {_scope_id, line_numbers} -> is_nil(line) or line_numbers == [] or line in line_numbers end)
+      |> Enum.map(fn {scope_id, line_numbers} ->
+        project_id
+        |> test_identity(scope_id)
+        |> Map.put(:lines, if(line_numbers == [], do: nil, else: line_ranges(line_numbers)))
+      end)
+      |> Enum.sort_by(&{&1.module_name, &1.suite_name, &1.name})
+
     %{
-      tests: by_kind |> Map.get("test", []) |> Enum.map(&test_identity(project_id, &1.scope_id)) |> Enum.sort(),
-      suites: by_kind |> Map.get("suite", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.sort(),
-      targets: by_kind |> Map.get("target", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.sort()
+      tests: tests,
+      suites: by_kind |> Map.get("suite", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.uniq() |> Enum.sort(),
+      targets: by_kind |> Map.get("target", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.uniq() |> Enum.sort()
     }
+  end
+
+  @doc """
+  The latest run that holds evidence of the test's own, with the files it
+  ran there (`files/4`): what a test case's page shows. Nil when no run of the
+  project has any for it.
+  """
+  def latest_for_test(project_id, module_name, suite_name, name) do
+    scope_id = test_scope_id(module_name, suite_name || "", name)
+
+    latest =
+      ClickHouseRepo.one(
+        from(f in CoverageFile,
+          where: f.project_id == ^project_id and f.scope_kind == "test" and f.scope_id == ^scope_id,
+          order_by: [desc: f.inserted_at],
+          limit: 1,
+          select: %{test_run_id: f.test_run_id, git_commit_sha: f.git_commit_sha, inserted_at: f.inserted_at}
+        )
+      )
+
+    if latest do
+      Map.put(latest, :files, files(%{id: latest.test_run_id, project_id: project_id}, module_name, suite_name, name))
+    end
   end
 
   @doc """
@@ -294,24 +361,40 @@ defmodule Tuist.Tests.Coverage.Evidence do
   end
 
   # Each shard's latest evidence report, as `Coverage` reads the run's own.
-  defp latest_rows_query(project_id, test_run_id) do
+  defp latest_rows_query(project_id, test_run_ids) do
+    test_run_ids = List.wrap(test_run_ids)
+
     latest =
       from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind in @scopes,
-        group_by: f.shard_index,
-        select: %{shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind in @scopes,
+        group_by: [f.test_run_id, f.shard_index],
+        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
       )
 
     from(f in CoverageFile,
       join: l in subquery(latest),
-      on: l.shard_index == f.shard_index and l.inserted_at == f.inserted_at,
-      where: f.project_id == ^project_id and f.test_run_id == ^test_run_id and f.scope_kind in @scopes,
+      on: l.test_run_id == f.test_run_id and l.shard_index == f.shard_index and l.inserted_at == f.inserted_at,
+      where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind in @scopes,
       select: %{
+        test_run_id: f.test_run_id,
         scope_kind: f.scope_kind,
         scope_id: f.scope_id,
-        path: f.path
+        path: f.path,
+        line_numbers: f.line_numbers
       }
     )
+  end
+
+  @doc "Line numbers as `[first, last]` runs of consecutive lines, ascending."
+  def line_ranges(line_numbers) do
+    line_numbers
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.reduce([], fn
+      line, [[first, last] | rest] when line == last + 1 -> [[first, line] | rest]
+      line, ranges -> [[line, line] | ranges]
+    end)
+    |> Enum.reverse()
   end
 
   defp rows(scope, paths, base) do

@@ -874,9 +874,15 @@ defmodule TuistWeb.API.CoverageController do
                    git_blob_id: %Schema{
                      type: :string,
                      description: "The file's Git blob in the run's own coverage; empty when the run has none for it."
+                   },
+                   lines: %Schema{
+                     type: :array,
+                     items: %Schema{type: :array, items: %Schema{type: :integer}},
+                     description:
+                       "The lines that scope ran in the file, as `[first, last]` ranges; empty when the client could only tell the file."
                    }
                  },
-                 required: [:path, :scope, :git_blob_id]
+                 required: [:path, :scope, :git_blob_id, :lines]
                }
              }
            },
@@ -900,7 +906,16 @@ defmodule TuistWeb.API.CoverageController do
     parameters:
       @path_parameters ++
         @run_id_parameter ++
-        [path: [in: :query, type: :string, required: true, description: "The file's repository-relative path."]],
+        [
+          path: [in: :query, type: :string, required: true, description: "The file's repository-relative path."],
+          line: [
+            in: :query,
+            type: :integer,
+            required: false,
+            description:
+              "Only the tests that ran this line. A test whose evidence only knows the file stays, since it may have."
+          ]
+        ],
     responses:
       Map.put(
         @not_found_responses,
@@ -918,9 +933,16 @@ defmodule TuistWeb.API.CoverageController do
                    test_case_id: %Schema{type: :string, format: :uuid},
                    module_name: %Schema{type: :string},
                    suite_name: %Schema{type: :string},
-                   name: %Schema{type: :string}
+                   name: %Schema{type: :string},
+                   lines: %Schema{
+                     type: :array,
+                     nullable: true,
+                     items: %Schema{type: :array, items: %Schema{type: :integer}},
+                     description:
+                       "The lines the test ran in the file, as `[first, last]` ranges; null when its evidence only knows the file."
+                   }
                  },
-                 required: [:test_case_id, :module_name, :suite_name, :name]
+                 required: [:test_case_id, :module_name, :suite_name, :name, :lines]
                }
              },
              suites: %Schema{type: :array, items: %Schema{type: :string}},
@@ -931,8 +953,10 @@ defmodule TuistWeb.API.CoverageController do
       )
   )
 
-  def list_run_evidence_tests(conn, %{test_run_id: test_run_id, path: path}) do
-    with_run_evidence(conn, test_run_id, fn run, _summary -> json(conn, Evidence.covering(run, path)) end)
+  def list_run_evidence_tests(conn, %{test_run_id: test_run_id, path: path} = params) do
+    with_run_evidence(conn, test_run_id, fn run, _summary ->
+      json(conn, Evidence.covering(run, path, line: Map.get(params, :line)))
+    end)
   end
 
   operation(:show_commit,

@@ -74,10 +74,10 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     Evidence.record(test_run, @evidence)
 
     assert Evidence.files(test_run, "AppTests", "MathTests", "testAdd()") == [
-             %{path: "Sources/Math.swift", scope: "test", git_blob_id: ""},
-             %{path: "Tests/MathTests.swift", scope: "test", git_blob_id: ""},
-             %{path: "Sources/Bootstrap.swift", scope: "suite", git_blob_id: ""},
-             %{path: "Sources/Text.swift", scope: "target", git_blob_id: ""}
+             %{path: "Sources/Math.swift", scope: "test", git_blob_id: "", lines: []},
+             %{path: "Tests/MathTests.swift", scope: "test", git_blob_id: "", lines: []},
+             %{path: "Sources/Bootstrap.swift", scope: "suite", git_blob_id: "", lines: []},
+             %{path: "Sources/Text.swift", scope: "target", git_blob_id: "", lines: []}
            ]
   end
 
@@ -156,6 +156,21 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
              {"test", "Sources/Math.swift", [3, 4, 5, 9], 4},
              {"test", "Sources/Text.swift", [], 0}
            ]
+
+    assert [%{path: "Sources/Math.swift", lines: [[3, 5], [9, 9]]}, %{path: "Sources/Text.swift", lines: []}] =
+             Evidence.files(test_run, "AppTests", "MathTests", "testAdd()")
+
+    assert %{tests: [%{name: "testAdd()", lines: [[3, 5], [9, 9]]}]} = Evidence.covering(test_run, "Sources/Math.swift")
+    assert %{tests: [%{name: "testAdd()"}]} = Evidence.covering(test_run, "Sources/Math.swift", line: 4)
+    assert %{tests: []} = Evidence.covering(test_run, "Sources/Math.swift", line: 6)
+    # Only the file is known there: the test may have run the line.
+    assert %{tests: [%{name: "testAdd()", lines: nil}]} = Evidence.covering(test_run, "Sources/Text.swift", line: 6)
+
+    assert %{test_run_id: run_id, files: [%{path: "Sources/Math.swift"} | _]} =
+             Evidence.latest_for_test(test_run.project_id, "AppTests", "MathTests", "testAdd()")
+
+    assert run_id == test_run.id
+    assert Evidence.latest_for_test(test_run.project_id, "AppTests", "MathTests", "never()") == nil
   end
 
   test "a later report replaces the shard's earlier one", %{test_run: test_run} do
