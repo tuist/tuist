@@ -1,30 +1,58 @@
 {
   "ubuntu_release": "24.04",
   "install_user": "tuist",
+  "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
   "nodes": {
     "ber1-edge": {
       "role": "edge",
       "layout": "direct",
       "description": "WAN edge: NAT from the WAN-DMZ VLAN to the rack VLANs, tailnet subnet router, uplink for the management switch",
-      "packages": ["nftables", "ethtool", "curl", "ca-certificates", "jq"]
+      "packages": [
+        "nftables",
+        "ethtool",
+        "curl",
+        "ca-certificates",
+        "jq"
+      ],
+      "credential_item": "ber1-edge console"
     },
     "ber1-svc": {
       "role": "services",
       "layout": "direct",
       "description": "Service node: DHCP, DNS, NTP, PXE for the rack, image mirror later, second tailnet subnet router",
-      "packages": ["ethtool", "curl", "ca-certificates", "jq"]
+      "packages": [
+        "ethtool",
+        "curl",
+        "ca-certificates",
+        "jq"
+      ],
+      "credential_item": "ber1-svc console"
     },
     "ber1-store-a": {
       "role": "storage",
       "layout": "storage",
       "description": "Kura region ber1, replica A. Joins the workload cluster, so its disk layout is fixed at install time",
-      "packages": ["ethtool", "curl", "ca-certificates", "jq", "xfsprogs"]
+      "packages": [
+        "ethtool",
+        "curl",
+        "ca-certificates",
+        "jq",
+        "xfsprogs"
+      ],
+      "credential_item": "ber1-store-a console"
     },
     "ber1-store-b": {
       "role": "storage",
       "layout": "storage",
       "description": "Kura region ber1, replica B. Colo only; the prep bay has no second storage node",
-      "packages": ["ethtool", "curl", "ca-certificates", "jq", "xfsprogs"]
+      "packages": [
+        "ethtool",
+        "curl",
+        "ca-certificates",
+        "jq",
+        "xfsprogs"
+      ],
+      "credential_item": "ber1-store-b console"
     }
   }
 }

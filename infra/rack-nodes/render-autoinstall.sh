@@ -4,7 +4,7 @@
 
 render_autoinstall() {
   local node="$1" outdir="$2" ssh_key="$3"
-  local root inventory entry install_user packages key_material password_hash layout
+  local root inventory entry install_user packages key_material layout
 
   root="$(git rev-parse --show-toplevel)"
   inventory="$root/infra/rack-nodes/nodes.json"
@@ -29,9 +29,32 @@ render_autoinstall() {
   key_material="$(tr -d '\n' < "$ssh_key")"
   packages="$(jq -r '.packages | map("    - " + .) | join("\n")' <<<"$entry")"
 
-  # The account exists so the installer is happy and as a console login of last
-  # resort; over the network only the key is accepted.
-  password_hash="$(openssl passwd -6 "$(openssl rand -base64 24)")"
+  # The account is a console login of last resort; over the network only the key
+  # is accepted. Its password lives in 1Password rather than being generated and
+  # thrown away, or the machine has no way in when the network is the problem.
+  local vault item op_args
+  vault="$(jq -r '.vault' "$inventory")"
+  item="$(jq -r '.credential_item' <<<"$entry")"
+  op_args=(item get "$item" --vault "$vault" --format=json)
+  [ -n "${OP_ACCOUNT:-}" ] && op_args+=(--account "$OP_ACCOUNT")
+
+  if ! op "${op_args[@]}" >/dev/null 2>&1; then
+    local create_args
+    # shellcheck disable=SC2054  # commas belong to op's own flag values
+    create_args=(item create --category=login "--title=$item" --vault "$vault"
+                 --generate-password=letters,digits,24 --tags=ber1,rack,node
+                 "username=$install_user")
+    [ -n "${OP_ACCOUNT:-}" ] && create_args+=(--account "$OP_ACCOUNT")
+    op "${create_args[@]}" >/dev/null
+  fi
+
+  local password password_hash
+  password="$(op "${op_args[@]}" | jq -r '.fields[] | select(.id=="password") | .value')"
+  if [ -z "$password" ]; then
+    echo "error: could not read the console password for $node from 1Password" >&2
+    return 1
+  fi
+  password_hash="$(openssl passwd -6 "$password")"
 
   mkdir -p "$outdir"
   : > "$outdir/meta-data"
@@ -62,5 +85,11 @@ $packages
   shutdown: reboot
   late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh
+    # Ubuntu leaves the first user needing a password for sudo. Fleet machines are
+    # driven over SSH by automation that has a key and no password, so drop the
+    # same NOPASSWD file the Linux self-join relies on.
+    - |
+      printf '%s ALL=(ALL) NOPASSWD:ALL\n' $install_user > /target/etc/sudoers.d/90-$install_user
+    - chmod 440 /target/etc/sudoers.d/90-$install_user
 EOF
 }
