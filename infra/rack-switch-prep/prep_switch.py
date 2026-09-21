@@ -249,8 +249,12 @@ def import_key(console: Console, switch: dict, key_path: pathlib.Path) -> None:
     served.chmod(0o644)
     address = local_address_for(switch["mgmt_ip"])
 
+    print("sudo is needed to serve TFTP on port 69:")
+    if subprocess.run(["sudo", "-v"]).returncode != 0:
+        raise ConsoleError("sudo declined; the switch can only fetch its key over TFTP")
+
     server = subprocess.Popen(
-        ["sudo", sys.executable, str(pathlib.Path(__file__).with_name("tftp_serve.py")), str(served)],
+        ["sudo", "-n", sys.executable, str(pathlib.Path(__file__).with_name("tftp_serve.py")), str(served)],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     try:
