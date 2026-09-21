@@ -1,0 +1,65 @@
+{{- /*
+Scopes the node-to-node ports on bare-metal fleet nodes to the cluster.
+
+Nodes provisioned by cluster-api-provider-tuist's Linux self-join path run no
+host firewall and their InternalIP is a routable address, so `10250/tcp`,
+`8472/udp` and `4240/tcp` answer the open internet. All three are a
+node-to-node contract in Cilium's system requirements ("among all nodes").
+
+`8472/udp` is the exposure with a data path behind it: the cluster runs
+`routing-mode: tunnel` with neither IPsec nor WireGuard, so a packet arriving
+there is decapsulated into the pod network carrying whatever security identity
+its sender wrote into the tunnel header, with no credential in the way. The
+kubelet on `10250` refuses anonymous callers (401, see `kubeletConfigContent`
+in controllers/linux/linux_cloudinit.go) and `4240` is the cilium-health
+responder; both are hardening.
+
+A Cilium host policy rather than a host firewall: Cilium already programs these
+nodes' iptables, and a second filtering layer it cannot see drops cluster
+traffic as an unattributable timeout while the node keeps reporting `Ready`.
+
+The rule denies `world` rather than admitting peers, so there is no peer list to
+keep current. Cilium resolves node addresses into `remote-node` from live
+CiliumNode state, and a reinstalled or newly ordered box is a peer as soon as it
+joins. The inverse would have to enumerate `remote-node`, `host`, `health` and
+`kube-apiserver` correctly and hold that list across Cilium upgrades.
+
+`nodeSelector` is a predicate, not a pool list. The Linux self-join renders
+`--node-labels=node.cluster.x-k8s.io/instance-type=<provider>` into every
+kubelet unit it writes (`kubeletUnitContent`, non-empty default) and no other
+provisioning path sets that key, so `Exists` is exactly the set of boxes on this
+bootstrap and covers a provider added later with no edit here. It also excludes
+the macOS fleet, whose only interface is Tailscale: Cilium host policies do not
+work on host WireGuard interfaces.
+*/ -}}
+{{- if .Values.fleetNodePortsNetworkPolicy.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: fleet-node-ports-no-world
+spec:
+  nodeSelector:
+    # A host endpoint carries the node's labels after Cilium's default filter:
+    # node.cluster.x-k8s.io/* plus reserved, with kubernetes.io keys stripped.
+    # A matchLabel on os or arch therefore selects nothing and would leave the
+    # ports open.
+    matchExpressions:
+      - key: node.cluster.x-k8s.io/instance-type
+        operator: Exists
+  # Any host policy selecting a node puts that node's host endpoint into ingress
+  # enforcement, so the allow-all is what keeps every other flow open,
+  # including the hostNetwork regional gateways on 80/443. ingressDeny takes
+  # precedence over it.
+  ingress:
+    - fromEntities: [all]
+  ingressDeny:
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+            - port: "4240"
+              protocol: TCP
+            - port: "8472"
+              protocol: UDP
+{{- end }}
