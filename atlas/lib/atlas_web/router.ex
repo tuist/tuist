@@ -290,7 +290,6 @@ defmodule AtlasWeb.Router do
 
       scope "/admin", Admin do
         live "/audit", AuditLive, :index
-        live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
         live "/roles", RolesLive, :index
         live "/roles/new", RolesLive, :new

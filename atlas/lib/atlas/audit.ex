@@ -368,9 +368,6 @@ defmodule Atlas.Audit do
   def claim_metadata(claims) when is_map(claims) do
     %{}
     |> put_claim(claims, "slack_agent")
-    |> put_claim(claims, "agent_identity_id")
-    |> put_claim(claims, "agent_identity_key")
-    |> put_claim(claims, "agent_identity_display_name")
     |> put_claim(claims, "slack_app")
     |> put_claim(claims, "slack_channel_id")
     |> put_claim(claims, "mcp_tool_groups")

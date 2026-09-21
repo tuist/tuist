@@ -50,7 +50,7 @@ defmodule Atlas.AuditTest do
   end
 
   test "merges context metadata into recorded activity metadata" do
-    Audit.with_context(%{interface: "slack", metadata: %{"agent_identity_key" => "leadership"}}, fn ->
+    Audit.with_context(%{interface: "slack", metadata: %{"slack_channel_id" => "C_LEADERSHIP"}}, fn ->
       Audit.record("test.action", %{
         target_type: "test",
         target_id: "target-id",
@@ -60,7 +60,7 @@ defmodule Atlas.AuditTest do
 
     activity = Repo.get_by!(Activity, action: "test.action")
 
-    assert activity.metadata["agent_identity_key"] == "leadership"
+    assert activity.metadata["slack_channel_id"] == "C_LEADERSHIP"
     assert activity.metadata["status"] == "ok"
   end
 
@@ -72,11 +72,11 @@ defmodule Atlas.AuditTest do
 
   test "extracts audit metadata from agent claims" do
     assert Audit.claim_metadata(%{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP",
              "unrelated" => "ignored"
            }) == %{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP"
            }
   end
