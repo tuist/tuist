@@ -39,6 +39,12 @@ SWITCH_PID=""
 SWITCH_BUFFER=""
 SWITCH_OUTPUT=""
 SWITCH_LOG=""
+# Set per command by switch_run_confirm and cleared straight after. Nothing is
+# ever auto-confirmed: a command that asks "(Y/N)" and was not run through
+# switch_run_confirm just waits out its timeout, which is the safe direction.
+SWITCH_ANSWER=""
+SWITCH_CONFIRM=$'(Y/N)'
+
 
 # False once the coprocess is gone, which bash signals by deleting the array.
 switch_alive() { [ -n "${SWITCH[0]:-}" ]; }
@@ -102,6 +108,10 @@ switch_drain() {
       if [[ "$scan" == *"$SWITCH_PAGER"* ]]; then
         scan=""
         switch_alive && { printf ' ' 1>&"${SWITCH[1]}" 2>/dev/null || true; }
+      elif [[ -n "$SWITCH_ANSWER" && "$scan" == *"$SWITCH_CONFIRM"* ]]; then
+        scan=""
+        switch_write "$SWITCH_ANSWER" || true
+        SWITCH_ANSWER=""
       elif (( ${#scan} > 200 )); then
         scan="${scan: -100}"
       fi
@@ -140,6 +150,16 @@ switch_run() {
     printf '%s\n' "$SWITCH_OUTPUT" | grep -E 'Error|Bad command|Failed to' >&2 || true
     return 1
   fi
+}
+
+# A command that asks for confirmation before doing something. The answer is
+# named at the call site so nothing is ever confirmed on the switch's say-so.
+switch_run_confirm() {
+  local command="$1" answer="$2" timeout="${3:-120}" status=0
+  SWITCH_ANSWER="$answer"
+  switch_run "$command" "$timeout" || status=$?
+  SWITCH_ANSWER=""
+  return $status
 }
 
 # End the session for real. See the session-table note at the top.

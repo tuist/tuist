@@ -267,6 +267,74 @@ cmd_backup() {
   done
 }
 
+# Serving TFTP needs root, because TFTP is always requested on port 69, and
+# tftpd only accepts an upload into a file that already exists and is writable.
+# Both halves of that are why this asks for sudo before it asks the switch for
+# anything.
+TFTP_ROOT_DIR=""
+TFTP_SERVED=""
+
+tftp_local_address() {
+  local address="$1" interface local_ip
+  interface="$(route -n get "$address" 2>/dev/null | awk '/interface:/{print $2}')"
+  [ -n "$interface" ] || { echo "error: no route to $address" >&2; return 1; }
+  local_ip="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+  [ -n "$local_ip" ] || { echo "error: no address on $interface toward $address" >&2; return 1; }
+  echo "$local_ip"
+}
+
+tftp_start() {
+  local filename="$1"
+  TFTP_ROOT_DIR="${TFTP_ROOT:-/private/tftpboot}"
+  TFTP_SERVED="$TFTP_ROOT_DIR/$filename"
+  echo "sudo is needed to serve TFTP: it is always requested on port 69"
+  sudo -v || { echo "error: no sudo, so nothing can listen on port 69" >&2; return 1; }
+  sudo mkdir -p "$TFTP_ROOT_DIR" || { echo "error: could not create $TFTP_ROOT_DIR" >&2; return 1; }
+  if ! sudo touch "$TFTP_SERVED" || ! sudo chmod 666 "$TFTP_SERVED"; then
+    echo "error: could not create a writable $TFTP_SERVED" >&2
+    return 1
+  fi
+  sudo launchctl enable system/com.apple.tftpd >/dev/null 2>&1 || true
+  sudo launchctl bootout system/com.apple.tftpd >/dev/null 2>&1 || true
+  local failure
+  failure="$(sudo launchctl bootstrap system /System/Library/LaunchDaemons/tftp.plist 2>&1)" || {
+    echo "error: could not start tftpd: ${failure:-no message}" >&2
+    sudo rm -f "$TFTP_SERVED"
+    return 1
+  }
+}
+
+tftp_stop() {
+  sudo launchctl bootout system/com.apple.tftpd >/dev/null 2>&1 || true
+  [ -n "$TFTP_SERVED" ] && sudo rm -f "$TFTP_SERVED"
+  TFTP_SERVED=""
+}
+
+# Wait for a switch to go away and come back. A reboot that never completes is
+# the failure this has to report rather than hang on.
+wait_for_reboot() {
+  local address="$1" waited=0
+  echo "waiting for $address to go down"
+  while (( waited < 60 )) && ping -c 1 -W 2000 "$address" >/dev/null 2>&1; do
+    sleep 2; waited=$(( waited + 2 ))
+  done
+  if (( waited >= 60 )); then
+    echo "error: $address never went down; the reboot did not take" >&2
+    return 1
+  fi
+  echo "waiting for $address to come back"
+  waited=0
+  while (( waited < 300 )); do
+    if nc -z -w 3 "$address" 22 >/dev/null 2>&1; then
+      echo "$address is back after ${waited}s"
+      return 0
+    fi
+    sleep 5; waited=$(( waited + 5 ))
+  done
+  echo "error: $address did not answer SSH within 300s of rebooting" >&2
+  return 1
+}
+
 # What is plugged into each port, read off the site definition rather than a
 # switch. Wiring a rack is easier to check against a list than against a diagram.
 cmd_ports() {
@@ -319,6 +387,157 @@ cmd_sessions() {
   echo ""
   echo "One of those is this command. Free a leaked line with:"
   echo "  mise run rack:fleet sessions $name <tid>"
+}
+
+# Replace a switch's whole configuration with the rendered one.
+#
+# The shape the design prefers, now that the export is known to be text:
+# idempotent by construction, and the change path and the disaster-recovery path
+# are the same code. It costs a reboot, which the A/B pair is what makes
+# affordable, and it is why ber1-tor-b goes first and ber1-mgmt alone and last.
+#
+# The switch's current configuration is exported first and merged, because the
+# render deliberately omits the admin login: pushing it bare would delete the
+# account used to log in. See lib/merge.awk.
+cmd_replace() {
+  local name="" dry_run=0 assume_yes=0 skip_order=0 do_reboot=0
+  while (( $# )); do
+    case "$1" in
+      --dry-run) dry_run=1; shift;;
+      --yes) assume_yes=1; shift;;
+      --reboot) do_reboot=1; shift;;
+      --skip-order-check) skip_order=1; shift;;
+      -*) echo "unknown flag: $1" >&2; return 2;;
+      *) name="$1"; shift;;
+    esac
+  done
+  [ -n "$name" ] || { echo "usage: rack:fleet replace <device> [--dry-run] [--reboot]" >&2; return 2; }
+
+  local device model spec address user key
+  device="$(fleet_device "$(site_file)" "$name")"
+  model="$(jq -r '.model' <<<"$device")"
+  spec="$(fleet_model "$model")"
+  if [ "$(jq -r '.verified' <<<"$spec")" != "true" ]; then
+    echo "error: $name is a $(jq -r '.product' <<<"$spec"), whose port naming has never been" >&2
+    echo "       read off a live unit. Confirm it, set verified in models.json, then replace." >&2
+    return 1
+  fi
+  if (( ! skip_order )); then
+    local blocker
+    blocker="$(blocking_device "$name")"
+    if [ -n "$blocker" ]; then
+      echo "error: $blocker is applied before $name and is not at its rendered configuration yet." >&2
+      echo "" >&2
+      echo "$blocker: $(jq -r --arg n "$blocker" '.devices[] | select(.name == $n) | .apply_note' "$(site_file)")" >&2
+      return 1
+    fi
+  fi
+
+  address="$(jq -r '.mgmt_address' <<<"$device")"
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+
+  local local_ip export_name push_name current rendered merged
+  local_ip="$(tftp_local_address "$address")" || return 1
+  export_name="$name-current.cfg"
+  push_name="$name-desired.cfg"
+  current="$(mktemp)"; rendered="$(mktemp)"; merged="$(mktemp)"
+  fleet_render "$(site_file)" "$name" > "$rendered"
+
+  tftp_start "$export_name" || return 1
+  echo "asking $name for its current startup config"
+  local status=0
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 1
+    switch_run "copy startup-config tftp ip-address $local_ip filename $export_name" 180 || exit 1
+  ) || status=$?
+  if (( status )) || [ ! -s "$TFTP_SERVED" ]; then
+    echo "error: could not read $name's current configuration, so there is nothing safe to merge" >&2
+    tftp_stop
+    return 1
+  fi
+  cp "$TFTP_SERVED" "$current"
+  tftp_stop
+
+  fleet_merge_unmanaged "$current" "$rendered" > "$merged"
+  if ! grep -q '^user name ' "$merged"; then
+    echo "error: the merged configuration has no login in it. Refusing to push a file that" >&2
+    echo "       would lock everyone out of $name." >&2
+    return 1
+  fi
+
+  echo ""
+  echo "$name would change:"
+  if fleet_diff "$current" "$merged" "live/$name" "rendered/$name"; then
+    echo "  nothing; the switch already matches the rendered configuration"
+    if (( ! assume_yes )) && (( ! dry_run )); then
+      echo "  (replacing anyway would still cost a reboot)"
+    fi
+  fi
+
+  if (( dry_run )); then
+    echo ""
+    echo "the file that would be pushed is $merged"
+    return 0
+  fi
+
+  if (( ! assume_yes )); then
+    if [ ! -t 0 ]; then
+      echo "error: nothing to confirm from; re-run with --yes or --dry-run" >&2
+      return 2
+    fi
+    echo ""
+    echo "$name: $(jq -r '.apply_note' <<<"$device")"
+    echo "This overwrites the startup config and needs a reboot to take effect."
+    local answer
+    read -r -p "replace? [y/N] " answer
+    [ "$answer" = "y" ] || [ "$answer" = "Y" ] || return 130
+  fi
+
+  tftp_start "$push_name" || return 1
+  fleet_device_file < "$merged" | sudo tee "$TFTP_SERVED" >/dev/null
+  sudo chmod 644 "$TFTP_SERVED"
+  echo "pushing to $name"
+  status=0
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 1
+    switch_run "copy tftp startup-config ip-address $local_ip filename $push_name" 180 || exit 1
+    if (( do_reboot )); then
+      echo "rebooting $name"
+      switch_run_confirm "reboot" "Y" 30 || true
+    fi
+  ) || status=$?
+  tftp_stop
+  if (( status )); then
+    echo "error: $name did not accept the configuration" >&2
+    return "$status"
+  fi
+
+  if (( ! do_reboot )); then
+    echo ""
+    echo "$name: startup config replaced. It takes effect on the next reboot, which this did"
+    echo "not do. Reboot it, then confirm with:"
+    echo "  mise run rack:fleet diff $name"
+    return 0
+  fi
+
+  wait_for_reboot "$address" || return 1
+  local after
+  after="$(mktemp)"
+  read_live_config "$name" "$RUNNING_CONFIG" "$after"
+  echo ""
+  if fleet_diff "$rendered" "$after" "rendered/$name" "live/$name"; then
+    echo "$name: replaced, rebooted and verified against the rendered configuration"
+    rm -f "$current" "$rendered" "$merged" "$after"
+    return 0
+  fi
+  echo "$name: came back, but does not match the render"
+  rm -f "$current" "$rendered" "$merged" "$after"
+  return 1
 }
 
 # Answer the open question: is the exported config text, or is it opaque?
@@ -437,7 +656,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|diff|apply|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -447,6 +666,7 @@ main() {
     backup)     cmd_backup "$@";;
     sessions)   cmd_sessions "$@";;
     ports)      cmd_ports "$@";;
+    replace)    cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
     *) echo "unknown command: $command" >&2; return 2;;

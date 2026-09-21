@@ -658,3 +658,128 @@ export_fixture() { echo "$FLEET_ROOT/tests/fixtures/ber1-tor-b-tftp-export.cfg";
     run bash -c "tail -c1 '$BATS_TEST_TMPDIR/dev.cfg' | od -An -c | tr -d ' '"
     [ "$output" = '\0' ]
 }
+
+# --- replacing a whole configuration -----------------------------------------
+
+fake_switch_bin() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/sudo" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  -v) exit 0;;
+  launchctl) exit 0;;
+  *) exec "$@";;
+esac
+STUB
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+sleep 0.4
+printf 'ber1-tor-b>'
+while IFS= read -r line; do
+    line="${line%$'\r'}"
+    sleep 0.2
+    printf '%s\r\n' "$line"
+    case "$line" in
+        logout) exit 0;;
+        "copy startup-config tftp"*)
+            cp "$FAKE_CURRENT" "$FAKE_TFTP/ber1-tor-b-current.cfg"
+            printf ' Backup user config file OK.\r\n';;
+        "copy tftp startup-config"*)
+            cp "$FAKE_TFTP/ber1-tor-b-desired.cfg" "$FAKE_PUSHED"
+            printf ' Load user config file OK.\r\n';;
+        reboot) printf ' Continue? (Y/N):'; continue;;
+        Y) echo CONFIRMED >> "$FAKE_LOG"; exit 0;;
+    esac
+    printf '\r\nber1-tor-b#'
+done
+STUB
+    chmod +x "$dir/sudo" "$dir/ssh"
+}
+
+@test "a reboot is never confirmed unless the caller says to" {
+    # Anything that asks "(Y/N)" and was not run through switch_run_confirm waits
+    # out its timeout instead. Rebooting a switch is not a default.
+    stub="$BATS_TEST_TMPDIR/bin"
+    fake_switch_bin "$stub"
+    log="$BATS_TEST_TMPDIR/confirm.log"
+    : > "$log"
+    run bash -c "
+        set -uo pipefail
+        export PATH=\"$stub:\$PATH\" FAKE_LOG='$log'
+        source '$FLEET_ROOT/lib/session.sh'
+        trap switch_close EXIT
+        switch_open 192.0.2.1 tuist /dev/null
+        switch_run reboot 5 || true
+    "
+    run cat "$log"
+    [ "${#output}" -eq 0 ]
+}
+
+@test "switch_run_confirm answers the prompt it was given an answer for" {
+    stub="$BATS_TEST_TMPDIR/bin"
+    fake_switch_bin "$stub"
+    log="$BATS_TEST_TMPDIR/confirm.log"
+    : > "$log"
+    run bash -c "
+        set -uo pipefail
+        export PATH=\"$stub:\$PATH\" FAKE_LOG='$log'
+        source '$FLEET_ROOT/lib/session.sh'
+        trap switch_close EXIT
+        switch_open 192.0.2.1 tuist /dev/null
+        switch_run_confirm reboot Y 15 || true
+    "
+    run cat "$log"
+    [ "$output" = "CONFIRMED" ]
+}
+
+@test "replace pushes a file that keeps the login and carries the change" {
+    stub="$BATS_TEST_TMPDIR/bin"
+    fake_switch_bin "$stub"
+    root="$BATS_TEST_TMPDIR/tftp"; mkdir -p "$root"
+    current="$BATS_TEST_TMPDIR/current.cfg"
+    grep -v '^!' "$(export_fixture)" > "$current"
+    pushed="$BATS_TEST_TMPDIR/pushed.cfg"
+
+    # a real change, so the diff is not empty
+    site="$BATS_TEST_TMPDIR/sites/ber1.json"
+    mkdir -p "$BATS_TEST_TMPDIR/sites"
+    jq '.services.lldp = false' "$SITE_FILE" > "$site"
+
+    run env PATH="$stub:$PATH" TFTP_ROOT="$root" FAKE_TFTP="$root" \
+        FAKE_CURRENT="$current" FAKE_PUSHED="$pushed" FLEET_ROOT="$FLEET_ROOT" \
+        bash -c "
+            cp '$site' '$FLEET_ROOT/sites/ber1-replacetest.json'
+            '$FLEET_ROOT/fleet.sh' --site ber1-replacetest replace ber1-tor-b --yes --skip-order-check
+            status=\$?
+            rm -f '$FLEET_ROOT/sites/ber1-replacetest.json'
+            exit \$status
+        "
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"startup config replaced"* ]]
+
+    run grep -c '^user name tuist ' "$pushed"
+    [ "$output" = "1" ]
+    run bash -c "tr -d '\r\000' < '$pushed' | grep -c '^no lldp$'"
+    [ "$output" = "1" ]
+    run bash -c "tail -c1 '$pushed' | od -An -c | tr -d ' '"
+    [ "$output" = '\0' ]
+}
+
+@test "replace refuses to push a file with no login in it" {
+    # The guard of last resort: if the merge ever fails to carry the account
+    # across, pushing the result locks everyone out of the switch.
+    stub="$BATS_TEST_TMPDIR/bin"
+    fake_switch_bin "$stub"
+    root="$BATS_TEST_TMPDIR/tftp2"; mkdir -p "$root"
+    current="$BATS_TEST_TMPDIR/nologin.cfg"
+    grep -v '^!' "$(export_fixture)" | grep -v '^user name ' > "$current"
+    pushed="$BATS_TEST_TMPDIR/pushed2.cfg"
+
+    run env PATH="$stub:$PATH" TFTP_ROOT="$root" FAKE_TFTP="$root" \
+        FAKE_CURRENT="$current" FAKE_PUSHED="$pushed" \
+        "$FLEET_ROOT/fleet.sh" replace ber1-tor-b --yes --skip-order-check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no login in it"* ]]
+    [ ! -f "$pushed" ]
+}

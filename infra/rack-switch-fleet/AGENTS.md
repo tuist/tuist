@@ -21,6 +21,7 @@ mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
+mise run rack:fleet replace <device>        # push the whole config, needs a reboot
 mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
@@ -246,7 +247,7 @@ construction, and it collapses the change path and the disaster-recovery path
 into one piece of code, at the cost of a reboot per change that the A/B pair is
 what makes affordable. DHCP Auto Install has something to serve too.
 
-### What the byte comparison caught, and why replace is not built yet
+### What the byte comparison caught
 
 Comparing the export against the render byte for byte, rather than after
 normalising, turns up what a normalised diff hides by design. The render is
@@ -256,50 +257,66 @@ is right for a file committed to git and **fatal for a file written over the
 switch's startup config**. Pushing the render as it stands deletes the account
 used to log in and leaves the console as the only way back.
 
-`lib/merge.awk` is the answer and it is done and tested. It carries each
-unmanaged line across from the switch's current export, re-inserting it in front
-of whichever configuration line followed it on the device, so ordering is
-derived rather than hard-coded and this file never has to know which lines those
-are. `fleet_device_file` then applies the CRLF and trailing NUL encoding read
-off a real export. The tests run against a redacted copy of that export and
-cover the login surviving, nothing being lost, the position being derived, and
-an unmanaged line at the end with nothing to anchor to.
+`lib/merge.awk` carries each unmanaged line across from the switch's current
+export, re-inserting it in front of whichever configuration line followed it on
+the device, so ordering is derived rather than hard-coded and this code never
+has to know which lines those are. `fleet_device_file` then applies the CRLF and
+trailing-NUL encoding read off a real export. `replace` refuses to push a file
+with no `user name` line in it at all, which is the guard of last resort.
 
-What is deliberately **not** built is the push: export, merge, `copy tftp
-startup-config`, reboot, re-read, diff. Two reasons, neither of them the merge.
-The reboot command has not been confirmed on the hardware, and the command that
-reboots a switch is not one to guess at from a code review. And every part of
-this tool that first met hardware untested had a bug in it, twice costing
-`ber1-tor-b` its SSH daemon; a path that overwrites a startup config and reboots
-is the last one to ship unrun. Build it against a switch somebody is driving.
+## Replacing a switch's configuration
 
-## Does this make switch setup zero touch? No.
+```
+mise run rack:fleet replace <device> --dry-run    # export, merge, show the diff
+mise run rack:fleet replace <device>              # push; takes effect on reboot
+mise run rack:fleet replace <device> --reboot     # push, reboot, verify
+```
 
-Racking a switch today is still: plug a USB-C cable in, run `rack:prep-switch`,
-unplug it, then run `rack:fleet apply`. That is one physical touch per switch,
-which is one fewer than before but is not zero.
+It exports the switch's current startup config over TFTP, merges the unmanaged
+lines into the render, shows what would change, and pushes the result. Without
+`--reboot` it stops there, because a replaced startup config does nothing until
+the switch restarts. With `--reboot` it answers the firmware's `(Y/N)`, waits
+for the switch to go away and come back, re-reads it and diffs against the
+render.
 
-Zero touch means DHCP Auto Install: the switch boots, DHCP hands it a TFTP
-server and a file name, and it fetches and applies its configuration with nobody
-in the room. Three things stand between here and there.
+Nothing is ever confirmed on the switch's say-so: a command that asks `(Y/N)`
+and was not run through `switch_run_confirm` waits out its timeout instead.
+Rebooting is not a default.
 
-- ~~**The TFTP question above.**~~ Closed on 2026-09-21: the export is text, so
-  a rendered config is something Auto Install can be handed. It no longer blocks
-  this. Note though that an Auto Install config has to carry a login of its own,
-  because the switch it lands on has none yet, which is the same problem the
-  merge solves from the other direction.
-- **Nothing serves the files yet.** Auto Install needs a DHCP server handing out
-  options 66 and 67 on the management segment, and something serving a config
-  per switch keyed by an identity the switch presents before it has one.
-- **The identity still has to come from somewhere.** The admin login and the
-  fleet SSH key are what `rack:prep-switch` installs over the console. An
-  Auto Install config could carry both, which is what would remove the cable.
+TFTP needs sudo, because TFTP is always requested on port 69 and `tftpd` only
+accepts an upload into a file that already exists and is writable.
 
-Pre-staging a switch at the bench and shipping it configured is the other half
-of the same answer, and both want this rendered desired state to exist first.
-Neither is built here.
+### The first real run, in order
 
-## Apply ordering, which is enforced rather than written down
+The whole path has been exercised against a fake switch, so the bugs left are
+the ones only real hardware shows. Do it in this order:
+
+1. `mise run rack:fleet sessions ber1-tor-b`. A cold-booted switch should show
+   one line, which is this command. More than that means something leaked and
+   the session table is filling.
+2. `mise run rack:fleet diff ber1-tor-b`. Expect it to match the render. If it
+   does not, read the diff before doing anything else: the switch has changed
+   under us, or the render has.
+3. `mise run rack:fleet backup ber1-tor-b`. A fresh backup in the repository
+   before the first write, because this is the change that could need undoing.
+4. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
+   names. Check the `user name` line is in it. This is the last cheap step.
+5. `mise run rack:fleet replace ber1-tor-b --reboot`.
+6. `mise run rack:fleet sessions ber1-tor-b` again, to confirm the reboot did
+   not leave lines behind.
+
+Only `ber1-tor-b`. `ber1-tor-a` carries the WAN and `ber1-mgmt` is the only path
+to out-of-band, and neither should see a first run of anything.
+
+**If it goes wrong.** The switch keeps forwarding while its management plane is
+unhappy, so the data plane is not the thing to watch. If SSH stops answering,
+the web UI on 80 and 443 is still there, and `clear line <tid>` frees a stuck
+session; a power cycle clears all of them. If the switch comes back with a
+configuration that is wrong rather than absent, the backup from step 3 is the
+undo, pushed the same way. If it comes back with no usable login, that is the
+console cable and `rack:prep-switch`.
+
+## Apply ordering, which is enforced rather than written down## Apply ordering, which is enforced rather than written down
 
 Switches are applied one at a time, in the order `apply_order` gives:
 
