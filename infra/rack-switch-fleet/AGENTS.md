@@ -28,6 +28,17 @@ mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
 
+The suite runs in CI on any change under `infra/rack-switch-fleet/` or
+`mise/tasks/rack/` (`.github/workflows/rack-switch-fleet.yml`), because most of
+what it checks exists to catch an edit that looks like tidying, made by someone
+who has never read the change that introduced the rule. A guard that only fires
+when a human remembers to run it locally is not much better than a comment. CI
+also fails if a credential hash ever reaches this directory.
+
+A note on reading its output: a test runner's prose is a convenience and its
+exit code is the fact. Three of these tests were red for several rounds of work
+because the tail of the `bats` output looked green.
+
 `--site` selects the rack and defaults to `ber1`.
 
 Shell and `ssh`, like `rack:prep-switch` beside it. `fleet.sh` is the

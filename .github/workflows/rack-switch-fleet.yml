@@ -1,0 +1,82 @@
+# The rack switch fleet's guards, run without a human.
+#
+# Most of this suite exists to catch an edit that looks like tidying: moving the
+# two storage nodes onto one ToR, recording a management link on the MS-01 NIC
+# that has no AMT, putting two probes on one Modbus address. Those are made by
+# someone who has never read the pull request that introduced them, months from
+# now, and a guard that only fires when somebody remembers to run it locally is
+# not much better than a comment.
+#
+# It needs no hardware: everything runs against a committed transcript taken off
+# a live switch and against a fake switch on PATH.
+name: Rack Switch Fleet
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/rack-switch-fleet/**
+      - mise/tasks/rack/**
+      - .github/workflows/rack-switch-fleet.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/rack-switch-fleet/**
+      - mise/tasks/rack/**
+      - .github/workflows/rack-switch-fleet.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rack-switch-fleet-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+jobs:
+  checks:
+    name: Render, lint, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          # Only what this needs. Installing the whole toolchain to run jq and
+          # bats would cost minutes per pull request.
+          install_args: jq bats
+          cache: "false"
+
+      # The committed configs are the reviewed artefact. If they no longer match
+      # what the site definition renders, the diff a reviewer read is not the
+      # one that would be applied.
+      - name: The rendered configs match the site definition
+        run: mise run rack:fleet render --check
+
+      - name: Test
+        run: mise run rack:fleet-test
+
+      - name: Lint the shell
+        run: |
+          set -euo pipefail
+          command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
+          # From inside the directory, so the sourced libraries resolve.
+          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh lib/*.sh)
+          shellcheck mise/tasks/rack/*.sh
+
+      # A hash in git history cannot be removed without rewriting it, and every
+      # export off a switch carries one. backup redacts and probe-tftp writes
+      # outside the repository; this is the check that both stay true.
+      - name: No credential hash is committed
+        run: |
+          set -euo pipefail
+          if git grep -nE '\$1\$' -- infra/rack-switch-fleet/ | grep -v EXAMPLEHASHNOTREAL | grep -v '\$1\$x'; then
+            echo "a credential hash reached infra/rack-switch-fleet; see AGENTS.md" >&2
+            exit 1
+          fi
+          echo "clean"
