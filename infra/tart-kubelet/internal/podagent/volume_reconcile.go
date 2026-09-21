@@ -560,6 +560,68 @@ func readFillPercent(statusDir string) int {
 	return pct
 }
 
+// cacheLimitsFile carries what the guest's division of the shared budget
+// measured and decided: one "<when>\t<cache>\t<held bytes>\t<limit bytes>" line
+// per cache, appended at attach and again at teardown. Those sizes are the only
+// per-cache measurement the fleet has, and the limits beside them are what the
+// division's rule and its floors are retuned from. The runner log carries the
+// same numbers, but the host re-emits only a bounded tail of it, so a verbose
+// job's attach lines fall off before they reach the log store.
+const cacheLimitsFile = "cache-limits"
+
+// cacheLimitsMaxSamples bounds what one job can make the host record. A division
+// stages four lines; the file is guest-written and the guest runs untrusted
+// customer CI.
+const cacheLimitsMaxSamples = 8
+
+// cacheLimitSample is one cache's size and limit at one end of a job.
+type cacheLimitSample struct {
+	when, cache           string
+	heldBytes, limitBytes float64
+}
+
+// readCacheLimits returns what the guest staged, dropping every line that is not
+// a measurement. A job that ran on a host staging the fixed split stages nothing,
+// which reads as none.
+func readCacheLimits(statusDir string) []cacheLimitSample {
+	b, ok := readGuestFile(statusDir, cacheLimitsFile, guestMarkerMaxBytes)
+	if !ok {
+		return nil
+	}
+	var samples []cacheLimitSample
+	for _, line := range strings.Split(string(b), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) != 4 {
+			continue
+		}
+		when, cache := fields[0], fields[1]
+		if when != "attach" && when != "teardown" {
+			continue
+		}
+		if cache != "binary" && cache != "compilation" {
+			continue
+		}
+		held, err := strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		limit, err := strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			continue
+		}
+		samples = append(samples, cacheLimitSample{
+			when:       when,
+			cache:      cache,
+			heldBytes:  float64(held),
+			limitBytes: float64(limit),
+		})
+		if len(samples) == cacheLimitsMaxSamples {
+			break
+		}
+	}
+	return samples
+}
+
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
 // staged by the host at materialize. The guest sends it as the fast-forward base
 // at promote so the server accepts the bump only if HEAD is still at it.
@@ -962,6 +1024,9 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
 	}
+	// Record what the guest's division measured and decided. Nothing else reports
+	// what either cache in the image actually holds.
+	RecordVolumeCacheLimits(readCacheLimits(entry.VolumeStatusDir))
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run

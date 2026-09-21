@@ -270,6 +270,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   split (`cache-max-bytes`, and the `cas-enabled` figure), and
   `set_cache_limits` applies that as is, so the two components roll out in
   either order.
+  Each division is staged back for the host in `cache-limits`
+  (`stage_cache_limits`), one `<when>\t<cache>\t<held>\t<limit>` line per cache
+  at attach and at teardown, which the host exports as
+  `tart_kubelet_cache_volume_cache_bytes` and
+  `tart_kubelet_cache_volume_cache_limit_bytes`. Those sizes are the only
+  per-cache measurement the fleet has, and they are what the rule and its floors
+  are retuned from: this log carries the same numbers, but the host re-emits only
+  a bounded tail of it, so a verbose job's attach lines never reach the log
+  store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
+  limit that was applied.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit

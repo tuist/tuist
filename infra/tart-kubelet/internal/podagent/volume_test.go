@@ -1525,6 +1525,61 @@ func TestCacheImageBudgetIsWhatTheFixedSplitHandsOut(t *testing.T) {
 	}
 }
 
+// The guest divides the budget by what each cache holds, so its measurements are
+// the only per-cache sizes the fleet has, and the limits beside them are what the
+// rule and its floors get retuned from. The status share is guest-writable and
+// the guest runs untrusted CI, so anything malformed is dropped rather than
+// recorded.
+func TestReadCacheLimits(t *testing.T) {
+	const gib = 1 << 30
+	dir := t.TempDir()
+	if got := readCacheLimits(dir); got != nil {
+		t.Fatalf("a job that staged no division = %v; want none", got)
+	}
+
+	lines := []string{
+		"attach\tbinary\t1610612736\t3221225472",
+		"attach\tcompilation\t13958643712\t22548578304",
+		"teardown\tbinary\t2147483648\t4294967296",
+		"teardown\tcompilation\t18253611008\t21474836480",
+		"teardown\tbinary\tnot-a-number\t4294967296",
+		"sometime\tbinary\t1\t2",
+		"teardown\tsomething\t1\t2",
+		"teardown\tbinary\t1",
+		"",
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readCacheLimits(dir)
+	want := []cacheLimitSample{
+		{when: "attach", cache: "binary", heldBytes: 1.5 * gib, limitBytes: 3 * gib},
+		{when: "attach", cache: "compilation", heldBytes: 13 * gib, limitBytes: 21 * gib},
+		{when: "teardown", cache: "binary", heldBytes: 2 * gib, limitBytes: 4 * gib},
+		{when: "teardown", cache: "compilation", heldBytes: 17 * gib, limitBytes: 20 * gib},
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("samples = %v; want %v (the malformed lines dropped)", got, want)
+	}
+}
+
+// The file is guest-written, so a job that appends without bound must not make
+// the host hold or record it.
+func TestReadCacheLimitsIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	var lines []string
+	for i := 0; i < 500; i++ {
+		lines = append(lines, "teardown\tbinary\t1024\t2048")
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(readCacheLimits(dir)); got > cacheLimitsMaxSamples {
+		t.Fatalf("read %d samples; want at most %d", got, cacheLimitsMaxSamples)
+	}
+}
+
 func TestWriteNodeName(t *testing.T) {
 	dir := t.TempDir()
 

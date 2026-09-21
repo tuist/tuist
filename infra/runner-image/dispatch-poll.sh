@@ -320,14 +320,20 @@ CAS_ENABLED_MARKER="cas-enabled"
 # instead, `cache-max-bytes` for the binary cache and the cas-enabled figure for
 # the compilation cache, and set_cache_limits applies that as is.
 CACHE_BUDGET_MARKER="cache-budget-bytes"
-# What set_cache_limits decided, for the calls that apply it: the shared budget
-# (empty on a host that stages the fixed split), the binary cache's share, which
-# limit_binary_cache exports, and the compilation cache's limit, which
-# setup_cas_store gives the compiler and prune_cas_stores divides across the
-# stores (empty when the host did not enable the compilation cache).
+# What set_cache_limits measured and decided, for the calls that apply it: the
+# shared budget (empty on a host that stages the fixed split), what each cache
+# holds, the binary cache's share, which limit_binary_cache exports, and the
+# compilation cache's limit, which setup_cas_store gives the compiler and
+# prune_cas_stores divides across the stores (empty when the host did not enable
+# the compilation cache).
 CACHE_BUDGET_BYTES=""
+BINARY_CACHE_HELD_BYTES=0
+COMPILATION_CACHE_HELD_BYTES=0
 BINARY_CACHE_SHARE_BYTES=""
 CAS_LIMIT_BYTES=""
+# The file stage_cache_limits appends the division to for the host to turn into
+# metrics. Nothing on the guest reads it back.
+CACHE_LIMITS_FILE="cache-limits"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -1082,10 +1088,37 @@ set_cache_limits() {
   tab=$(printf '\t')
   binary_held=$(allocated_bytes "${CACHE_MOUNT}/tuist")
   compilation_held=$(allocated_bytes "${CACHE_MOUNT}/${CAS_STORE_DIR}")
+  BINARY_CACHE_HELD_BYTES="${binary_held}"
+  COMPILATION_CACHE_HELD_BYTES="${compilation_held}"
   shares=$(cache_budget_shares "${budget}" "${binary_held}" "${compilation_held}")
   BINARY_CACHE_SHARE_BYTES="${shares%%"${tab}"*}"
   CAS_LIMIT_BYTES=$(within_room "${shares##*"${tab}"}" "${budget}" "${binary_held}")
   echo "$(date -u +%FT%TZ) dispatch-poll: cache budget ${budget}B divided by use (${when}): binary cache holds ${binary_held}B, share ${BINARY_CACHE_SHARE_BYTES}B; compilation cache holds ${compilation_held}B, limit ${CAS_LIMIT_BYTES}B"
+}
+
+# stage_cache_limits records the division ($1, attach or teardown) for the host,
+# one "<when><TAB><cache><TAB><held><TAB><limit>" line per cache. The host exports
+# both as histograms: the sizes are the only per-cache measurement the fleet has,
+# and the limits beside them are what the rule and its floors get retuned from.
+# This log carries the same numbers, but the host re-emits a bounded tail of it,
+# so a verbose job's attach lines never reach the log store.
+#
+# The binary cache's figure is what limit_binary_cache exported at attach, its
+# share capped beside the pruned store, and its share at teardown, where nothing
+# exports it. A host staging the fixed split divides nothing, so there is nothing
+# to record.
+stage_cache_limits() {
+  local when="$1"
+  [ -n "${CACHE_BUDGET_BYTES}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local binary_limit="${BINARY_CACHE_SHARE_BYTES}"
+  if [ "${when}" = "attach" ] && [ -n "${TUIST_CACHE_MAX_BYTES:-}" ]; then
+    binary_limit="${TUIST_CACHE_MAX_BYTES}"
+  fi
+  {
+    printf '%s\t%s\t%s\t%s\n' "${when}" binary "${BINARY_CACHE_HELD_BYTES}" "${binary_limit:-0}"
+    printf '%s\t%s\t%s\t%s\n' "${when}" compilation "${COMPILATION_CACHE_HELD_BYTES}" "${CAS_LIMIT_BYTES:-0}"
+  } >>"${STATUS_SHARE}/${CACHE_LIMITS_FILE}" 2>/dev/null || true
 }
 
 # limit_binary_cache exports the binary cache's limit as TUIST_CACHE_MAX_BYTES, for
@@ -1165,6 +1198,7 @@ wait_for_cache_ready() {
       # After the prune, so the binary cache's limit fits beside what the
       # compilation cache holds once pruned.
       limit_binary_cache
+      stage_cache_limits attach
       # After the prune, which can be what makes room in a full image for the
       # store to be writable.
       setup_cas_store
@@ -1958,6 +1992,7 @@ HOOK
         # attach-time share during the job, and nothing prunes it here, so the
         # compilation cache has to fit beside what it holds now.
         set_cache_limits teardown
+        stage_cache_limits teardown
         prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
