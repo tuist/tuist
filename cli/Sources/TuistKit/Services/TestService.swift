@@ -624,6 +624,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         buildRunId: buildRunId,
+                        requestedTestIdentifiers: testTargets,
                         skipUpload: shardSkipUpload,
                         archivePath: shardArchivePath
                     )
@@ -764,11 +765,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
+        // The shard's identifiers and the requested ones would both go out as `-only-testing`, which
+        // xcodebuild runs the union of, so a shard scoped to a whole module would run it whole
+        // however narrow the request was. Intersect them instead.
+        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(
+            shard: shard.testIdentifiers,
+            requested: testTargets
+        )
+        if onlyTestIdentifiers.isEmpty, !shard.testIdentifiers.isEmpty {
+            Logger.current.notice(
+                "Shard \(shardIndex) holds no tests the run asked for, finishing early.",
+                metadata: .section
+            )
+            return
+        }
+
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
-            testTargets: testTargets,
+            testTargets: [],
             skipTestTargets: skipTestTargets,
-            shardTestIdentifiers: shard.testIdentifiers,
+            shardTestIdentifiers: onlyTestIdentifiers,
             shardSkipTestIdentifiers: shard.skipTestIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,

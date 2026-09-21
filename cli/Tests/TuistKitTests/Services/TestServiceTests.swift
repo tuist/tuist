@@ -5679,6 +5679,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .any,
                 archivePath: .any
             )
@@ -5716,6 +5717,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
                 archivePath: .value(shardArchivePath)
             )
@@ -5889,6 +5891,128 @@ final class TestServiceTests: TuistUnitTestCase {
                 args.containsConsecutive("-only-testing", "AppTests")
             })
             .called(1)
+    }
+
+    func test_run_shard_narrowsTheShardSelectionToTheRequestedTestTargets() async throws {
+        // Given — a module-granularity shard selects the whole test target. Its identifier and the
+        // run's `--test-targets` would both go out as `-only-testing`, which xcodebuild runs the
+        // union of, so the shard ran the whole module however narrow the request was.
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .willReturn([])
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppUITests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppUITests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testTargets: [try TestIdentifier(target: "AppUITests", class: "CartA11yTests")],
+                shardIndex: 0
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppUITests/CartA11yTests")
+                    && !arguments.containsConsecutive("-only-testing", "AppUITests")
+            })
+            .called(1)
+    }
+
+    func test_run_shard_finishesEarly_whenTheShardHoldsNothingTheRunAskedFor() async throws {
+        // Given — a suite-granularity shard holding a suite outside the request. Running it with no
+        // `-only-testing` at all would run everything, so the shard has to run nothing instead.
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .willReturn([])
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppUITests/OnboardingFlowTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppUITests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testTargets: [try TestIdentifier(target: "AppUITests", class: "CartA11yTests")],
+                shardIndex: 0
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
     }
 
     func test_run_build_writesSelectiveTestingGraph_whenTestProductsPathIsRelative() async throws {
