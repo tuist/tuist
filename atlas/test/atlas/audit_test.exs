@@ -8,7 +8,7 @@ defmodule Atlas.AuditTest do
   alias Atlas.Users.User
 
   test "records actor, interface, changed fields, and dashboard path from context operations" do
-    user = insert_user!(%{email: "auditor@example.com", name: "Auditor", role: :executive})
+    user = insert_user!(%{email: "auditor@example.com", name: "Auditor"})
 
     {:ok, account} =
       Audit.with_context(%{actor: user, interface: "dashboard"}, fn ->
@@ -24,7 +24,6 @@ defmodule Atlas.AuditTest do
     assert activity.actor_id == user.id
     assert activity.actor_email == "auditor@example.com"
     assert activity.actor_name == "Auditor"
-    assert activity.actor_role == "executive"
     assert activity.interface == "dashboard"
     assert activity.target_type == "account"
     assert activity.target_id == account.id
@@ -51,7 +50,7 @@ defmodule Atlas.AuditTest do
   end
 
   test "merges context metadata into recorded activity metadata" do
-    Audit.with_context(%{interface: "slack", metadata: %{"agent_identity_key" => "leadership"}}, fn ->
+    Audit.with_context(%{interface: "slack", metadata: %{"slack_channel_id" => "C_LEADERSHIP"}}, fn ->
       Audit.record("test.action", %{
         target_type: "test",
         target_id: "target-id",
@@ -61,7 +60,7 @@ defmodule Atlas.AuditTest do
 
     activity = Repo.get_by!(Activity, action: "test.action")
 
-    assert activity.metadata["agent_identity_key"] == "leadership"
+    assert activity.metadata["slack_channel_id"] == "C_LEADERSHIP"
     assert activity.metadata["status"] == "ok"
   end
 
@@ -73,11 +72,11 @@ defmodule Atlas.AuditTest do
 
   test "extracts audit metadata from agent claims" do
     assert Audit.claim_metadata(%{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP",
              "unrelated" => "ignored"
            }) == %{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP"
            }
   end
@@ -115,8 +114,7 @@ defmodule Atlas.AuditTest do
   defp insert_user!(attrs) do
     defaults = %{
       email: "user-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Test User",
-      role: :employee
+      name: "Test User"
     }
 
     %User{}

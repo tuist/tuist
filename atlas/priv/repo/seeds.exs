@@ -25,6 +25,7 @@ alias Atlas.Agents.Sessions.Session, as: AgentSession
 alias Atlas.Assets.Asset
 alias Atlas.Assets.DataCenter
 alias Atlas.Audit
+alias Atlas.Authorization.Roles
 alias Atlas.Briefs.Brief
 alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
@@ -34,9 +35,12 @@ alias Atlas.Engineering.Domains, as: EngineeringDomains
 alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
 alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
+alias Atlas.Engineering.Errors.IssueAccount, as: ErrorsIssueAccount
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
+alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
+alias Atlas.Engineering.Specs
 alias Atlas.Evidence
 alias Atlas.FeatureUsage.Snapshot
 alias Atlas.Finance.Account, as: FinanceAccount
@@ -84,19 +88,51 @@ alias Atlas.Support.Thread, as: SupportThread
 alias Atlas.Users.User
 
 seed_users = [
-  %{email: "test@atlas.dev", name: "Test User", role: :executive},
-  %{email: "alex@atlas.dev", name: "Alex Rivera", role: :executive},
-  %{email: "morgan@atlas.dev", name: "Morgan Chen", role: :employee},
-  %{email: "sam@atlas.dev", name: "Sam Okafor", role: :employee}
+  %{email: "test@atlas.dev", name: "Test User", roles: [:executive]},
+  %{email: "alex@atlas.dev", name: "Alex Rivera", roles: [:executive]},
+  %{email: "morgan@atlas.dev", name: "Morgan Chen", roles: [:finance_reader]},
+  %{email: "sam@atlas.dev", name: "Sam Okafor", roles: [:member]}
 ]
 
-for attrs <- seed_users do
-  case Repo.get_by(User, email: attrs.email) do
-    nil -> %User{}
-    existing -> existing
+executive_role = Roles.ensure_executive_role!()
+member_role = Roles.ensure_member_role!()
+
+finance_reader_role =
+  case Roles.get_role_by_slug("finance-reader") do
+    nil ->
+      {:ok, role} =
+        Roles.create_role(%{
+          name: "Finance reader",
+          slug: "finance-reader",
+          description: "Read-only access to finance dashboards and documents.",
+          scopes: ["finance:read", "documents:read"]
+        })
+
+      role
+
+    role ->
+      role
   end
-  |> User.changeset(attrs)
-  |> Repo.insert_or_update!()
+
+role_lookup = %{
+  executive: executive_role,
+  member: member_role,
+  finance_reader: finance_reader_role
+}
+
+for attrs <- seed_users do
+  {roles, attrs} = Map.pop(attrs, :roles, [])
+
+  user =
+    case Repo.get_by(User, email: attrs.email) do
+      nil -> %User{}
+      existing -> existing
+    end
+    |> User.changeset(attrs)
+    |> Repo.insert_or_update!()
+
+  role_ids = Enum.map(roles, fn slug -> Map.fetch!(role_lookup, slug).id end)
+  {:ok, _} = Roles.set_user_roles(user, role_ids)
 end
 
 seed_user = Repo.get_by!(User, email: "test@atlas.dev")
@@ -2052,6 +2088,31 @@ for demo <- demo_accounts do
     %Term{account_id: account.id}
     |> Term.changeset(term_attrs)
     |> Repo.insert!()
+  end
+end
+
+# Assign a plan tier to a handful of demo accounts so the impacted-accounts
+# panel and Slack summary can sort enterprise-first. Backfill in production
+# will come from the Stripe subscription sync; here we just want visible
+# variety.
+plan_tier_by_account_key = %{
+  "demo:acme" => "enterprise",
+  "demo:acme-plus" => "enterprise",
+  "demo:stripe" => "enterprise",
+  "demo:linear" => "pro",
+  "demo:unity" => "pro",
+  "demo:wise" => "free"
+}
+
+for {account_key, tier} <- plan_tier_by_account_key do
+  case Repo.get_by(Account, account_key: account_key) do
+    nil ->
+      :ok
+
+    %Account{} = account ->
+      account
+      |> Ecto.Changeset.change(plan_tier: tier)
+      |> Repo.update!()
   end
 end
 
@@ -5768,6 +5829,123 @@ Enum.each(issue_fixtures, fn fixture ->
   end
 end)
 
+# Seed the per-(issue, account) counter rows that power the
+# impacted-accounts panel, the enterprise-first ordering, and the
+# Slack summary account context. Each entry names an issue by title,
+# the account by demo account_key, an event count, and how many hours
+# ago the last impact was.
+issue_id_by_title_for_impact =
+  from(i in ErrorsIssue, select: {i.title, i.id})
+  |> Repo.all()
+  |> Map.new()
+
+account_id_by_key_for_impact =
+  from(a in Account, select: {a.account_key, a.id})
+  |> Repo.all()
+  |> Map.new()
+
+impacted_account_fixtures = [
+  # Postgrex.Error: too_many_connections — hits multiple enterprise + pro
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:acme", event_count: 312, hours_ago: 0},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:stripe", event_count: 148, hours_ago: 0},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:linear", event_count: 26, hours_ago: 1},
+  %{issue_title: "Postgrex.Error: too_many_connections", account_key: "demo:wise", event_count: 8, hours_ago: 2},
+
+  # gRPC UNAVAILABLE — hits the two enterprises hard
+  %{
+    issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+    account_key: "demo:acme-plus",
+    event_count: 118,
+    hours_ago: 0
+  },
+  %{issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par", account_key: "demo:acme", event_count: 61, hours_ago: 1},
+  %{
+    issue_title: "gRPC UNAVAILABLE from peer kura-scw-fr-par",
+    account_key: "demo:unity",
+    event_count: 22,
+    hours_ago: 3
+  },
+
+  # REAPI FindMissingBlobs shed — pro accounts affected
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:linear",
+    event_count: 44,
+    hours_ago: 0
+  },
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:unity",
+    event_count: 33,
+    hours_ago: 1
+  },
+  %{
+    issue_title: "REAPI FindMissingBlobs shed under memory pressure",
+    account_key: "demo:wise",
+    event_count: 12,
+    hours_ago: 4
+  },
+
+  # Slack signature verification — one enterprise
+  %{issue_title: "Slack signature verification failed", account_key: "demo:stripe", event_count: 17, hours_ago: 6},
+
+  # Jason.DecodeError — pro accounts
+  %{
+    issue_title: "Jason.DecodeError: unexpected end of input",
+    account_key: "demo:linear",
+    event_count: 48,
+    hours_ago: 2
+  },
+  %{
+    issue_title: "Jason.DecodeError: unexpected end of input",
+    account_key: "demo:unity",
+    event_count: 21,
+    hours_ago: 3
+  },
+
+  # FileNotFound: Project.swift — mixed tiers
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:acme", event_count: 24, hours_ago: 3},
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:linear", event_count: 12, hours_ago: 5},
+  %{issue_title: "FileNotFound: Project.swift", account_key: "demo:wise", event_count: 6, hours_ago: 8},
+
+  # ArgumentError: invalid path — one enterprise + one free
+  %{issue_title: "ArgumentError: invalid path", account_key: "demo:acme", event_count: 72, hours_ago: 1},
+  %{issue_title: "ArgumentError: invalid path", account_key: "demo:wise", event_count: 41, hours_ago: 2},
+
+  # MCP tool timed out — free tier only
+  %{issue_title: "MCP tool timed out: search_atlas", account_key: "demo:wise", event_count: 15, hours_ago: 1},
+
+  # Oban.Worker timeout on BuildProcessor — Pro accounts
+  %{issue_title: "Oban.Worker timeout on BuildProcessor", account_key: "demo:linear", event_count: 11, hours_ago: 4},
+  %{issue_title: "Oban.Worker timeout on BuildProcessor", account_key: "demo:unity", event_count: 8, hours_ago: 6}
+]
+
+Enum.each(impacted_account_fixtures, fn fixture ->
+  with issue_id when is_binary(issue_id) <- Map.get(issue_id_by_title_for_impact, fixture.issue_title),
+       account_id when is_binary(account_id) <- Map.get(account_id_by_key_for_impact, fixture.account_key) do
+    last_seen =
+      now
+      |> DateTime.add(-fixture.hours_ago * 3600, :second)
+      |> then(fn dt -> %{dt | microsecond: {0, 6}} end)
+
+    first_seen =
+      last_seen
+      |> DateTime.add(-max(fixture.event_count, 1) * 60, :second)
+
+    existing = Repo.get_by(ErrorsIssueAccount, issue_id: issue_id, account_id: account_id)
+
+    (existing || %ErrorsIssueAccount{})
+    |> ErrorsIssueAccount.changeset(%{
+      issue_id: issue_id,
+      account_id: account_id,
+      event_count: fixture.event_count,
+      first_seen: first_seen,
+      last_seen: last_seen
+    })
+    |> Repo.insert_or_update!()
+  end
+end)
+
 # A couple of completed summary runs so the summaries panel isn't empty.
 summary_run_fixtures = [
   %{
@@ -5835,3 +6013,144 @@ Enum.each(summary_run_fixtures, fn fixture ->
   |> ErrorsSummaryRun.changeset(attrs)
   |> Repo.insert_or_update!()
 end)
+
+# Engineering postmortems: seed a couple of published incidents so the
+# /engineering/postmortems index has real content on a fresh local DB.
+postmortem_author = Repo.get_by(User, email: "alex@atlas.dev")
+cache_domain = Repo.get_by(EngineeringDomain, name: "Cache")
+registry_domain = Repo.get_by(EngineeringDomain, name: "Registry")
+
+postmortem_fixtures = [
+  %{
+    body: """
+    # Cache mesh partial partition — 2026-08-22
+
+    ## Summary
+    A Kura peer in `fsn1` stopped serving `GetActionResult` for ~14 minutes
+    after a memory-pressure eviction cascade denied its snapshot gate.
+
+    ## Impact
+    CI runs on affected accounts saw REAPI `NOT_FOUND` on warm actions and
+    fell back to local execution. No data was lost.
+
+    ## Root cause
+    The snapshot gate refused to serve digests whose blobs had been evicted
+    by the LRU sweep in the same tick. The gate is a backstop, but the
+    eviction cascade was not atomic across gate + storage.
+
+    ## Resolution
+    Made the eviction cascade atomic. Kept the gates as a defense in depth.
+    """,
+    domain_ids: [cache_domain && cache_domain.id]
+  },
+  %{
+    body: """
+    # Swift registry publish failure — 2026-09-04
+
+    ## Summary
+    Package publishes silently corrupted xcframeworks by flattening
+    symlinks in the archive writer.
+
+    ## Impact
+    Consumers of a handful of packages hit `a sealed resource is missing
+    or invalid` at codesign verification, blocking release builds.
+
+    ## Root cause
+    `:zip.create` does not preserve symlinks. The writer path had no
+    coverage for signed bundles.
+
+    ## Resolution
+    Switched the writer to a symlink-preserving path and backfilled the
+    affected releases.
+    """,
+    domain_ids: [registry_domain && registry_domain.id]
+  },
+  %{
+    body: """
+    # Draft: preview migration credential leak
+
+    Draft postmortem being written up. Do not share externally.
+    """,
+    domain_ids: []
+  }
+]
+
+if postmortem_author do
+  Enum.each(postmortem_fixtures, fn attrs ->
+    domain_ids = attrs.domain_ids |> Enum.reject(&is_nil/1)
+
+    payload = %{
+      "body" => attrs.body,
+      "domain_ids" => Enum.map(domain_ids, &to_string/1)
+    }
+
+    first_line = payload["body"] |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ")
+
+    already_seeded? =
+      Postmortems.list_postmortems(postmortem_author)
+      |> Enum.any?(fn pm ->
+        pm.body |> String.split("\n", parts: 2) |> hd() |> String.trim_leading("# ") == first_line
+      end)
+
+    if !already_seeded? do
+      {:ok, _postmortem} = Postmortems.publish_postmortem(payload, postmortem_author)
+    end
+  end)
+end
+
+# Engineering specs: seed a couple of proposals so the /engineering/specs
+# index has real content on a fresh local DB.
+spec_author = Repo.get_by(User, email: "alex@atlas.dev")
+seed_project = Repo.one(from(project in EngineeringProject, limit: 1))
+
+spec_fixtures = [
+  %{
+    title: "Cross-domain claims v2",
+    body: """
+    # Cross-domain claims v2
+
+    ## Motivation
+    Reviewers want a way to say "these two records refer to the same thing"
+    without merging domains.
+
+    ## Design
+    Introduce a lightweight claim linking two records across domains, with an
+    evidence class the brief renderer can filter on.
+    """,
+    summary: "Link two records across domains without a merge.",
+    visibility: :public,
+    status: "proposed"
+  },
+  %{
+    title: "Draft: kura pull replication rollout",
+    body: """
+    # Draft: kura pull replication rollout
+
+    Not ready for review. Placeholder while the outbox drain design settles.
+    """,
+    summary: nil,
+    visibility: :private,
+    status: "draft"
+  }
+]
+
+if spec_author && seed_project do
+  Enum.each(spec_fixtures, fn attrs ->
+    payload = %{
+      "title" => attrs.title,
+      "body" => attrs.body,
+      "summary" => attrs.summary,
+      "status" => attrs.status,
+      "visibility" => Atom.to_string(attrs.visibility),
+      "engineering_project_id" => seed_project.id
+    }
+
+    already_seeded? =
+      Specs.list_specs(user: spec_author)
+      |> Enum.any?(fn spec -> spec.title == attrs.title end)
+
+    if !already_seeded? do
+      {:ok, _spec} = Specs.create_spec(payload, spec_author)
+    end
+  end)
+end

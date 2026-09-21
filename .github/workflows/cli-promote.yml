@@ -55,11 +55,13 @@ jobs:
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
       should_publish: ${{ steps.resolve.outputs.should_publish }}
     steps:
-      # Scheduled runs have no branch input: this checks out the default branch
-      # and channel-version.sh resolves the line to promote from the tags.
+      # Always the branch this workflow runs from, never the release branch
+      # being promoted: a line is cut from main and then stops moving, so
+      # checking it out would run that line's vintage of channel-version.sh.
+      # The resolver reads the line's tags and resolves its HEAD from the
+      # remote, so it needs no local checkout of the branch.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: ./.github/actions/mise

@@ -72,13 +72,14 @@ tailscaleDeviceReaper:
   # boot, so a dead registration can never be reused and is pure garbage. The
   # xcresult-processor Tart VMs boot from an image with no persisted tailscaled
   # state: each boot means a new node key, and a new node key always means a new
-  # device -- the hostname has nothing to do with it. Two devices sharing a
-  # hostname AND a tag are visible on the tailnet today, which is what that
-  # looks like in practice.
+  # device -- the hostname has nothing to do with it.
   #
-  # This tier is what keeps the tailnet under the plan's included allowance.
-  # Releases add roughly 10-15 devices a week, so parking them behind the 7-day
-  # default would leave a week of debris standing at all times.
+  # A backstop: these VMs join ephemeral through the OAuth client, and Tailscale
+  # deletes an ephemeral device within an hour of it going away, long before
+  # this window. It catches a join that is not ephemeral, such as a pre-auth key
+  # created without it (tailscale-up.sh passes one through unchanged). Every
+  # image release then leaves its VMs behind, and the 7-day default would keep
+  # a week of them standing.
   #
   # An empty hostnamePattern disables the short window (everything falls back to
   # graceHours) rather than matching every device.
@@ -695,6 +696,13 @@ server:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
+      # Overridable field names inside the per-env 1Password items. The
+      # chart's default field layout is described in
+      # templates/server-config-external-secrets.yaml; override here to
+      # point ESO at a sibling field on the same 1P item (e.g. to send
+      # errors to a different ingest without touching every other secret).
+      fields:
+        sentryDsn: dsn
   # Stripe price IDs, keyed plan -> category -> [price ids], plus a top-level
   # `runners` map from meter event name -> price id. Not secrets (just
   # identifiers), so they live here rather than 1Password; the chart JSON-encodes
@@ -1615,6 +1623,16 @@ rackFleet:
   # account, not a provider-issued one.
   sshUser: tuist
 
+  # The LAN address of every subnet router that advertises the hosts'
+  # addresses, as /32s. Required when enabled. A router forwards the operator's
+  # dial with SNAT, so this is the source each host sees, and the host's SSH
+  # ingress guard admits it on top of macosFleet.sshIngressAllowCIDRs. Without
+  # it the guard drops the router, and a host that loses its own tailnet device
+  # is reachable only from its console. Give each router a DHCP reservation,
+  # and list both routers of an HA pair. A host can override it with its own
+  # `sshIngressAllowCIDRs`.
+  sshIngressAllowCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Nothing here is workload config: see `machine` below for that.
@@ -1629,6 +1647,8 @@ rackFleet:
   #                             # stops and replaces tailscaled, which over a
   #                             # host-transported session drops the tunnel it
   #                             # is riding.
+  #     sshIngressAllowCIDRs:   # optional; replaces the rackFleet default for a
+  #       - 192.168.0.2/32      # host behind a different router
   #     site: ber1
   #     rack: r1
   #     shelf: s3
@@ -1804,14 +1824,13 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
-    # Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) folded into each
-    # per-account cache image: the CAS gets this share of masterCapGib, the
-    # binary cache the rest minus a reserve. Size it for what the store should
-    # OCCUPY — the compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE,
-    # which bounds one generation of a store that keeps two (the primary plus
-    # the demoted upstream that is still the warm cache). 0 (default) leaves the
-    # compilation cache VM-local (dies with the VM); the binary cache is
-    # unaffected.
+    # Turns on the Xcode compilation cache (CAS) folded into each per-account
+    # cache image (> 0). The CAS and the binary cache share masterCapGib less a
+    # reserve of max(2 GiB, 20% of the cap), which the guest divides by what
+    # each holds. This value is the CAS's share of the fixed split that runner
+    # images older than that division apply, the binary cache getting the rest.
+    # 0 (default) leaves the compilation cache VM-local (dies with the VM); the
+    # binary cache is unaffected.
     casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
@@ -2308,8 +2327,7 @@ runnersFleet:
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
-  # `server-production-deployment.yml`'s `runner-image-build` matrix
-  # expands. A catalog entry with no runner image published for it
+  # `runner-image-release.yml` publishes images for. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
     - xcodeVersion: "27.0"
@@ -2352,14 +2370,14 @@ runnersFleet:
   # Per-pool runner image template. `runner-pool.yaml` constructs each
   # macOS pool's `spec.image` as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # so a runner image release only bumps `runnerImageSemver`
   # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
   # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
   # an out-of-rotation Xcode refreshed via `runner-image.yml`).
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
   # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Bumped by `release-runner-image` on every
-  # release; managed envs override this with the live version.
+  # render otherwise). Resolved from the latest `runner-image@` tag at
+  # deploy time; managed envs override this with the live version.
   runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`

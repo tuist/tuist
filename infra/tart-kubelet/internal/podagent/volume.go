@@ -247,8 +247,8 @@ type VolumeManager struct {
 	// CAS is folded in as a subdir, not its own image). It sets the CAS's share of
 	// the CapGiB cap, and the binary cache gets the rest minus a filesystem
 	// reserve, so the two pruners never over-commit the one image. The guest is
-	// staged HALF of it as COMPILATION_CACHE_LIMIT_SIZE, which bounds one
-	// generation of a store that keeps two — see casGenerationLimit. Zero disables
+	// staged all of it as COMPILATION_CACHE_LIMIT_SIZE, which already covers both
+	// generations a store keeps. Zero disables
 	// the CAS entirely: the compilation cache is not persisted across VMs (it stays
 	// VM-local, dying with the VM), and the binary cache gets the full budget.
 	CASGiB int

@@ -24,6 +24,7 @@ defmodule AtlasWeb.ErrorsLive.Show do
       events = Errors.list_events_for_issue(issue.id, limit: 10)
       latest = List.first(events) || %{}
       payload = latest[:payload] || %{}
+      impacted_accounts = Errors.impacted_accounts_for_issue(issue.id, limit: 25)
 
       {:ok,
        socket
@@ -31,6 +32,7 @@ defmodule AtlasWeb.ErrorsLive.Show do
        |> assign(:events, events)
        |> assign(:latest_event, List.first(events))
        |> assign(:latest_payload, payload)
+       |> assign(:impacted_accounts, impacted_accounts)
        |> assign(:page_title, issue.title)}
     else
       :unauthorized ->
@@ -203,6 +205,60 @@ defmodule AtlasWeb.ErrorsLive.Show do
           </.card_section>
         </.card>
       </div>
+
+      <.card
+        :if={@impacted_accounts != []}
+        title={gettext("Impacted accounts")}
+        icon="building"
+      >
+        <.card_section>
+          <ul data-part="impacted-accounts">
+            <li
+              :for={row <- @impacted_accounts}
+              data-part="impacted-account"
+              data-enterprise={to_string(row.account.plan_tier == "enterprise")}
+            >
+              <img
+                :if={account_favicon_url(row.account)}
+                data-part="favicon"
+                src={account_favicon_url(row.account)}
+                alt=""
+                width="20"
+                height="20"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+              />
+              <div data-part="body">
+                <div data-part="line">
+                  <.link
+                    navigate={~p"/commercial/sales/accounts/#{row.account.id}"}
+                    data-part="name"
+                  >
+                    {row.account.name}
+                  </.link>
+                  <.badge
+                    :if={row.account.plan_tier}
+                    label={plan_tier_label(row.account.plan_tier)}
+                    color={plan_tier_color(row.account.plan_tier)}
+                    style="light-fill"
+                    size="small"
+                  />
+                </div>
+                <div data-part="meta">
+                  <span>
+                    {ngettext("%{count} event", "%{count} events", row.event_count,
+                      count: row.event_count
+                    )}
+                  </span>
+                  <span :if={row.last_seen} title={format_datetime(row.last_seen)}>
+                    · {gettext("last %{when}", when: relative_time(row.last_seen))}
+                  </span>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </.card_section>
+      </.card>
 
       <.card
         title={gettext("Occurrences")}
@@ -989,4 +1045,29 @@ defmodule AtlasWeb.ErrorsLive.Show do
   defp level_color(:info), do: "information"
   defp level_color(:debug), do: "neutral"
   defp level_color(_), do: "neutral"
+
+  # Google's s2 favicon service returns a favicon for any domain
+  # without us storing or hosting one. Fine for internal ops UIs;
+  # for anything customer-visible we'd host our own.
+  defp account_favicon_url(%{primary_domain: domain}) when is_binary(domain) and byte_size(domain) > 0 do
+    normalised =
+      domain
+      |> String.replace(~r|^https?://|i, "")
+      |> String.trim_trailing("/")
+
+    "https://www.google.com/s2/favicons?domain=" <> URI.encode(normalised) <> "&sz=64"
+  end
+
+  defp account_favicon_url(_), do: nil
+
+  defp plan_tier_label("enterprise"), do: gettext("Enterprise")
+  defp plan_tier_label("pro"), do: gettext("Pro")
+  defp plan_tier_label("free"), do: gettext("Free")
+  defp plan_tier_label(other) when is_binary(other), do: String.capitalize(other)
+  defp plan_tier_label(_), do: nil
+
+  defp plan_tier_color("enterprise"), do: "destructive"
+  defp plan_tier_color("pro"), do: "information"
+  defp plan_tier_color("free"), do: "neutral"
+  defp plan_tier_color(_), do: "neutral"
 end

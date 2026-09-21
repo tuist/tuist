@@ -57,6 +57,97 @@ defmodule Atlas.TuistOverview do
   def preset(_id), do: nil
 
   @doc """
+  Fetches the most recently created Tuist organizations for the sidebar table.
+
+  Returns `{:ok, [%{name, created_at}]}`, `{:error, :not_configured}` when the
+  Tuist server is not reachable outside dev, or `{:error, reason}` for a proxy
+  failure. In dev a deterministic sample list is returned so the page renders
+  with real-looking data.
+  """
+  def recent_organizations(opts \\ []) do
+    pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
+    configured_fun = Keyword.get(opts, :configured?, &TuistServer.configured?/0)
+    limit = Keyword.get(opts, :limit, 10)
+
+    cond do
+      configured_fun.() -> fetch_recent_organizations(pg_query, limit)
+      Environment.dev?() -> {:ok, sample_recent_organizations(limit)}
+      true -> {:error, :not_configured}
+    end
+  end
+
+  defp fetch_recent_organizations(pg_query, limit) do
+    sql = """
+    SELECT a.name AS name, o.created_at AS created_at
+    FROM organizations o
+    JOIN accounts a ON a.organization_id = o.id
+    ORDER BY o.created_at DESC
+    LIMIT #{limit}
+    """
+
+    case pg_query.(sql, limit: limit) do
+      {:ok, %{"rows" => rows}} when is_list(rows) ->
+        {:ok, Enum.map(rows, &decode_recent_organization_row/1)}
+
+      {:error, reason} ->
+        Logger.warning("Tuist overview recent organizations query failed: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp decode_recent_organization_row(row) do
+    %{
+      name: to_string(row["name"] || ""),
+      created_at: parse_datetime(row["created_at"])
+    }
+  end
+
+  defp parse_datetime(nil), do: nil
+  defp parse_datetime(%DateTime{} = dt), do: dt
+  defp parse_datetime(%NaiveDateTime{} = ndt), do: ndt
+
+  defp parse_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _offset} ->
+        dt
+
+      {:error, _} ->
+        case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
+          {:ok, ndt} -> ndt
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_datetime(_), do: nil
+
+  defp sample_recent_organizations(limit) do
+    names = [
+      "Acme",
+      "Northwind",
+      "Globex",
+      "Umbrella",
+      "Initech",
+      "Hooli",
+      "Stark Industries",
+      "Wayne Enterprises",
+      "Wonka",
+      "Pied Piper",
+      "Cyberdyne",
+      "Soylent"
+    ]
+
+    now = DateTime.utc_now()
+
+    names
+    |> Enum.take(limit)
+    |> Enum.with_index()
+    |> Enum.map(fn {name, i} ->
+      %{name: name, created_at: DateTime.add(now, -i * 86_400, :second)}
+    end)
+  end
+
+  @doc """
   Fetches every overview stat + daily series for the given date window.
 
   `range` is `{start_date, end_date}` (inclusive, `Date` structs). The
@@ -89,6 +180,37 @@ defmodule Atlas.TuistOverview do
     end
   end
 
+  @doc """
+  Measures a single overview metric for the given date window.
+
+  Returns the same shape as one entry of `measure/2` (`{:ok, %{...}}`,
+  `{:error, :not_configured}` or `{:error, reason}`), so it can back a
+  per-widget `assign_async` call in the LiveView without paying for the
+  slowest query up front.
+  """
+  def measure_metric(metric, range, opts \\ [])
+
+  def measure_metric(metric, {%Date{} = start_date, %Date{} = end_date}, opts) when metric in @all_metrics do
+    pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
+    ch_query = Keyword.get(opts, :ch_query, &TuistServer.clickhouse_query/2)
+    configured_fun = Keyword.get(opts, :configured?, &TuistServer.configured?/0)
+
+    days = date_range_days(start_date, end_date)
+    previous_start = Date.add(start_date, -days)
+    previous_end = Date.add(start_date, -1)
+
+    cond do
+      configured_fun.() ->
+        measure_metric(metric, {start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
+
+      Environment.dev?() ->
+        sample_measure(metric, start_date, end_date)
+
+      true ->
+        {:error, :not_configured}
+    end
+  end
+
   defp measure_metric(metric, current, previous, pg_query, _ch_query) when metric in @cumulative_metrics do
     cumulative_measure(cumulative_table(metric), current, previous, pg_query)
   end
@@ -97,8 +219,8 @@ defmodule Atlas.TuistOverview do
     event_measure(:jobs, current, previous, ch_query)
   end
 
-  defp measure_metric(:cache_operations, current, previous, _pg_query, ch_query) do
-    event_measure(:cache_operations, current, previous, ch_query)
+  defp measure_metric(:cache_operations, current, previous, pg_query, ch_query) do
+    cache_operations_measure(current, previous, pg_query, ch_query)
   end
 
   defp cumulative_table(:users), do: "users"
@@ -173,22 +295,26 @@ defmodule Atlas.TuistOverview do
     run_event_query(sql, start_date, end_date, ch_query)
   end
 
+  # Filter on the timestamp that is both in each table's sort key AND its
+  # `toYYYYMM(...)` partition column, so ClickHouse can prune partitions and
+  # skip granules:
+  #   * `reapi_cache_events` → `inserted_at` (sort: `operation, project_id,
+  #     inserted_at`; partition: `toYYYYMM(inserted_at)`). `observed_at` is
+  #     unindexed and forces a full scan — the Kura → server delay is under
+  #     one minute, so day buckets are identical.
+  #   * `gradle_cache_events` → `inserted_at` (sort: `action, project_id,
+  #     inserted_at`; partition: `toYYYYMM(inserted_at)`). Only option.
   defp event_query(:cache_operations, start_date, end_date, ch_query) do
     sql = """
     SELECT day, sum(c) AS c FROM (
-      SELECT toDate(created_at) AS day, count() AS c
-      FROM cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
-      GROUP BY day
-      UNION ALL
-      SELECT toDate(created_at) AS day, count() AS c
+      SELECT toDate(inserted_at) AS day, count() AS c
       FROM reapi_cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
+      WHERE inserted_at >= {start_ts:DateTime} AND inserted_at < {end_ts:DateTime}
       GROUP BY day
       UNION ALL
-      SELECT toDate(created_at) AS day, count() AS c
+      SELECT toDate(inserted_at) AS day, count() AS c
       FROM gradle_cache_events
-      WHERE created_at >= {start_ts:DateTime} AND created_at < {end_ts:DateTime}
+      WHERE inserted_at >= {start_ts:DateTime} AND inserted_at < {end_ts:DateTime}
       GROUP BY day
     )
     GROUP BY day
@@ -196,6 +322,58 @@ defmodule Atlas.TuistOverview do
     """
 
     run_event_query(sql, start_date, end_date, ch_query)
+  end
+
+  # Cache operations combine Xcode cache hits (ClickHouse `command_events`,
+  # summed per invocation) with Bazel REAPI and Gradle events (also
+  # ClickHouse). Each source is queried on its own and the daily series are
+  # summed before the widget renders. Postgres `cache_events` is deprecated
+  # (no writers), so it is intentionally not queried here.
+  defp cache_operations_measure({start_date, end_date}, {previous_start, previous_end}, _pg_query, ch_query) do
+    with {:ok, xcode_prev, _} <- xcode_cache_query(previous_start, previous_end, ch_query),
+         {:ok, xcode_curr, xcode_curr_series} <- xcode_cache_query(start_date, end_date, ch_query),
+         {:ok, ch_prev, _} <- event_query(:cache_operations, previous_start, previous_end, ch_query),
+         {:ok, ch_curr, ch_curr_series} <- event_query(:cache_operations, start_date, end_date, ch_query) do
+      combined_series = merge_series(xcode_curr_series, ch_curr_series)
+      current_total = xcode_curr + ch_curr
+      previous_total = xcode_prev + ch_prev
+
+      {:ok,
+       %{
+         total: current_total,
+         current_value: current_total,
+         previous_value: previous_total,
+         delta_pct: delta_pct(current_total, previous_total),
+         series: fill_series(combined_series, start_date, end_date)
+       }}
+    end
+  end
+
+  # `command_events_by_ran_at` is the ran_at-ordered materialized view of
+  # `command_events`; scanning it lets ClickHouse skip granules using the
+  # ran_at sort key instead of full-scanning the name-ordered base table.
+  # `remote_cache_hits_count` is a non-nullable UInt32 (default:
+  # `length(remote_cache_target_hits)`), which sums without a coalesce.
+  defp xcode_cache_query(start_date, end_date, ch_query) do
+    sql = """
+    SELECT toDate(ran_at) AS day, sum(remote_cache_hits_count) AS c
+    FROM command_events_by_ran_at
+    WHERE ran_at >= {start_ts:DateTime} AND ran_at < {end_ts:DateTime}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    run_event_query(sql, start_date, end_date, ch_query)
+  end
+
+  defp merge_series(left, right) do
+    left
+    |> Enum.concat(right)
+    |> Enum.reduce(%{}, fn {%Date{} = day, count}, acc ->
+      Map.update(acc, day, count, &(&1 + count))
+    end)
+    |> Enum.map(fn {day, count} -> {day, count} end)
+    |> Enum.sort_by(fn {day, _} -> Date.to_erl(day) end)
   end
 
   defp run_event_query(sql, start_date, end_date, ch_query) do

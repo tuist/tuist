@@ -7,13 +7,6 @@
 # General application configuration
 import Config
 
-# Configure the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
 alias Atlas.Accounts.Workers.DeliverDueAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
@@ -43,12 +36,25 @@ alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 alias Ueberauth.Strategy.Google
 
+# Configure the mailer
+#
+# By default it uses the "Local" adapter which stores the emails
+# locally. You can see the emails in your browser, at "/dev/mailbox".
+#
+# For production it's recommended to configure a different adapter
+# at the `config/runtime.exs`.
 llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
+
+# Default to reading contract templates from the on-disk placeholder stubs
+# shipped in `priv/contracts/templates/`. Prod runtime.exs flips this to `:s3`
+# once the shared object storage bucket is configured.
+config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
 
 config :atlas, Atlas.Vault,
@@ -219,6 +225,8 @@ config :guardian, Guardian.DB,
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :domain]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 # An operator grant is a live bearer that arrives as a query parameter on the
 # redirect back from ops. Phoenix logs request and LiveView event parameters,

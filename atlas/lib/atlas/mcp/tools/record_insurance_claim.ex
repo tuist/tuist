@@ -37,7 +37,7 @@ defmodule Atlas.MCP.Tools.RecordInsuranceClaim do
   end
 
   def execute(conn, %{"policy_id" => policy_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = policy <- Policies.get(policy_id) do
       asset_ids = Map.get(args, "asset_ids", [])
       attrs = args |> Map.drop(["policy_id", "asset_ids"]) |> normalize()

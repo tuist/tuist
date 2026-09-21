@@ -44,7 +44,7 @@ defmodule Atlas.MCP.Tools.MatchFinancingPayment do
   end
 
   def execute(conn, %{"financing_id" => id, "finance_transaction_id" => txn_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       decomposition = args |> Map.drop(["financing_id", "finance_transaction_id"]) |> normalize()
 

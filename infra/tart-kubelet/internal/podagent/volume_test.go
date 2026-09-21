@@ -1395,21 +1395,16 @@ func TestFinalizeVolumePromoteAccounting(t *testing.T) {
 	})
 }
 
-// The CAS's share of the image is a FOOTPRINT, and the compiler is given half of
-// it, because llcas keeps a primary and an upstream generation and a prune only
-// ever collects what falls off behind them.
-//
-// Getting this wrong is not a rounding error: handing the compiler the whole
-// share is what let a correctly pruning store want ~22 GiB inside a 20 GiB image
-// (cap 20, cas 11) and fill the account's volume every ~2 days.
 // The marker is the only channel the host has for telling the guest what the
 // compilation cache may occupy, and the guest feeds the same number to both the
-// compiler (COMPILATION_CACHE_LIMIT_SIZE) and the teardown prune. Staging the
-// footprint here instead of the generation limit is the bug that let a store
-// bounded exactly as configured still overrun the image.
-func TestWriteCASEnabledStagesThePerGenerationLimit(t *testing.T) {
+// compiler (COMPILATION_CACHE_LIMIT_SIZE) and the teardown prune. That limit
+// already covers both generations a store keeps: llcas, and the prune, rotate a
+// store once its primary passes HALF the limit. Staging half the allowance on top
+// of that held the store to a quarter of what the image sets aside for it, which
+// is what every production prune ran at (2.75 GiB of 11).
+func TestWriteCASEnabledStagesTheWholeAllowance(t *testing.T) {
 	statusDir := t.TempDir()
-	r := &Reconciler{Volumes: &VolumeManager{Root: t.TempDir(), CapGiB: 20, CASGiB: 11}}
+	r := &Reconciler{Volumes: &VolumeManager{Root: t.TempDir(), CapGiB: 30, CASGiB: 14}}
 
 	r.writeCASEnabled(statusDir)
 
@@ -1421,37 +1416,23 @@ func TestWriteCASEnabledStagesThePerGenerationLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marker %q is not a byte count: %v", raw, err)
 	}
-	_, casBytes := cacheImageSplit(20, 11)
-	if staged != casGenerationLimit(casBytes) {
-		t.Fatalf("staged %d; want %d (half the %d-byte footprint)", staged, casGenerationLimit(casBytes), casBytes)
-	}
-	// The guest is fail-safe on a non-numeric budget by falling back to a VM-local
-	// cold cache, so a marker that stops being a plain integer silently costs every
-	// job on the fleet its warm compilation cache.
-	if staged == 0 {
-		t.Fatal("a zero limit would leave the store unbounded")
+	_, casBytes := cacheImageSplit(30, 14)
+	if staged != casBytes {
+		t.Fatalf("staged %d; want the whole %d-byte allowance", staged, casBytes)
 	}
 }
 
-func TestCASGenerationLimitLeavesRoomForBothGenerations(t *testing.T) {
+// Every account gets the same limits inside the ceiling, and they exist so a job
+// has room to grow before anything prunes: a master pruned to both limits leaves
+// a 30 GiB image with 6 GiB free.
+func TestCacheImageSplitLeavesAJobRoomToGrow(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
-
-	_, casBytes := cacheImageSplit(20, 11)
-	limit := casGenerationLimit(casBytes)
-	if limit != casBytes/2 {
-		t.Fatalf("generation limit = %d; want half the %d-byte footprint", limit, casBytes)
+	binaryBytes, casBytes := cacheImageSplit(30, 14)
+	if binaryBytes != 10*gib || casBytes != 14*gib {
+		t.Fatalf("cap30 cas14 = %d,%d; want 10 GiB for the binary cache and 14 GiB for the compilation cache", binaryBytes, casBytes)
 	}
-	// The bound that matters: the store's settled footprint (primary + upstream)
-	// has to fit the share the split gave it, or the two pruners over-commit the
-	// image no matter how diligently each keeps its own budget.
-	if settled := limit * casGenerationsRetained; settled > casBytes {
-		t.Fatalf("settled footprint %d exceeds the CAS share %d", settled, casBytes)
-	}
-	// ...and the whole image still adds up, which is the invariant a per-generation
-	// limit staged as a footprint quietly broke.
-	binaryBytes, _ := cacheImageSplit(20, 11)
-	if binaryBytes+casBytes+2*gib > 20*gib {
-		t.Fatalf("binary(%d)+cas(%d)+reserve exceeds a 20 GiB cap", binaryBytes, casBytes)
+	if room := 30*gib - binaryBytes - casBytes; room != 6*gib {
+		t.Fatalf("room a job has before anything prunes = %d; want 6 GiB", room)
 	}
 }
 
@@ -1463,22 +1444,22 @@ func TestCacheImageSplit(t *testing.T) {
 		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, cas, 20*gib*80/100)
 	}
 
-	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 5%=1 GiB) = 2 GiB (the FLOOR
-	// binds); binary 10 GiB, CAS the requested 8 GiB exactly, summing to cap.
-	if b, cas := cacheImageSplit(20, 8); b != 10*gib || cas != 8*gib || b+cas+2*gib != 20*gib {
-		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,8GiB summing to cap", b, cas)
+	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 20%=4 GiB) = 4 GiB; binary
+	// 8 GiB, CAS the requested 8 GiB exactly, summing to cap.
+	if b, cas := cacheImageSplit(20, 8); b != 8*gib || cas != 8*gib || b+cas+4*gib != 20*gib {
+		t.Fatalf("cap20 cas8 = %d,%d; want 8GiB,8GiB summing to cap", b, cas)
 	}
 
-	// Large cap: the PERCENT reserve binds, not the floor (5% of 100 = 5 GiB > 2).
-	// CAS 20 of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS the requested 20.
-	if b, cas := cacheImageSplit(100, 20); b != 75*gib || cas != 20*gib {
-		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20GiB", b, cas)
+	// Large cap: the PERCENT reserve binds (20% of 100 = 20 GiB).
+	// CAS 20 of 100 → binary = 100 - 20(reserve) - 20 = 60 GiB, CAS the requested 20.
+	if b, cas := cacheImageSplit(100, 20); b != 60*gib || cas != 20*gib {
+		t.Fatalf("cap100 cas20 = %d,%d; want 60GiB,20GiB", b, cas)
 	}
 
-	// Small cap: the floor binds — reserve stays 2 GiB on a 10 GiB cap (20%), where
-	// a flat 5% would have left far too little.
-	if b, _ := cacheImageSplit(10, 4); 10*gib-(b+4*gib) != 2*gib {
-		t.Fatalf("cap10 cas4 reserve = %d GiB; want 2 (floor)", (10*gib-(b+4*gib))/gib)
+	// Small cap: the floor binds — reserve stays 2 GiB on a 5 GiB cap, where 20%
+	// would leave 1 GiB.
+	if b, _ := cacheImageSplit(5, 1); 5*gib-(b+1*gib) != 2*gib {
+		t.Fatalf("cap5 cas1 reserve = %d GiB; want 2 (floor)", (5*gib-(b+1*gib))/gib)
 	}
 
 	// Oversized CASGiB: clamped so the binary cache keeps a slice and the
@@ -1498,8 +1479,104 @@ func TestCacheImageSplit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 10*gib {
-		t.Fatalf("staged budget = %d; want 10 GiB", got)
+	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 8*gib {
+		t.Fatalf("staged budget = %d; want 8 GiB", got)
+	}
+}
+
+// The guest divides one budget between the two caches by what each holds, so the
+// host stages that budget: the image less the room a job grows into. The fixed
+// split stays staged beside it for runner images older than the division, which
+// roll out separately from tart-kubelet.
+func TestWriteCacheBudgetStagesOneBudgetForBothCaches(t *testing.T) {
+	const gib = uint64(1024 * 1024 * 1024)
+	dir := t.TempDir()
+
+	writeCacheBudget(dir, 30, 14)
+
+	read := func(name string) uint64 {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		got, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+		if err != nil {
+			t.Fatalf("%s %q is not a byte count: %v", name, raw, err)
+		}
+		return got
+	}
+	if got := read(sharedCacheBudgetFile); got != 24*gib {
+		t.Fatalf("shared budget = %d; want 24 GiB, the 30 GiB image less its 6 GiB of room", got)
+	}
+	if got := read(cacheBudgetFile); got != 10*gib {
+		t.Fatalf("fixed binary budget = %d; want 10 GiB for runner images that read it", got)
+	}
+}
+
+// With the compilation cache off, the binary cache has the budget to itself, which
+// is what the fixed split gives it too.
+func TestCacheImageBudgetIsWhatTheFixedSplitHandsOut(t *testing.T) {
+	for _, tc := range []struct{ capGiB, casGiB int }{{30, 14}, {28, 16}, {20, 0}, {5, 1}, {100, 20}} {
+		binaryBytes, casBytes := cacheImageSplit(tc.capGiB, tc.casGiB)
+		if budget := cacheImageBudget(tc.capGiB); binaryBytes+casBytes != budget {
+			t.Fatalf("cap%d cas%d: budget %d; the fixed split hands out %d", tc.capGiB, tc.casGiB, budget, binaryBytes+casBytes)
+		}
+	}
+}
+
+// The guest divides the budget by what each cache holds, so its measurements are
+// the only per-cache sizes the fleet has, and the limits beside them are what the
+// rule and its floors get retuned from. The status share is guest-writable and
+// the guest runs untrusted CI, so anything malformed is dropped rather than
+// recorded.
+func TestReadCacheLimits(t *testing.T) {
+	const gib = 1 << 30
+	dir := t.TempDir()
+	if got := readCacheLimits(dir); got != nil {
+		t.Fatalf("a job that staged no division = %v; want none", got)
+	}
+
+	lines := []string{
+		"attach\tbinary\t1610612736\t3221225472",
+		"attach\tcompilation\t13958643712\t22548578304",
+		"teardown\tbinary\t2147483648\t4294967296",
+		"teardown\tcompilation\t18253611008\t21474836480",
+		"teardown\tbinary\tnot-a-number\t4294967296",
+		"sometime\tbinary\t1\t2",
+		"teardown\tsomething\t1\t2",
+		"teardown\tbinary\t1",
+		"",
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readCacheLimits(dir)
+	want := []cacheLimitSample{
+		{when: "attach", cache: "binary", heldBytes: 1.5 * gib, limitBytes: 3 * gib},
+		{when: "attach", cache: "compilation", heldBytes: 13 * gib, limitBytes: 21 * gib},
+		{when: "teardown", cache: "binary", heldBytes: 2 * gib, limitBytes: 4 * gib},
+		{when: "teardown", cache: "compilation", heldBytes: 17 * gib, limitBytes: 20 * gib},
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("samples = %v; want %v (the malformed lines dropped)", got, want)
+	}
+}
+
+// The file is guest-written, so a job that appends without bound must not make
+// the host hold or record it.
+func TestReadCacheLimitsIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	var lines []string
+	for i := 0; i < 500; i++ {
+		lines = append(lines, "teardown\tbinary\t1024\t2048")
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(readCacheLimits(dir)); got > cacheLimitsMaxSamples {
+		t.Fatalf("read %d samples; want at most %d", got, cacheLimitsMaxSamples)
 	}
 }
 

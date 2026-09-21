@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.DetachDocumentFromInsurancePolicy do
   end
 
   def execute(conn, %{"link_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools") do
       case Policies.detach_document_from_policy(id) do
         {:ok, _} -> {:ok, %{deleted: true}}
         {:error, :not_found} -> {:error, "Attachment not found."}

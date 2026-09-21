@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.CancelInsurancePolicy do
   end
 
   def execute(conn, %{"policy_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = policy <- Policies.get(id) do
       opts =
         case Map.get(args, "ends_on") do

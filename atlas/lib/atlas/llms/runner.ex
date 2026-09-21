@@ -27,14 +27,15 @@ defmodule Atlas.LLMs.Runner do
   `[model: %ReqLLM.Model{}, api_key: ..., base_url: ..., timeout: ...]`.
   Optional keys are omitted when the config doesn't override them.
 
-  In local mode, `req_http_options: [plug: {Atlas.LLMs.LocalTransport, []}]`
-  is injected so ReqLLM routes the underlying `Req` request through
-  `LocalTransport` instead of the network. The `api_key`, `base_url`,
-  and `model` are set to sentinel values because none of them travel
-  outside the process — `LocalTransport` looks up the profile marked
-  as the default for the atlas role (`atlas_inference` for chat,
-  `atlas_embedding` for embeddings) and rewrites the model identifier
-  to that profile's name before delegating to the controller.
+  In local mode, the plug spec is injected under `llm_request_options`
+  so Condukt threads it into every ReqLLM call via `req_http_options`,
+  and Req dispatches through `LocalTransport` instead of the network.
+  The `api_key`, `base_url`, and `model` are set to sentinel values
+  because none of them travel outside the process — `LocalTransport`
+  looks up the profile marked as the default for the atlas role
+  (`atlas_inference` for chat, `atlas_embedding` for embeddings) and
+  rewrites the model identifier to that profile's name before
+  delegating to the controller.
   """
   def client_opts(%{mode: :local} = llm) do
     [
@@ -45,7 +46,10 @@ defmodule Atlas.LLMs.Runner do
       model: ReqLLM.model!(%{id: "atlas-default", provider: :openai}),
       api_key: "local",
       base_url: "http://atlas-local",
-      req_http_options: [plug: {LocalTransport, []}]
+      # Condukt only forwards `req_http_options` when it lives inside
+      # `llm_request_options`; a top-level key is silently dropped, so the
+      # plug never reaches ReqLLM and requests escape to the sentinel host.
+      llm_request_options: [req_http_options: [plug: {LocalTransport, []}]]
     ]
     |> maybe_put(:timeout, operation_timeout(llm))
     |> Keyword.put(:retry, false)

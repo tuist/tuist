@@ -53,6 +53,7 @@ defmodule Atlas.MixProject do
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.16"},
       {:mdex, "~> 0.13.0"},
+      {:lumis, "~> 0.1"},
       {:req, "~> 0.6"},
       {:server_sent_events, "~> 1.0"},
       {:ex_aws_auth, "~> 1.3"},

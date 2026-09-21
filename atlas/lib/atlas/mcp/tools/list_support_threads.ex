@@ -27,7 +27,7 @@ defmodule Atlas.MCP.Tools.ListSupportThreads do
   def description, do: "List customer support conversations, most recently active first."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Support tools") do
+    with :ok <- Tool.authorize_scope(conn, "support:read", "Support tools") do
       {threads, _meta} =
         Support.list_threads(
           status: args["status"],

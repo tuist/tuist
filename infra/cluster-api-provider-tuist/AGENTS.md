@@ -43,7 +43,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
-| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
+| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -207,7 +207,18 @@ own source address. Notes:
 - Folding the live session's source into the table makes the guard
   self-correcting: if the operator's egress address changes and the configured
   list goes stale, the public dial is dropped, the drift loop falls back to the
-  tailnet, and that push rewrites the table with the new address.
+  tailnet, and that push rewrites the table with the new address. It is not
+  durable, though: every push replaces the previous session's source, so
+  anything that must keep working when the host has lost its tailnet identity
+  belongs in the configured list.
+- A rack host's list is the fleet's plus its RackHost `spec.sshIngressAllowCIDRs`:
+  the LAN address of each subnet router its address is dialled through. A
+  router forwards with SNAT (the default on Linux, the only mode on macOS), so
+  the host sees the router, not the operator. A rented mini that drops off the
+  tailnet can still be dialled on its public address because the operator's
+  egress is in the fleet list; a rack mini has no public address, so without
+  the router in its list it is reachable only from its console. That is what
+  stranded the BER1 prototype on 2026-09-18 (see "Rack-owned hosts").
 - Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
   public path usable, since a tailnet-transported roll can't update Tailscale
   itself (`SkipTailscaleInstall`, above).
@@ -302,6 +313,26 @@ mode behind it:
   that cannot work. `status.quarantined` takes it out of the pool; it is
   controller-set and operator-cleared, so a bad box stays out until a human says
   it was fixed.
+- **It keeps its tailnet identity, and its router path does not depend on it.**
+  A rented mini joins the tailnet as an ephemeral device, which Tailscale
+  deletes 30 to 60 minutes after it was last seen, however long it had been
+  online. (Tailscale's docs say an ephemeral device present for four hours
+  "will count as a standard tagged device"; that is billing, not removal.)
+  That suits rented capacity, which is wiped on release and can be re-joined
+  over its public address. A rack mini joins as a standard device
+  (`TailscalePersistentDevice`, set by `rackFleetConfig`) and its SSH ingress
+  guard admits its subnet routers (see "SSH ingress guard"), so a box that sat
+  powered off comes back reachable both ways. On 2026-09-18 the BER1 prototype
+  had neither: after a few days unpowered with the MachineDeployment at 0, it
+  came back answering LAN ping, its device deleted from the tailnet, and `:22`
+  silently dropped for the router, leaving the console as the only way in. A
+  standard device outlives its host, so retiring a box for good (or
+  re-imaging it) means deleting its device in the Tailscale admin console.
+  An already registered ephemeral device is not converted by a re-push:
+  `tailscale up` only uses the key when it has to log in again. The
+  `tailscale-device-reaper`, once out of dry-run, still deletes a device
+  unseen for its `graceHours` (7 days), so the router entry in the guard, not
+  the standard device, is what reaches a box that was off for longer.
 - **Delete releases the claim and stops.** No reinstall, no wipe: no API can do
   either to hardware in our own rack. That makes Stage 2 of the delete path
   (dropping the node identity) matter *more* than on rented capacity, not less:
@@ -338,6 +369,13 @@ network, where a /24 would hand CI runner VMs the router admin page and every
 personal device in the house. The cost of a /32 is that the address becomes
 load-bearing in two places, the grant and `RackHost.spec.address`, so give each
 host a DHCP reservation and update both together.
+
+**Put the router's own LAN address in `rackFleet.sshIngressAllowCIDRs`** (a
+host can override it with its own). The router forwards with SNAT, so that
+address is the source every dial through this path arrives from, and the host's
+SSH ingress guard drops it otherwise. The chart refuses to render a rack host
+without one. Give the router a DHCP reservation too: a new lease is dropped by
+every guard in the rack until the value is updated.
 
 **The cluster reaches that address through an egress Service, not directly.**
 A Pod has no route to a subnet-routed address; only the Tailscale proxies do.
@@ -469,6 +507,22 @@ take it out of the pool for good while you work on it. A negative
 `--rackhost-quarantine-retry-after` disables the expiry fleet-wide, which only
 makes sense in a cluster where somebody can actually write that status.
 
+**Recover a host whose guard drops its router.** A host bootstrapped before its
+router was in its allow list, or whose router changed address, answers LAN ping
+and times out on `:22` from the router. If it is still on the tailnet, the drift
+loop's tailnet fallback delivers the new list on its own. If it is not, only
+its console can (Screen Sharing over the LAN only helps if it was enabled on
+the box; on the BER1 prototype it was not). Add the router to the anchor file
+the re-arm LaunchDaemon reloads every minute:
+
+```bash
+sudo sed -i '' 's|{ 100.64.0.0/10|{ 100.64.0.0/10, <router-lan-ip>/32|' /etc/pf.anchors/tuist.sshguard
+sudo /usr/local/bin/tuist-pf-sshguard
+```
+
+The next bootstrap or drift push rewrites the file from the RackHost, and
+`installTailscale` re-joins a host whose device was deleted.
+
 **Take a box out of the pool** without deleting its inventory record (bench
 work, an RMA) by setting `spec.unclaimable: true`. It stops the next claim; it
 does not evict the current one, the same shape as `Node.spec.unschedulable`.
@@ -523,6 +577,50 @@ kubectl rollout restart deploy/capi-controller-manager -n capi-system
 
 Nothing else reconciles the old kind, so this is log volume rather than a fleet
 fault, and no fleet changes across the restart.
+
+## Host macOS updates
+
+Host macOS updates are operator-run waves, one drained host at a time. They are
+never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
+`bootstrap.Run` and the drift loop (`installSoftwareUpdatePolicy`, part of
+`HostConfigHash`) write this into `/Library/Preferences/com.apple.SoftwareUpdate`
+on every rented and rack host:
+
+| Key | Value | Effect |
+|---|---|---|
+| `AutomaticCheckEnabled` | `true` | Catalog checks only. `softwareupdate --list` shows what the next wave installs |
+| `AutomaticDownload` | `false` | No OS update is staged in the background |
+| `AutomaticallyInstallMacOSUpdates` | `false` | No unattended OS install |
+| `SplatEnabled` | `false` | Background Security Improvements wait for a wave. Each one restarts the host |
+| `CriticalUpdateInstall` | `false` | Critical updates wait for a wave |
+| `ConfigDataInstall` | `true` | XProtect, Gatekeeper and other data files keep installing: no restart, no OS version change |
+
+`installSetupAssistantSuppression` writes `SkipSetupItems` (managed and local,
+system-wide and for the auto-login user) plus the `DidSee*`/`LastSeen*` flags, so
+the console session never opens on a Setup Assistant pane. Two panes change the
+host when clicked through: "Update Mac Automatically" turns automatic installs
+back on, and FileVault disables auto-login, which leaves Tart without a console.
+
+- These are local preferences, honoured on macOS 26. `SplatEnabled` is
+  undocumented (Apple's internal name for Background Security Improvements) and
+  can change without notice. Re-check the table on the first macOS 27 host
+  before its wave: Apple removes the `com.apple.SoftwareUpdate` MDM payload in
+  27, and managed update policy moves to the
+  `com.apple.configuration.softwareupdate.settings` declaration, which needs a
+  DDM server beside NanoMDM.
+- On an MDM-enrolled rack host ManagedClient owns `/Library/Managed Preferences`
+  and can rewrite it. The durable form there is a `com.apple.SetupAssistant.managed`
+  configuration profile, which NanoMDM can install.
+- The `LastSeen*` flags lapse after a wave; `SkipSetupItems` does not. A pane that
+  appears after a wave is missing from `setupAssistantSkipItems`: do not click
+  Continue, add its key.
+
+Check a host:
+
+```bash
+defaults read /Library/Preferences/com.apple.SoftwareUpdate
+softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
+```
 
 ## Module layout
 

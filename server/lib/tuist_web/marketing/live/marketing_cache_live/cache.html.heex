@@ -128,9 +128,10 @@
           </div>
         </div>
         <div data-part="cell">
-          <%!-- Dither globe: a slowly spinning stippled sphere rendered by
-          the DitherGlobe hook — wireframe, coastlines, and land stipple on
-          the marketing dither ramp, with pulsing purple region markers.
+          <%!-- Dotted globe: a slowly spinning sphere of small squares
+          rendered by the DitherGlobe hook — land as a dense dot field, a
+          sparse ocean grain, faint specks lifting off the land — on the
+          marketing illustration ramp, with pulsing purple region markers.
           The look is tuned entirely through the data attributes below. --%>
           <figure data-part="illustration" data-illustration="low-latency" aria-hidden="true">
             <canvas
@@ -138,16 +139,22 @@
               phx-hook="DitherGlobe"
               phx-update="ignore"
               data-size="2.05"
-              data-pitch="2"
               data-tilt-x="0.07"
               data-tilt-z="-0.26"
               data-speed="0.15"
               data-meridians="0"
               data-parallels="0"
-              data-density="85"
-              data-shade="13"
-              data-land="55"
-              data-ocean="18"
+              data-density="90"
+              data-shade="0"
+              data-land="90"
+              data-ocean="30"
+              data-limb="0"
+              data-points="50000"
+              data-dot-size="1"
+              data-emit="30"
+              data-emit-speed="40"
+              data-emit-life="4.5"
+              data-emit-opacity="40"
               data-offset-x="0"
               data-offset-y="136"
             ></canvas>

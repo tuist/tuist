@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.DeleteDataCenter do
   end
 
   def execute(conn, %{"data_center_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = dc <- Assets.get_data_center(id) do
       case Assets.delete_data_center(dc) do
         {:ok, deleted} -> {:ok, %{deleted: true, id: deleted.id}}

@@ -67,10 +67,10 @@ defmodule Atlas.MCP.Tools.SupportToolsTest do
     thread = support_thread!()
     employee = insert_user!(%{role: :employee})
 
-    assert {:error, "Support tools are only available to executives."} =
+    assert {:error, "Support tools require the support:read scope."} =
              execute_tool(ListSupportThreads, mcp_conn(employee), %{})
 
-    assert {:error, "Support tools are only available to executives."} =
+    assert {:error, "Support tools require the support:read scope."} =
              execute_tool(GetSupportThread, mcp_conn(employee), %{"thread_id" => thread.id})
   end
 

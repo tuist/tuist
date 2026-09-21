@@ -8,7 +8,6 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
   import AtlasWeb.Components.EmptyCardSection
   import AtlasWeb.CoreComponents, only: []
 
-  alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
@@ -80,8 +79,6 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
 
     case Inference.update_profile(profile, params) do
       {:ok, profile} ->
-        record_profile_audit(:"inference_profile.updated", profile)
-
         {:noreply,
          socket
          |> put_flash(:info, gettext("Profile updated."))
@@ -99,8 +96,6 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
 
     case Inference.update_profile(profile, %{"enabled" => !profile.enabled}) do
       {:ok, profile} ->
-        record_profile_audit(:"inference_profile.updated", profile)
-
         {:noreply,
          socket
          |> put_flash(
@@ -125,8 +120,6 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
          enabled? = enabled == "true",
          {:ok, profile} <- Inference.update_profile(profile, %{field => enabled?}),
          {:ok, _token} <- maybe_ensure_atlas_token(profile, role, enabled?) do
-      record_profile_audit(:"inference_profile.updated", profile)
-
       {:noreply,
        socket
        |> put_flash(:info, atlas_role_flash(role, enabled?))
@@ -155,8 +148,6 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
 
     case Inference.create_profile_token(profile, params) do
       {:ok, {token, token_value}} ->
-        record_token_audit(:"inference_token.created", profile, token)
-
         generated_token = %{
           token_name: token.name,
           value: token_value
@@ -766,33 +757,5 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
 
   defp atlas_role_flash(:embedding, false) do
     gettext("Profile is no longer used for Atlas embeddings.")
-  end
-
-  defp record_profile_audit(action, %ModelBinding{} = profile) do
-    Audit.record(action, %{
-      target_type: "inference_profile",
-      target_id: profile.id,
-      target_label: profile.name,
-      metadata: %{
-        "upstream_provider" => profile.upstream_provider,
-        "upstream_model" => profile.upstream_model,
-        "input_cost_per_million" => profile.input_cost_per_million,
-        "output_cost_per_million" => profile.output_cost_per_million,
-        "path" => "/admin/inference/profiles/#{profile.id}"
-      }
-    })
-  end
-
-  defp record_token_audit(action, %ModelBinding{} = profile, %Token{} = token) do
-    Audit.record(action, %{
-      target_type: "inference_token",
-      target_id: token.id,
-      target_label: token.name,
-      metadata: %{
-        "profile_id" => profile.id,
-        "profile_name" => profile.name,
-        "path" => "/admin/inference/profiles/#{profile.id}"
-      }
-    })
   end
 end

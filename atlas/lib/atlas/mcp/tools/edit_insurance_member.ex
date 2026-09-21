@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.EditInsuranceMember do
   end
 
   def execute(conn, %{"member_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = member <- Policies.get_member(id) do
       attrs = args |> Map.delete("member_id") |> normalize()
 
