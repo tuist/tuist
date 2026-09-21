@@ -36,8 +36,17 @@ import TuistVersionCommand
     import TuistServer
 #endif
 
+/// Thrown instead of exiting the process when Tuist runs embedded in another program.
+public struct EmbeddedExit: Error {
+    public let code: Int32
+}
+
 public struct TuistCommand: AsyncParsableCommand {
     public init() {}
+
+    /// When true, the CLI reports its exit code by throwing `EmbeddedExit` instead of
+    /// terminating the process, so a host that links Tuist decides when to exit.
+    @TaskLocal public static var isEmbedded = false
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -240,8 +249,8 @@ public struct TuistCommand: AsyncParsableCommand {
                 }
             } catch {
                 try await withLoggerForNoora(logFilePath: logFilePath) {
-                    await Noora.$current.withValue(initNoora()) {
-                        await onError(
+                    try await Noora.$current.withValue(initNoora()) {
+                        try await onError(
                             parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
                         )
                     }
@@ -265,13 +274,13 @@ public struct TuistCommand: AsyncParsableCommand {
                         )
                     }
                 } catch {
-                    await onError(error, isParsingError: false, logFilePath: logFilePath)
+                    try await onError(error, isParsingError: false, logFilePath: logFilePath)
                 }
             }
         #endif
     }
 
-    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) async {
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) async throws {
         var errorAlertMessage: TerminalText?
         var errorAlertNextSteps: [TerminalText] = [
             "If the error is actionable, address it",
@@ -282,12 +291,12 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if error.localizedDescription.contains("ArgumentParser") {
             await finishHARRecordingBeforeExit()
-            exit(withError: error)
+            try terminate(withError: error)
         }
 
         if let remoteExit = error as? RunnerShellRemoteExitError {
             await finishHARRecordingBeforeExit()
-            _exit(remoteExit.status)
+            try terminate(remoteExit.status)
         }
 
         var errorHandled = false
@@ -318,7 +327,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
             await finishHARRecordingBeforeExit()
-            exit(withError: error)
+            try terminate(withError: error)
         } else if !errorHandled, let localizedError = error as? LocalizedError {
             errorAlertMessage =
                 "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
@@ -333,7 +342,31 @@ public struct TuistCommand: AsyncParsableCommand {
             errorAlertNextSteps: errorAlertNextSteps
         )
         await finishHARRecordingBeforeExit()
-        _exit(exitCode)
+        try terminate(exitCode)
+    }
+
+    /// Ends the run with `code`: exits the process, or throws `EmbeddedExit` when embedded.
+    private static func terminate(_ code: Int32) throws -> Never {
+        if isEmbedded {
+            throw EmbeddedExit(code: code)
+        }
+        _exit(code)
+    }
+
+    /// Prints the parser's message for `error` and ends the run with its exit code, the way
+    /// `exit(withError:)` does, but without exiting the process when embedded.
+    private static func terminate(withError error: Error) throws -> Never {
+        guard isEmbedded else { exit(withError: error) }
+        let code = exitCode(for: error)
+        let message = fullMessage(for: error)
+        if !message.isEmpty {
+            if code == .success {
+                print(message)
+            } else {
+                FileHandle.standardError.write(Data((message + "\n").utf8))
+            }
+        }
+        throw EmbeddedExit(code: code.rawValue)
     }
 
     private static func finishHARRecordingBeforeExit() async {
