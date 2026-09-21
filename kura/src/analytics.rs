@@ -4,7 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use hmac::{Hmac, Mac};
@@ -16,6 +16,7 @@ use tokio::{
     time::{Instant, MissedTickBehavior, interval},
 };
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{
     config::AnalyticsConfig,
@@ -57,22 +58,34 @@ struct AnalyticsRuntime {
     pending: Arc<AtomicUsize>,
 }
 
+// event_id + observed_at_ms are minted by the producer and carried through
+// the pipeline unchanged. The server preserves them on insert so a retried
+// batch collapses on the ClickHouse side instead of double-counting. These
+// two fields are prerequisites for the durable outbox we're building next
+// (see /engineering/specs/94 discussion): without them, a redelivered batch
+// after a WAN blip would insert duplicate rows and corrupt cache-usage
+// dashboards. Additive on the wire, so a server that has not rolled yet
+// keeps working.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct XcodeAnalyticsEvent {
+    event_id: Uuid,
     account_handle: String,
     project_handle: String,
     action: String,
     size: u64,
     cas_id: String,
+    observed_at_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct GradleAnalyticsEvent {
+    event_id: Uuid,
     account_handle: String,
     project_handle: String,
     action: String,
     size: u64,
     cache_key: String,
+    observed_at_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +101,10 @@ pub struct ReapiCacheAnalyticsContext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReapiCacheAnalyticsEvent {
+    // See the same note on Xcode/Gradle: the producer mints event_id and the
+    // server preserves it on insert so a retried batch dedupes at the
+    // ClickHouse layer.
+    pub event_id: Uuid,
     pub context: Arc<ReapiCacheAnalyticsContext>,
     pub operation: &'static str,
     pub outcome: &'static str,
@@ -102,7 +119,8 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 14)?;
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 15)?;
+        event.serialize_field("event_id", &self.event_id)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
         event.serialize_field("client_kind", self.context.client_kind)?;
@@ -243,11 +261,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "download".into(),
                 size,
                 cas_id: cas_id.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -261,11 +281,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "upload".into(),
                 size,
                 cas_id: cas_id.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -279,11 +301,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "download".into(),
                 size,
                 cache_key: cache_key.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -297,11 +321,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "upload".into(),
                 size,
                 cache_key: cache_key.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -733,6 +759,16 @@ fn sign(secret: &str, body: &[u8]) -> String {
     hex::encode(mac.finalize().into_bytes())
 }
 
+// Milliseconds since the Unix epoch. Saturates at u64::MAX on the impossibly
+// distant future; returns 0 on a system clock that predates the epoch, which
+// only happens on a misconfigured test machine.
+fn observed_at_ms_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
+}
+
 fn analytics_endpoint(node_url: &str) -> String {
     let Some(url) = reqwest::Url::parse(node_url).ok() else {
         return node_url.to_owned();
@@ -892,6 +928,7 @@ mod tests {
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
@@ -968,8 +1005,10 @@ mod tests {
             .find(|request| request.path == "/webhooks/cache")
             .expect("xcode analytics request should be present");
         assert_signed(xcode, "secret-key", "cache-us-east-3.example.com:7443");
-        let xcode_body: Value =
+        let mut xcode_body: Value =
             serde_json::from_slice(&xcode.body).expect("xcode payload should decode");
+        assert_event_id_is_uuidv7(&mut xcode_body["events"][0]);
+        assert_observed_at_is_recent(&mut xcode_body["events"][0]);
         assert_eq!(
             xcode_body,
             serde_json::json!({
@@ -988,8 +1027,10 @@ mod tests {
             .find(|request| request.path == "/webhooks/gradle-cache")
             .expect("gradle analytics request should be present");
         assert_signed(gradle, "secret-key", "cache-us-east-3.example.com:7443");
-        let gradle_body: Value =
+        let mut gradle_body: Value =
             serde_json::from_slice(&gradle.body).expect("gradle payload should decode");
+        assert_event_id_is_uuidv7(&mut gradle_body["events"][0]);
+        assert_observed_at_is_recent(&mut gradle_body["events"][0]);
         assert_eq!(
             gradle_body,
             serde_json::json!({
@@ -1012,8 +1053,9 @@ mod tests {
             "secret-key",
             "cache-us-east-3.example.com:7443",
         );
-        let reapi_cache_body: Value =
+        let mut reapi_cache_body: Value =
             serde_json::from_slice(&reapi_cache.body).expect("REAPI cache payload should decode");
+        assert_event_id_is_uuidv7(&mut reapi_cache_body["events"][0]);
         assert_eq!(
             reapi_cache_body,
             serde_json::json!({
@@ -1168,6 +1210,7 @@ mod tests {
         .expect("analytics should be enabled");
 
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
@@ -1208,8 +1251,9 @@ mod tests {
             "cache-us-east-3.example.com:7443",
         );
 
-        let body: Value =
+        let mut body: Value =
             serde_json::from_slice(&reapi_cache.body).expect("cache payload should decode");
+        assert_event_id_is_uuidv7(&mut body["events"][0]);
         assert_eq!(
             body,
             serde_json::json!({
@@ -1464,6 +1508,47 @@ mod tests {
             .map(|(_, value)| value.as_str())
             .expect("cache endpoint header should be present");
         assert_eq!(cache_endpoint, endpoint);
+    }
+
+    // Assert the event's `event_id` field is a well-formed UUIDv7, then remove
+    // it from the value so the caller can compare the rest of the payload
+    // against a fixed fixture. UUIDv7 embeds a millisecond timestamp in the
+    // top 48 bits; checking the version keeps the test honest that we're not
+    // shipping v4 or a nil UUID.
+    fn assert_event_id_is_uuidv7(event: &mut Value) {
+        let object = event
+            .as_object_mut()
+            .expect("event should decode to a JSON object");
+        let raw = object
+            .remove("event_id")
+            .expect("event should carry an `event_id` field");
+        let text = raw.as_str().expect("`event_id` should be a JSON string");
+        let parsed = uuid::Uuid::parse_str(text).expect("`event_id` should parse as a UUID");
+        assert_eq!(
+            parsed.get_version_num(),
+            7,
+            "`event_id` should be a UUIDv7, got {parsed}",
+        );
+    }
+
+    // Same shape as `assert_event_id_is_uuidv7`: pull `observed_at_ms` off the
+    // event, sanity-check it's inside a plausible modern-epoch window, and
+    // remove it so a fixture comparison can proceed. The check window is
+    // deliberately wide (10^12 to 10^14) so time-skewed CI does not flake.
+    fn assert_observed_at_is_recent(event: &mut Value) {
+        let object = event
+            .as_object_mut()
+            .expect("event should decode to a JSON object");
+        let raw = object
+            .remove("observed_at_ms")
+            .expect("event should carry an `observed_at_ms` field");
+        let value = raw
+            .as_u64()
+            .expect("`observed_at_ms` should be a non-negative integer");
+        assert!(
+            (1_000_000_000_000..100_000_000_000_000).contains(&value),
+            "`observed_at_ms` outside a plausible modern-epoch range: {value}",
+        );
     }
 
     fn empty_bazel_invocation_event(index: usize) -> BazelInvocationAnalyticsEvent {
