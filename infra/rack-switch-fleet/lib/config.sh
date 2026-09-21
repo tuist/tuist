@@ -150,6 +150,41 @@ fleet_check_management_links() {
   fi
 }
 
+# Sensors are addressed on a bus rather than patched into a port, and the bus
+# has three rules that fail silently when broken: every address on a chain has
+# to be unique, address 0 is never detected, and exactly one probe, the last,
+# carries the termination. Get any of them wrong and the chain does not
+# enumerate, with nothing naming the cause. Same class of trap as i226-LM versus
+# i226-V, so it is checked the same way.
+fleet_check_sensor_chains() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    [.nodes[].name] as $names |
+    [.nodes[]? | select(.attachment != null)] as $sensors |
+    [
+      $sensors[] | select(.attachment.address == 0) |
+        "\(.name): Modbus address 0 is never detected"
+    ] + [
+      $sensors[] | select(.attachment.host as $h | $names | index($h) | not) |
+        "\(.name): attached to \(.attachment.host), which is not a node in this site"
+    ] + [
+      $sensors | group_by(.attachment.host)[] |
+      select((map(.attachment.address) | length) != (map(.attachment.address) | unique | length)) |
+        "\(.[0].attachment.host): two probes share a Modbus address"
+    ] + [
+      $sensors | group_by(.attachment.host)[] |
+      (map(select(.attachment.terminator)) | length) as $terminators |
+      select($terminators != 1) |
+        "\(.[0].attachment.host): \($terminators) terminated probes on the chain, expected exactly 1"
+    ] | .[]
+  ' "$site_file")"
+  if [ -n "$bad" ]; then
+    echo "error: sensor bus is wrong:" >&2
+    printf '%s\n' "$bad" | sed 's/^/  /' >&2
+    return 1
+  fi
+}
+
 # Every link has to point at a switch the site actually has.
 fleet_check_nodes() {
   local site_file="$1" bad
@@ -189,6 +224,7 @@ fleet_render() {
   fleet_check_nodes "$site_file" || return 1
   fleet_check_node_interfaces "$site_file" || return 1
   fleet_check_management_links "$site_file" || return 1
+  fleet_check_sensor_chains "$site_file" || return 1
   fleet_check_port_map "$site_file" "$name" "$spec" || return 1
 
   local vlan vlan_name netmask address baud

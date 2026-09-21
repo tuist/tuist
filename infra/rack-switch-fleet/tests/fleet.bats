@@ -507,3 +507,85 @@ mini_site() {
     run jq -r '."mac-mini".interfaces | length' "$FLEET_ROOT/node_models.json"
     [ "$output" = "1" ]
 }
+
+# --- sensors, which occupy no port at all ------------------------------------
+
+@test "a probe is a node with no links, and that validates" {
+    run jq -r '[.nodes[] | select(.role == "environment") | select((.links | length) != 0)] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+    run fleet_check_management_links "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run fleet_check_node_interfaces "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "the probe hardware declares no interfaces, so the absence is the fact" {
+    run jq -r '."emp-gen2".interfaces | length' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "0" ]
+    run jq -r '."emp-gen2".bus' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "rs485" ]
+}
+
+@test "Modbus address 0 is rejected, because it is never detected" {
+    site="$BATS_TEST_TMPDIR/addr0.json"
+    jq '(.nodes[] | select(.name == "ber1-env-top") | .attachment.address) = 0' "$SITE_FILE" > "$site"
+    run fleet_check_sensor_chains "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"never detected"* ]]
+}
+
+@test "two probes sharing a Modbus address are rejected" {
+    site="$BATS_TEST_TMPDIR/dupaddr.json"
+    jq '(.nodes[] | select(.name == "ber1-env-top") | .attachment.address) = 1' "$SITE_FILE" > "$site"
+    run fleet_check_sensor_chains "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"share a Modbus address"* ]]
+}
+
+@test "a chain needs exactly one terminated probe, and it is the last" {
+    site="$BATS_TEST_TMPDIR/term.json"
+    jq '(.nodes[] | select(.name == "ber1-env-exhaust") | .attachment.terminator) = false' "$SITE_FILE" > "$site"
+    run fleet_check_sensor_chains "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"expected exactly 1"* ]]
+
+    jq '(.nodes[] | select(.name == "ber1-env-top") | .attachment.terminator) = true' "$SITE_FILE" > "$site"
+    run fleet_check_sensor_chains "$site"
+    [ "$status" -ne 0 ]
+
+    run jq -r '[.nodes[] | select(.attachment.terminator == true)] | max_by(.attachment.address) | .attachment.address' "$SITE_FILE"
+    run jq -r '[.nodes[] | select(.attachment != null)] | (max_by(.attachment.address) | .attachment.terminator)' "$SITE_FILE"
+    [ "$output" = "true" ]
+}
+
+@test "a probe attached to something that is not a node is rejected" {
+    site="$BATS_TEST_TMPDIR/ghosthost.json"
+    jq '(.nodes[] | select(.name == "ber1-env-top") | .attachment.host) = "ber1-pdu-z"' "$SITE_FILE" > "$site"
+    run fleet_check_sensor_chains "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not a node in this site"* ]]
+}
+
+# --- the power appliances ----------------------------------------------------
+
+@test "the power gear is Eaton, three transfer switches and two PDUs, all planned" {
+    run jq -r '[.nodes[] | select(.hardware == "eats16n")] | length' "$SITE_FILE"
+    [ "$output" = "3" ]
+    run jq -r '[.nodes[] | select(.hardware == "evmafc20a")] | length' "$SITE_FILE"
+    [ "$output" = "2" ]
+    run jq -r '[.nodes[] | select(.role == "power") | select(.status != "planned")] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}
+
+@test "the PDU records the protocol a power driver should target" {
+    run jq -r '."evmafc20a".management_protocols[0]' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "rest" ]
+}
+
+@test "the transfer switches are managed, so they keep a management link" {
+    run fleet_check_management_links "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run jq -r '[.nodes[] | select(.hardware == "eats16n") |
+        select([.links[] | select(.purpose == "management" and .switch == "ber1-mgmt")] | length != 1)] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}

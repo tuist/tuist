@@ -234,41 +234,133 @@
       ]
     },
     {
-      "name": "ber1-ats-nmc",
+      "name": "ber1-ats-1",
       "role": "power",
-      "hardware": "appliance",
-      "status": "installed",
-      "note": "APC network management card in the ATS.",
+      "hardware": "eats16n",
+      "status": "planned",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
       "links": [
         {
           "switch": "ber1-mgmt",
           "port": null,
           "media": "copper",
-          "nic": "mgmt",
+          "nic": "netpack",
           "purpose": "management"
         }
       ]
     },
     {
-      "name": "ber1-pdu",
+      "name": "ber1-ats-2",
       "role": "power",
-      "hardware": "appliance",
+      "hardware": "eats16n",
       "status": "planned",
-      "note": "Eaton zero-U switched PDU, selected 2026-09-21.",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
       "links": [
         {
           "switch": "ber1-mgmt",
           "port": null,
           "media": "copper",
-          "nic": "mgmt",
+          "nic": "netpack",
           "purpose": "management"
         }
       ]
+    },
+    {
+      "name": "ber1-ats-3",
+      "role": "power",
+      "hardware": "eats16n",
+      "status": "planned",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-pdu-a",
+      "role": "power",
+      "hardware": "evmafc20a",
+      "status": "planned",
+      "note": "Eaton Rack PDU G4. Feeds the A side, and carries an RS485 sensor chain on its USB port.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-pdu-b",
+      "role": "power",
+      "hardware": "evmafc20a",
+      "status": "planned",
+      "note": "Eaton Rack PDU G4. Feeds the B side.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-env-inlet",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the cold aisle inlet.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 1,
+        "terminator": false
+      }
+    },
+    {
+      "name": "ber1-env-top",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the top of rack.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 2,
+        "terminator": false
+      }
+    },
+    {
+      "name": "ber1-env-exhaust",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the hot aisle exhaust.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 3,
+        "terminator": true
+      }
     }
   ],
   "placement": {
     "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it.",
     "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
-    "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band."
+    "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
+    "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
+    "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links."
   }
 }

@@ -48,5 +48,45 @@
         "note": "Its only NIC, so a mini lands on exactly one ToR."
       }
     }
+  },
+  "eats16n": {
+    "product": "Eaton EATS16N rack ATS",
+    "note": "1U, 2x C20 in, 8x C13 plus 1x C19 out, 16A/3.84kW, 8 ms transfer. Networking is built in (Netpack), so both inputs can be monitored over SNMP.",
+    "interfaces": {
+      "netpack": {
+        "media": "copper",
+        "speed": "1G",
+        "out_of_band": "native",
+        "note": "Built-in management network port. Eaton's Netpack, not an add-in card."
+      }
+    }
+  },
+  "evmafc20a": {
+    "product": "Eaton Rack PDU G4 EVMAFC20A",
+    "note": "Switched zero-U PDU. Speaks Modbus TCP, a REST API, SNMP, LDAP and HTTPS; the REST API is what a power driver should target. This is the remote-power path the Mac fleet's recovery model depends on, because a mini has no out-of-band of its own.",
+    "management_protocols": [
+      "rest",
+      "modbus-tcp",
+      "snmp",
+      "ldap",
+      "https"
+    ],
+    "interfaces": {
+      "netpack": {
+        "media": "copper",
+        "speed": "1G",
+        "out_of_band": "native"
+      },
+      "usb": {
+        "media": "usb",
+        "note": "Feeds an RS485 sensor chain through a USB converter, and powers it."
+      }
+    }
+  },
+  "emp-gen2": {
+    "product": "Eaton EMP Gen 2 environmental probe",
+    "note": "No Ethernet at all. It hangs off a PDU's USB port through a USB-to-RS485 converter and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
+    "bus": "rs485",
+    "interfaces": {}
   }
 }

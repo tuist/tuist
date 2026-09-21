@@ -55,12 +55,14 @@ it, so racking a machine is an edit to data rather than to a template. The site
 definition carries that join in two halves, and `fleet_port_map` reads them as
 one:
 
-- **`nodes`** is everything that occupies a port and has an identity: the x86
-  machines, but also the crash-cart KVMs, the ATS management card and the PDU.
-  Each has a name, a role from `node_roles`, a `hardware` key into
-  `node_models.json`, a `status`, and one `links` entry per cable giving the
-  switch, the port and the NIC it leaves from. A link whose `port` is `null` is
-  planned but not patched yet, which is most of them today.
+- **`nodes`** is everything in the rack with an identity, whether or not it
+  occupies a port: the x86 machines, the crash-cart KVMs, the transfer switches
+  and PDUs, and the environmental probes, which occupy no port at all. Each has
+  a name, a role from `node_roles`, a `hardware` key into `node_models.json`, a
+  `status`, and a `links` entry per cable giving the switch, the port and the
+  NIC it leaves from. A link whose `port` is `null` is planned but not patched
+  yet, which is most of them today, and a node with no links is a node that is
+  reached some other way.
 - **`devices[].ports`** carries only what is neither a machine nor an appliance:
   the ISL and the router uplink.
 
@@ -91,6 +93,20 @@ whoever edits the site next:
 The third matters because `ber1-mgmt` uplinks to `ber1-edge` directly and never
 through a ToR. A management link landing on a ToR would put out-of-band access
 behind the thing it exists to recover.
+
+### Things reached over a bus rather than a port
+
+An environmental probe has an identity and no port. An Eaton EMP Gen 2 has no
+Ethernet at all: it hangs off a PDU's USB socket through a USB-to-RS485
+converter and draws its power over the same link. Its hardware entry declares no
+interfaces, which the out-of-band rule below already reads correctly as "no
+management link", and it carries an `attachment` instead of a NIC: the host it
+chains off, the bus, its Modbus address, and whether it is the terminated one.
+
+That is the same class of trap as i226-LM versus i226-V, so it is checked the
+same way. Every address on a chain has to be unique, address 0 is never
+detected, and exactly one probe, the last, carries the termination. Break any of
+them and the chain silently fails to enumerate with nothing naming the cause.
 
 ### The hardware with no out-of-band path
 
@@ -149,6 +165,18 @@ keeps its ToR assignment reviewable before the hardware exists.
 
 `mise run rack:fleet ports` prints the merged map, including the links still
 waiting for a port and the ones belonging to a planned node.
+
+The power gear is Eaton throughout: three EATS16N transfer switches and two
+EVMAFC20A PDUs, one order not yet placed, so every power node is `planned`. The
+earlier APC choice was superseded when a single vendor across ATS and PDU turned
+out to be the stronger argument. Both are managed, so both keep a link to
+`ber1-mgmt`; the PDU also speaks a REST API, which is what a power driver should
+target, and that is recorded on the hardware rather than left to memory.
+
+What is deliberately not modelled yet is which outlet feeds which node. Three
+transfer switches and two PDUs mean there is a chain structure under the
+outlets, and inventing one would repeat the mistake this port map exists to fix.
+When it is recorded it should carry the same A/B property as the ToR split.
 
 ToR B also carries a spare LR optic, pre-provisioned so WAN failover is a matter
 of moving the LC jumper rather than sourcing hardware. Its port is not recorded
