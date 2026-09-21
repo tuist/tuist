@@ -268,12 +268,18 @@ cmd_backup() {
 # Answer the open question: is the exported config text, or is it opaque?
 #
 # If it is text, a change becomes `copy tftp startup-config` of a file rendered
-# from this repository, and the restore path and the change path become the same
-# code. If it is opaque, config as code here can only ever drive the CLI.
+# from this repository, the restore path and the change path become the same
+# code, and DHCP Auto Install has something to serve. If it is opaque, config as
+# code here can only ever drive the CLI.
+#
+# Every step announces itself and every failure says which one it was: this runs
+# once in a blue moon, under sudo, against one switch, and a silent exit here
+# tells the operator nothing.
 cmd_probe_tftp() {
   local name="${1:-}"
   [ -n "$name" ] || { echo "usage: rack:fleet probe-tftp <device>" >&2; return 2; }
-  local address interface local_ip filename served
+
+  local address interface local_ip filename tftp_root served
   address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
   [ -n "$address" ] || { echo "error: $name is not in $SITE" >&2; return 1; }
   interface="$(route -n get "$address" 2>/dev/null | awk '/interface:/{print $2}')"
@@ -282,51 +288,83 @@ cmd_probe_tftp() {
   [ -n "$local_ip" ] || { echo "error: no address on $interface toward $address" >&2; return 1; }
 
   filename="$name-probe.cfg"
-  served="/private/tftpboot/$filename"
+  tftp_root="${TFTP_ROOT:-/private/tftpboot}"
+  served="$tftp_root/$filename"
 
   echo "sudo is needed to serve TFTP: it is always requested on port 69"
-  sudo -v
-  sudo touch "$served"
-  sudo chmod 666 "$served"
-  sudo launchctl enable system/com.apple.tftpd 2>/dev/null || true
-  sudo launchctl bootstrap system /System/Library/LaunchDaemons/tftp.plist 2>/dev/null || true
+  if ! sudo -v; then
+    echo "error: no sudo, so nothing can listen on port 69" >&2
+    return 1
+  fi
+
+  echo "preparing $served"
+  if ! sudo mkdir -p "$tftp_root"; then
+    echo "error: could not create $tftp_root" >&2
+    return 1
+  fi
+  # tftpd only accepts an upload into a file that already exists and is
+  # writable, so the placeholder is the whole reason this needs root twice.
+  if ! sudo touch "$served" || ! sudo chmod 666 "$served"; then
+    echo "error: could not create a writable $served" >&2
+    return 1
+  fi
+
+  echo "starting tftpd"
+  sudo launchctl enable system/com.apple.tftpd >/dev/null 2>&1 || true
+  sudo launchctl bootout system/com.apple.tftpd >/dev/null 2>&1 || true
+  local bootstrap_error
+  bootstrap_error="$(sudo launchctl bootstrap system /System/Library/LaunchDaemons/tftp.plist 2>&1)" || {
+    echo "error: could not start tftpd: ${bootstrap_error:-no message}" >&2
+    sudo rm -f "$served"
+    return 1
+  }
 
   local user key status=0
   user="$(jq -r '.credentials.username' "$(site_file)")"
   key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+
+  echo "asking $name to send its startup config to $local_ip"
   (
     trap switch_close EXIT
-    switch_open "$address" "$user" "$key"
-    switch_run "copy startup-config tftp ip-address $local_ip filename $filename" 180
+    switch_open "$address" "$user" "$key" || exit 1
+    switch_run "copy startup-config tftp ip-address $local_ip filename $filename" 180 || exit 1
+    printf '%s\n' "$SWITCH_OUTPUT"
   ) || status=$?
-  sudo launchctl bootout system/com.apple.tftpd 2>/dev/null || true
+
+  sudo launchctl bootout system/com.apple.tftpd >/dev/null 2>&1 || true
 
   if (( status )); then
+    echo "error: the switch did not complete the export (exit $status)" >&2
     sudo rm -f "$served"
-    return $status
+    return "$status"
   fi
 
   local size printable ratio destination
   size="$(wc -c < "$served" | tr -d ' ')"
   if [ "$size" = "0" ]; then
-    echo "error: the switch wrote nothing, so the transfer did not complete." >&2
+    echo "error: the switch reported no failure but wrote nothing." >&2
     echo "       TFTP replies from a fresh port, so check the macOS firewall is not" >&2
-    echo "       blocking incoming UDP for tftpd." >&2
+    echo "       blocking incoming UDP for /usr/libexec/tftpd." >&2
     sudo rm -f "$served"
     return 1
   fi
+
   printable="$(LC_ALL=C tr -dc '\11\12\13\14\15\40-\176' < "$served" | wc -c | tr -d ' ')"
   ratio=$(( printable * 100 / size ))
-  destination="$FLEET_ROOT/backups/$SITE/$name-tftp-probe.bin"
-  mkdir -p "$(dirname "$destination")"
+  # Deliberately outside the repository: if the export is text it is a whole
+  # startup config, admin hash and all. `rack:fleet backup` is the way to get a
+  # copy into git, because that one redacts.
+  destination="$(mktemp -t "$name-tftp-probe")"
   cp "$served" "$destination"
   sudo rm -f "$served"
 
   echo ""
-  echo "$size bytes, ${ratio}% printable, saved to ${destination#"$FLEET_ROOT"/}"
+  echo "$size bytes, ${ratio}% printable, left at $destination"
+  echo "(outside the repo on purpose: a text export carries the admin hash)"
   if (( ratio > 95 )); then
     echo "TEXT. The config round-trips as readable text, so a change can be a whole-config"
-    echo "replace: render, 'copy tftp startup-config', reboot, re-read, diff."
+    echo "replace: render, 'copy tftp startup-config', reboot, re-read, diff. DHCP Auto"
+    echo "Install has something to serve too."
   else
     echo "OPAQUE. The exported file is not text, so the rendered state cannot be pushed whole."
     echo "Config as code here stays CLI-driven, with 'show running-config' as the diff source."
