@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Projects
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.Gates
+  alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Reported
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -209,6 +210,21 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
                Gates.evaluate(%{project | coverage_gate_max_total_drop: 1.0}, comparison).checks,
                &(&1.gate == :max_total_drop)
              )
+  end
+
+  test "a selective commit joins the trend with its reported coverage, and stays out of it with a gap", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [], branch_heads: [{"main", "head"}])
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    assert [%{git_commit_sha: "base", coverage: 71.4}, %{git_commit_sha: "head", coverage: 71.4, measured_coverage: 28.6}] =
+             History.branch_points(project, "main")
+
+    head_run(project, account, head_files(git_blob_id: "blob-changed"))
+    assert [%{git_commit_sha: "base"}] = History.branch_points(project, "main")
   end
 
   test "a selective commit with a gap is still not compared", %{project: project, account: account} do

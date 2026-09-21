@@ -163,7 +163,8 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.reverse()
   end
 
-  defp same_measured_set?(a, b), do: a.schemes == b.schemes and a.partial_schemes == b.partial_schemes
+  defp same_measured_set?(a, b),
+    do: a.schemes == b.schemes and effective_partial_schemes(a) == effective_partial_schemes(b)
 
   @doc """
   One point per chained commit of the branch, oldest first, with the
@@ -392,7 +393,7 @@ defmodule Tuist.Tests.Coverage.History do
     end
   end
 
-  defp comparable?(a, b), do: a.schemes == b.schemes and a.partial_schemes == b.partial_schemes
+  defp comparable?(a, b), do: same_measured_set?(a, b)
 
   @doc "The newest chained commit of the branch, with its totals, or nil."
   def latest(%Project{} = project, branch, opts \\ []) do
@@ -547,5 +548,19 @@ defmodule Tuist.Tests.Coverage.History do
     end
   end
 
+  # A commit whose runs skipped tests, all of them carried forward
+  # (`Tuist.Tests.Coverage.Reported`), stands in the trend with its reported
+  # coverage, what a full run would have measured, and compares as a fully
+  # measured commit does; `measured_coverage` keeps what its runs observed.
+  defp with_coverage(%{reported_kind: "reported"} = row) do
+    Map.merge(row, %{
+      coverage: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines),
+      measured_coverage: Coverage.percentage(row.covered_lines, row.executable_lines)
+    })
+  end
+
   defp with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+
+  defp effective_partial_schemes(%{reported_kind: "reported"}), do: []
+  defp effective_partial_schemes(row), do: row.partial_schemes
 end
