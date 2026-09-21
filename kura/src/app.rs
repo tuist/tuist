@@ -51,7 +51,7 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 // streams.
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
-const HTTP2_MAX_FRAME_SIZE: u32 = 256 * 1024;
+const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
 const HTTP_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);

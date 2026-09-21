@@ -9,7 +9,6 @@ use std::{
 use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
-use parking_lot::Mutex;
 use tonic::{
     Status,
     codegen::{Body as HttpBody, Service, http},
@@ -52,7 +51,7 @@ pub(super) const BUILD_EVENT_STREAM_PATH: &str =
     "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
-    reservation: std::sync::Arc<Mutex<GrpcWriteReservation>>,
+    reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
     metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
 }
 
@@ -164,7 +163,7 @@ impl GrpcWriteAdmission {
         metrics: std::sync::Arc<GrpcWriteAdmissionMetrics>,
     ) -> Result<Self, ()> {
         Ok(Self {
-            reservation: std::sync::Arc::new(Mutex::new(GrpcWriteReservation::new(
+            reservation: std::sync::Arc::new(std::sync::Mutex::new(GrpcWriteReservation::new(
                 memory,
                 decode_copy_multiplier,
             )?)),
@@ -177,7 +176,10 @@ impl GrpcWriteAdmission {
         encoded_message_bytes: u64,
         decoded_structural_bytes: u64,
     ) -> Result<(), Status> {
-        let mut reservation = self.reservation.lock();
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
         reservation
             .try_grow_decode(encoded_message_bytes, decoded_structural_bytes)
             .map_err(|_| {
@@ -192,7 +194,10 @@ impl GrpcWriteAdmission {
         &self,
         declared_or_max_bytes: u64,
     ) -> Result<FileCachePolicy, Status> {
-        let mut reservation = self.reservation.lock();
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
         reservation
             .try_configure_staging(declared_or_max_bytes)
             .map_err(|_| {
@@ -825,7 +830,12 @@ mod tests {
             .expect("the exact first wire and decoded buffers should fit");
         assert_eq!(memory.transient_reserved_bytes(), 2 * mebibyte);
         assert_eq!(
-            admission.reservation.lock().file_cache.file_cache_policy(),
+            admission
+                .reservation
+                .lock()
+                .expect("reservation lock")
+                .file_cache
+                .file_cache_policy(),
             FileCachePolicy::Foreground {
                 reservation_bytes: 2 * mebibyte,
             }
@@ -840,7 +850,12 @@ mod tests {
             .expect("a later maximum-sized message should fit before decoding");
         assert_eq!(memory.transient_reserved_bytes(), 160 * mebibyte);
         assert_eq!(
-            admission.reservation.lock().file_cache.file_cache_policy(),
+            admission
+                .reservation
+                .lock()
+                .expect("reservation lock")
+                .file_cache
+                .file_cache_policy(),
             FileCachePolicy::Bounded
         );
 

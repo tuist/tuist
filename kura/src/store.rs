@@ -12,7 +12,6 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use bytes::Bytes;
-use parking_lot::Mutex as PlMutex;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
     ReadOptions, WriteBatch, WriteBufferManager, WriteOptions,
@@ -93,7 +92,7 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
 // Reduce collisions between unrelated artifacts while keeping lock storage
 // fixed. Writes to the same artifact still share a lock through durable commit.
-const ARTIFACT_WRITE_LOCK_STRIPES: usize = 1_024;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 256;
 // Coordinates a namespace delete against everything that writes into that
 // namespace. The delete resolves its tombstone with a read-compare-write that
 // spans the namespace scan, and its scan is a snapshot: an artifact applied
@@ -252,7 +251,7 @@ pub struct Store {
     active_segment_max_versions: StdMutex<HashMap<String, u64>>,
     segment_handles: Mutex<SegmentHandleCache>,
     segment_handle_hot: ArcSwapOption<SegmentHandleFastPath>,
-    manifest_cache: PlMutex<ManifestCache>,
+    manifest_cache: StdMutex<ManifestCache>,
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
@@ -1343,7 +1342,7 @@ impl Store {
             active_segment_max_versions: StdMutex::new(HashMap::new()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             segment_handle_hot: ArcSwapOption::const_empty(),
-            manifest_cache: PlMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
+            manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
                 EXISTENCE_CACHE_TTL,
@@ -8636,7 +8635,10 @@ impl Store {
     }
 
     pub fn trim_manifest_cache_to(&self, target_bytes: usize, reason: &str) -> usize {
-        let mut cache = self.manifest_cache.lock();
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
         let evicted = cache.trim_to(target_bytes);
         self.record_manifest_cache_state(&cache);
         if evicted > 0 {
@@ -8660,7 +8662,10 @@ impl Store {
     }
 
     fn manifest_cache_get_retained(&self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
-        let mut cache = self.manifest_cache.lock();
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
         cache.get(artifact_id)
     }
 
@@ -8672,7 +8677,10 @@ impl Store {
 
     #[cfg(test)]
     fn manifest_cache_get_cloning_under_lock(&self, artifact_id: &str) -> Option<ArtifactManifest> {
-        let mut cache = self.manifest_cache.lock();
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
         let retained = cache.get(artifact_id)?;
         Some((*retained).clone())
     }
@@ -8692,7 +8700,10 @@ impl Store {
             return;
         }
 
-        let mut cache = self.manifest_cache.lock();
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
         match cache.insert_retained(manifest) {
             ManifestCacheInsertResult::Admitted { evicted } => {
                 self.io
@@ -8725,7 +8736,10 @@ impl Store {
             return;
         }
 
-        let mut cache = self.manifest_cache.lock();
+        let mut cache = self
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock poisoned");
         cache.remove_many(artifact_ids);
         self.record_manifest_cache_state(&cache);
         drop(cache);
@@ -13698,7 +13712,10 @@ mod tests {
             .expect("failed to persist second artifact");
 
         {
-            let cache = store.manifest_cache.lock();
+            let cache = store
+                .manifest_cache
+                .lock()
+                .expect("manifest cache lock poisoned");
             assert!(
                 cache.total_bytes() <= 256,
                 "manifest cache should stay within its configured byte budget"
@@ -15575,7 +15592,10 @@ mod tests {
         );
 
         // Peek rather than `manifest()`, which would repopulate what it reads.
-        let cache = store.manifest_cache.lock();
+        let cache = store
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock should not be poisoned");
         for artifact_id in &evicted {
             assert!(
                 !cache.entries.contains_key(artifact_id.as_str()),
