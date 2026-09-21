@@ -12,13 +12,17 @@
 # to build.
 #
 # Usage:
-#   mise run rack:install-node <node> [--ssh-key <pubkey>] [--port <port>]
-#   e.g. mise run rack:install-node ber1-edge
+#   mise run rack:install-node <node> [--serve-iso] [--ssh-key <pubkey>] [--port <port>]
+#   e.g. mise run rack:install-node ber1-edge --serve-iso
 #
-# Boot the target from an install stick (mise run rack:write-install-usb), then
-# at the GRUB menu press `e`, append the printed options to the `linux` line, and
-# press Ctrl-X. The install runs unattended and reboots into a machine reachable
-# by SSH key only.
+# With --serve-iso it also serves the Ubuntu installer image, so a machine with a
+# KVM needs no USB stick at all: mount the printed ISO URL as virtual media (the
+# KVM streams it to the target as a USB drive) and boot from it. Without the
+# flag, boot from a stick written by mise run rack:write-install-usb.
+#
+# Either way, at the installer's GRUB menu press `e`, append the printed options
+# to the `linux` line, and press Ctrl-X. The install then runs unattended and
+# reboots into a machine reachable by SSH key only.
 #
 # See infra/rack-nodes/AGENTS.md for what the config sets and what is left to
 # post-install convergence.
@@ -28,11 +32,13 @@ set -euo pipefail
 node=""
 ssh_key="$HOME/.ssh/id_ed25519.pub"
 port=3003
+serve_iso=0
 
 while (( $# )); do
   case "$1" in
     --ssh-key) ssh_key="${2:-}"; shift 2;;
     --port) port="${2:-}"; shift 2;;
+    --serve-iso) serve_iso=1; shift;;
     -*) echo "unknown flag: $1" >&2; exit 2;;
     *) node="$1"; shift;;
   esac
@@ -48,64 +54,25 @@ if [ -z "$node" ] || ! jq -e --arg n "$node" '.nodes[$n]' "$inventory" >/dev/nul
 fi
 
 entry="$(jq -r --arg n "$node" '.nodes[$n]' "$inventory")"
-layout="$(jq -r '.layout' <<<"$entry")"
 role="$(jq -r '.role' <<<"$entry")"
 install_user="$(jq -r '.install_user' "$inventory")"
 release="$(jq -r '.ubuntu_release' "$inventory")"
 
-if [ "$layout" = "storage" ]; then
-  echo "error: the storage layout is not implemented yet." >&2
-  echo "       Cluster nodes need /boot, a capped /, and a separate XFS /data with" >&2
-  echo "       project quotas; the self-join refuses a machine that cannot enforce" >&2
-  echo "       them, and partitioning cannot be changed afterwards. Work it out" >&2
-  echo "       against controllers/linux/linux_cloudinit.go before installing $node." >&2
-  exit 1
-fi
-
-ssh_key="${ssh_key/#\~/$HOME}"
-if [ ! -f "$ssh_key" ]; then
-  echo "error: no such public key: $ssh_key" >&2
-  exit 1
-fi
-key_material="$(tr -d '\n' < "$ssh_key")"
-
-# The account exists so the installer is happy and so there is a console login of
-# last resort; it is never used over the network, where only the key is accepted.
-password_hash="$(openssl passwd -6 "$(openssl rand -base64 24)")"
-packages="$(jq -r '.packages | map("    - " + .) | join("\n")' <<<"$entry")"
-
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-: > "$workdir/meta-data"
-: > "$workdir/vendor-data"
+# shellcheck source=/dev/null
+source "$root/infra/rack-nodes/render-autoinstall.sh"
+render_autoinstall "$node" "$workdir" "$ssh_key"
 
-cat > "$workdir/user-data" <<EOF
-#cloud-config
-autoinstall:
-  version: 1
-  locale: en_US.UTF-8
-  keyboard:
-    layout: us
-  identity:
-    hostname: $node
-    username: $install_user
-    password: "$password_hash"
-  ssh:
-    install-server: true
-    allow-pw: false
-    authorized-keys:
-      - "$key_material"
-  storage:
-    layout:
-      name: direct
-  packages:
-$packages
-  updates: security
-  shutdown: reboot
-  late-commands:
-    - curtin in-target --target=/target -- systemctl enable ssh
-EOF
+iso_name=""
+if (( serve_iso )); then
+  # shellcheck source=/dev/null
+  source "$root/infra/rack-nodes/ubuntu-iso.sh"
+  iso_path="$(ensure_ubuntu_iso "$release")"
+  iso_name="$(basename "$iso_path")"
+  ln -s "$iso_path" "$workdir/$iso_name"
+fi
 
 interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
 address="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
@@ -117,6 +84,18 @@ fi
 cat <<EOF
 
 $node ($role), Ubuntu $release, unattended install
+EOF
+
+if (( serve_iso )); then
+  cat <<EOF
+
+In the KVM's Virtual Media, mount this URL and boot the node from it:
+
+    http://$address:$port/$iso_name
+EOF
+fi
+
+cat <<EOF
 
 At the installer's GRUB menu press 'e', append this to the line starting 'linux',
 then press Ctrl-X:

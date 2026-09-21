@@ -12,8 +12,13 @@
 # a node's definition changes.
 #
 # Usage:
-#   mise run rack:write-install-usb <disk>
-#   e.g. mise run rack:write-install-usb /dev/disk4
+#   mise run rack:write-install-usb <disk> [--node <node>] [--ssh-key <pubkey>]
+#   e.g. mise run rack:write-install-usb /dev/disk4 --node ber1-edge
+#
+# With --node the node's autoinstall config is baked into the image, so the
+# machine installs itself with no keystrokes: no GRUB editing and nothing served
+# over the network at boot. Without it you get a plain installer stick and the
+# config has to come from mise run rack:install-node.
 #
 # Run it with no disk to list the external disks attached. Writing is
 # destructive and asks for confirmation, then for sudo.
@@ -22,10 +27,18 @@ set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
 release="$(jq -r '.ubuntu_release' "$root/infra/rack-nodes/nodes.json")"
-cache="${XDG_CACHE_HOME:-$HOME/Library/Caches}/tuist-rack"
-base="https://releases.ubuntu.com/$release"
+disk=""
+node=""
+ssh_key="$HOME/.ssh/id_ed25519.pub"
 
-disk="${1:-}"
+while (( $# )); do
+  case "$1" in
+    --node) node="${2:-}"; shift 2;;
+    --ssh-key) ssh_key="${2:-}"; shift 2;;
+    -*) echo "unknown flag: $1" >&2; exit 2;;
+    *) disk="$1"; shift;;
+  esac
+done
 
 if [ -z "$disk" ]; then
   echo "usage: mise run rack:write-install-usb <disk>" >&2
@@ -45,33 +58,25 @@ if ! diskutil info "$disk" | grep -q "Removable Media:.*Removable"; then
   exit 1
 fi
 
-mkdir -p "$cache"
-sums="$cache/SHA256SUMS-$release"
-curl -fsSL "$base/SHA256SUMS" -o "$sums"
+# shellcheck source=/dev/null
+source "$root/infra/rack-nodes/ubuntu-iso.sh"
+iso="$(ensure_ubuntu_iso "$release")"
+echo "$(basename "$iso") verified against Ubuntu's SHA256SUMS"
 
-iso_name="$(awk '/live-server-amd64\.iso$/{print $2}' "$sums" | tr -d '*' | head -1)"
-if [ -z "$iso_name" ]; then
-  echo "error: no live-server-amd64 ISO listed for Ubuntu $release" >&2
-  exit 1
+image="$iso"
+if [ -n "$node" ]; then
+  if ! jq -e --arg n "$node" '.nodes[$n]' "$root/infra/rack-nodes/nodes.json" >/dev/null; then
+    echo "error: unknown node '$node'" >&2
+    echo "known nodes: $(jq -r '.nodes | keys | join(", ")' "$root/infra/rack-nodes/nodes.json")" >&2
+    exit 2
+  fi
+  # shellcheck source=/dev/null
+  source "$root/infra/rack-nodes/build-autoinstall-iso.sh"
+  image="${iso%.iso}-$node.iso"
+  rm -f "$image"
+  build_autoinstall_iso "$node" "$iso" "$image" "$ssh_key"
+  echo "$(basename "$image") built: installs $node unattended"
 fi
-iso="$cache/$iso_name"
-
-if [ ! -f "$iso" ]; then
-  echo "downloading $iso_name"
-  curl -fL --progress-bar "$base/$iso_name" -o "$iso.partial"
-  mv "$iso.partial" "$iso"
-fi
-
-expected="$(awk -v n="$iso_name" '$2 == "*"n || $2 == n {print $1}' "$sums" | head -1)"
-actual="$(shasum -a 256 "$iso" | awk '{print $1}')"
-if [ "$expected" != "$actual" ]; then
-  echo "error: checksum mismatch for $iso_name" >&2
-  echo "  expected $expected" >&2
-  echo "  actual   $actual" >&2
-  echo "  delete the cached file and retry" >&2
-  exit 1
-fi
-echo "$iso_name verified against Ubuntu's SHA256SUMS"
 
 echo
 diskutil info "$disk" | grep -E "Device Node|Volume Name|Disk Size|Device / Media Name" || true
@@ -86,10 +91,16 @@ fi
 diskutil unmountDisk "$disk"
 raw="${disk/\/dev\/disk//dev/rdisk}"
 echo "writing (a few minutes; Ctrl-T shows progress)"
-sudo dd if="$iso" of="$raw" bs=4m
+sudo dd if="$image" of="$raw" bs=4m
 sync
 diskutil eject "$disk"
 
 echo
-echo "done. Boot the node from this stick, then run:"
-echo "    mise run rack:install-node <node>"
+echo
+if [ -n "$node" ]; then
+  echo "done. Boot $node from this stick and leave it alone; it installs itself"
+  echo "and reboots into a machine reachable by SSH key."
+else
+  echo "done. Boot the node from this stick, then run:"
+  echo "    mise run rack:install-node <node>"
+fi
