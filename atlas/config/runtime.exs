@@ -531,36 +531,6 @@ case System.get_env("MCP_PROXY_SERVERS") do
     end
 end
 
-slack_agent_channel_policies =
-  case System.get_env("ATLAS_SLACK_AGENT_CHANNEL_POLICIES") do
-    value when value in [nil, ""] ->
-      []
-
-    value ->
-      case JSON.decode(value) do
-        {:ok, policies} when is_list(policies) ->
-          policies
-
-        _ ->
-          raise "environment variable ATLAS_SLACK_AGENT_CHANNEL_POLICIES must be a JSON array"
-      end
-  end
-
-slack_agent_identities =
-  case System.get_env("ATLAS_SLACK_AGENT_IDENTITIES") do
-    value when value in [nil, ""] ->
-      []
-
-    value ->
-      case JSON.decode(value) do
-        {:ok, identities} when is_list(identities) ->
-          identities
-
-        _ ->
-          raise "environment variable ATLAS_SLACK_AGENT_IDENTITIES must be a JSON array"
-      end
-  end
-
 # Fallback Slack channel for engineering-errors alerts posted by
 # `Atlas.Engineering.Errors.IssueCoalescer` and `Atlas.Engineering.Errors.DropAlerter`.
 # Used when a project has no explicit `slack_alert_channel` set. Defaults to
@@ -581,10 +551,7 @@ config :atlas, :slack,
   bot_token: System.get_env("SLACK_COMPANY_BOT_TOKEN"),
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
-config :atlas, :slack_agent,
-  mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev",
-  identities: slack_agent_identities,
-  channel_policies: slack_agent_channel_policies
+config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is

@@ -4,15 +4,10 @@ defmodule Atlas.Slack.ConversationAgentTest do
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
-  alias Atlas.Agents.Identity
-  alias Atlas.Authorization.Roles
-  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
-  alias Atlas.Documents.DocumentPage
   alias Atlas.GTM
   alias Atlas.GTM.SocialPostRevision
   alias Atlas.Repo
-  alias Atlas.Slack.AgentIdentities
   alias Atlas.Slack.Channel
   alias Atlas.Slack.ConversationAgent
   alias Atlas.Slack.User, as: SlackUser
@@ -249,7 +244,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
 
     options =
       :company
-      |> ConversationAgent.slack_session_options(channel, Identity.default(), mcp_user_email: mcp_user_email)
+      |> ConversationAgent.slack_session_options(channel, mcp_user_email: mcp_user_email)
 
     refute Enum.any?(Keyword.fetch!(options, :tools), &(Tool.name(&1) == "list_accounts"))
 
@@ -260,378 +255,23 @@ defmodule Atlas.Slack.ConversationAgentTest do
     assert Enum.any?(systems_tools, &(Tool.name(&1) == "list_accounts"))
   end
 
-  test "adds configured channel persona and direct tool access by Slack app and channel id" do
-    mcp_user_email = "slack-agent-identity@example.com"
-
-    identity = %Identity{
-      persona: :leadership,
-      tool_groups: ["finance", "documents"],
-      tool_groups_by_agent: %{"conversation" => ["finance", "documents"], "systems_investigator" => []}
-    }
-
-    model = ReqLLM.model!(%{provider: :openai, id: "Balanced"})
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Identity Agent", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_POLICY", channel_name: "fixture-channel"}
-
-    options =
-      :company
-      |> ConversationAgent.slack_session_options(channel, identity,
-        mcp_user_email: mcp_user_email,
-        model: model,
-        api_key: "llm-api-key",
-        base_url: "https://hive.tuist.dev/inference/v1",
-        timeout: 330_000
-      )
-
-    conversation_tools = Keyword.fetch!(options, :tools)
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "get_finance_overview"))
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "list_documents"))
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "create_stripe_draft_invoice"))
-
-    subagents = Keyword.fetch!(options, :subagents)
-    account_investigator = Keyword.fetch!(subagents, :account_investigator)
-    assert Keyword.fetch!(account_investigator, :model) == model
-    assert Keyword.fetch!(account_investigator, :api_key) == "llm-api-key"
-    assert Keyword.fetch!(account_investigator, :base_url) == "https://hive.tuist.dev/inference/v1"
-    assert Keyword.fetch!(account_investigator, :timeout) == 330_000
-
-    systems_investigator = Keyword.fetch!(subagents, :systems_investigator)
-    assert Keyword.fetch!(systems_investigator, :model) == model
-    assert Keyword.fetch!(systems_investigator, :api_key) == "llm-api-key"
-    assert Keyword.fetch!(systems_investigator, :base_url) == "https://hive.tuist.dev/inference/v1"
-    assert Keyword.fetch!(systems_investigator, :timeout) == 330_000
-
-    systems_tools = Keyword.fetch!(systems_investigator, :tools)
-    assert Enum.any?(systems_tools, &(Tool.name(&1) == "list_accounts"))
-    refute Enum.any?(systems_tools, &(Tool.name(&1) == "get_finance_overview"))
-
-    prompt =
-      ConversationAgent.build_prompt(
-        %{"channel" => "C_POLICY", "user" => "U123", "ts" => "1710000000.100000", "text" => "How are we doing?"},
-        channel,
-        nil,
-        [],
-        identity
-      )
-
-    assert prompt =~ "Act as a leadership operator"
-    assert prompt =~ "finance data"
-    assert prompt =~ "finance tools are available directly to the Slack agent"
-    assert prompt =~ "document tools are available directly to the Slack agent"
-    refute prompt =~ "#fixture-channel"
-    refute prompt =~ "Channel: fixture-channel"
-  end
-
-  test "searches documents from Slack when the channel has document access" do
-    mcp_user_email = "slack-agent-document-search@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Document Search Agent", role: :executive})
-
-    account = insert_account!(%{account_key: "account:leadership-doc", name: "Leadership Doc", segment: :customer})
-    document = insert_document!(account, %{title: "Leadership Board Consent"})
-
-    page =
-      %DocumentPage{}
-      |> DocumentPage.changeset(%{
-        document_id: document.id,
-        page_number: 1,
-        content: "Signed board consent appointing a managing director."
-      })
-      |> Repo.insert!()
-
-    identity = %Identity{
-      persona: :leadership,
-      tool_groups: ["documents"],
-      tool_groups_by_agent: %{"conversation" => ["documents"], "systems_investigator" => []}
-    }
-
-    channel = %Channel{slack_app: :company, channel_id: "C_LEADERSHIP", channel_name: "leadership"}
-
-    search_atlas =
-      :company
-      |> ConversationAgent.slack_session_options(channel, identity, mcp_user_email: mcp_user_email)
-      |> Keyword.fetch!(:tools)
-      |> Enum.find(&(Tool.name(&1) == "search_atlas"))
-
-    assert {:ok, text} =
-             Tool.execute(
-               search_atlas,
-               %{"query" => "board consent", "domains" => ["documents"], "page_size" => 5},
-               %{assigns: %{}}
-             )
-
-    assert %{
-             "results" => [
-               %{
-                 "source_type" => "document_page",
-                 "source_id" => source_id,
-                 "document_id" => document_id,
-                 "page_number" => 1
-               }
-             ],
-             "domains" => ["documents"]
-           } = JSON.decode!(text)
-
-    assert source_id == page.id
-    assert document_id == document.id
-  end
-
-  test "adds finance tools for channels granted finance by configured identity" do
-    mcp_user_email = "slack-agent-configured-identity@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Configured Identity Agent", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_CONFIGURED", channel_name: "private-channel"}
-
-    identity =
-      AgentIdentities.for_channel(:company, channel, [
-        %{
-          slack_app: :company,
-          channel_id: "C_CONFIGURED",
-          persona: :leadership,
-          tool_groups_by_agent: %{
-            conversation: ["finance", "documents"],
-            systems_investigator: []
-          }
-        }
-      ])
-
-    options =
-      ConversationAgent.slack_session_options(:company, channel, identity, mcp_user_email: mcp_user_email)
-
-    conversation_tools = Keyword.fetch!(options, :tools)
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "create_stripe_draft_invoice"))
-
-    prompt =
-      ConversationAgent.build_prompt(
-        %{"channel" => "C_CONFIGURED", "user" => "U123", "ts" => "1710000000.100000", "text" => "invoice acme"},
-        channel,
-        nil,
-        [],
-        identity
-      )
-
-    assert prompt =~ "Act as a leadership operator"
-    assert prompt =~ "finance tools are available directly to the Slack agent"
-  end
-
-  test "applies persisted identity requester rules and prompt context" do
-    mcp_user_email = "slack-agent-leadership@example.com"
-    employee_email = "leadership-employee@example.com"
-    executive_email = "leadership-executive@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Leadership Agent", role: :executive})
-    insert_atlas_user!(%{email: employee_email, name: "Employee Requester"})
-    insert_atlas_user!(%{email: executive_email, name: "Executive Requester", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_LEADERSHIP", channel_name: "leadership"}
-
-    %Identity{}
-    |> Identity.changeset(%{
-      key: "leadership",
-      display_name: "Atlas Leadership",
-      bindings: %{slack: %{app: :company, channel_ids: ["C_LEADERSHIP"]}},
-      persona: :leadership,
-      tool_groups_by_agent: %{
-        conversation: ["finance", "documents"],
-        systems_investigator: []
-      },
-      service_user_email: mcp_user_email,
-      memory_scope: :disabled,
-      requester_rules: %{"finance" => "executive"}
-    })
-    |> Repo.insert!()
-
-    identity = ConversationAgent.agent_identity(:company, channel)
-    employee = %SlackUser{slack_app: :company, slack_user_id: "U_EMPLOYEE", email: employee_email}
-
-    employee_options =
-      ConversationAgent.slack_session_options(:company, channel, identity, requester_slack_user: employee)
-
-    employee_tool_names =
-      employee_options
-      |> Keyword.fetch!(:tools)
-      |> Enum.map(&Tool.name/1)
-
-    assert "list_documents" in employee_tool_names
-    refute "create_stripe_draft_invoice" in employee_tool_names
-    refute "memory_save" in employee_tool_names
-
-    assert Keyword.fetch!(employee_options, :assigns).agent_identity_key == "leadership"
-
-    executive = %SlackUser{slack_app: :company, slack_user_id: "U_EXECUTIVE", email: executive_email}
-
-    executive_tool_names =
-      :company
-      |> ConversationAgent.slack_session_options(channel, identity, requester_slack_user: executive)
-      |> Keyword.fetch!(:tools)
-      |> Enum.map(&Tool.name/1)
-
-    assert "create_stripe_draft_invoice" in executive_tool_names
-
-    prompt =
-      ConversationAgent.build_prompt(
-        %{"channel" => "C_LEADERSHIP", "user" => "U123", "ts" => "1710000000.100000", "text" => "invoice acme"},
-        channel,
-        nil,
-        [],
-        identity
-      )
-
-    assert prompt =~ "Atlas identity: Atlas Leadership (leadership)."
-    assert prompt =~ "Act as a leadership operator"
-  end
-
-  test "adds finance tools for executive requesters in other internal channels" do
-    mcp_user_email = "slack-agent-executive-requester@example.com"
-    executive_email = "executive-requester@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Slack Agent"})
-    insert_atlas_user!(%{email: executive_email, name: "Executive Requester", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_SALES", channel_name: "sales"}
-    requester = %SlackUser{slack_app: :company, slack_user_id: "U_EXEC", email: executive_email}
-
-    options =
-      ConversationAgent.slack_session_options(:company, channel, Identity.default(),
-        mcp_user_email: mcp_user_email,
-        requester_slack_user: requester
-      )
-
-    assert Enum.any?(Keyword.fetch!(options, :tools), &(Tool.name(&1) == "create_stripe_draft_invoice"))
-  end
-
-  test "hides finance tools from non-executive requesters in ordinary channels" do
-    mcp_user_email = "slack-agent-employee-requester@example.com"
-    employee_email = "employee-requester@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Slack Agent", role: :executive})
-    insert_atlas_user!(%{email: employee_email, name: "Employee Requester"})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_SALES", channel_name: "sales"}
-    requester = %SlackUser{slack_app: :company, slack_user_id: "U_EMPLOYEE", email: employee_email}
-
-    options =
-      ConversationAgent.slack_session_options(:company, channel, Identity.default(),
-        mcp_user_email: mcp_user_email,
-        requester_slack_user: requester
-      )
-
-    refute Enum.any?(Keyword.fetch!(options, :tools), &(Tool.name(&1) == "create_stripe_draft_invoice"))
-  end
-
-  test "keeps explicitly mapped MCP tool groups available to configured subagents" do
-    mcp_user_email = "slack-agent-mapped@example.com"
-    executive_email = "mapped-executive@example.com"
-
-    identity = %Identity{
-      tool_groups: ["finance", "observability"],
-      tool_groups_by_agent: %{"conversation" => [], "systems_investigator" => ["finance", "observability"]}
-    }
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Mapped Agent"})
-    insert_atlas_user!(%{email: executive_email, name: "Mapped Executive", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_MAPPED", channel_name: "mapped-channel"}
-    requester = %SlackUser{slack_app: :company, slack_user_id: "U_MAPPED_EXEC", email: executive_email}
-
-    options =
-      ConversationAgent.slack_session_options(:company, channel, identity,
-        mcp_user_email: mcp_user_email,
-        requester_slack_user: requester
-      )
-
-    assert Enum.any?(Keyword.fetch!(options, :tools), &(Tool.name(&1) == "get_finance_overview"))
-
-    systems_investigator =
-      options
-      |> Keyword.fetch!(:subagents)
-      |> Keyword.fetch!(:systems_investigator)
-
-    systems_tools = Keyword.fetch!(systems_investigator, :tools)
-    assert Enum.any?(systems_tools, &(Tool.name(&1) == "get_finance_overview"))
-  end
-
-  test "uses configured leadership identity for the company leadership channel" do
-    mcp_user_email = "slack-agent-leadership-configured@example.com"
-    executive_email = "leadership-configured-executive@example.com"
-
-    insert_atlas_user!(%{email: mcp_user_email, name: "Leadership Agent"})
-    executive = insert_atlas_user!(%{email: executive_email, name: "Leadership Executive", role: :executive})
-
-    channel = %Channel{slack_app: :company, channel_id: "C_LEADERSHIP", channel_name: "leadership"}
-
-    identity =
-      AgentIdentities.for_channel(:company, channel, [
-        %{
-          workspace: "company",
-          channel_id: "C_LEADERSHIP",
-          key: "leadership",
-          display_name: "Leadership",
-          persona: "leadership",
-          memory_scope: "channel",
-          requester_rules: %{"finance" => "executive"},
-          tool_groups_by_agent: %{
-            conversation: ["finance", "documents"],
-            systems_investigator: []
-          }
-        }
-      ])
-
-    assert identity.key == "leadership"
-    assert identity.persona == :leadership
-    assert identity.memory_scope == :channel
-
-    options =
-      ConversationAgent.slack_session_options(:company, channel, identity,
-        mcp_user_email: mcp_user_email,
-        requester_atlas_user: executive
-      )
-
-    conversation_tools = Keyword.fetch!(options, :tools)
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "list_documents"))
-    assert Enum.any?(conversation_tools, &(Tool.name(&1) == "create_stripe_draft_invoice"))
-
-    prompt =
-      ConversationAgent.build_prompt(
-        %{"channel" => "C_LEADERSHIP", "user" => "U123", "ts" => "1710000000.100000", "text" => "runway?"},
-        channel,
-        nil,
-        [],
-        identity
-      )
-
-    assert prompt =~ "Act as a leadership operator"
-  end
-
-  test "does not infer an identity for company engineering channels" do
-    mcp_user_email = "slack-agent-engineering-default@example.com"
+  test "does not expose finance or document tools directly on the Slack conversation agent" do
+    mcp_user_email = "slack-agent-no-finance@example.com"
 
     %User{}
-    |> User.changeset(%{email: mcp_user_email, name: "Engineering Agent"})
+    |> User.changeset(%{email: mcp_user_email, name: "Slack Agent"})
     |> Repo.insert!()
 
-    channel = %Channel{slack_app: :company, channel_id: "C_ENGINEERING", channel_name: "engineering"}
-    identity = ConversationAgent.agent_identity(:company, channel)
-
-    assert identity.key == "default"
+    channel = %Channel{slack_app: :company, channel_id: "C_INTERNAL", channel_name: "eng"}
 
     options =
-      ConversationAgent.slack_session_options(:company, channel, identity, mcp_user_email: mcp_user_email)
+      ConversationAgent.slack_session_options(:company, channel, mcp_user_email: mcp_user_email)
 
-    refute Enum.any?(Keyword.fetch!(options, :tools), &(Tool.name(&1) == "list_accounts"))
+    tool_names = options |> Keyword.fetch!(:tools) |> Enum.map(&Tool.name/1)
 
-    systems_investigator =
-      options
-      |> Keyword.fetch!(:subagents)
-      |> Keyword.fetch!(:systems_investigator)
-
-    systems_tools = Keyword.fetch!(systems_investigator, :tools)
-    assert Enum.any?(systems_tools, &(Tool.name(&1) == "list_accounts"))
-
-    refute Identity.persona_instructions(identity)
+    refute "get_finance_overview" in tool_names
+    refute "create_stripe_draft_invoice" in tool_names
+    refute "list_documents" in tool_names
   end
 
   test "does not register the systems sub-agent in Slack Connect account channels" do
@@ -849,7 +489,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
 
     list_accounts =
       :company
-      |> ConversationAgent.slack_session_options(channel, Identity.default(), mcp_user_email: mcp_user_email)
+      |> ConversationAgent.slack_session_options(channel, mcp_user_email: mcp_user_email)
       |> Keyword.fetch!(:subagents)
       |> Keyword.fetch!(:systems_investigator)
       |> Keyword.fetch!(:tools)
@@ -915,24 +555,5 @@ defmodule Atlas.Slack.ConversationAgentTest do
     }
     |> ServiceLevel.changeset(attrs)
     |> Repo.insert!()
-  end
-
-  defp insert_atlas_user!(attrs) do
-    {role, attrs} = Map.pop(attrs, :role)
-
-    user =
-      %User{}
-      |> User.changeset(attrs)
-      |> Repo.insert!()
-
-    if role == :executive do
-      executive_role = Roles.ensure_executive_role!()
-
-      %UserRole{}
-      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
-      |> Repo.insert!()
-    end
-
-    user
   end
 end
