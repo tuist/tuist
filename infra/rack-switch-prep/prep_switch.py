@@ -21,8 +21,11 @@ import os
 import pathlib
 import re
 import select
+import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 import termios
 import time
 
@@ -91,7 +94,8 @@ class Console:
             print(text, end="", file=sys.stderr, flush=True)
         return text
 
-    def send(self, line: str, idle: float = 1.0, secret: bool = False, until_prompt: bool = True) -> str:
+    def send(self, line: str, idle: float = 1.0, secret: bool = False, until_prompt: bool = True,
+             limit: float = 45.0) -> str:
         if self.echo:
             print(f"\n>>> {'*' * 8 if secret else line}", file=sys.stderr, flush=True)
         for char in line:
@@ -99,7 +103,7 @@ class Console:
             time.sleep(0.02)
         time.sleep(0.3)
         os.write(self.fd, b"\r")
-        return self.read(idle=idle, until_prompt=until_prompt)
+        return self.read(idle=idle, limit=limit, until_prompt=until_prompt)
 
     def close(self) -> None:
         os.close(self.fd)
@@ -208,6 +212,64 @@ def configure(console: Console, switch: dict, dry_run: bool) -> list[str]:
     return commands
 
 
+def local_address_for(peer: str) -> str:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect((peer, 69))
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
+def as_rfc4716(key_path: pathlib.Path, workdir: pathlib.Path) -> pathlib.Path:
+    """These switches only accept RSA/DSA keys in RFC4716 form, under a short name."""
+    text = key_path.read_text()
+    target = workdir / "fleet.pub"
+    if text.startswith("---- BEGIN SSH2"):
+        target.write_text(text)
+        return target
+    converted = subprocess.run(["ssh-keygen", "-e", "-f", str(key_path)], capture_output=True, text=True)
+    if converted.returncode != 0:
+        raise ConsoleError(f"could not convert {key_path} to RFC4716: {converted.stderr.strip()}")
+    if "ssh-ed25519" in text:
+        raise ConsoleError("this firmware accepts RSA/DSA keys only; ed25519 will be rejected")
+    target.write_text(converted.stdout)
+    return target
+
+
+def import_key(console: Console, switch: dict, key_path: pathlib.Path) -> None:
+    """Have the switch pull its authorized key over TFTP from this machine.
+
+    The alternative is a file upload in the web UI, which cannot be scripted and
+    would leave one hand step per switch.
+    """
+    workdir = pathlib.Path(tempfile.mkdtemp(prefix="rack-switch-key-"))
+    served = as_rfc4716(key_path, workdir)
+    workdir.chmod(0o755)
+    served.chmod(0o644)
+    address = local_address_for(switch["mgmt_ip"])
+
+    server = subprocess.Popen(
+        ["sudo", sys.executable, str(pathlib.Path(__file__).with_name("tftp_serve.py")), str(served)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        ready = server.stdout.readline()
+        if "tftp ready" not in ready:
+            raise ConsoleError(f"TFTP server did not start: {ready.strip() or 'no output'}")
+        print(f"serving {served.name} from {address}; the switch may take a few minutes")
+        console.send("configure")
+        output = console.send(
+            f"ip ssh download v2 {served.name} ip-address {address}", idle=10.0, limit=420.0
+        )
+        console.send("end")
+        if "Error" in output or "fail" in output.lower():
+            raise ConsoleError(f"key download failed:\n{output}")
+    finally:
+        server.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def verify(console: Console, switch: dict) -> dict:
     info = console.send("show system-info", idle=4.0)
     address = console.send("show interface vlan 1", idle=3.0)
@@ -240,6 +302,8 @@ def main() -> int:
     parser.add_argument("--vault", default=inventory["vault"], help="1Password vault holding the admin logins")
     parser.add_argument("--account", default=os.environ.get("OP_ACCOUNT"), help="1Password account")
     parser.add_argument("--create-credentials", action="store_true", help="generate the admin login if absent")
+    parser.add_argument("--import-key", type=pathlib.Path, metavar="PATH",
+                        help="have the switch fetch this SSH public key over TFTP (needs sudo for port 69)")
     parser.add_argument("--dry-run", action="store_true", help="print the commands without touching the switch")
     parser.add_argument("--verbose", action="store_true", help="echo the console session to stderr")
     args = parser.parse_args()
@@ -263,14 +327,18 @@ def main() -> int:
     try:
         login(console, username, password)
         configure(console, switch, dry_run=False)
+        if args.import_key:
+            import_key(console, switch, args.import_key.expanduser())
         found = verify(console, switch)
     finally:
         console.close()
 
     print(f"{found['name']} ready: {found['hardware']}, firmware {found['firmware']}")
     print(f"  serial {found['serial']}, mac {found['mac']}, management {found['ip']}")
-    print("  SSH is enabled; import the fleet public key in the web UI to drop password auth:")
-    print(f"    https://{found['ip']} -> Security -> Access Security -> SSH Config -> Import Key File")
+    if args.import_key:
+        print(f"  fleet key imported; connect with ssh -i {args.import_key.with_suffix('')} tuist@{found['ip']}")
+    else:
+        print("  SSH is enabled, password-only. Pass --import-key to install the fleet key.")
     return 0
 
 

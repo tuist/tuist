@@ -10,12 +10,15 @@
 # Connect a USB-C cable from this machine to the switch's console port first.
 #
 # Usage:
-#   mise run rack:prep-switch <switch> [--verbose] [--dry-run] [--create-credentials]
+#   mise run rack:prep-switch <switch> [--import-key <pubkey>] [--verbose] [--dry-run]
 #   e.g. mise run rack:prep-switch ber1-tor-a
+#        mise run rack:prep-switch ber1-tor-a --import-key ~/.ssh/ber1-switch-rsa.pub
 #
 # The admin login comes from the 1Password item named in switches.json (account
 # override: OP_ACCOUNT). Pass --create-credentials on a switch's first run to
-# generate it. See infra/rack-switch-prep/AGENTS.md for what the script does not
+# generate it. --import-key installs the fleet SSH key so the switch can be
+# driven without a password afterwards; it asks for sudo, because the switch
+# fetches the key over TFTP and TFTP is always port 69. See infra/rack-switch-prep/AGENTS.md for what the script does not
 # do, and for the console baud rate and firmware-line traps.
 
 set -euo pipefail

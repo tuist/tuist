@@ -24,6 +24,7 @@ the colo when a switch is unreachable.
 mise run rack:prep-switch ber1-tor-a
 mise run rack:prep-switch ber1-tor-b --verbose
 mise run rack:prep-switch ber1-mgmt --dry-run
+mise run rack:prep-switch ber1-tor-a --import-key ~/.ssh/ber1-switch-rsa.pub
 ```
 
 Connect a USB-C cable from the machine running the command to the switch's
@@ -42,10 +43,22 @@ the SSH server, then writes the running config to startup. Everything else
 (VLANs, trunks, SNMP, ISL) is fleet configuration that applies to a pair of
 switches at once and belongs in a reviewed change, not in per-device bring-up.
 
-It does not import the fleet SSH public key, because these firmwares only accept
-a key as a file upload through the web UI. The script prints the exact page to
-finish on. Until the key is imported, the switch is password-only, which is why
-the credentials live in 1Password rather than in someone's notes.
+With `--import-key` it also installs the fleet SSH public key, which is what
+takes the switch from password-only to key-driveable. The web UI wants that key
+as a file upload, which cannot be scripted, but the CLI can pull it over TFTP
+(`ip ssh download v2 <file> ip-address <server>`), so the script serves the key
+from this machine for the duration of the transfer.
+
+Two consequences of that route:
+
+- TFTP is always requested on port 69, so the transfer needs **root**. Only the
+  serving process runs under `sudo`; the rest stays as the operator, because a
+  1Password session does not survive `sudo`.
+- The key must be **RSA** in **RFC4716** form. The script converts an OpenSSH
+  `.pub` itself and refuses an ed25519 key, which this firmware rejects.
+
+Without `--import-key`, the switch is left password-only, which is why the
+credentials live in 1Password rather than in someone's notes.
 
 ## Hardware facts worth keeping
 
