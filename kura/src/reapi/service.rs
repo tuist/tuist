@@ -418,6 +418,7 @@ impl ReapiService {
         };
 
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::clone(context),
             operation: observation.operation,
             outcome: observation.outcome,
@@ -5544,6 +5545,7 @@ mod tests {
         let context = reapi_cache_event_context(request.metadata(), "ios", "fallback")
             .expect("Bazel metadata should produce analytics context");
         let first = ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::clone(&context),
             operation: "cas",
             outcome: "hit",
@@ -5553,6 +5555,7 @@ mod tests {
             observed_at_ms: 3,
         };
         let second = ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context,
             operation: "cas",
             outcome: "miss",
@@ -5613,6 +5616,7 @@ mod tests {
                     .expect("Bazel metadata should produce analytics context");
                 for _ in 0..EVENTS_PER_BATCH {
                     std::hint::black_box(ReapiCacheAnalyticsEvent {
+                        event_id: uuid::Uuid::now_v7(),
                         context: Arc::clone(&context),
                         operation: "cas",
                         outcome: "hit",
