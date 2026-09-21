@@ -67,7 +67,7 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 
 ## Storage Planes
 
-Foreground artifact writes use 256 fixed lock stripes to reduce collisions between unrelated keys. A write keeps its artifact and namespace guards until segment bytes and metadata are durable. The separate 32-slot positioned-write limit remains the bound on concurrent segment writes; there is no additional background commit queue.
+Foreground artifact writes use 64 fixed lock stripes. A write keeps its artifact and namespace guards until segment bytes and metadata are durable. The separate 32-slot positioned-write limit remains the bound on concurrent segment writes. Preserve these guards and durability ordering when tuning concurrency; see the [ByteStream benchmark review](bytestream-benchmark.md) for measured tradeoffs and the decisions behind these bounds.
 
 Kura splits durable state into two planes so that the hot path is simple and the cold path can compact freely:
 
