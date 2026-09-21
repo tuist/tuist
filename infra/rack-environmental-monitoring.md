@@ -18,9 +18,9 @@
 The rack gets three temperature/humidity probes hanging off one of its two zero-U
 Eaton Rack PDU G4s, polled over SNMP by the staging cluster's Alloy through the
 same tailnet egress path that already scrapes the Mac minis, with five Grafana
-Cloud rules on top. Host thermal telemetry is enabled separately and is not a substitute. Every
-threshold here is provisional until the stack-thermal bench test replaces it with
-measurements, and this document says what that test has to record.
+Cloud rules on top. Host thermal telemetry is enabled separately and is not a
+substitute. Every threshold here is provisional until the stack-thermal bench test
+replaces it with measurements, and this document says what that test has to record.
 
 Nothing is bought, ordered or touched by this document. The BOM is priced for a
 decision, not placed.
@@ -30,8 +30,8 @@ decision, not placed.
 The rack will hold 16 to 20 Mac minis per top-of-rack switch (40+ on the long run),
 flush-stacked in MyElectronics 1.25U three-up mounts, plus four x86 nodes, two ToR
 switches, a management switch, three rack ATS units and two zero-U switched PDUs.
-Nothing in the plan watches rack temperature. The flush-stack thermal question is a line item on
-the bench acceptance list and then nothing ongoing.
+Nothing in the plan watches rack temperature. The flush-stack thermal question is a
+line item on the bench acceptance list and then nothing ongoing.
 
 A dense column of passively arranged mini PCs in a facility nobody visits is the
 shape where a fan failure or a blocked intake becomes a fleet event before anyone
@@ -128,6 +128,25 @@ The AP44XXA limit above is therefore the fallback branch rather than the operati
 and it is worth keeping: if the ATS decision reverts to APC, that box caps at a single
 sensor, which still loses to three on the PDU for the same reason. The recommendation
 does not move on either answer, which is the point of resting it on probe count.
+
+### The probe host has a condition on it that is not ours to resolve
+
+**The PDU order is not placed, and there is an open question upstream of it.** The rack
+notes carry an instruction to ask the facility, before ordering PDUs, whether they offer
+switched or intelligent PDUs as a service with a customer-accessible API, on the grounds
+that roughly € 2,877 may be avoidable if they do. Whether that question has been put to
+Martin, let alone answered, is not established here.
+
+State it as a dependency rather than leaving it implicit in `ber1-pdu-a` being
+`planned`: **if the answer is that the facility supplies the PDUs, the probe host may not
+be an Eaton G4 at all**, and a facility-managed PDU may host no probes whatsoever and
+expose no API to read them through. Everything below about three probes, the daisy
+chain, the Modbus attachment and the SNMP scrape assumes the G4. The recommendation is
+right for the hardware as currently decided; it is not right unconditionally.
+
+That also makes the AP44XXA fallback branch worth more than it looked. It was kept
+against the ATS decision reverting to APC, and it covers this case too: whatever box
+ends up in the rack, the question to ask it first is how many probes it takes.
 
 ### Where the probes go
 
@@ -390,10 +409,21 @@ because the raw OID names are unreadable and the label is what every rule below 
 Five rules, written in the format
 [`helm/k8s-monitoring/alerts.md`](helm/k8s-monitoring/alerts.md) uses. **They are
 deliberately not in that file yet.** That document is a build list: its "Create the
-rules in Grafana" section says to create everything in it, so putting rules there that
-no hardware can yet satisfy would poison it. They move across when the probes are
-installed, and once created, the rule id, folder and group go back into `alerts.md` so
-later checks read the deployed rule rather than this file.
+rules in Grafana" section says to create everything in it, so rules there that no
+hardware can satisfy would either be created and sit in no-data or be skipped, and
+skipping one teaches the next reader that the file is advisory. Both are worse than the
+rules living here.
+
+**The trigger for moving them is the probe nodes' `status`, not anybody's memory.**
+"When the probes are installed" is the shape of deferred step that never happens,
+because whoever installs a probe is not thinking about a markdown file. The site
+definition already carries the flag: the three `environment` nodes are `planned` today,
+and **the flip to `installed` is what releases these rules into `alerts.md`**. It reads
+in both directions, which is what makes it checkable: a rule in `alerts.md` whose probe
+is still `planned` is a bug, and so is an `installed` probe with no rule.
+
+Once created, the rule id, folder and group go back into `alerts.md` so later checks
+read the deployed rule rather than this file.
 
 All five use the Grafana Cloud metrics data source, evaluate every minute, and set
 **No Data: Normal**. Error is **Alerting** for the critical and telemetry-missing rules
@@ -548,22 +578,27 @@ six spare dry contacts; anything about rack 2.
 
 ## Open questions
 
-1. **Does the EATS16N support any environmental probe?** Its specification page names
+1. **Does the facility supply switched PDUs with a customer-accessible API?** Queued for
+   Martin from the power side and not established here. This is the only open question
+   that can invalidate the recommendation rather than refine it, because a
+   facility-managed PDU may host no probes at all. See "The probe host has a condition on
+   it" above.
+2. **Does the EATS16N support any environmental probe?** Its specification page names
    none and the EMP Gen 2 host list does not include it. Assumed no. Decides only
    whether the ATS could ever carry a backup probe, not where these three go.
-2. **Which socket does the EVMAFC20A present for the EMP, USB or RJ45?** The
+3. **Which socket does the EVMAFC20A present for the EMP, USB or RJ45?** The
    installation guide documents both shapes and the G4's module was not established.
    Changes the cabling steps, not the BOM, since the converter ships with the probe.
-3. **Does the Tailscale operator's egress proxy forward UDP on our version?** The
+4. **Does the Tailscale operator's egress proxy forward UDP on our version?** The
    documentation allows a protocol in `spec.ports` and shows UDP examples. Verify once
    against the deployed operator before relying on it; if it does not, the PDU's REST
    API over HTTPS is the TCP fallback and needs something to turn JSON into metrics.
-4. **Are the four x86 nodes scraped at all?** If they are, `node_hwmon_temp_celsius`
+5. **Are the four x86 nodes scraped at all?** If they are, `node_hwmon_temp_celsius`
    is a free second in-rack temperature.
-5. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
-6. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
+6. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
+7. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
    vendor catalogue, and the fact sheet the facility asked for still does not exist.
-7. **Does a flush stack actually recirculate?** The intake and the exhaust share the
+8. **Does a flush stack actually recirculate?** The intake and the exhaust share the
    bottom foot, which makes it plausible rather than proven. This is what the bench test
    is for, and every threshold here is provisional until it answers.
 
