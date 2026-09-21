@@ -363,6 +363,45 @@ defmodule TuistWeb.Coverage.Components do
   def change_color(_change), do: "neutral"
 
   @doc false
+  @doc """
+  The figure a commit is shown with: its reported coverage when everything its
+  runs skipped was carried forward (what a full run would measure), and what
+  the runs measured otherwise.
+  """
+  def displayed_coverage(%{reported: %{kind: "reported", coverage: coverage}}), do: coverage
+  def displayed_coverage(%{coverage: coverage}), do: coverage
+
+  @doc "What the page says about a commit some scheme of which only ran selectively."
+  def partial_run_title(%{reported: %{kind: "reported"} = reported} = commit) do
+    dgettext(
+      "dashboard_tests",
+      "Some tests were skipped (%{schemes}). The coverage of the %{count} skipped tests was carried forward from the commits they last ran at, every file they executed being unchanged, so the total is what a full run would measure: %{reported}% reported, %{measured}% measured here.",
+      schemes: Enum.join(commit.partial_schemes, ", "),
+      count: reported.carried_tests_count,
+      reported: reported.coverage,
+      measured: commit.coverage
+    )
+  end
+
+  def partial_run_title(%{reported: %{kind: "partial", skipped_tests_count: skipped} = reported} = commit)
+      when skipped > 0 do
+    dgettext(
+      "dashboard_tests",
+      "Some tests were skipped (%{schemes}): the total is not compared, and only the files some test executed are. The coverage of %{carried} of the %{skipped} skipped tests could be carried forward; the rest changed, failed or has no line evidence.",
+      schemes: Enum.join(commit.partial_schemes, ", "),
+      carried: reported.carried_tests_count,
+      skipped: skipped
+    )
+  end
+
+  def partial_run_title(commit) do
+    dgettext(
+      "dashboard_tests",
+      "Some tests were skipped (%{schemes}): the total is not compared, and only the files some test executed are.",
+      schemes: Enum.join(commit.partial_schemes, ", ")
+    )
+  end
+
   def completeness_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
   def completeness_label(%{complete: true, completeness: "signal"}), do: dgettext("dashboard_tests", "Complete")
   def completeness_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")

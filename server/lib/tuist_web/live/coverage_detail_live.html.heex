@@ -142,13 +142,7 @@
         status="information"
         type="secondary"
         size="small"
-        title={
-          dgettext(
-            "dashboard_tests",
-            "Some tests were skipped (%{schemes}): the total is not compared, and only the files some test executed are.",
-            schemes: Enum.join(@comparison.commit.partial_schemes, ", ")
-          )
-        }
+        title={partial_run_title(@comparison.commit)}
       />
       <.alert
         :if={not Map.get(@comparison.commit, :complete, false)}
@@ -175,7 +169,7 @@
               schemes: Enum.join(@comparison.commit.schemes, ", ")
             )
           }
-          value={"#{@comparison.commit.coverage}%"}
+          value={"#{displayed_coverage(@comparison.commit)}%"}
           trend_value={period_trend(@series)}
           trend_label={dgettext("dashboard_tests", "over the period")}
         />

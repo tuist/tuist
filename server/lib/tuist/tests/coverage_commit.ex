@@ -33,6 +33,13 @@ defmodule Tuist.Tests.CoverageCommit do
     field :test_run_ids, {:array, Ecto.UUID}, default: []
     field :complete, :boolean, default: false
     field :completeness, Ch, type: "LowCardinality(String)", default: ""
+    field :reported_covered_lines, Ch, type: "UInt64", default: 0
+    field :reported_executable_lines, Ch, type: "UInt64", default: 0
+    field :reported_kind, Ch, type: "LowCardinality(String)", default: ""
+    field :skipped_tests_count, Ch, type: "UInt32", default: 0
+    field :carried_tests_count, Ch, type: "UInt32", default: 0
+    field :gap_files_count, Ch, type: "UInt32", default: 0
+    field :carried_from, Ch, type: "Array(String)", default: []
     field :version, Ch, type: "UInt64"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end

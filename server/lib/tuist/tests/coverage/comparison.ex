@@ -299,7 +299,11 @@ defmodule Tuist.Tests.Coverage.Comparison do
         summary.schemes,
         summary.partial_schemes
       )
-      |> Map.merge(%{complete: summary.complete, completeness: summary.completeness})
+      |> Map.merge(%{
+        complete: summary.complete,
+        completeness: summary.completeness,
+        reported: Commits.reported_figure(summary)
+      })
 
     Map.merge(
       %{
@@ -316,12 +320,26 @@ defmodule Tuist.Tests.Coverage.Comparison do
     )
   end
 
-  # The whole is compared only when the head measured every scheme fully.
+  # The whole is compared when the head measured every scheme fully, or when
+  # what its runs skipped was carried forward in full: reported coverage is
+  # then what a full run would have measured.
   defp total_delta(_commit, nil, _partial), do: nil
+
+  defp total_delta(%{reported: %{kind: "reported", coverage: coverage}}, baseline, true),
+    do: delta(coverage, reported_percentage(baseline))
+
   defp total_delta(_commit, _baseline, true), do: nil
 
   defp total_delta(commit, baseline, false),
     do: delta(commit.coverage, Coverage.percentage(baseline.covered_lines, baseline.executable_lines))
+
+  defp reported_percentage(%{
+         reported_kind: "reported",
+         reported_covered_lines: covered,
+         reported_executable_lines: executable
+       }), do: Coverage.percentage(covered, executable)
+
+  defp reported_percentage(baseline), do: Coverage.percentage(baseline.covered_lines, baseline.executable_lines)
 
   defp commit_figure(sha, partial, covered, executable, schemes, partial_schemes) do
     %{

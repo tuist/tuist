@@ -139,6 +139,47 @@ defmodule TuistWeb.API.CoverageController do
     required: [:kind, :message]
   }
 
+  @reported %Schema{
+    title: "CoverageReported",
+    type: :object,
+    nullable: true,
+    description:
+      "What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.",
+    properties: %{
+      kind: %Schema{
+        type: :string,
+        enum: ["measured", "reported", "partial", "observed"],
+        description:
+          "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: some skipped tests or files could not be carried, and the figure is a lower bound. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
+      },
+      coverage: %Schema{type: :number},
+      covered_lines: %Schema{type: :integer},
+      executable_lines: %Schema{type: :integer},
+      skipped_tests_count: %Schema{type: :integer, description: "The candidate tests no run of the commit executed."},
+      carried_tests_count: %Schema{type: :integer, description: "Those of them whose coverage was carried forward."},
+      gap_files_count: %Schema{
+        type: :integer,
+        description:
+          "Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried."
+      },
+      carried_from: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description: "The commits the carried coverage was observed at."
+      }
+    },
+    required: [
+      :kind,
+      :coverage,
+      :covered_lines,
+      :executable_lines,
+      :skipped_tests_count,
+      :carried_tests_count,
+      :gap_files_count,
+      :carried_from
+    ]
+  }
+
   @measured_set_properties %{
     schemes: %Schema{type: :array, items: %Schema{type: :string}, description: "The schemes that measured the commit."},
     partial_schemes: %Schema{
@@ -370,7 +411,8 @@ defmodule TuistWeb.API.CoverageController do
           sha: %Schema{type: :string, description: "Empty for a run without a commit, described alone."},
           partial: %Schema{
             type: :boolean,
-            description: "Whether any scheme was only measured by runs that skipped tests; there is then no total delta."
+            description:
+              "Whether any scheme was only measured by runs that skipped tests; there is then a total delta only when `reported` carried everything they skipped."
           },
           covered_lines: %Schema{type: :integer},
           executable_lines: %Schema{type: :integer},
@@ -378,7 +420,8 @@ defmodule TuistWeb.API.CoverageController do
           schemes: %Schema{type: :array, items: %Schema{type: :string}},
           partial_schemes: %Schema{type: :array, items: %Schema{type: :string}},
           complete: %Schema{type: :boolean},
-          completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."}
+          completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."},
+          reported: @reported
         },
         required: [:sha, :partial, :covered_lines, :executable_lines, :coverage, :schemes, :partial_schemes]
       },
@@ -489,6 +532,7 @@ defmodule TuistWeb.API.CoverageController do
         },
         partial: %Schema{type: :boolean},
         completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."},
+        reported: @reported,
         measured_at: %Schema{type: :string, format: :"date-time"},
         targets: %Schema{type: :array, items: @target},
         baseline: @baseline,

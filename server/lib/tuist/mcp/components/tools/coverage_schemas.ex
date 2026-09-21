@@ -229,7 +229,8 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
             "schemes" => %{"type" => "array", "items" => %{"type" => "string"}},
             "partial_schemes" => %{"type" => "array", "items" => %{"type" => "string"}},
             "complete" => %{"type" => "boolean"},
-            "completeness" => %{"type" => "string"}
+            "completeness" => %{"type" => "string"},
+            "reported" => reported()
           },
           "required" => ["sha", "partial", "covered_lines", "executable_lines", "coverage", "schemes", "partial_schemes"],
           "additionalProperties" => false
@@ -414,6 +415,25 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
     }
   end
 
+  @doc "A commit's reported coverage: observed plus what was carried forward for the tests its runs skipped."
+  def reported do
+    %{
+      "type" => ["object", "null"],
+      "description" =>
+        "What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at (a test is carried only when it passed there and every file it executed, and every tracked file, is unchanged). kind: measured (nothing skipped), reported (everything skipped was carried: what a full run would measure), partial (gaps remain: a lower bound), observed (the runs listed no candidate tests).",
+      "properties" => %{
+        "kind" => %{"type" => "string", "enum" => ["measured", "reported", "partial", "observed"]},
+        "coverage" => %{"type" => "number"},
+        "covered_lines" => %{"type" => "integer"},
+        "executable_lines" => %{"type" => "integer"},
+        "skipped_tests_count" => %{"type" => "integer"},
+        "carried_tests_count" => %{"type" => "integer"},
+        "gap_files_count" => %{"type" => "integer"},
+        "carried_from" => %{"type" => "array", "items" => %{"type" => "string"}}
+      }
+    }
+  end
+
   @doc "The output of `get_commit_coverage`."
   def commit_output do
     %{
@@ -426,6 +446,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
             "description" =>
               "Source files of the commit's listing (of the kinds the runs measured, minus excluded paths) no run measured, shown in the dashboard as \"Files without coverage data\"; 0 when the listing is not stored."
           },
+          "reported" => reported(),
           "targets" => %{"type" => "array", "items" => target()},
           "baseline" => baseline(),
           "baseline_reason" => reason()

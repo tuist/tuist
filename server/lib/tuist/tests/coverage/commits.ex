@@ -27,6 +27,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Gates
+  alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
@@ -74,6 +75,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         |> Enum.sort()
 
       repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+      reported = Reported.compute(project, sha, runs: runs, excluded: excluded)
 
       row = %{
         project_id: project.id,
@@ -87,6 +89,13 @@ defmodule Tuist.Tests.Coverage.Commits do
         schemes: schemes,
         partial_schemes: partial_schemes,
         test_run_ids: run_ids,
+        reported_covered_lines: reported.covered_lines,
+        reported_executable_lines: reported.executable_lines,
+        reported_kind: reported.kind,
+        skipped_tests_count: reported.skipped_tests_count,
+        carried_tests_count: reported.carried_tests_count,
+        gap_files_count: reported.gap_files_count,
+        carried_from: reported.carried_from,
         complete: Keyword.get(opts, :complete, (previous && previous.complete) || false),
         completeness: Keyword.get(opts, :completeness, (previous && previous.completeness) || ""),
         version: next_version(previous),
@@ -94,7 +103,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       }
 
       IngestRepo.insert_all(CoverageCommit, [row])
-      Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+      with_percentages(row)
     end
   end
 
@@ -133,6 +142,13 @@ defmodule Tuist.Tests.Coverage.Commits do
         schemes: fragment("argMax(?, ?)", c.schemes, c.version),
         partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
         test_run_ids: type(fragment("argMax(?, ?)", c.test_run_ids, c.version), {:array, Ecto.UUID}),
+        reported_covered_lines: fragment("argMax(?, ?)", c.reported_covered_lines, c.version),
+        reported_executable_lines: fragment("argMax(?, ?)", c.reported_executable_lines, c.version),
+        reported_kind: fragment("argMax(?, ?)", c.reported_kind, c.version),
+        skipped_tests_count: fragment("argMax(?, ?)", c.skipped_tests_count, c.version),
+        carried_tests_count: fragment("argMax(?, ?)", c.carried_tests_count, c.version),
+        gap_files_count: fragment("argMax(?, ?)", c.gap_files_count, c.version),
+        carried_from: fragment("argMax(?, ?)", c.carried_from, c.version),
         complete: fragment("argMax(?, ?)", c.complete, c.version),
         completeness: fragment("argMax(?, ?)", c.completeness, c.version),
         version: max(c.version),
@@ -142,9 +158,47 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> ClickHouseRepo.one(settings: [select_sequential_consistency: 1])
     |> case do
       nil -> nil
-      row -> Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+      row -> with_percentages(row)
     end
   end
+
+  @doc """
+  The row with `coverage`, the observed percentage, and `reported_coverage`,
+  what the commit is covered by once the tests its runs skipped are carried
+  forward (`Tuist.Tests.Coverage.Reported`); the same as `coverage` for a
+  commit published before reported coverage existed.
+  """
+  def with_percentages(row) do
+    reported =
+      if Map.get(row, :reported_kind, "") == "",
+        do: Coverage.percentage(row.covered_lines, row.executable_lines),
+        else: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines)
+
+    row
+    |> Map.put(:coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+    |> Map.put(:reported_coverage, reported)
+  end
+
+  @doc """
+  What a published commit is covered by once the tests its runs skipped are
+  carried forward (`Tuist.Tests.Coverage.Reported`), as the comparison, the
+  API and the pages show it; nil for a commit published before reported
+  coverage existed.
+  """
+  def reported_figure(%{reported_kind: kind} = summary) when kind not in [nil, ""] do
+    %{
+      kind: kind,
+      coverage: Coverage.percentage(summary.reported_covered_lines, summary.reported_executable_lines),
+      covered_lines: summary.reported_covered_lines,
+      executable_lines: summary.reported_executable_lines,
+      skipped_tests_count: summary.skipped_tests_count,
+      carried_tests_count: summary.carried_tests_count,
+      gap_files_count: summary.gap_files_count,
+      carried_from: summary.carried_from
+    }
+  end
+
+  def reported_figure(_summary), do: nil
 
   @doc "The published totals of a head (`Tuist.Tests.Coverage.Comparison.from_commit/2`), or nil."
   def summary_for(%{sha: sha, project_id: project_id}), do: summary(project_id, sha)
@@ -170,6 +224,13 @@ defmodule Tuist.Tests.Coverage.Commits do
         schemes: fragment("argMax(?, ?)", c.schemes, c.version),
         partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
         test_run_ids: type(fragment("argMax(?, ?)", c.test_run_ids, c.version), {:array, Ecto.UUID}),
+        reported_covered_lines: fragment("argMax(?, ?)", c.reported_covered_lines, c.version),
+        reported_executable_lines: fragment("argMax(?, ?)", c.reported_executable_lines, c.version),
+        reported_kind: fragment("argMax(?, ?)", c.reported_kind, c.version),
+        skipped_tests_count: fragment("argMax(?, ?)", c.skipped_tests_count, c.version),
+        carried_tests_count: fragment("argMax(?, ?)", c.carried_tests_count, c.version),
+        gap_files_count: fragment("argMax(?, ?)", c.gap_files_count, c.version),
+        carried_from: fragment("argMax(?, ?)", c.carried_from, c.version),
         complete: fragment("argMax(?, ?)", c.complete, c.version),
         completeness: fragment("argMax(?, ?)", c.completeness, c.version),
         inserted_at: fragment("argMax(?, ?)", c.inserted_at, c.version)

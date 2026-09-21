@@ -922,6 +922,10 @@ defmodule Tuist.VCS do
     end
   end
 
+  defp coverage_total_text(%{commit: %{partial: true, coverage: coverage, reported: %{kind: "reported"} = reported}}) do
+    "#{reported.coverage}% (#{coverage}% measured, #{reported.carried_tests_count} skipped #{if reported.carried_tests_count == 1, do: "test", else: "tests"} carried forward)"
+  end
+
   defp coverage_total_text(%{commit: %{partial: true, coverage: coverage}}), do: "#{coverage}% (partial)"
   defp coverage_total_text(%{commit: %{coverage: coverage}}), do: "#{coverage}%"
 

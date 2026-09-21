@@ -7,6 +7,7 @@ defmodule Tuist.Tests.Coverage.Report do
 
   alias Tuist.GitHistory
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Test
 
@@ -50,6 +51,7 @@ defmodule Tuist.Tests.Coverage.Report do
         partial: summary.partial_schemes != [],
         complete: summary.complete,
         completeness: summary.completeness,
+        reported: Commits.reported_figure(summary),
         test_run_ids: summary.test_run_ids,
         measured_at: iso8601(summary.inserted_at),
         targets: Enum.map(targets, &target/1)
